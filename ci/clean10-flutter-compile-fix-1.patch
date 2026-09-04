@@ -47,3 +47,11 @@
  }
  
  include(":app")
+--- a/flutter/excel_herbal_erp/android/app/src/main/kotlin/in/excelherbal/erp/MainActivity.kt
++++ b/flutter/excel_herbal_erp/android/app/src/main/kotlin/in/excelherbal/erp/MainActivity.kt
+@@ -1,4 +1,4 @@
+-package in.excelherbal.erp
++package `in`.excelherbal.erp
+ 
+ import io.flutter.embedding.android.FlutterActivity
+ 
