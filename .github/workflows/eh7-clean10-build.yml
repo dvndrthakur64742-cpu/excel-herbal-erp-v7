@@ -34,11 +34,12 @@ jobs:
           mkdir work
           tar -xJf /tmp/eh7-clean10.tar.xz -C work
 
-      - name: Apply compiler fix overlay
+      - name: Apply compiler and Android toolchain overlays
         run: |
           set -euo pipefail
           cd work
           patch -p1 --forward --batch < ../ci/clean10-flutter-compile-fix-1.patch
+          patch -p1 --forward --batch < ../ci/clean10-android-toolchain-fix-1.patch
 
       - name: Source gates
         working-directory: work
