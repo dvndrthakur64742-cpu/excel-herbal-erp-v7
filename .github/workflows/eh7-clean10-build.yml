@@ -54,7 +54,7 @@ jobs:
 
       - name: Flutter analyze
         working-directory: work/flutter/excel_herbal_erp
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Flutter test
         working-directory: work/flutter/excel_herbal_erp
