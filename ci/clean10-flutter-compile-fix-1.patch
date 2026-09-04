@@ -1,0 +1,36 @@
+--- a/flutter/excel_herbal_erp/lib/screens/performance/performance_screen.dart
++++ b/flutter/excel_herbal_erp/lib/screens/performance/performance_screen.dart
+@@ -3,6 +3,7 @@
+ 
+ import '../../core/api_paths.dart';
+ import '../../core/providers.dart';
++import '../../state/app_state.dart';
+ import '../../widgets/async_panel.dart';
+ import '../../widgets/branch_selector.dart';
+ import '../../widgets/records_list.dart';
+--- a/flutter/excel_herbal_erp/lib/screens/organization/organization_screen.dart
++++ b/flutter/excel_herbal_erp/lib/screens/organization/organization_screen.dart
+@@ -256,18 +256,18 @@
+           ),
+         ),
+       );
+-      final payload = {
++      final payload = <String, dynamic>{
+         'assigned_branch_id': app.currentBranchId,
+         'employee_code': code.text.trim(),
+         'full_name': name.text.trim(),
+         'designation_code': designationCode,
+-        'role_ids': if (roleId != null) [roleId],
+-        if (reportingId != null) 'reporting_employee_id': reportingId,
+-        if (mobile.text.trim().isNotEmpty) 'mobile': mobile.text.trim(),
+-        if (email.text.trim().isNotEmpty) 'email': email.text.trim(),
+         'monthly_salary': double.tryParse(salary.text) ?? 0,
+         'joining_date': joining.text.trim(),
+       };
++      if (roleId != null) payload['role_ids'] = <int>[roleId!];
++      if (reportingId != null) payload['reporting_employee_id'] = reportingId;
++      if (mobile.text.trim().isNotEmpty) payload['mobile'] = mobile.text.trim();
++      if (email.text.trim().isNotEmpty) payload['email'] = email.text.trim();
+       code.dispose(); name.dispose(); mobile.dispose(); email.dispose(); salary.dispose(); joining.dispose();
+       if (ok != true) return;
+       await api.post(ApiPaths.employees, data: payload);
