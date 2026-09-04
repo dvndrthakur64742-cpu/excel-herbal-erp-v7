@@ -2,9 +2,6 @@ name: EH7 Clean10 Flutter Build
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-  pull_request:
 
 permissions:
   contents: read
@@ -13,45 +10,4 @@ jobs:
   verify-and-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Flutter 3.47.2
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: '3.47.2'
-          cache: true
-      - name: Unpack canonical source
-        run: |
-          rm -rf work
-          mkdir work
-          unzip -q dist/EH7-GREENFIELD-CLEAN10-FINAL-CI-SOURCE-2026-09-04.zip -d work
-      - name: Source gates
-        working-directory: work
-        run: ./tool/verify_source_rc.sh
-      - name: Bootstrap Android wrapper
-        working-directory: work
-        run: ./tool/bootstrap_android_wrapper.sh
-      - name: Flutter dependencies
-        working-directory: work/flutter/excel_herbal_erp
-        run: flutter pub get
-      - name: Flutter analyze
-        working-directory: work/flutter/excel_herbal_erp
-        run: flutter analyze
-      - name: Flutter test
-        working-directory: work/flutter/excel_herbal_erp
-        run: flutter test
-      - name: Build office UAT debug APK
-        working-directory: work/flutter/excel_herbal_erp
-        run: |
-          flutter build apk --debug \
-            --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 \
-            --dart-define=EH7_ENVIRONMENT=uat
-          sha256sum build/app/outputs/flutter-apk/app-debug.apk | tee ../../../APK-SHA256.txt
-      - name: Upload office UAT APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: eh7-office-uat-debug-apk
-          path: |
-            work/flutter/excel_herbal_erp/build/app/outputs/flutter-apk/app-debug.apk
-            APK-SHA256.txt
-          if-no-files-found: error
+      - run: echo "Source upload in progress; CI will be enabled after SHA-verified source is committed."
