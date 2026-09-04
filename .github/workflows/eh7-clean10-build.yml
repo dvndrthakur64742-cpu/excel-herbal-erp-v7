@@ -39,6 +39,7 @@ jobs:
           set -euo pipefail
           cd work
           patch -p1 --forward --batch < ../ci/clean10-flutter-compile-fix-1.patch
+          python3 ../ci/clean10-analyzer-cleanup-2.py
 
       - name: Source gates
         working-directory: work
@@ -52,9 +53,9 @@ jobs:
         working-directory: work/flutter/excel_herbal_erp
         run: flutter pub get
 
-      - name: Flutter analyze
+      - name: Flutter analyze strict
         working-directory: work/flutter/excel_herbal_erp
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze
 
       - name: Flutter test
         working-directory: work/flutter/excel_herbal_erp
