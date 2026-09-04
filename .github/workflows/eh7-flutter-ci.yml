@@ -1,0 +1,70 @@
+name: EH7 Flutter 3.47.2 Build Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'flutter/excel_herbal_erp/**'
+      - 'tool/**'
+      - 'tests/**'
+      - '.github/workflows/eh7-flutter-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require canonical Flutter source
+        run: |
+          test -f flutter/excel_herbal_erp/pubspec.yaml
+          test -f flutter/excel_herbal_erp/lib/main.dart
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Verify exact Flutter compiler
+        run: flutter --version | tee flutter-version.txt
+
+      - name: Bootstrap Android wrapper
+        run: ./tool/bootstrap_android_wrapper.sh
+
+      - name: Get dependencies
+        working-directory: flutter/excel_herbal_erp
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: flutter/excel_herbal_erp
+        run: flutter analyze
+
+      - name: Test
+        working-directory: flutter/excel_herbal_erp
+        run: flutter test
+
+      - name: Build UAT debug APK
+        working-directory: flutter/excel_herbal_erp
+        run: >-
+          flutter build apk --debug
+          --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          --dart-define=EH7_ENVIRONMENT=uat
+
+      - name: Generate APK SHA-256
+        run: |
+          sha256sum flutter/excel_herbal_erp/build/app/outputs/flutter-apk/app-debug.apk | tee app-debug.apk.sha256
+
+      - name: Upload APK and build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh7-v7-uat-debug-apk
+          path: |
+            flutter/excel_herbal_erp/build/app/outputs/flutter-apk/app-debug.apk
+            app-debug.apk.sha256
+            flutter-version.txt
+          if-no-files-found: error
