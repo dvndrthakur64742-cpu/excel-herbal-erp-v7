@@ -1,0 +1,19 @@
+name: excel_herbal_erp
+description: Excel Herbal ERP 7 Flutter client
+publish_to: none
+version: 7.1.0+1
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.8.0+1
+  flutter_secure_storage: ^9.2.4
+  geolocator: ^13.0.2
+  flutter_riverpod: ^2.6.1
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+flutter:
+  uses-material-design: true

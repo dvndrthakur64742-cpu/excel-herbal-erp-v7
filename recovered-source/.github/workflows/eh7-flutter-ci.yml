@@ -1,0 +1,61 @@
+name: EH7 Flutter Compile Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+    paths:
+      - 'flutter/excel_herbal_erp/**'
+      - 'backend/excel-herbal-erp-v7/**'
+      - 'tests/**'
+      - 'tool/**'
+      - '.github/workflows/eh7-flutter-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  clean-source-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP and clean-source regression
+        run: ./tool/verify.sh
+      - name: UAT safety policy
+        run: ./tool/verify_uat_safety.sh
+
+  flutter-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+      - name: Bootstrap Android Gradle wrapper safely
+        run: ./tool/bootstrap_android_wrapper.sh
+      - name: Flutter version
+        run: flutter --version
+      - name: Dependencies
+        working-directory: flutter/excel_herbal_erp
+        run: flutter pub get
+      - name: Analyze
+        working-directory: flutter/excel_herbal_erp
+        run: flutter analyze
+      - name: Test
+        working-directory: flutter/excel_herbal_erp
+        run: flutter test
+      - name: Android debug APK compiler gate (approved office UAT)
+        working-directory: flutter/excel_herbal_erp
+        run: >-
+          EH7_ALLOW_PRODUCTION_API=1 flutter build apk --debug
+          --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          --dart-define=EH7_ENVIRONMENT=uat
+      - name: Upload compiler-gate APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh7-office-uat-debug-apk
+          path: flutter/excel_herbal_erp/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
