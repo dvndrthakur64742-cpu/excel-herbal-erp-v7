@@ -3,10 +3,12 @@ name: EH7 Recovery Source Export
 on:
   push:
     branches: [ recovery-v713-backend-completion ]
+    paths:
+      - '.github/workflows/eh7-recovery-source-export.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   export-source:
@@ -22,25 +24,26 @@ jobs:
           test "$(find dist/source.xz.parts -maxdepth 1 -type f -name 'part-*.b64' | wc -l)" -eq 15
           cat dist/source.xz.parts/part-*.b64 | base64 -d > /tmp/eh7-clean10.tar.xz
           echo "b89b034254702f81b514c08995d3edc345947852b48f43fea4bd6e89e9c13c0a  /tmp/eh7-clean10.tar.xz" | sha256sum -c -
-          rm -rf work
-          mkdir work
-          tar -xJf /tmp/eh7-clean10.tar.xz -C work
-          find work -type f | sort > EH7-RECOVERED-SOURCE-FILES.txt
+          rm -rf recovered-source
+          mkdir recovered-source
+          tar -xJf /tmp/eh7-clean10.tar.xz -C recovered-source
+          find recovered-source -type f | sort > EH7-RECOVERED-SOURCE-FILES.txt
           printf 'PHP_COUNT=' > EH7-RECOVERED-SOURCE-COUNTS.txt
-          find work -type f -name '*.php' | wc -l >> EH7-RECOVERED-SOURCE-COUNTS.txt
+          find recovered-source -type f -name '*.php' | wc -l >> EH7-RECOVERED-SOURCE-COUNTS.txt
           printf 'DART_COUNT=' >> EH7-RECOVERED-SOURCE-COUNTS.txt
-          find work -type f -name '*.dart' | wc -l >> EH7-RECOVERED-SOURCE-COUNTS.txt
-          tar -czf EH7-CANONICAL-RECOVERED-SOURCE.tgz -C work .
-          sha256sum EH7-CANONICAL-RECOVERED-SOURCE.tgz > EH7-CANONICAL-RECOVERED-SOURCE.sha256
+          find recovered-source -type f -name '*.dart' | wc -l >> EH7-RECOVERED-SOURCE-COUNTS.txt
+          cat EH7-RECOVERED-SOURCE-COUNTS.txt
 
-      - name: Upload canonical source
-        uses: actions/upload-artifact@v4
-        with:
-          name: eh7-canonical-recovered-source
-          path: |
-            EH7-CANONICAL-RECOVERED-SOURCE.tgz
-            EH7-CANONICAL-RECOVERED-SOURCE.sha256
-            EH7-RECOVERED-SOURCE-FILES.txt
-            EH7-RECOVERED-SOURCE-COUNTS.txt
-          if-no-files-found: error
-          retention-days: 14
+      - name: Commit canonical source to recovery branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'eh7-recovery-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add recovered-source EH7-RECOVERED-SOURCE-FILES.txt EH7-RECOVERED-SOURCE-COUNTS.txt
+          if git diff --cached --quiet; then
+            echo 'Canonical source already committed.'
+            exit 0
+          fi
+          git commit -m 'Store SHA-verified canonical source [skip ci]'
+          git push origin HEAD:recovery-v713-backend-completion
