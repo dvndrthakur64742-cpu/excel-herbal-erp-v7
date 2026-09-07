@@ -1,0 +1,71 @@
+name: EH7 v7.1.14 Backend Recovery
+
+on:
+  push:
+    branches: [ recovery-v713-backend-completion ]
+    paths:
+      - 'tools/apply_v714_backend_recovery.py'
+      - '.github/workflows/eh7-v714-backend-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply backend recovery
+        run: python3 tools/apply_v714_backend_recovery.py
+
+      - name: PHP lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          find recovered-source/backend/excel-herbal-erp-v7 -type f -name '*.php' -print0 | sort -z | xargs -0 -n1 php -l
+
+      - name: Recovery contracts
+        run: python3 recovered-source/tests/recovery_contracts.py
+
+      - name: Existing source invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd recovered-source
+          for f in tests/*.py; do
+            echo "== $f =="
+            python3 "$f"
+          done
+          for f in tests/*.php; do
+            echo "== $f =="
+            php "$f"
+          done
+
+      - name: Package backend source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p releases/v7.1.14
+          cd recovered-source/backend
+          zip -qr ../../releases/v7.1.14/Excel-Herbal-ERP-v7.1.14-BACKEND-RECOVERY-RC.zip excel-herbal-erp-v7
+          cd ../..
+          sha256sum releases/v7.1.14/Excel-Herbal-ERP-v7.1.14-BACKEND-RECOVERY-RC.zip > releases/v7.1.14/SHA256SUMS.txt
+          find recovered-source/backend/excel-herbal-erp-v7 -type f -name '*.php' | wc -l > releases/v7.1.14/PHP_FILE_COUNT.txt
+          printf 'Recovery contracts: PASS\nPHP lint: PASS\nNo production deployment performed.\n' > releases/v7.1.14/BUILD-REPORT.txt
+
+      - name: Commit validated recovery source and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'eh7-recovery-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add recovered-source releases/v7.1.14
+          if git diff --cached --quiet; then
+            echo 'No generated changes.'
+            exit 0
+          fi
+          git commit -m 'Apply and validate v7.1.14 backend recovery [skip ci]'
+          git push origin HEAD:recovery-v713-backend-completion
