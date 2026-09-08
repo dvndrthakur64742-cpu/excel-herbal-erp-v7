@@ -1,4 +1,4 @@
-name: EH7 Flutter v7.3.0 Brand Build
+name: EH7 Flutter v7.3.1 Daily Order Fix
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
     paths:
       - 'build-input/flutter-v730-brand-small.parts/**'
       - 'build-input/flutter-v730-analyzer-fix.parts/**'
+      - 'build-input/flutter-v731-daily-batch-fix.parts/**'
       - '.github/workflows/eh7-v720-build.yml'
   workflow_dispatch:
 
@@ -86,7 +87,18 @@ jobs:
           echo "88e1af8322d038fdd9f68f501c480727129515945f5d50a0e0aa1c99faeb7d47  /tmp/flutter-v730-analyzer-fix.tar.xz" | sha256sum -c -
           tar -xJf /tmp/flutter-v730-analyzer-fix.tar.xz -C work
           grep -q "this.recordType" work/flutter/excel_herbal_erp/lib/widgets/records_list.dart
-          ! grep -q "Drawer _mobileDrawer(AppState app) {$" work/flutter/excel_herbal_erp/lib/shell/app_shell.dart || true
+
+      - name: Apply v7.3.1 Daily Order batch logic fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build-input/flutter-v731-daily-batch-fix.parts -maxdepth 1 -type f -name 'part-*.b64' | wc -l)" -eq 2
+          cat build-input/flutter-v731-daily-batch-fix.parts/part-*.b64 | base64 -d > /tmp/flutter-v731-daily-batch-fix.tar.xz
+          echo "d52a44a6efc507a19fe1bcc1f14136cb54b219e2f387f31303bb395f891652c1  /tmp/flutter-v731-daily-batch-fix.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter-v731-daily-batch-fix.tar.xz -C work
+          grep -q "version: 7.3.1+731" work/flutter/excel_herbal_erp/pubspec.yaml
+          ! grep -q "Batch ID" work/flutter/excel_herbal_erp/lib/screens/my_work/my_work_screen.dart
+          grep -q "SafeArea(" work/flutter/excel_herbal_erp/lib/screens/my_work/my_work_screen.dart
 
       - name: Bootstrap Android wrapper
         working-directory: work
@@ -104,12 +116,12 @@ jobs:
         working-directory: work/flutter/excel_herbal_erp
         run: flutter test
 
-      - name: Build branded UAT APK
+      - name: Build v7.3.1 UAT APK
         working-directory: work/flutter/excel_herbal_erp
         run: >-
           flutter build apk --debug
-          --build-name=7.3.0
-          --build-number=730
+          --build-name=7.3.1
+          --build-number=731
           --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
           --dart-define=EH7_ENVIRONMENT=uat
 
@@ -119,26 +131,26 @@ jobs:
           set -euo pipefail
           APK=work/flutter/excel_herbal_erp/build/app/outputs/flutter-apk/app-debug.apk
           test -s "$APK"
-          mkdir -p dist/flutter-v7.3.0
-          cp "$APK" dist/flutter-v7.3.0/Excel-Herbal-ERP-v7.3.0-Brand-UAT.apk
-          sha256sum dist/flutter-v7.3.0/Excel-Herbal-ERP-v7.3.0-Brand-UAT.apk | tee dist/flutter-v7.3.0/APK-SHA256.txt
+          mkdir -p dist/flutter-v7.3.1
+          cp "$APK" dist/flutter-v7.3.1/Excel-Herbal-ERP-v7.3.1-Daily-Order-Fix-UAT.apk
+          sha256sum dist/flutter-v7.3.1/Excel-Herbal-ERP-v7.3.1-Daily-Order-Fix-UAT.apk | tee dist/flutter-v7.3.1/APK-SHA256.txt
 
-      - name: Publish branded APK as GitHub Release
+      - name: Publish v7.3.1 APK as GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG=v7.3.0-brand-uat
-          APK=dist/flutter-v7.3.0/Excel-Herbal-ERP-v7.3.0-Brand-UAT.apk
-          HASH=dist/flutter-v7.3.0/APK-SHA256.txt
+          TAG=v7.3.1-daily-order-fix-uat
+          APK=dist/flutter-v7.3.1/Excel-Herbal-ERP-v7.3.1-Daily-Order-Fix-UAT.apk
+          HASH=dist/flutter-v7.3.1/APK-SHA256.txt
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$HASH" --clobber
           else
             gh release create "$TAG" "$APK" "$HASH" \
               --target "$GITHUB_SHA" \
-              --title "Excel Herbal ERP Flutter v7.3.0 Brand UAT" \
-              --notes "Excel Herbal branded professional UI build. Green/black/white design system, branded login/home/drawer, professional error states, improved Daily Order and Issue Stock UX, GPS source correction. Flutter analyze/test/APK build verified by CI."
+              --title "Excel Herbal ERP Flutter v7.3.1 Daily Order Fix UAT" \
+              --notes "Daily Order and Issue Stock no longer ask users for Batch ID. Backend ERP v7.2.1 is required for automatic warehouse batch allocation/FEFO. Issue Stock footer is protected by Android SafeArea. Flutter analyze/test/APK build verified by CI."
           fi
 
       - name: Commit APK hash to build branch
@@ -147,11 +159,11 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          mkdir -p release-manifests/v7.3.0
-          cp dist/flutter-v7.3.0/APK-SHA256.txt release-manifests/v7.3.0/APK-SHA256.txt
-          git add release-manifests/v7.3.0/APK-SHA256.txt
+          mkdir -p release-manifests/v7.3.1
+          cp dist/flutter-v7.3.1/APK-SHA256.txt release-manifests/v7.3.1/APK-SHA256.txt
+          git add release-manifests/v7.3.1/APK-SHA256.txt
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m "Record Flutter v7.3.0 brand APK hash [skip ci]"
+          git commit -m "Record Flutter v7.3.1 APK hash [skip ci]"
           git push origin HEAD:flutter-v720-build
