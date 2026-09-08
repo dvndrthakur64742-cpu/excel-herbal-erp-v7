@@ -57,6 +57,7 @@ jobs:
           sha256sum dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk | tee dist/flutter-v7.4.0/APK-SHA256.txt
 
       - name: Upload workflow artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: Excel-Herbal-ERP-v7.4.0-Stabilization-UAT
