@@ -1,0 +1,6 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    use_build_context_synchronously: false
+    curly_braces_in_flow_control_structures: false
