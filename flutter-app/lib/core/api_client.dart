@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 import 'api_paths.dart';
@@ -8,12 +9,20 @@ import 'app_config.dart';
 import 'secure_session.dart';
 
 class ApiException implements Exception {
-  const ApiException(this.code, this.message, [this.statusCode]);
+  const ApiException(
+    this.code,
+    this.message, [
+    this.statusCode,
+    this.requestId,
+  ]);
+
   final String code;
   final String message;
   final int? statusCode;
+  final String? requestId;
 
-  bool get isAuthenticationFailure => statusCode == 401 || statusCode == 403;
+  bool get isAuthenticationFailure => statusCode == 401;
+  bool get isPermissionFailure => statusCode == 403;
 
   @override
   String toString() => message;
@@ -21,6 +30,7 @@ class ApiException implements Exception {
 
 class _MutationKey {
   const _MutationKey(this.value, this.createdAt);
+
   final String value;
   final DateTime createdAt;
 }
@@ -40,7 +50,6 @@ class ApiClient {
   final SecureSession session;
   final Dio dio;
   final Random _random = Random.secure();
-  final Map<String, _MutationKey> _uncertainMutations = {};
   Future<bool>? _refreshFuture;
 
   static const _uncertainMutationTtl = Duration(minutes: 30);
@@ -92,7 +101,10 @@ class ApiClient {
       return dio.post<dynamic>(
         path,
         data: form,
-        options: Options(headers: headers, contentType: 'multipart/form-data'),
+        options: Options(
+          headers: headers,
+          contentType: 'multipart/form-data',
+        ),
       );
     }
 
@@ -141,7 +153,6 @@ class ApiClient {
     } catch (_) {
       // Local logout still proceeds when the network is unavailable.
     }
-    _uncertainMutations.clear();
     await session.clear();
   }
 
@@ -166,9 +177,10 @@ class ApiClient {
     String? fingerprint;
     String? mutationKey;
     if (idempotent && method != 'GET') {
-      _pruneUncertainMutations();
       fingerprint = _mutationFingerprint(method, path, data);
-      final retained = _uncertainMutations[fingerprint];
+      final retained = retainedMutationKey == null
+          ? await _loadRetainedMutation(fingerprint)
+          : null;
       mutationKey = retainedMutationKey ?? retained?.value ?? _requestKey();
       headers['X-Idempotency-Key'] = mutationKey;
     }
@@ -180,7 +192,7 @@ class ApiClient {
         queryParameters: query,
         options: Options(method: method, headers: headers),
       );
-      if (fingerprint != null) _uncertainMutations.remove(fingerprint);
+      if (fingerprint != null) await _clearRetainedMutation(fingerprint);
       return _unwrap(response.data, response.statusCode);
     } on DioException catch (error) {
       if (authenticated &&
@@ -201,10 +213,9 @@ class ApiClient {
 
       if (fingerprint != null && mutationKey != null) {
         if (_isUncertainNetworkFailure(error)) {
-          _uncertainMutations[fingerprint] =
-              _MutationKey(mutationKey, DateTime.now());
+          await _saveRetainedMutation(fingerprint, mutationKey);
         } else {
-          _uncertainMutations.remove(fingerprint);
+          await _clearRetainedMutation(fingerprint);
         }
       }
       throw _dioException(error);
@@ -213,18 +224,21 @@ class ApiClient {
 
   ApiException _dioException(DioException error) {
     final body = error.response?.data;
+    final requestId = _responseRequestId(error.response, body);
     if (body is Map && body['error'] is Map) {
       final er = Map<String, dynamic>.from(body['error'] as Map);
       return ApiException(
         '${er['code'] ?? 'api_error'}',
         '${er['message'] ?? 'Request failed'}',
         error.response?.statusCode,
+        requestId,
       );
     }
     return ApiException(
       'network_error',
       _networkMessage(error),
       error.response?.statusCode,
+      requestId,
     );
   }
 
@@ -232,10 +246,12 @@ class ApiClient {
     if (body is Map && body['ok'] == true) return body['data'];
     if (body is Map && body['error'] is Map) {
       final er = Map<String, dynamic>.from(body['error'] as Map);
+      final requestId = '${body['request_id'] ?? ''}'.trim();
       throw ApiException(
         '${er['code'] ?? 'api_error'}',
         '${er['message'] ?? 'Request failed'}',
         statusCode,
+        requestId.isEmpty ? null : requestId,
       );
     }
     return body;
@@ -268,8 +284,7 @@ class ApiClient {
       );
       return true;
     } on DioException catch (error) {
-      // Do not destroy a valid local session because of a temporary network or
-      // server outage. Only an explicit authentication rejection invalidates it.
+      // Only an explicit refresh-token rejection invalidates the local session.
       if (error.response?.statusCode == 400 ||
           error.response?.statusCode == 401 ||
           error.response?.statusCode == 403) {
@@ -289,11 +304,59 @@ class ApiClient {
           error.type == DioExceptionType.connectionError ||
           error.type == DioExceptionType.unknown);
 
-  void _pruneUncertainMutations() {
-    final cutoff = DateTime.now().subtract(_uncertainMutationTtl);
-    _uncertainMutations
-        .removeWhere((_, item) => item.createdAt.isBefore(cutoff));
+  Future<_MutationKey?> _loadRetainedMutation(String fingerprint) async {
+    try {
+      final journal = await session.uncertainMutations();
+      final key = _mutationJournalKey(fingerprint);
+      final raw = journal[key];
+      if (raw is! Map) return null;
+      final item = Map<String, dynamic>.from(raw);
+      final value = '${item['key'] ?? ''}'.trim();
+      final createdAt = DateTime.tryParse('${item['created_at'] ?? ''}');
+      if (value.isEmpty || createdAt == null) {
+        journal.remove(key);
+        await session.saveUncertainMutations(journal);
+        return null;
+      }
+      if (createdAt.isBefore(DateTime.now().subtract(_uncertainMutationTtl))) {
+        journal.remove(key);
+        await session.saveUncertainMutations(journal);
+        return null;
+      }
+      return _MutationKey(value, createdAt);
+    } catch (_) {
+      return null;
+    }
   }
+
+  Future<void> _saveRetainedMutation(
+    String fingerprint,
+    String mutationKey,
+  ) async {
+    try {
+      final journal = await session.uncertainMutations();
+      journal[_mutationJournalKey(fingerprint)] = {
+        'key': mutationKey,
+        'created_at': DateTime.now().toIso8601String(),
+      };
+      await session.saveUncertainMutations(journal);
+    } catch (_) {
+      // Persistence failure must not hide the original request result.
+    }
+  }
+
+  Future<void> _clearRetainedMutation(String fingerprint) async {
+    try {
+      final journal = await session.uncertainMutations();
+      final removed = journal.remove(_mutationJournalKey(fingerprint));
+      if (removed != null) await session.saveUncertainMutations(journal);
+    } catch (_) {
+      // Best-effort cleanup only.
+    }
+  }
+
+  String _mutationJournalKey(String fingerprint) =>
+      sha256.convert(utf8.encode(fingerprint)).toString();
 
   String _mutationFingerprint(
     String method,
@@ -316,6 +379,16 @@ class ApiClient {
   String _requestKey() =>
       '${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 31)}';
 
+  String? _responseRequestId(Response<dynamic>? response, dynamic body) {
+    final fromHeader = response?.headers.value('x-request-id')?.trim();
+    if (fromHeader != null && fromHeader.isNotEmpty) return fromHeader;
+    if (body is Map) {
+      final fromBody = '${body['request_id'] ?? ''}'.trim();
+      if (fromBody.isNotEmpty) return fromBody;
+    }
+    return null;
+  }
+
   String _networkMessage(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.sendTimeout ||
@@ -326,7 +399,7 @@ class ApiClient {
       return 'Internet connection available nahi hai.';
     }
     if (error.response != null) {
-      return 'Server error (${error.response?.statusCode ?? '-' }). Retry karein.';
+      return 'Server error (${error.response?.statusCode ?? '-'}). Retry karein.';
     }
     return 'Server se response nahi mila. Retry karein.';
   }
