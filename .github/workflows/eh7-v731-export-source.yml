@@ -1,0 +1,57 @@
+name: EH7 Export Flutter v7.3.1 Source
+
+on:
+  push:
+    branches: [flutter-v720-build]
+    paths: ['.github/workflows/eh7-v731-export-source.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct v7.3.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat dist/source.xz.parts/part-*.b64 | base64 -d > /tmp/base.tar.xz
+          echo "b89b034254702f81b514c08995d3edc345947852b48f43fea4bd6e89e9c13c0a  /tmp/base.tar.xz" | sha256sum -c -
+          rm -rf work && mkdir work && tar -xJf /tmp/base.tar.xz -C work
+          cd work && patch -p1 --forward --batch < ../ci/clean10-flutter-compile-fix-1.patch && python3 ../ci/clean10-analyzer-cleanup-2.py && cd ..
+          cat build-input/flutter-v720.parts3/part-*.b64 | base64 -d > /tmp/a.tar.xz && tar -xJf /tmp/a.tar.xz -C work
+          cat build-input/flutter-v720-missing.parts/part-*.b64 | base64 -d > /tmp/b.tar.xz && tar -xJf /tmp/b.tar.xz -C work
+          base64 -d build-input/flutter-v720-record-detail.b64 > /tmp/c.tar.xz && tar -xJf /tmp/c.tar.xz -C work
+          cat build-input/flutter-v730-brand-small.parts/part-*.b64 | base64 -d > /tmp/d.tar.xz && tar -xJf /tmp/d.tar.xz -C work
+          cat build-input/flutter-v730-analyzer-fix.parts/part-*.b64 | base64 -d > /tmp/e.tar.xz && tar -xJf /tmp/e.tar.xz -C work
+          cat build-input/flutter-v731-daily-batch-fix.parts/part-*.b64 | base64 -d > /tmp/f.tar.xz && tar -xJf /tmp/f.tar.xz -C work
+          cat build-input/flutter-v731-issue-review-fix.parts/part-*.b64 | base64 -d > /tmp/g.tar.xz && tar -xJf /tmp/g.tar.xz -C work
+      - name: Export editable source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=work/flutter/excel_herbal_erp
+          DST=flutter-source-v731
+          rm -rf "$DST"
+          mkdir -p "$DST"
+          cp -R "$SRC/lib" "$DST/lib"
+          cp -R "$SRC/test" "$DST/test" 2>/dev/null || true
+          cp "$SRC/pubspec.yaml" "$DST/pubspec.yaml"
+          cp "$SRC/analysis_options.yaml" "$DST/analysis_options.yaml" 2>/dev/null || true
+          mkdir -p "$DST/assets/branding"
+          cp "$SRC/assets/branding/excel-herbal-logo.webp" "$DST/assets/branding/" 2>/dev/null || true
+          find "$DST" -type f | sort > "$DST/FILELIST.txt"
+          sha256sum $(find "$DST/lib" -type f -name '*.dart' | sort) > "$DST/DART-SHA256.txt"
+      - name: Commit source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add flutter-source-v731
+          git commit -m "Export editable Flutter v7.3.1 source snapshot [skip ci]" || exit 0
+          git push origin HEAD:flutter-v720-build
