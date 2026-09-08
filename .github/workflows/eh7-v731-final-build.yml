@@ -1,0 +1,135 @@
+name: EH7 Flutter v7.3.1 Final Daily Order Build
+
+on:
+  push:
+    branches: [flutter-v720-build]
+    paths:
+      - 'build-input/flutter-v731-issue-review-fix.parts/**'
+      - '.github/workflows/eh7-v731-final-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter 3.47.2
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Reconstruct canonical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find dist/source.xz.parts -maxdepth 1 -type f -name 'part-*.b64' | wc -l)" -eq 15
+          cat dist/source.xz.parts/part-*.b64 | base64 -d > /tmp/eh7-clean10.tar.xz
+          echo "b89b034254702f81b514c08995d3edc345947852b48f43fea4bd6e89e9c13c0a  /tmp/eh7-clean10.tar.xz" | sha256sum -c -
+          rm -rf work && mkdir work
+          tar -xJf /tmp/eh7-clean10.tar.xz -C work
+
+      - name: Apply canonical compiler fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+          patch -p1 --forward --batch < ../ci/clean10-flutter-compile-fix-1.patch
+          python3 ../ci/clean10-analyzer-cleanup-2.py
+
+      - name: Apply recovered v7.2 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat build-input/flutter-v720.parts3/part-*.b64 | base64 -d > /tmp/flutter-v720-overlay.tar.xz
+          echo "8c446ef6a7c66575fb29089535eecd74d2ec9996c3effc56cebd47cd5fdb1e62  /tmp/flutter-v720-overlay.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter-v720-overlay.tar.xz -C work
+          cat build-input/flutter-v720-missing.parts/part-*.b64 | base64 -d > /tmp/flutter-v720-missing.tar.xz
+          echo "f2b77954d97d373b6f39d5a10ebca33ffabde05efba866723157aceb1a7d9a4c  /tmp/flutter-v720-missing.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter-v720-missing.tar.xz -C work
+          base64 -d build-input/flutter-v720-record-detail.b64 > /tmp/record-detail.tar.xz
+          echo "7dbfe5194ee26dc799d2682bfe49c7d55809a5bf352208e8f11ae24200aa225e  /tmp/record-detail.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/record-detail.tar.xz -C work
+
+      - name: Apply v7.3 brand and compiler fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat build-input/flutter-v730-brand-small.parts/part-*.b64 | base64 -d > /tmp/brand.tar.xz
+          echo "942d426faed11fd98120b07f294da8fd0da0abd8b8b1a7338030b10a5b16c534  /tmp/brand.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/brand.tar.xz -C work
+          cat build-input/flutter-v730-analyzer-fix.parts/part-*.b64 | base64 -d > /tmp/analyzer.tar.xz
+          echo "88e1af8322d038fdd9f68f501c480727129515945f5d50a0e0aa1c99faeb7d47  /tmp/analyzer.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/analyzer.tar.xz -C work
+
+      - name: Apply v7.3.1 no-manual-batch logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat build-input/flutter-v731-daily-batch-fix.parts/part-*.b64 | base64 -d > /tmp/v731.tar.xz
+          echo "d52a44a6efc507a19fe1bcc1f14136cb54b219e2f387f31303bb395f891652c1  /tmp/v731.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/v731.tar.xz -C work
+          cat build-input/flutter-v731-issue-review-fix.parts/part-*.b64 | base64 -d > /tmp/v731-review.tar.xz
+          echo "2512983ae7b07fbd6c50bf76c2d26862e6d846ad12eece2e543824c9f8ae53a0  /tmp/v731-review.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/v731-review.tar.xz -C work
+          grep -q "version: 7.3.1+731" work/flutter/excel_herbal_erp/pubspec.yaml
+          ! grep -q "Batch ID" work/flutter/excel_herbal_erp/lib/screens/my_work/my_work_screen.dart
+          ! grep -q "labelText: 'Issue quantity'" work/flutter/excel_herbal_erp/lib/screens/my_work/my_work_screen.dart
+          grep -q "Full approved quantity will be issued" work/flutter/excel_herbal_erp/lib/screens/my_work/my_work_screen.dart
+          grep -q "SafeArea(" work/flutter/excel_herbal_erp/lib/screens/my_work/my_work_screen.dart
+
+      - name: Bootstrap Android wrapper
+        working-directory: work
+        run: ./tool/bootstrap_android_wrapper.sh
+
+      - name: Dependencies
+        working-directory: work/flutter/excel_herbal_erp
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: work/flutter/excel_herbal_erp
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        working-directory: work/flutter/excel_herbal_erp
+        run: flutter test
+
+      - name: Build APK
+        working-directory: work/flutter/excel_herbal_erp
+        run: >-
+          flutter build apk --debug
+          --build-name=7.3.1
+          --build-number=731
+          --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          --dart-define=EH7_ENVIRONMENT=uat
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=work/flutter/excel_herbal_erp/build/app/outputs/flutter-apk/app-debug.apk
+          test -s "$APK"
+          mkdir -p dist/flutter-v7.3.1
+          cp "$APK" dist/flutter-v7.3.1/Excel-Herbal-ERP-v7.3.1-Daily-Order-Fix-UAT.apk
+          sha256sum dist/flutter-v7.3.1/Excel-Herbal-ERP-v7.3.1-Daily-Order-Fix-UAT.apk | tee dist/flutter-v7.3.1/APK-SHA256.txt
+
+      - name: Publish Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=v7.3.1-daily-order-fix-uat
+          APK=dist/flutter-v7.3.1/Excel-Herbal-ERP-v7.3.1-Daily-Order-Fix-UAT.apk
+          HASH=dist/flutter-v7.3.1/APK-SHA256.txt
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$HASH" --clobber
+          else
+            gh release create "$TAG" "$APK" "$HASH" --target "$GITHUB_SHA" --title "Excel Herbal ERP Flutter v7.3.1 Daily Order Fix UAT" --notes "Issue Stock is now review-only: no manual Batch ID and no editable issue quantity. Full approved quantity is issued, backend ERP v7.2.1 automatically allocates warehouse batches/FEFO. Android SafeArea fixed."
+          fi
