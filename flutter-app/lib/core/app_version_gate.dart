@@ -63,8 +63,10 @@ class _AppVersionGateState extends State<AppVersionGate> {
                         children: [
                           const Icon(Icons.system_update_alt_rounded, size: 56),
                           const SizedBox(height: 16),
-                          Text('Update Required',
-                              style: Theme.of(context).textTheme.headlineSmall),
+                          Text(
+                            'Update Required',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
                           const SizedBox(height: 8),
                           Text(message, textAlign: TextAlign.center),
                           const SizedBox(height: 18),
@@ -73,8 +75,10 @@ class _AppVersionGateState extends State<AppVersionGate> {
                               onPressed: () async {
                                 final uri = Uri.tryParse(url);
                                 if (uri != null) {
-                                  await launchUrl(uri,
-                                      mode: LaunchMode.externalApplication);
+                                  await launchUrl(
+                                    uri,
+                                    mode: LaunchMode.externalApplication,
+                                  );
                                 }
                               },
                               icon: const Icon(Icons.open_in_new),

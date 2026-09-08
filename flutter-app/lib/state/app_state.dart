@@ -37,8 +37,9 @@ class AppState {
       : '${company['name']}'.trim();
 
   String get employeeName {
-    final employee =
-        Map<String, dynamic>.from((me['employee'] as Map?) ?? const {});
+    final employee = Map<String, dynamic>.from(
+      (me['employee'] as Map?) ?? const {},
+    );
     final name = '${employee['full_name'] ?? ''}'.trim();
     return name.isEmpty ? 'ERP User' : name;
   }
@@ -97,14 +98,13 @@ class AppState {
     int? currentBranchId,
     String? error,
     bool clearError = false,
-  }) =>
-      AppState(
-        loading: loading ?? this.loading,
-        authenticated: authenticated ?? this.authenticated,
-        bootstrap: bootstrap ?? this.bootstrap,
-        currentBranchId: currentBranchId ?? this.currentBranchId,
-        error: clearError ? null : (error ?? this.error),
-      );
+  }) => AppState(
+    loading: loading ?? this.loading,
+    authenticated: authenticated ?? this.authenticated,
+    bootstrap: bootstrap ?? this.bootstrap,
+    currentBranchId: currentBranchId ?? this.currentBranchId,
+    error: clearError ? null : (error ?? this.error),
+  );
 }
 
 class AppController extends StateNotifier<AppState> {
@@ -136,19 +136,22 @@ class AppController extends StateNotifier<AppState> {
 
   Future<void> refreshBootstrap() async {
     try {
-      final data =
-          Map<String, dynamic>.from(await api.get(ApiPaths.bootstrap) as Map);
+      final data = Map<String, dynamic>.from(
+        await api.get(ApiPaths.bootstrap) as Map,
+      );
       final me = Map<String, dynamic>.from(data['me'] as Map);
       final ids = ((me['branch_ids'] as List?) ?? const [])
           .map((e) => int.parse('$e'))
           .toList();
       final assigned = int.tryParse('${me['assigned_branch_id'] ?? ''}');
-      final current = state.currentBranchId != null &&
-              ids.contains(state.currentBranchId)
+      final current =
+          state.currentBranchId != null && ids.contains(state.currentBranchId)
           ? state.currentBranchId
           : (ids.length == 1
-              ? ids.first
-              : (assigned != null && ids.contains(assigned) ? assigned : null));
+                ? ids.first
+                : (assigned != null && ids.contains(assigned)
+                      ? assigned
+                      : null));
       state = AppState(
         loading: false,
         authenticated: true,

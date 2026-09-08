@@ -48,8 +48,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                   const VerticalDivider(width: 1),
                   Expanded(
                     child: ColoredBox(
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerLowest,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerLowest,
                       child: _desktopContent(app),
                     ),
                   ),
@@ -147,10 +148,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                     children: [
                       Text(
                         'Excel Herbal ERP',
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -174,21 +173,35 @@ class _AppShellState extends ConsumerState<AppShell> {
                   _desktopTile('my_work', 'My Work', Icons.work_outline),
                 if (_quickActionsVisible(app))
                   _desktopTile(
-                      'quick_actions', 'Quick Actions', Icons.bolt_outlined),
+                    'quick_actions',
+                    'Quick Actions',
+                    Icons.bolt_outlined,
+                  ),
                 if (_approvalVisible(app))
                   _desktopTile(
-                      'approvals', 'Approvals', Icons.approval_outlined),
+                    'approvals',
+                    'Approvals',
+                    Icons.approval_outlined,
+                  ),
                 if (!app.businessAccessBlocked)
-                  _desktopTile('global_search', 'Global Search',
-                      Icons.manage_search_outlined),
+                  _desktopTile(
+                    'global_search',
+                    'Global Search',
+                    Icons.manage_search_outlined,
+                  ),
                 if (app.can('communication.view'))
                   _desktopTile('tasks', 'Tasks', Icons.task_alt_outlined),
-                _desktopTile('erp_tools', 'ERP Tools', Icons.construction_outlined),
+                _desktopTile(
+                  'erp_tools',
+                  'ERP Tools',
+                  Icons.construction_outlined,
+                ),
                 const SizedBox(height: 12),
                 _sectionLabel(context, 'MODULES'),
                 ...app.sections
-                    .where((s) =>
-                        !const {'home', 'my_work'}.contains('${s['id']}'))
+                    .where(
+                      (s) => !const {'home', 'my_work'}.contains('${s['id']}'),
+                    )
                     .map(
                       (s) => _desktopTile(
                         '${s['id']}',
@@ -242,16 +255,16 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _sectionLabel(BuildContext context, String text) => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 7, 12, 6),
-        child: Text(
-          text,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                letterSpacing: .9,
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-        ),
-      );
+    padding: const EdgeInsets.fromLTRB(12, 7, 12, 6),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        letterSpacing: .9,
+        fontWeight: FontWeight.w700,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
 
   Widget _desktopTile(String id, String label, IconData icon) {
     final selected = desktopRoute == id;
@@ -275,14 +288,14 @@ class _AppShellState extends ConsumerState<AppShell> {
       'home' => const HomeScreen(),
       'my_work' => const MyWorkScreen(),
       'quick_actions' => ActionsScreen(
-          openMyWork: () {
-            if (app.sectionVisible('my_work'))
-              setState(() => desktopRoute = 'my_work');
-          },
-          openModule: (id) {
-            if (_routeAllowed(app, id)) setState(() => desktopRoute = id);
-          },
-        ),
+        openMyWork: () {
+          if (app.sectionVisible('my_work'))
+            setState(() => desktopRoute = 'my_work');
+        },
+        openModule: (id) {
+          if (_routeAllowed(app, id)) setState(() => desktopRoute = id);
+        },
+      ),
       'tasks' => const TasksScreen(),
       'erp_tools' => const ErpToolsScreen(),
       'approvals' => const EnterpriseHubScreen(initialTab: 0),
@@ -358,7 +371,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Image.asset(
-                          'assets/branding/excel-herbal-logo.png',
+                          'assets/branding/excel-herbal-logo.webp',
                           fit: BoxFit.contain,
                         ),
                       ),
@@ -366,7 +379,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                       IconButton(
                         tooltip: 'Close menu',
                         onPressed: () => Navigator.of(context).maybePop(),
-                        icon: const Icon(Icons.close_rounded, color: Colors.white),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
@@ -379,7 +395,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                         height: 48,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(.16),
-                          border: Border.all(color: Colors.white.withOpacity(.28)),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(.28),
+                          ),
                           borderRadius: BorderRadius.circular(15),
                         ),
                         alignment: Alignment.center,
@@ -401,19 +419,22 @@ class _AppShellState extends ConsumerState<AppShell> {
                               '${employee['full_name'] ?? 'Employee'}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
                                   ),
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              [designation, branch]
-                                  .where((e) => e.trim().isNotEmpty)
-                                  .join(' · '),
+                              [
+                                designation,
+                                branch,
+                              ].where((e) => e.trim().isNotEmpty).join(' · '),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
                                     color: Colors.white.withOpacity(.78),
                                   ),
                             ),
@@ -497,7 +518,10 @@ class _AppShellState extends ConsumerState<AppShell> {
               color: ExcelBrand.surface,
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               child: ListTile(
-                leading: const Icon(Icons.logout_rounded, color: ExcelBrand.danger),
+                leading: const Icon(
+                  Icons.logout_rounded,
+                  color: ExcelBrand.danger,
+                ),
                 title: const Text(
                   'Logout',
                   style: TextStyle(
@@ -506,7 +530,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                 ),
                 onTap: () async {
-                  final closed = await OverlayTransition.closeAndSettle(context);
+                  final closed = await OverlayTransition.closeAndSettle(
+                    context,
+                  );
                   if (!closed || !mounted) return;
                   ref.read(appStateProvider.notifier).logout();
                 },
@@ -519,16 +545,16 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _drawerSectionLabel(String label) => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 7, 12, 6),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .85,
-              ),
-        ),
-      );
+    padding: const EdgeInsets.fromLTRB(12, 7, 12, 6),
+    child: Text(
+      label,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w800,
+        letterSpacing: .85,
+      ),
+    ),
+  );
 
   Widget _drawerTile({
     required AppState app,
@@ -537,8 +563,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     required IconData icon,
   }) {
     final items = app.bottomNav;
-    final safeIndex =
-        items.isEmpty ? -1 : mobileIndex.clamp(0, items.length - 1);
+    final safeIndex = items.isEmpty
+        ? -1
+        : mobileIndex.clamp(0, items.length - 1);
     final current = safeIndex >= 0 ? '${items[safeIndex]['id']}' : 'home';
     final selected = current == id;
     final scheme = Theme.of(context).colorScheme;
@@ -590,61 +617,65 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _mobilePage(AppState app, String id) => switch (id) {
-        'home' => const HomeScreen(),
-        'my_work' => const MyWorkScreen(),
-        'actions' => ActionsScreen(
-            openMyWork: () => _selectMobileRoute(app, 'my_work'),
-            openModule: _openModule,
-          ),
-        'tasks' => const TasksScreen(),
-      'erp_tools' => const ErpToolsScreen(),
-        'approvals' => const EnterpriseHubScreen(initialTab: 0),
-        'global_search' => const EnterpriseHubScreen(initialTab: 1),
-        'profile' => const ProfileScreen(),
-        _ => const HomeScreen(),
-      };
+    'home' => const HomeScreen(),
+    'my_work' => const MyWorkScreen(),
+    'actions' => ActionsScreen(
+      openMyWork: () => _selectMobileRoute(app, 'my_work'),
+      openModule: _openModule,
+    ),
+    'tasks' => const TasksScreen(),
+    'erp_tools' => const ErpToolsScreen(),
+    'approvals' => const EnterpriseHubScreen(initialTab: 0),
+    'global_search' => const EnterpriseHubScreen(initialTab: 1),
+    'profile' => const ProfileScreen(),
+    _ => const HomeScreen(),
+  };
 
   Widget _bottomNav(
-          AppState app, List<Map<String, dynamic>> items, int safeIndex) =>
-      DecoratedBox(
-        decoration: const BoxDecoration(
-          color: ExcelBrand.surface,
-          border: Border(top: BorderSide(color: ExcelBrand.border)),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x0D000000),
-              blurRadius: 18,
-              offset: Offset(0, -4),
-            ),
-          ],
+    AppState app,
+    List<Map<String, dynamic>> items,
+    int safeIndex,
+  ) => DecoratedBox(
+    decoration: const BoxDecoration(
+      color: ExcelBrand.surface,
+      border: Border(top: BorderSide(color: ExcelBrand.border)),
+      boxShadow: [
+        BoxShadow(
+          color: Color(0x0D000000),
+          blurRadius: 18,
+          offset: Offset(0, -4),
         ),
-        child: SafeArea(
-          top: false,
-          child: NavigationBar(
-            selectedIndex: safeIndex,
-            onDestinationSelected: (v) => setState(() => mobileIndex = v),
-            destinations: items
-                .map((item) => NavigationDestination(
-                      icon: Icon(_bottomIcon('${item['id']}', false)),
-                      selectedIcon: Icon(_bottomIcon('${item['id']}', true)),
-                      label: '${item['label']}',
-                    ))
-                .toList(),
-          ),
-        ),
-      );
+      ],
+    ),
+    child: SafeArea(
+      top: false,
+      child: NavigationBar(
+        selectedIndex: safeIndex,
+        onDestinationSelected: (v) => setState(() => mobileIndex = v),
+        destinations: items
+            .map(
+              (item) => NavigationDestination(
+                icon: Icon(_bottomIcon('${item['id']}', false)),
+                selectedIcon: Icon(_bottomIcon('${item['id']}', true)),
+                label: '${item['label']}',
+              ),
+            )
+            .toList(),
+      ),
+    ),
+  );
 
   IconData _bottomIcon(String id, bool selected) => switch (id) {
-        'home' => selected ? Icons.home : Icons.home_outlined,
-        'my_work' => selected ? Icons.work : Icons.work_outline,
-        'actions' => selected ? Icons.add_circle : Icons.add_circle_outline,
-        'tasks' => selected ? Icons.task_alt : Icons.task_alt_outlined,
-        'profile' => selected ? Icons.person : Icons.person_outline,
-        'approvals' => selected ? Icons.approval : Icons.approval_outlined,
-        'global_search' => Icons.manage_search_outlined,
-        'erp_tools' => Icons.construction_outlined,
-        _ => Icons.circle_outlined,
-      };
+    'home' => selected ? Icons.home : Icons.home_outlined,
+    'my_work' => selected ? Icons.work : Icons.work_outline,
+    'actions' => selected ? Icons.add_circle : Icons.add_circle_outline,
+    'tasks' => selected ? Icons.task_alt : Icons.task_alt_outlined,
+    'profile' => selected ? Icons.person : Icons.person_outline,
+    'approvals' => selected ? Icons.approval : Icons.approval_outlined,
+    'global_search' => Icons.manage_search_outlined,
+    'erp_tools' => Icons.construction_outlined,
+    _ => Icons.circle_outlined,
+  };
 
   void _selectMobileRoute(AppState app, String id) {
     final items = app.bottomNav;
@@ -653,23 +684,23 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   IconData _icon(String id) => switch (id) {
-        'home' => Icons.home_outlined,
-        'my_work' => Icons.work_outline,
-        'team' => Icons.groups_outlined,
-        'sales' => Icons.point_of_sale_outlined,
-        'inventory' => Icons.inventory_2_outlined,
-        'purchase' => Icons.local_shipping_outlined,
-        'finance' => Icons.account_balance_outlined,
-        'payroll_performance' => Icons.insights_outlined,
-        'reports' => Icons.analytics_outlined,
-        'organization' => Icons.apartment_outlined,
-        'communication' => Icons.notifications_outlined,
-        'administration' => Icons.admin_panel_settings_outlined,
-        'approvals' => Icons.approval_outlined,
-        'global_search' => Icons.manage_search_outlined,
-        'erp_tools' => Icons.construction_outlined,
-        _ => Icons.circle_outlined,
-      };
+    'home' => Icons.home_outlined,
+    'my_work' => Icons.work_outline,
+    'team' => Icons.groups_outlined,
+    'sales' => Icons.point_of_sale_outlined,
+    'inventory' => Icons.inventory_2_outlined,
+    'purchase' => Icons.local_shipping_outlined,
+    'finance' => Icons.account_balance_outlined,
+    'payroll_performance' => Icons.insights_outlined,
+    'reports' => Icons.analytics_outlined,
+    'organization' => Icons.apartment_outlined,
+    'communication' => Icons.notifications_outlined,
+    'administration' => Icons.admin_panel_settings_outlined,
+    'approvals' => Icons.approval_outlined,
+    'global_search' => Icons.manage_search_outlined,
+    'erp_tools' => Icons.construction_outlined,
+    _ => Icons.circle_outlined,
+  };
 
   void _openModule(String id) {
     final app = ref.read(appStateProvider);
@@ -730,17 +761,17 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   bool _quickActionsVisible(AppState app) => app.canAny(const [
-        'workforce.attendance.self',
-        'workforce.field_visit.self',
-        'workforce.leave.self',
-        'daily_order.self',
-        'daily_order.others',
-        'sales.create',
-        'inventory.transfer.create',
-        'inventory.adjustment.create',
-        'purchase.create',
-        'finance.expense.create',
-      ]);
+    'workforce.attendance.self',
+    'workforce.field_visit.self',
+    'workforce.leave.self',
+    'daily_order.self',
+    'daily_order.others',
+    'sales.create',
+    'inventory.transfer.create',
+    'inventory.adjustment.create',
+    'purchase.create',
+    'finance.expense.create',
+  ]);
 
   bool _routeAllowed(AppState app, String id) {
     if (const {'home', 'profile', 'erp_tools'}.contains(id)) return true;
@@ -753,19 +784,22 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   bool _approvalVisible(AppState app) => app.canAny(const [
-        'daily_order.approve',
-        'daily_order.issue',
-        'finance.expense.approve',
-        'inventory.adjustment.approve',
-        'workforce.leave.manage',
-        'performance.manage',
-        'payroll.approve',
-        'finance.reversal.approve',
-      ]);
+    'daily_order.approve',
+    'daily_order.issue',
+    'finance.expense.approve',
+    'inventory.adjustment.approve',
+    'workforce.leave.manage',
+    'performance.manage',
+    'payroll.approve',
+    'finance.reversal.approve',
+  ]);
 
   String _initials(String name) {
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((e) => e.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return 'U';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();

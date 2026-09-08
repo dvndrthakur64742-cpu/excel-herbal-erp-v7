@@ -80,16 +80,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Text(
                           'Secure access to your authorised Excel Herbal ERP workspace.',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: ExcelBrand.muted,
-                              ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: ExcelBrand.muted),
                         ),
                         if (AppConfig.isUat) ...[
                           const SizedBox(height: 12),
                           Center(
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFF3E2),
                                 borderRadius: BorderRadius.circular(999),
@@ -125,8 +126,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             labelText: 'Password',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
-                              tooltip: obscure ? 'Show password' : 'Hide password',
-                              onPressed: () => setState(() => obscure = !obscure),
+                              tooltip: obscure
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              onPressed: () =>
+                                  setState(() => obscure = !obscure),
                               icon: Icon(
                                 obscure
                                     ? Icons.visibility_outlined
@@ -146,8 +150,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(Icons.error_outline,
-                                    size: 20, color: ExcelBrand.danger),
+                                const Icon(
+                                  Icons.error_outline,
+                                  size: 20,
+                                  color: ExcelBrand.danger,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -197,9 +204,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _login(bool loading) {
     if (loading) return;
-    ref.read(appStateProvider.notifier).login(
-          mobile.text.trim(),
-          password.text,
-        );
+    ref
+        .read(appStateProvider.notifier)
+        .login(mobile.text.trim(), password.text);
   }
 }

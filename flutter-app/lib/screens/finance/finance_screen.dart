@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/api_paths.dart';
 import '../../core/providers.dart';
 import '../../core/overlay_transition.dart';
@@ -27,13 +28,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     if (app.canAny(const [
       'finance.view',
       'finance.accounting.view',
-      'finance.account.manage'
-    ])) tabs.add(('Books', _books(app, api)));
+      'finance.account.manage',
+    ]))
+      tabs.add(('Books', _books(app, api)));
     if (app.canAny(const [
       'finance.view',
       'finance.expense.create',
-      'finance.expense.approve'
-    ])) tabs.add(('Expenses', _expenses(app, api)));
+      'finance.expense.approve',
+    ]))
+      tabs.add(('Expenses', _expenses(app, api)));
     if (app.canAny(const ['finance.branch_close', 'finance.branch_reopen']))
       tabs.add(('Closing', _closing(app, api)));
     if (app.can('finance.bank_reconcile')) tabs.add(('Bank', _bank(app, api)));
@@ -41,173 +44,228 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       tabs.add(('Periods', _periods(app, api)));
     if (tabs.isEmpty)
       return const Scaffold(
-          body: Center(child: Text('No authorised finance functions.')));
+        body: Center(child: Text('No authorised finance functions.')),
+      );
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-            title: const Text('Finance & Accounts'),
-            bottom: TabBar(
-                isScrollable: true,
-                tabs: [for (final tab in tabs) Tab(text: tab.$1)])),
-        body: Column(children: [
-          const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
-          if (message != null)
-            Padding(
+          title: const Text('Finance & Accounts'),
+          bottom: TabBar(
+            isScrollable: true,
+            tabs: [for (final tab in tabs) Tab(text: tab.$1)],
+          ),
+        ),
+        body: Column(
+          children: [
+            const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
+            if (message != null)
+              Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(message!)),
-          Expanded(
-              child: TabBarView(children: [for (final tab in tabs) tab.$2])),
-        ]),
+                child: Text(message!),
+              ),
+            Expanded(
+              child: TabBarView(children: [for (final tab in tabs) tab.$2]),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _books(AppState app, dynamic api) => Column(children: [
-        if (app.can('finance.account.manage'))
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(spacing: 8, runSpacing: 8, children: [
+  Widget _books(AppState app, dynamic api) => Column(
+    children: [
+      if (app.can('finance.account.manage'))
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
                 FilledButton.tonalIcon(
-                    onPressed: _newLedger,
-                    icon: const Icon(Icons.account_balance_wallet_outlined),
-                    label: const Text('New Ledger')),
+                  onPressed: _newLedger,
+                  icon: const Icon(Icons.account_balance_wallet_outlined),
+                  label: const Text('New Ledger'),
+                ),
                 FilledButton.tonalIcon(
-                    onPressed: _newExpenseHead,
-                    icon: const Icon(Icons.category_outlined),
-                    label: const Text('New Expense Head')),
-              ]),
+                  onPressed: _newExpenseHead,
+                  icon: const Icon(Icons.category_outlined),
+                  label: const Text('New Expense Head'),
+                ),
+              ],
             ),
           ),
-        Expanded(
-          child: AsyncPanel(
-            key: ValueKey('tb-${app.currentBranchId}-$refresh'),
-            future: api.get(ApiPaths.trialBalance, query: {
-              'to': _today(),
-              if (app.currentBranchId != null) 'branch_id': app.currentBranchId
-            }),
-            builder: (context, data) =>
-                RecordsList(recordType: 'trial_balance', rows: _rows(data)),
-          ),
         ),
-      ]);
+      Expanded(
+        child: AsyncPanel(
+          key: ValueKey('tb-${app.currentBranchId}-$refresh'),
+          future: api.get(
+            ApiPaths.trialBalance,
+            query: {
+              'to': _today(),
+              if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+            },
+          ),
+          builder: (context, data) =>
+              RecordsList(recordType: 'trial_balance', rows: _rows(data)),
+        ),
+      ),
+    ],
+  );
 
   Widget _expenses(AppState app, dynamic api) {
     if (app.currentBranchId == null)
       return const Center(child: Text('Branch select karein.'));
-    return Column(children: [
-      if (app.can('finance.expense.create'))
-        Padding(
+    return Column(
+      children: [
+        if (app.can('finance.expense.create'))
+          Padding(
             padding: const EdgeInsets.all(12),
             child: Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton.icon(
-                    onPressed: _expense,
-                    icon: const Icon(Icons.add_card_outlined),
-                    label: const Text('New Expense')))),
-      Expanded(
-        child: AsyncPanel(
-          key: ValueKey('expenses-${app.currentBranchId}-$refresh'),
-          future: api.get(ApiPaths.expenses,
-              query: {'branch_id': app.currentBranchId}),
-          emptyMessage: 'Koi expense record nahi hai.',
-          builder: (context, data) => RecordsList(
-              recordType: 'expense', rows: _rows(data), onTap: _expenseAction),
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: _expense,
+                icon: const Icon(Icons.add_card_outlined),
+                label: const Text('New Expense'),
+              ),
+            ),
+          ),
+        Expanded(
+          child: AsyncPanel(
+            key: ValueKey('expenses-${app.currentBranchId}-$refresh'),
+            future: api.get(
+              ApiPaths.expenses,
+              query: {'branch_id': app.currentBranchId},
+            ),
+            emptyMessage: 'Koi expense record nahi hai.',
+            builder: (context, data) => RecordsList(
+              recordType: 'expense',
+              rows: _rows(data),
+              onTap: _expenseAction,
+            ),
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
   Widget _closing(AppState app, dynamic api) {
     if (app.currentBranchId == null)
       return const Center(child: Text('Branch select karein.'));
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.all(12),
-        child: Wrap(spacing: 8, runSpacing: 8, children: [
-          if (app.can('finance.branch_close'))
-            FilledButton.tonalIcon(
-                onPressed: _preflight,
-                icon: const Icon(Icons.fact_check_outlined),
-                label: const Text('Preflight')),
-          if (app.can('finance.branch_close'))
-            FilledButton.icon(
-                onPressed: _closingDraft,
-                icon: const Icon(Icons.lock_clock_outlined),
-                label: const Text('Create Closing Draft')),
-        ]),
-      ),
-      Expanded(
-        child: AsyncPanel(
-          key: ValueKey('closing-${app.currentBranchId}-$refresh'),
-          future: api.get(ApiPaths.branchClosing,
-              query: {'branch_id': app.currentBranchId}),
-          emptyMessage: 'Koi Branch Closing record nahi hai.',
-          builder: (context, data) => RecordsList(
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (app.can('finance.branch_close'))
+                FilledButton.tonalIcon(
+                  onPressed: _preflight,
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: const Text('Preflight'),
+                ),
+              if (app.can('finance.branch_close'))
+                FilledButton.icon(
+                  onPressed: _closingDraft,
+                  icon: const Icon(Icons.lock_clock_outlined),
+                  label: const Text('Create Closing Draft'),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: AsyncPanel(
+            key: ValueKey('closing-${app.currentBranchId}-$refresh'),
+            future: api.get(
+              ApiPaths.branchClosing,
+              query: {'branch_id': app.currentBranchId},
+            ),
+            emptyMessage: 'Koi Branch Closing record nahi hai.',
+            builder: (context, data) => RecordsList(
               recordType: 'branch_closing',
               rows: _rows(data),
-              onTap: _closingAction),
+              onTap: _closingAction,
+            ),
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
   Widget _bank(AppState app, dynamic api) {
     if (app.currentBranchId == null)
       return const Center(child: Text('Branch select karein.'));
-    return Column(children: [
-      if (app.can('finance.bank_reconcile'))
-        Padding(
+    return Column(
+      children: [
+        if (app.can('finance.bank_reconcile'))
+          Padding(
             padding: const EdgeInsets.all(12),
             child: Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton.icon(
-                    onPressed: _createBankReconciliation,
-                    icon: const Icon(Icons.account_balance),
-                    label: const Text('New Bank Reconciliation')))),
-      Expanded(
-        child: AsyncPanel(
-          key: ValueKey('bank-${app.currentBranchId}-$refresh'),
-          future: api.get(ApiPaths.bankReconciliations,
-              query: {'branch_id': app.currentBranchId}),
-          emptyMessage: 'Koi Bank Reconciliation nahi hai.',
-          builder: (context, data) => RecordsList(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: _createBankReconciliation,
+                icon: const Icon(Icons.account_balance),
+                label: const Text('New Bank Reconciliation'),
+              ),
+            ),
+          ),
+        Expanded(
+          child: AsyncPanel(
+            key: ValueKey('bank-${app.currentBranchId}-$refresh'),
+            future: api.get(
+              ApiPaths.bankReconciliations,
+              query: {'branch_id': app.currentBranchId},
+            ),
+            emptyMessage: 'Koi Bank Reconciliation nahi hai.',
+            builder: (context, data) => RecordsList(
               recordType: 'bank_reconciliation',
               rows: _rows(data),
-              onTap: (row) => _bankDetail(int.parse('${row['id']}'))),
+              onTap: (row) => _bankDetail(int.parse('${row['id']}')),
+            ),
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
   Widget _periods(AppState app, dynamic api) {
     if (!app.can('finance.period.manage'))
       return const Center(
-          child: Text(
-              'Accounting Period control aapke role ke liye authorised nahi hai.'));
-    return Column(children: [
-      Padding(
+        child: Text(
+          'Accounting Period control aapke role ke liye authorised nahi hai.',
+        ),
+      );
+    return Column(
+      children: [
+        Padding(
           padding: const EdgeInsets.all(12),
           child: Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.icon(
-                  onPressed: _closePeriod,
-                  icon: const Icon(Icons.calendar_month_outlined),
-                  label: const Text('Close Accounting Period')))),
-      Expanded(
-        child: AsyncPanel(
-          key: ValueKey('periods-$refresh'),
-          future: api.get(ApiPaths.periods),
-          emptyMessage: 'Koi accounting period record nahi hai.',
-          builder: (context, data) => RecordsList(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              onPressed: _closePeriod,
+              icon: const Icon(Icons.calendar_month_outlined),
+              label: const Text('Close Accounting Period'),
+            ),
+          ),
+        ),
+        Expanded(
+          child: AsyncPanel(
+            key: ValueKey('periods-$refresh'),
+            future: api.get(ApiPaths.periods),
+            emptyMessage: 'Koi accounting period record nahi hai.',
+            builder: (context, data) => RecordsList(
               recordType: 'accounting_period',
               rows: _rows(data),
-              onTap: _periodAction),
+              onTap: _periodAction,
+            ),
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
   List<Map<String, dynamic>> _rows(dynamic data) =>
@@ -219,96 +277,109 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     String type = 'asset';
     String subtype = 'bank';
     final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-            builder: (context, setLocal) => AlertDialog(
-                  title: const Text('New Ledger'),
-                  content: SizedBox(
-                      width: 500,
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        TextField(
-                            controller: code,
-                            decoration: const InputDecoration(
-                                labelText: 'Ledger Code')),
-                        const SizedBox(height: 10),
-                        TextField(
-                            controller: name,
-                            decoration: const InputDecoration(
-                                labelText: 'Ledger Name')),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                            initialValue: type,
-                            decoration: const InputDecoration(
-                                labelText: 'Account Type'),
-                            items: const [
-                              'asset',
-                              'liability',
-                              'equity',
-                              'income',
-                              'expense'
-                            ]
-                                .map((v) => DropdownMenuItem(
-                                    value: v, child: Text(v.toUpperCase())))
-                                .toList(),
-                            onChanged: (v) => setLocal(() {
-                                  type = v ?? 'asset';
-                                  if (type != 'asset' &&
-                                      const {'cash', 'bank', 'upi'}
-                                          .contains(subtype)) subtype = '';
-                                })),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                            initialValue: subtype.isEmpty ? null : subtype,
-                            decoration: const InputDecoration(
-                                labelText: 'Subtype (optional)'),
-                            items: const [
-                              'cash',
-                              'bank',
-                              'upi',
-                              'receivable',
-                              'inventory',
-                              'payable',
-                              'payroll_payable',
-                              'sales',
-                              'cogs',
-                              'stock_variance',
-                              'payroll',
-                              'office'
-                            ]
-                                .map((v) =>
-                                    DropdownMenuItem(value: v, child: Text(v)))
-                                .toList(),
-                            onChanged: (v) =>
-                                setLocal(() => subtype = v ?? '')),
-                      ])),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel')),
-                    FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Create'))
-                  ],
-                )));
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('New Ledger'),
+          content: SizedBox(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: code,
+                  decoration: const InputDecoration(labelText: 'Ledger Code'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Ledger Name'),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: const InputDecoration(labelText: 'Account Type'),
+                  items:
+                      const [
+                            'asset',
+                            'liability',
+                            'equity',
+                            'income',
+                            'expense',
+                          ]
+                          .map(
+                            (v) => DropdownMenuItem(
+                              value: v,
+                              child: Text(v.toUpperCase()),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (v) => setLocal(() {
+                    type = v ?? 'asset';
+                    if (type != 'asset' &&
+                        const {'cash', 'bank', 'upi'}.contains(subtype))
+                      subtype = '';
+                  }),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: subtype.isEmpty ? null : subtype,
+                  decoration: const InputDecoration(
+                    labelText: 'Subtype (optional)',
+                  ),
+                  items:
+                      const [
+                            'cash',
+                            'bank',
+                            'upi',
+                            'receivable',
+                            'inventory',
+                            'payable',
+                            'payroll_payable',
+                            'sales',
+                            'cogs',
+                            'stock_variance',
+                            'payroll',
+                            'office',
+                          ]
+                          .map(
+                            (v) => DropdownMenuItem(value: v, child: Text(v)),
+                          )
+                          .toList(),
+                  onChanged: (v) => setLocal(() => subtype = v ?? ''),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
     if (ok == true)
-      await _post(
-          ApiPaths.financeAccounts,
-          {
-            'code': code.text.trim(),
-            'name': name.text.trim(),
-            'type': type,
-            'subtype': subtype
-          },
-          closeSheet: false);
+      await _post(ApiPaths.financeAccounts, {
+        'code': code.text.trim(),
+        'name': name.text.trim(),
+        'type': type,
+        'subtype': subtype,
+      }, closeSheet: false);
     code.dispose();
     name.dispose();
   }
 
   Future<void> _newExpenseHead() async {
     try {
-      final finance = Map<String, dynamic>.from(await ref
-          .read(apiClientProvider)
-          .get(ApiPaths.financeBootstrap) as Map);
+      final finance = Map<String, dynamic>.from(
+        await ref.read(apiClientProvider).get(ApiPaths.financeBootstrap) as Map,
+      );
       final accounts = ((finance['accounts'] as List?) ?? const [])
           .map((e) => Map<String, dynamic>.from(e as Map))
           .where((e) => '${e['type']}' == 'expense')
@@ -318,54 +389,62 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       int? accountId;
       if (!mounted) return;
       final ok = await showDialog<bool>(
-          context: context,
-          builder: (context) => StatefulBuilder(
-              builder: (context, setLocal) => AlertDialog(
-                    title: const Text('New Expense Head'),
-                    content: SizedBox(
-                        width: 500,
-                        child:
-                            Column(mainAxisSize: MainAxisSize.min, children: [
-                          TextField(
-                              controller: code,
-                              decoration: const InputDecoration(
-                                  labelText: 'Head Code')),
-                          const SizedBox(height: 10),
-                          TextField(
-                              controller: name,
-                              decoration: const InputDecoration(
-                                  labelText: 'Head Name')),
-                          const SizedBox(height: 10),
-                          DropdownButtonFormField<int>(
-                              initialValue: accountId,
-                              decoration: const InputDecoration(
-                                  labelText: 'Expense Ledger'),
-                              items: accounts
-                                  .map((a) => DropdownMenuItem(
-                                      value: int.parse('${a['id']}'),
-                                      child:
-                                          Text('${a['code']} · ${a['name']}')))
-                                  .toList(),
-                              onChanged: (v) => setLocal(() => accountId = v)),
-                        ])),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel')),
-                      FilledButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Create'))
-                    ],
-                  )));
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: const Text('New Expense Head'),
+            content: SizedBox(
+              width: 500,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: code,
+                    decoration: const InputDecoration(labelText: 'Head Code'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: name,
+                    decoration: const InputDecoration(labelText: 'Head Name'),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<int>(
+                    initialValue: accountId,
+                    decoration: const InputDecoration(
+                      labelText: 'Expense Ledger',
+                    ),
+                    items: accounts
+                        .map(
+                          (a) => DropdownMenuItem(
+                            value: int.parse('${a['id']}'),
+                            child: Text('${a['code']} · ${a['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setLocal(() => accountId = v),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Create'),
+              ),
+            ],
+          ),
+        ),
+      );
       if (ok == true && accountId != null)
-        await _post(
-            ApiPaths.expenseHeads,
-            {
-              'code': code.text.trim(),
-              'name': name.text.trim(),
-              'expense_account_id': accountId
-            },
-            closeSheet: false);
+        await _post(ApiPaths.expenseHeads, {
+          'code': code.text.trim(),
+          'name': name.text.trim(),
+          'expense_account_id': accountId,
+        }, closeSheet: false);
       code.dispose();
       name.dispose();
     } catch (e) {
@@ -378,84 +457,109 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final api = ref.read(apiClientProvider);
     try {
       final d = Map<String, dynamic>.from(
-          await api.get(ApiPaths.financeBootstrap) as Map);
+        await api.get(ApiPaths.financeBootstrap) as Map,
+      );
       final heads = (d['expense_heads'] as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
       final accounts = (d['accounts'] as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
-          .where((e) =>
-              '${e['type']}' == 'asset' &&
-              const {'cash', 'bank', 'upi'}
-                  .contains('${e['subtype']}'.toLowerCase()))
+          .where(
+            (e) =>
+                '${e['type']}' == 'asset' &&
+                const {
+                  'cash',
+                  'bank',
+                  'upi',
+                }.contains('${e['subtype']}'.toLowerCase()),
+          )
           .toList();
       int? head, account;
       final amount = TextEditingController();
       final desc = TextEditingController();
       final ok = await showDialog<bool>(
-          context: context,
-          builder: (context) => StatefulBuilder(
-              builder: (context, setLocal) => AlertDialog(
-                    title: const Text('Expense Entry'),
-                    content: SizedBox(
-                        width: 500,
-                        child:
-                            Column(mainAxisSize: MainAxisSize.min, children: [
-                          DropdownButtonFormField<int>(
-                              initialValue: head,
-                              decoration: const InputDecoration(
-                                  labelText: 'Expense Head'),
-                              items: heads
-                                  .map((e) => DropdownMenuItem(
-                                      value: int.parse('${e['id']}'),
-                                      child: Text('${e['name']}')))
-                                  .toList(),
-                              onChanged: (v) => setLocal(() => head = v)),
-                          const SizedBox(height: 10),
-                          DropdownButtonFormField<int>(
-                              initialValue: account,
-                              decoration: const InputDecoration(
-                                  labelText: 'Payment Account'),
-                              items: accounts
-                                  .map((e) => DropdownMenuItem(
-                                      value: int.parse('${e['id']}'),
-                                      child:
-                                          Text('${e['code']} · ${e['name']}')))
-                                  .toList(),
-                              onChanged: (v) => setLocal(() => account = v)),
-                          const SizedBox(height: 10),
-                          TextField(
-                              controller: amount,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
-                              decoration:
-                                  const InputDecoration(labelText: 'Amount')),
-                          const SizedBox(height: 10),
-                          TextField(
-                              controller: desc,
-                              decoration: const InputDecoration(
-                                  labelText: 'Description')),
-                        ])),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel')),
-                      FilledButton(
-                          onPressed: () => Navigator.pop(
-                              context, head != null && account != null),
-                          child: const Text('Submit'))
-                    ],
-                  )));
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: const Text('Expense Entry'),
+            content: SizedBox(
+              width: 500,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: head,
+                    decoration: const InputDecoration(
+                      labelText: 'Expense Head',
+                    ),
+                    items: heads
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: int.parse('${e['id']}'),
+                            child: Text('${e['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setLocal(() => head = v),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<int>(
+                    initialValue: account,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment Account',
+                    ),
+                    items: accounts
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: int.parse('${e['id']}'),
+                            child: Text('${e['code']} · ${e['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setLocal(() => account = v),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: amount,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Amount'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: desc,
+                    decoration: const InputDecoration(labelText: 'Description'),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () =>
+                    Navigator.pop(context, head != null && account != null),
+                child: const Text('Submit'),
+              ),
+            ],
+          ),
+        ),
+      );
       if (ok == true) {
-        await api.post(ApiPaths.expenses, data: {
-          'branch_id': app.currentBranchId,
-          'expense_head_id': head,
-          'amount': double.tryParse(amount.text) ?? 0,
-          'payment_account_id': account,
-          'expense_date': _today(),
-          'description': desc.text.trim()
-        });
+        await api.post(
+          ApiPaths.expenses,
+          data: {
+            'branch_id': app.currentBranchId,
+            'expense_head_id': head,
+            'amount': double.tryParse(amount.text) ?? 0,
+            'payment_account_id': account,
+            'expense_date': _today(),
+            'description': desc.text.trim(),
+          },
+        );
         if (mounted)
           setState(() {
             message = 'Expense approval ke liye submit ho gaya.';
@@ -475,30 +579,42 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       return;
     final id = int.parse('${row['id']}');
     showModalBottomSheet<void>(
-        context: context,
-        builder: (context) => SafeArea(
-                child: Wrap(children: [
-              ListTile(
-                  title: Text('${row['expense_head']} · ₹${row['amount']}')),
-              ListTile(subtitle: Text('${row['description'] ?? ''}')),
-              ListTile(
-                  leading: const Icon(Icons.check_circle_outline),
-                  title: const Text('Approve'),
-                  onTap: () =>
-                      _post(ApiPaths.expenseDecision(id), {'approve': true})),
-              ListTile(
-                  leading: const Icon(Icons.cancel_outlined),
-                  title: const Text('Reject'),
-                  onTap: () =>
-                      _post(ApiPaths.expenseDecision(id), {'approve': false})),
-            ])));
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(title: Text('${row['expense_head']} · ₹${row['amount']}')),
+            ListTile(subtitle: Text('${row['description'] ?? ''}')),
+            ListTile(
+              leading: const Icon(Icons.check_circle_outline),
+              title: const Text('Approve'),
+              onTap: () =>
+                  _post(ApiPaths.expenseDecision(id), {'approve': true}),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel_outlined),
+              title: const Text('Reject'),
+              onTap: () =>
+                  _post(ApiPaths.expenseDecision(id), {'approve': false}),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _preflight() async {
     final app = ref.read(appStateProvider);
     try {
-      final r = await ref.read(apiClientProvider).get(ApiPaths.closingPreflight,
-          query: {'branch_id': app.currentBranchId, 'business_date': _today()});
+      final r = await ref
+          .read(apiClientProvider)
+          .get(
+            ApiPaths.closingPreflight,
+            query: {
+              'branch_id': app.currentBranchId,
+              'business_date': _today(),
+            },
+          );
       if (mounted) setState(() => message = 'Preflight: $r');
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
@@ -508,8 +624,12 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   Future<void> _closingDraft() async {
     final app = ref.read(appStateProvider);
     try {
-      final r = await ref.read(apiClientProvider).post(ApiPaths.branchClosing,
-          data: {'branch_id': app.currentBranchId, 'business_date': _today()});
+      final r = await ref
+          .read(apiClientProvider)
+          .post(
+            ApiPaths.branchClosing,
+            data: {'branch_id': app.currentBranchId, 'business_date': _today()},
+          );
       if (mounted)
         setState(() {
           message = 'Closing draft #${(r as Map)['id']} created.';
@@ -526,15 +646,20 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final status = '${row['status']}';
     if (status == 'draft' && app.can('finance.branch_close')) {
       showModalBottomSheet<void>(
-          context: context,
-          builder: (context) => SafeArea(
-                  child: Wrap(children: [
-                ListTile(title: Text('Closing #$id · ${row['business_date']}')),
-                ListTile(
-                    leading: const Icon(Icons.lock_outline),
-                    title: const Text('Close Branch Day'),
-                    onTap: () => _post(ApiPaths.closingClose(id), const {})),
-              ])));
+        context: context,
+        builder: (context) => SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(title: Text('Closing #$id · ${row['business_date']}')),
+              ListTile(
+                leading: const Icon(Icons.lock_outline),
+                title: const Text('Close Branch Day'),
+                onTap: () => _post(ApiPaths.closingClose(id), const {}),
+              ),
+            ],
+          ),
+        ),
+      );
     } else if (status == 'closed' && app.can('finance.branch_reopen')) {
       _reasonPost(ApiPaths.closingReopen(id), 'Branch reopen reason');
     }
@@ -545,12 +670,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final api = ref.read(apiClientProvider);
     try {
       final finance = Map<String, dynamic>.from(
-          await api.get(ApiPaths.financeBootstrap) as Map);
+        await api.get(ApiPaths.financeBootstrap) as Map,
+      );
       final accounts = (finance['accounts'] as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
-          .where((e) =>
-              '${e['type']}' == 'asset' &&
-              const {'bank', 'upi'}.contains('${e['subtype']}'.toLowerCase()))
+          .where(
+            (e) =>
+                '${e['type']}' == 'asset' &&
+                const {'bank', 'upi'}.contains('${e['subtype']}'.toLowerCase()),
+          )
           .toList();
       int? accountId;
       final from = TextEditingController(text: _monthStart());
@@ -558,71 +686,94 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       final opening = TextEditingController(text: '0');
       final closing = TextEditingController(text: '0');
       final ok = await showDialog<bool>(
-          context: context,
-          builder: (context) => StatefulBuilder(
-              builder: (context, setLocal) => AlertDialog(
-                    title: const Text('New Bank Reconciliation'),
-                    content: SizedBox(
-                        width: 520,
-                        child:
-                            Column(mainAxisSize: MainAxisSize.min, children: [
-                          DropdownButtonFormField<int>(
-                              initialValue: accountId,
-                              decoration: const InputDecoration(
-                                  labelText: 'Bank / Asset Account'),
-                              items: accounts
-                                  .map((a) => DropdownMenuItem(
-                                      value: int.parse('${a['id']}'),
-                                      child:
-                                          Text('${a['code']} · ${a['name']}')))
-                                  .toList(),
-                              onChanged: (v) => setLocal(() => accountId = v)),
-                          const SizedBox(height: 10),
-                          TextField(
-                              controller: from,
-                              decoration: const InputDecoration(
-                                  labelText: 'Statement From YYYY-MM-DD')),
-                          const SizedBox(height: 10),
-                          TextField(
-                              controller: to,
-                              decoration: const InputDecoration(
-                                  labelText: 'Statement To YYYY-MM-DD')),
-                          const SizedBox(height: 10),
-                          TextField(
-                              controller: opening,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true, signed: true),
-                              decoration: const InputDecoration(
-                                  labelText: 'Opening Balance')),
-                          const SizedBox(height: 10),
-                          TextField(
-                              controller: closing,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true, signed: true),
-                              decoration: const InputDecoration(
-                                  labelText: 'Closing Balance')),
-                        ])),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel')),
-                      FilledButton(
-                          onPressed: () =>
-                              Navigator.pop(context, accountId != null),
-                          child: const Text('Create'))
-                    ],
-                  )));
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: const Text('New Bank Reconciliation'),
+            content: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: accountId,
+                    decoration: const InputDecoration(
+                      labelText: 'Bank / Asset Account',
+                    ),
+                    items: accounts
+                        .map(
+                          (a) => DropdownMenuItem(
+                            value: int.parse('${a['id']}'),
+                            child: Text('${a['code']} · ${a['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setLocal(() => accountId = v),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: from,
+                    decoration: const InputDecoration(
+                      labelText: 'Statement From YYYY-MM-DD',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: to,
+                    decoration: const InputDecoration(
+                      labelText: 'Statement To YYYY-MM-DD',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: opening,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Opening Balance',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: closing,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Closing Balance',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, accountId != null),
+                child: const Text('Create'),
+              ),
+            ],
+          ),
+        ),
+      );
       if (ok == true) {
-        final r = await api.post(ApiPaths.bankReconciliations, data: {
-          'branch_id': app.currentBranchId,
-          'account_id': accountId,
-          'statement_from': from.text.trim(),
-          'statement_to': to.text.trim(),
-          'opening_balance': double.tryParse(opening.text) ?? 0,
-          'closing_balance': double.tryParse(closing.text) ?? 0
-        });
+        final r = await api.post(
+          ApiPaths.bankReconciliations,
+          data: {
+            'branch_id': app.currentBranchId,
+            'account_id': accountId,
+            'statement_from': from.text.trim(),
+            'statement_to': to.text.trim(),
+            'opening_balance': double.tryParse(opening.text) ?? 0,
+            'closing_balance': double.tryParse(closing.text) ?? 0,
+          },
+        );
         if (mounted)
           setState(() {
             message =
@@ -641,9 +792,9 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
 
   Future<void> _bankDetail(int id) async {
     try {
-      final data = Map<String, dynamic>.from(await ref
-          .read(apiClientProvider)
-          .get(ApiPaths.bankDetail(id)) as Map);
+      final data = Map<String, dynamic>.from(
+        await ref.read(apiClientProvider).get(ApiPaths.bankDetail(id)) as Map,
+      );
       if (!mounted) return;
       final r = Map<String, dynamic>.from(data['reconciliation'] as Map);
       final lines = (data['lines'] as List)
@@ -661,60 +812,76 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           initialChildSize: .8,
           maxChildSize: .96,
           builder: (_, controller) => ListView(
-              controller: controller,
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text(
-                    '${r['account_code']} · ${r['statement_from']} → ${r['statement_to']}',
-                    style: Theme.of(context).textTheme.titleLarge),
-                Text(
-                    'Status ${r['status']} · Opening ${r['opening_balance']} · Closing ${r['closing_balance']}'),
+            controller: controller,
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                '${r['account_code']} · ${r['statement_from']} → ${r['statement_to']}',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              Text(
+                'Status ${r['status']} · Opening ${r['opening_balance']} · Closing ${r['closing_balance']}',
+              ),
+              const SizedBox(height: 12),
+              if ('${r['status']}' == 'draft')
+                FilledButton.tonalIcon(
+                  onPressed: () async {
+                    final closed = await OverlayTransition.closeAndSettle(
+                      context,
+                    );
+                    if (!closed || !mounted) return;
+                    await _addBankLine(id);
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Statement Line'),
+                ),
+              const SizedBox(height: 12),
+              ...lines.map(
+                (line) => Card(
+                  child: ListTile(
+                    title: Text(
+                      '${line['txn_date']} · ${line['description'] ?? ''}',
+                    ),
+                    subtitle: Text(
+                      '${line['status']} · Ref ${line['reference'] ?? '-'}',
+                    ),
+                    trailing: Text(
+                      (double.tryParse('${line['debit']}') ?? 0) > 0
+                          ? 'Dr ${line['debit']}'
+                          : 'Cr ${line['credit']}',
+                    ),
+                    onTap:
+                        '${r['status']}' == 'draft' &&
+                            '${line['status']}' == 'unmatched'
+                        ? () async {
+                            final closed =
+                                await OverlayTransition.closeAndSettle(context);
+                            if (!closed || !mounted) return;
+                            await _resolveBankLine(id, line, candidates);
+                          }
+                        : null,
+                  ),
+                ),
+              ),
+              if ('${r['status']}' == 'draft') ...[
                 const SizedBox(height: 12),
-                if ('${r['status']}' == 'draft')
-                  FilledButton.tonalIcon(
-                      onPressed: () async {
-                        final closed =
-                            await OverlayTransition.closeAndSettle(context);
-                        if (!closed || !mounted) return;
-                        await _addBankLine(id);
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Statement Line')),
-                const SizedBox(height: 12),
-                ...lines.map((line) => Card(
-                        child: ListTile(
-                      title: Text(
-                          '${line['txn_date']} · ${line['description'] ?? ''}'),
-                      subtitle: Text(
-                          '${line['status']} · Ref ${line['reference'] ?? '-'}'),
-                      trailing: Text(
-                          (double.tryParse('${line['debit']}') ?? 0) > 0
-                              ? 'Dr ${line['debit']}'
-                              : 'Cr ${line['credit']}'),
-                      onTap: '${r['status']}' == 'draft' &&
-                              '${line['status']}' == 'unmatched'
-                          ? () async {
-                              final closed =
-                                  await OverlayTransition.closeAndSettle(
-                                      context);
-                              if (!closed || !mounted) return;
-                              await _resolveBankLine(id, line, candidates);
-                            }
-                          : null,
-                    ))),
-                if ('${r['status']}' == 'draft') ...[
-                  const SizedBox(height: 12),
-                  FilledButton(
-                      onPressed: () async {
-                        final closed =
-                            await OverlayTransition.closeAndSettle(context);
-                        if (!closed || !mounted) return;
-                        await _post(ApiPaths.bankFinalize(id), const {},
-                            closeSheet: false);
-                      },
-                      child: const Text('Finalize Reconciliation')),
-                ],
-              ]),
+                FilledButton(
+                  onPressed: () async {
+                    final closed = await OverlayTransition.closeAndSettle(
+                      context,
+                    );
+                    if (!closed || !mounted) return;
+                    await _post(
+                      ApiPaths.bankFinalize(id),
+                      const {},
+                      closeSheet: false,
+                    );
+                  },
+                  child: const Text('Finalize Reconciliation'),
+                ),
+              ],
+            ],
+          ),
         ),
       );
     } catch (e) {
@@ -729,65 +896,73 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final debit = TextEditingController(text: '0');
     final credit = TextEditingController(text: '0');
     final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-              title: const Text('Statement Line'),
-              content: SizedBox(
-                  width: 500,
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    TextField(
-                        controller: date,
-                        decoration: const InputDecoration(
-                            labelText: 'Transaction Date YYYY-MM-DD')),
-                    const SizedBox(height: 10),
-                    TextField(
-                        controller: description,
-                        decoration:
-                            const InputDecoration(labelText: 'Description')),
-                    const SizedBox(height: 10),
-                    TextField(
-                        controller: reference,
-                        decoration:
-                            const InputDecoration(labelText: 'Reference')),
-                    const SizedBox(height: 10),
-                    TextField(
-                        controller: debit,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        decoration:
-                            const InputDecoration(labelText: 'Debit (or 0)')),
-                    const SizedBox(height: 10),
-                    TextField(
-                        controller: credit,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        decoration:
-                            const InputDecoration(labelText: 'Credit (or 0)')),
-                  ])),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel')),
-                FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Import'))
-              ],
-            ));
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Statement Line'),
+        content: SizedBox(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: date,
+                decoration: const InputDecoration(
+                  labelText: 'Transaction Date YYYY-MM-DD',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: description,
+                decoration: const InputDecoration(labelText: 'Description'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: reference,
+                decoration: const InputDecoration(labelText: 'Reference'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: debit,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'Debit (or 0)'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: credit,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'Credit (or 0)'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
     if (ok == true) {
-      await _post(
-          ApiPaths.bankImport(id),
+      await _post(ApiPaths.bankImport(id), {
+        'lines': [
           {
-            'lines': [
-              {
-                'txn_date': date.text.trim(),
-                'description': description.text.trim(),
-                'reference': reference.text.trim(),
-                'debit': double.tryParse(debit.text) ?? 0,
-                'credit': double.tryParse(credit.text) ?? 0
-              }
-            ]
+            'txn_date': date.text.trim(),
+            'description': description.text.trim(),
+            'reference': reference.text.trim(),
+            'debit': double.tryParse(debit.text) ?? 0,
+            'credit': double.tryParse(credit.text) ?? 0,
           },
-          closeSheet: false);
+        ],
+      }, closeSheet: false);
     }
     date.dispose();
     description.dispose();
@@ -796,62 +971,82 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     credit.dispose();
   }
 
-  Future<void> _resolveBankLine(int reconciliationId, Map<String, dynamic> line,
-      List<Map<String, dynamic>> candidates) async {
-    final statementNet = (double.tryParse('${line['credit']}') ?? 0) -
+  Future<void> _resolveBankLine(
+    int reconciliationId,
+    Map<String, dynamic> line,
+    List<Map<String, dynamic>> candidates,
+  ) async {
+    final statementNet =
+        (double.tryParse('${line['credit']}') ?? 0) -
         (double.tryParse('${line['debit']}') ?? 0);
     final matching = candidates.where((c) {
-      final journalNet = (double.tryParse('${c['debit']}') ?? 0) -
+      final journalNet =
+          (double.tryParse('${c['debit']}') ?? 0) -
           (double.tryParse('${c['credit']}') ?? 0);
       return (statementNet - journalNet).abs() < .005;
     }).toList();
     int? candidateId;
     final choice = await showDialog<String>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-            builder: (context, setLocal) => AlertDialog(
-                  title: const Text('Resolve Bank Line'),
-                  content: SizedBox(
-                      width: 540,
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Text('${line['txn_date']} · ${line['description']}'),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<int>(
-                            initialValue: candidateId,
-                            decoration: const InputDecoration(
-                                labelText: 'Matching Journal Line'),
-                            items: matching
-                                .map((c) => DropdownMenuItem(
-                                    value: int.parse('${c['journal_line_id']}'),
-                                    child: Text(
-                                        '${c['entry_no']} · ${c['entry_date']} · Dr ${c['debit']} Cr ${c['credit']}')))
-                                .toList(),
-                            onChanged: (v) => setLocal(() => candidateId = v)),
-                      ])),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel')),
-                    TextButton(
-                        onPressed: () => Navigator.pop(context, 'exclude'),
-                        child: const Text('Exclude')),
-                    FilledButton(
-                        onPressed: candidateId == null
-                            ? null
-                            : () => Navigator.pop(context, 'match'),
-                        child: const Text('Match')),
-                  ],
-                )));
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Resolve Bank Line'),
+          content: SizedBox(
+            width: 540,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('${line['txn_date']} · ${line['description']}'),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<int>(
+                  initialValue: candidateId,
+                  decoration: const InputDecoration(
+                    labelText: 'Matching Journal Line',
+                  ),
+                  items: matching
+                      .map(
+                        (c) => DropdownMenuItem(
+                          value: int.parse('${c['journal_line_id']}'),
+                          child: Text(
+                            '${c['entry_no']} · ${c['entry_date']} · Dr ${c['debit']} Cr ${c['credit']}',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setLocal(() => candidateId = v),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'exclude'),
+              child: const Text('Exclude'),
+            ),
+            FilledButton(
+              onPressed: candidateId == null
+                  ? null
+                  : () => Navigator.pop(context, 'match'),
+              child: const Text('Match'),
+            ),
+          ],
+        ),
+      ),
+    );
     if (choice == 'match' && candidateId != null)
-      await _post(ApiPaths.bankMatch(int.parse('${line['id']}')),
-          {'journal_line_id': candidateId},
-          closeSheet: false);
+      await _post(ApiPaths.bankMatch(int.parse('${line['id']}')), {
+        'journal_line_id': candidateId,
+      }, closeSheet: false);
     if (choice == 'exclude') {
       final reason = await _askReason('Bank line exclusion reason');
       if (reason != null)
-        await _post(ApiPaths.bankExclude(int.parse('${line['id']}')),
-            {'reason': reason},
-            closeSheet: false);
+        await _post(ApiPaths.bankExclude(int.parse('${line['id']}')), {
+          'reason': reason,
+        }, closeSheet: false);
     }
     if (mounted) _bankDetail(reconciliationId);
   }
@@ -860,43 +1055,53 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final from = TextEditingController(text: _monthStart());
     final to = TextEditingController(text: _today());
     final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-              title: const Text('Close Accounting Period'),
-              content: SizedBox(
-                  width: 480,
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    TextField(
-                        controller: from,
-                        decoration: const InputDecoration(
-                            labelText: 'From YYYY-MM-DD')),
-                    const SizedBox(height: 10),
-                    TextField(
-                        controller: to,
-                        decoration:
-                            const InputDecoration(labelText: 'To YYYY-MM-DD')),
-                  ])),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel')),
-                FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Close Period'))
-              ],
-            ));
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Close Accounting Period'),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: from,
+                decoration: const InputDecoration(labelText: 'From YYYY-MM-DD'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: to,
+                decoration: const InputDecoration(labelText: 'To YYYY-MM-DD'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Close Period'),
+          ),
+        ],
+      ),
+    );
     if (ok == true)
-      await _post(ApiPaths.periodClose,
-          {'date_from': from.text.trim(), 'date_to': to.text.trim()},
-          closeSheet: false);
+      await _post(ApiPaths.periodClose, {
+        'date_from': from.text.trim(),
+        'date_to': to.text.trim(),
+      }, closeSheet: false);
     from.dispose();
     to.dispose();
   }
 
   void _periodAction(Map<String, dynamic> row) {
     if ('${row['status']}' != 'closed') return;
-    _reasonPost(ApiPaths.periodReopen(int.parse('${row['id']}')),
-        'Accounting Period reopen reason');
+    _reasonPost(
+      ApiPaths.periodReopen(int.parse('${row['id']}')),
+      'Accounting Period reopen reason',
+    );
   }
 
   Future<void> _reasonPost(String path, String title) async {
@@ -908,32 +1113,39 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   Future<String?> _askReason(String title) async {
     final controller = TextEditingController();
     final result = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-              title: Text(title),
-              content: TextField(
-                  controller: controller,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Reason')),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel')),
-                FilledButton(
-                    onPressed: () {
-                      final v = controller.text.trim();
-                      if (v.length >= 5) Navigator.pop(context, v);
-                    },
-                    child: const Text('Confirm'))
-              ],
-            ));
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Reason'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final v = controller.text.trim();
+              if (v.length >= 5) Navigator.pop(context, v);
+            },
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
     controller.dispose();
     return result;
   }
 
-  Future<void> _post(String path, Map<String, dynamic> data,
-      {bool closeSheet = true}) async {
+  Future<void> _post(
+    String path,
+    Map<String, dynamic> data, {
+    bool closeSheet = true,
+  }) async {
     if (closeSheet) {
       final closed = await OverlayTransition.closeAndSettle(context);
       if (!closed || !mounted) return;

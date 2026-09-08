@@ -1,5 +1,8 @@
 class BranchProjection {
-  const BranchProjection({required this.assignedBranchId, required this.branchIds});
+  const BranchProjection({
+    required this.assignedBranchId,
+    required this.branchIds,
+  });
   final int assignedBranchId;
   final List<int> branchIds;
   bool get selectorVisible => branchIds.length > 1;

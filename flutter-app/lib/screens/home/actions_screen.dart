@@ -20,29 +20,65 @@ class ActionsScreen extends ConsumerWidget {
     final actions = <({String label, IconData icon, VoidCallback run})>[];
 
     if (app.can('workforce.attendance.self')) {
-      actions.add((label: 'Check-In / Out', icon: Icons.location_on_outlined, run: openMyWork));
+      actions.add((
+        label: 'Check-In / Out',
+        icon: Icons.location_on_outlined,
+        run: openMyWork,
+      ));
     }
     if (app.canAny(const ['daily_order.self', 'daily_order.others'])) {
-      actions.add((label: 'Create Daily Order', icon: Icons.shopping_cart_checkout, run: openMyWork));
-      actions.add((label: 'Evening Closing', icon: Icons.nightlight_outlined, run: openMyWork));
+      actions.add((
+        label: 'Create Daily Order',
+        icon: Icons.shopping_cart_checkout,
+        run: openMyWork,
+      ));
+      actions.add((
+        label: 'Evening Closing',
+        icon: Icons.nightlight_outlined,
+        run: openMyWork,
+      ));
     }
     if (app.can('workforce.field_visit.self')) {
-      actions.add((label: 'Field Visit', icon: Icons.route_outlined, run: openMyWork));
+      actions.add((
+        label: 'Field Visit',
+        icon: Icons.route_outlined,
+        run: openMyWork,
+      ));
     }
     if (app.can('workforce.leave.self')) {
-      actions.add((label: 'Apply Leave', icon: Icons.event_available_outlined, run: openMyWork));
+      actions.add((
+        label: 'Apply Leave',
+        icon: Icons.event_available_outlined,
+        run: openMyWork,
+      ));
     }
     if (app.can('sales.create')) {
-      actions.add((label: 'Counter Sale', icon: Icons.point_of_sale, run: () => openModule('sales')));
+      actions.add((
+        label: 'Counter Sale',
+        icon: Icons.point_of_sale,
+        run: () => openModule('sales'),
+      ));
     }
     if (app.can('inventory.transfer.create')) {
-      actions.add((label: 'Stock Transfer', icon: Icons.swap_horiz, run: () => openModule('inventory')));
+      actions.add((
+        label: 'Stock Transfer',
+        icon: Icons.swap_horiz,
+        run: () => openModule('inventory'),
+      ));
     }
     if (app.can('purchase.create')) {
-      actions.add((label: 'Purchase Entry', icon: Icons.local_shipping_outlined, run: () => openModule('purchase')));
+      actions.add((
+        label: 'Purchase Entry',
+        icon: Icons.local_shipping_outlined,
+        run: () => openModule('purchase'),
+      ));
     }
     if (app.can('finance.expense.create')) {
-      actions.add((label: 'Expense Entry', icon: Icons.receipt_long_outlined, run: () => openModule('finance')));
+      actions.add((
+        label: 'Expense Entry',
+        icon: Icons.receipt_long_outlined,
+        run: () => openModule('finance'),
+      ));
     }
 
     return ListView(
@@ -52,14 +88,17 @@ class ActionsScreen extends ConsumerWidget {
         const SizedBox(height: 5),
         Text(
           'Sirf aapke role aur permission ke authorised actions yahan dikhte hain.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: ExcelBrand.muted),
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: ExcelBrand.muted),
         ),
         const SizedBox(height: 16),
         if (actions.isEmpty)
           const Card(
             child: Padding(
               padding: EdgeInsets.all(20),
-              child: Text('Aapke role ke liye koi quick action available nahi hai.'),
+              child: Text(
+                'Aapke role ke liye koi quick action available nahi hai.',
+              ),
             ),
           )
         else
@@ -91,10 +130,17 @@ class ActionsScreen extends ConsumerWidget {
                             color: ExcelBrand.primarySoft,
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(action.icon, size: 20, color: ExcelBrand.primaryDark),
+                          child: Icon(
+                            action.icon,
+                            size: 20,
+                            color: ExcelBrand.primaryDark,
+                          ),
                         ),
                         const Spacer(),
-                        Text(action.label, style: Theme.of(context).textTheme.titleSmall),
+                        Text(
+                          action.label,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
                       ],
                     ),
                   ),

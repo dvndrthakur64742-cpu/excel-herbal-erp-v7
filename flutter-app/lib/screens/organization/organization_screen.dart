@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/api_paths.dart';
 import '../../core/providers.dart';
 import '../../core/overlay_transition.dart';
@@ -25,12 +26,16 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     final app = ref.watch(appStateProvider);
     final api = ref.watch(apiClientProvider);
     final tabs = <(String, Widget)>[];
-    if (app.canAny(
-        const ['organization.branch.view', 'organization.branch.manage'])) {
+    if (app.canAny(const [
+      'organization.branch.view',
+      'organization.branch.manage',
+    ])) {
       tabs.add(('Branches', _branchesTab(app)));
     }
-    if (app.canAny(
-        const ['organization.employee.view', 'organization.employee.manage'])) {
+    if (app.canAny(const [
+      'organization.employee.view',
+      'organization.employee.manage',
+    ])) {
       tabs.add(('Employees', _employeesTab(app, api)));
     }
     if (app.canAny(const ['catalog.product.view', 'catalog.product.manage'])) {
@@ -38,7 +43,8 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     }
     if (tabs.isEmpty) {
       return const Scaffold(
-          body: Center(child: Text('No authorised organization functions.')));
+        body: Center(child: Text('No authorised organization functions.')),
+      );
     }
     return DefaultTabController(
       length: tabs.length,
@@ -50,39 +56,49 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
           ),
         ),
-        body: Column(children: [
-          if (message != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              child: Text(message!),
+        body: Column(
+          children: [
+            if (message != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: Text(message!),
+              ),
+            Expanded(
+              child: TabBarView(children: [for (final tab in tabs) tab.$2]),
             ),
-          Expanded(
-              child: TabBarView(children: [for (final tab in tabs) tab.$2])),
-        ]),
+          ],
+        ),
       ),
     );
   }
 
   Widget _branchesTab(AppState app) {
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      if (app.can('organization.branch.manage'))
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton.icon(
-            onPressed: _createBranch,
-            icon: const Icon(Icons.add_business),
-            label: const Text('New Branch'),
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (app.can('organization.branch.manage'))
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              onPressed: _createBranch,
+              icon: const Icon(Icons.add_business),
+              label: const Text('New Branch'),
+            ),
           ),
+        if (app.can('organization.branch.manage')) const SizedBox(height: 12),
+        Text(
+          'Authorised Branches',
+          style: Theme.of(context).textTheme.titleLarge,
         ),
-      if (app.can('organization.branch.manage')) const SizedBox(height: 12),
-      Text('Authorised Branches',
-          style: Theme.of(context).textTheme.titleLarge),
-      const SizedBox(height: 8),
-      ...app.branches.map((b) => Card(
+        const SizedBox(height: 8),
+        ...app.branches.map(
+          (b) => Card(
             child: ListTile(
-              leading: Icon('${b['is_head_office']}' == '1'
-                  ? Icons.corporate_fare
-                  : Icons.store_outlined),
+              leading: Icon(
+                '${b['is_head_office']}' == '1'
+                    ? Icons.corporate_fare
+                    : Icons.store_outlined,
+              ),
               title: Text('${b['name']}'),
               subtitle: Text('${b['code']}'),
               trailing: int.tryParse('${b['id']}') == app.currentBranchId
@@ -90,8 +106,10 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
                   : const Icon(Icons.chevron_right),
               onTap: () => _openBranchDetail(Map<String, dynamic>.from(b)),
             ),
-          )),
-    ]);
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _openBranchDetail(Map<String, dynamic> branch) async {
@@ -103,100 +121,119 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
           child: SizedBox(
             width: 680,
             height: MediaQuery.sizeOf(context).height * .72,
-            child: Column(children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 8, 10),
-                child: Row(children: [
-                  Expanded(
-                      child: Text('Branch Details',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700))),
-                  IconButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      icon: const Icon(Icons.close)),
-                ]),
-              ),
-              const Divider(height: 1),
-              Expanded(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 8, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Branch Details',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
                   child: BusinessRecordDetailView(
-                      row: branch, title: title, recordType: 'branch')),
-            ]),
+                    row: branch,
+                    title: title,
+                    recordType: 'branch',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
       return;
     }
-    await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => RecordDetailScreen(
-            row: branch, title: title, recordType: 'branch')));
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            RecordDetailScreen(row: branch, title: title, recordType: 'branch'),
+      ),
+    );
   }
 
   Widget _employeesTab(AppState app, dynamic api) {
-    return Column(children: [
-      const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
-      if (app.can('organization.employee.manage'))
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.icon(
-              onPressed: app.currentBranchId == null ? null : _createEmployee,
-              icon: const Icon(Icons.person_add_alt_1),
-              label: const Text('New Employee'),
+    return Column(
+      children: [
+        const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
+        if (app.can('organization.employee.manage'))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: app.currentBranchId == null ? null : _createEmployee,
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text('New Employee'),
+              ),
             ),
           ),
-        ),
-      Expanded(
-        child: app.currentBranchId == null
-            ? const Center(child: Text('Branch select karein.'))
-            : AsyncPanel(
-                key: ValueKey('employees-${app.currentBranchId}-$refresh'),
-                future: api.get(ApiPaths.employees,
-                    query: {'branch_id': app.currentBranchId}),
-                emptyMessage: 'Selected branch me active employee nahi hai.',
-                builder: (context, data) => RecordsList(
-                  recordType: 'employee',
-                  rows: (data as List)
-                      .map((e) => Map<String, dynamic>.from(e as Map))
-                      .toList(),
-                  onTap: _employeeActions,
+        Expanded(
+          child: app.currentBranchId == null
+              ? const Center(child: Text('Branch select karein.'))
+              : AsyncPanel(
+                  key: ValueKey('employees-${app.currentBranchId}-$refresh'),
+                  future: api.get(
+                    ApiPaths.employees,
+                    query: {'branch_id': app.currentBranchId},
+                  ),
+                  emptyMessage: 'Selected branch me active employee nahi hai.',
+                  builder: (context, data) => RecordsList(
+                    recordType: 'employee',
+                    rows: (data as List)
+                        .map((e) => Map<String, dynamic>.from(e as Map))
+                        .toList(),
+                    onTap: _employeeActions,
+                  ),
                 ),
-              ),
-      ),
-    ]);
+        ),
+      ],
+    );
   }
 
   Widget _productsTab(AppState app, dynamic api) {
-    return Column(children: [
-      if (app.can('catalog.product.manage'))
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.icon(
-              onPressed: _createProduct,
-              icon: const Icon(Icons.add_box_outlined),
-              label: const Text('New Product'),
+    return Column(
+      children: [
+        if (app.can('catalog.product.manage'))
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: _createProduct,
+                icon: const Icon(Icons.add_box_outlined),
+                label: const Text('New Product'),
+              ),
+            ),
+          ),
+        Expanded(
+          child: AsyncPanel(
+            key: ValueKey('products-$refresh'),
+            future: api.get(ApiPaths.products),
+            emptyMessage: 'Product master empty hai.',
+            builder: (context, data) => RecordsList(
+              recordType: 'product',
+              rows: (data as List)
+                  .map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList(),
+              onTap: _productActions,
             ),
           ),
         ),
-      Expanded(
-        child: AsyncPanel(
-          key: ValueKey('products-$refresh'),
-          future: api.get(ApiPaths.products),
-          emptyMessage: 'Product master empty hai.',
-          builder: (context, data) => RecordsList(
-            recordType: 'product',
-            rows: (data as List)
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList(),
-            onTap: _productActions,
-          ),
-        ),
-      ),
-    ]);
+      ],
+    );
   }
 
   Future<void> _createBranch() async {
@@ -210,30 +247,38 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
           title: const Text('New Branch'),
           content: SizedBox(
             width: 500,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
                   controller: code,
-                  decoration: const InputDecoration(labelText: 'Branch Code')),
-              const SizedBox(height: 10),
-              TextField(
+                  decoration: const InputDecoration(labelText: 'Branch Code'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
                   controller: name,
-                  decoration: const InputDecoration(labelText: 'Branch Name')),
-              const SizedBox(height: 8),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: headOffice,
-                title: const Text('Head Office'),
-                onChanged: (v) => setLocal(() => headOffice = v == true),
-              ),
-            ]),
+                  decoration: const InputDecoration(labelText: 'Branch Name'),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: headOffice,
+                  title: const Text('Head Office'),
+                  onChanged: (v) => setLocal(() => headOffice = v == true),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
             FilledButton(
-              onPressed: () => Navigator.pop(context,
-                  code.text.trim().isNotEmpty && name.text.trim().isNotEmpty),
+              onPressed: () => Navigator.pop(
+                context,
+                code.text.trim().isNotEmpty && name.text.trim().isNotEmpty,
+              ),
               child: const Text('Create'),
             ),
           ],
@@ -243,7 +288,7 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     final payload = {
       'code': code.text.trim(),
       'name': name.text.trim(),
-      'is_head_office': headOffice
+      'is_head_office': headOffice,
     };
     code.dispose();
     name.dispose();
@@ -252,8 +297,10 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
       await ref.read(apiClientProvider).post(ApiPaths.branches, data: payload);
       await ref.read(appStateProvider.notifier).refreshBootstrap();
       if (mounted)
-        setState(() => message =
-            'Branch create ho gaya; creator authority bootstrap ho gayi.');
+        setState(
+          () => message =
+              'Branch create ho gaya; creator authority bootstrap ho gayi.',
+        );
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
@@ -294,88 +341,116 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
             content: SizedBox(
               width: 620,
               child: SingleChildScrollView(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  TextField(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
                       controller: code,
-                      decoration:
-                          const InputDecoration(labelText: 'Employee Code')),
-                  const SizedBox(height: 10),
-                  TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Employee Code',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
                       controller: name,
-                      decoration:
-                          const InputDecoration(labelText: 'Full Name')),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: designationCode,
-                    decoration: const InputDecoration(labelText: 'Designation'),
-                    items: designations
-                        .map((d) => DropdownMenuItem(
-                            value: '${d['code']}',
-                            child: Text('${d['name']} · ${d['code']}')))
-                        .toList(),
-                    onChanged: (v) => setLocal(() => designationCode = v),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<int?>(
-                    initialValue: roleId,
-                    decoration: const InputDecoration(labelText: 'Role'),
-                    items: roles
-                        .map((r) => DropdownMenuItem<int?>(
-                            value: int.parse('${r['id']}'),
-                            child: Text('${r['name']}')))
-                        .toList(),
-                    onChanged: (v) => setLocal(() => roleId = v),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<int?>(
-                    initialValue: reportingId,
-                    decoration: const InputDecoration(
-                        labelText: 'Reporting Manager (optional)'),
-                    items: <DropdownMenuItem<int?>>[
-                      const DropdownMenuItem(
-                          value: null, child: Text('No reporting manager')),
-                      ...employees.map((e) => DropdownMenuItem(
-                          value: int.parse('${e['id']}'),
-                          child: Text('${e['full_name']}'))),
-                    ],
-                    onChanged: (v) => setLocal(() => reportingId = v),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
+                      decoration: const InputDecoration(labelText: 'Full Name'),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: designationCode,
+                      decoration: const InputDecoration(
+                        labelText: 'Designation',
+                      ),
+                      items: designations
+                          .map(
+                            (d) => DropdownMenuItem(
+                              value: '${d['code']}',
+                              child: Text('${d['name']} · ${d['code']}'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setLocal(() => designationCode = v),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<int?>(
+                      initialValue: roleId,
+                      decoration: const InputDecoration(labelText: 'Role'),
+                      items: roles
+                          .map(
+                            (r) => DropdownMenuItem<int?>(
+                              value: int.parse('${r['id']}'),
+                              child: Text('${r['name']}'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setLocal(() => roleId = v),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<int?>(
+                      initialValue: reportingId,
+                      decoration: const InputDecoration(
+                        labelText: 'Reporting Manager (optional)',
+                      ),
+                      items: <DropdownMenuItem<int?>>[
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text('No reporting manager'),
+                        ),
+                        ...employees.map(
+                          (e) => DropdownMenuItem(
+                            value: int.parse('${e['id']}'),
+                            child: Text('${e['full_name']}'),
+                          ),
+                        ),
+                      ],
+                      onChanged: (v) => setLocal(() => reportingId = v),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
                       controller: mobile,
                       keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(labelText: 'Mobile')),
-                  const SizedBox(height: 10),
-                  TextField(
+                      decoration: const InputDecoration(labelText: 'Mobile'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
                       controller: email,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email')),
-                  const SizedBox(height: 10),
-                  TextField(
+                      decoration: const InputDecoration(labelText: 'Email'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
                       controller: salary,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration:
-                          const InputDecoration(labelText: 'Monthly Salary')),
-                  const SizedBox(height: 10),
-                  TextField(
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Monthly Salary',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
                       controller: joining,
                       decoration: const InputDecoration(
-                          labelText: 'Joining Date YYYY-MM-DD')),
-                ]),
+                        labelText: 'Joining Date YYYY-MM-DD',
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel')),
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
                 onPressed: () => Navigator.pop(
-                    context,
-                    code.text.trim().isNotEmpty &&
-                        name.text.trim().isNotEmpty &&
-                        designationCode != null &&
-                        roleId != null),
+                  context,
+                  code.text.trim().isNotEmpty &&
+                      name.text.trim().isNotEmpty &&
+                      designationCode != null &&
+                      roleId != null,
+                ),
                 child: const Text('Create'),
               ),
             ],
@@ -418,28 +493,39 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     showModalBottomSheet<void>(
       context: context,
       builder: (context) => SafeArea(
-        child: Wrap(children: [
-          ListTile(
+        child: Wrap(
+          children: [
+            ListTile(
               title: Text(
-                  '${employee['full_name']} · ${employee['employee_code']}'),
-              subtitle: Text('${employee['designation_code']}')),
-          ListTile(
+                '${employee['full_name']} · ${employee['employee_code']}',
+              ),
+              subtitle: Text('${employee['designation_code']}'),
+            ),
+            ListTile(
               leading: const Icon(Icons.history),
               title: const Text('Branch History'),
-              onTap: () => _employeeHistory(id)),
-          if (app.can('organization.employee.manage'))
-            ListTile(
+              onTap: () => _employeeHistory(id),
+            ),
+            if (app.can('organization.employee.manage'))
+              ListTile(
                 leading: const Icon(Icons.swap_horiz),
                 title: const Text('Transfer Assigned Branch'),
                 onTap: () => _transferEmployee(
-                    id, int.parse('${employee['assigned_branch_id']}'))),
-          if (app.can('administration.access.manage'))
-            ListTile(
+                  id,
+                  int.parse('${employee['assigned_branch_id']}'),
+                ),
+              ),
+            if (app.can('administration.access.manage'))
+              ListTile(
                 leading: const Icon(Icons.account_tree_outlined),
                 title: const Text('Additional Branch Authority'),
                 onTap: () => _branchAuthority(
-                    id, int.parse('${employee['assigned_branch_id']}'))),
-        ]),
+                  id,
+                  int.parse('${employee['assigned_branch_id']}'),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -448,27 +534,29 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     final closed = await OverlayTransition.closeAndSettle(context);
     if (!closed || !mounted) return;
     try {
-      final rows = (await ref
-              .read(apiClientProvider)
-              .get(ApiPaths.employeeHistory(id)) as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      final rows =
+          (await ref.read(apiClientProvider).get(ApiPaths.employeeHistory(id))
+                  as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
       if (!mounted) return;
       await showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-                title: const Text('Employee Branch History'),
-                content: SizedBox(
-                    width: 600,
-                    height: 380,
-                    child:
-                        RecordsList(recordType: 'branch_history', rows: rows)),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Close'))
-                ],
-              ));
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Employee Branch History'),
+          content: SizedBox(
+            width: 600,
+            height: 380,
+            child: RecordsList(recordType: 'branch_history', rows: rows),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
@@ -485,55 +573,74 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
         .where((b) => int.parse('${b['id']}') != currentBranch)
         .toList();
     if (available.isEmpty) {
-      setState(() => message =
-          'Transfer ke liye dusri authorised branch available nahi hai.');
+      setState(
+        () => message =
+            'Transfer ke liye dusri authorised branch available nahi hai.',
+      );
       return;
     }
     final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-            builder: (context, setLocal) => AlertDialog(
-                  title: const Text('Transfer Employee'),
-                  content: SizedBox(
-                      width: 520,
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        DropdownButtonFormField<int>(
-                            initialValue: branchId,
-                            decoration:
-                                const InputDecoration(labelText: 'New Branch'),
-                            items: available
-                                .map((b) => DropdownMenuItem(
-                                    value: int.parse('${b['id']}'),
-                                    child: Text('${b['name']}')))
-                                .toList(),
-                            onChanged: (v) => setLocal(() => branchId = v)),
-                        const SizedBox(height: 10),
-                        TextField(
-                            controller: date,
-                            decoration: const InputDecoration(
-                                labelText: 'Effective Date YYYY-MM-DD')),
-                        const SizedBox(height: 10),
-                        TextField(
-                            controller: reason,
-                            minLines: 2,
-                            maxLines: 4,
-                            decoration: const InputDecoration(
-                                labelText: 'Transfer Reason')),
-                      ])),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel')),
-                    FilledButton(
-                        onPressed: () => Navigator.pop(context,
-                            branchId != null && reason.text.trim().length >= 5),
-                        child: const Text('Transfer')),
-                  ],
-                )));
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Transfer Employee'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<int>(
+                  initialValue: branchId,
+                  decoration: const InputDecoration(labelText: 'New Branch'),
+                  items: available
+                      .map(
+                        (b) => DropdownMenuItem(
+                          value: int.parse('${b['id']}'),
+                          child: Text('${b['name']}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setLocal(() => branchId = v),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: date,
+                  decoration: const InputDecoration(
+                    labelText: 'Effective Date YYYY-MM-DD',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: reason,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Transfer Reason',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                context,
+                branchId != null && reason.text.trim().length >= 5,
+              ),
+              child: const Text('Transfer'),
+            ),
+          ],
+        ),
+      ),
+    );
     final payload = {
       'branch_id': branchId,
       'effective_date': date.text.trim(),
-      'reason': reason.text.trim()
+      'reason': reason.text.trim(),
     };
     date.dispose();
     reason.dispose();
@@ -562,57 +669,75 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
         .where((b) => int.parse('${b['id']}') != assignedBranch)
         .toList();
     if (branches.isEmpty) {
-      setState(() => message =
-          'Additional authority ke liye dusri authorised branch available nahi hai.');
+      setState(
+        () => message = 'Additional authority ke liye dusri authorised branch available nahi hai.',
+      );
       return;
     }
     final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-            builder: (context, setLocal) => AlertDialog(
-                  title: const Text('Additional Branch Authority'),
-                  content: SizedBox(
-                      width: 520,
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        DropdownButtonFormField<int>(
-                            initialValue: branchId,
-                            decoration:
-                                const InputDecoration(labelText: 'Branch'),
-                            items: branches
-                                .map((b) => DropdownMenuItem(
-                                    value: int.parse('${b['id']}'),
-                                    child: Text('${b['name']}')))
-                                .toList(),
-                            onChanged: (v) => setLocal(() => branchId = v)),
-                        const SizedBox(height: 8),
-                        SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            value: grant,
-                            title: Text(
-                                grant ? 'Grant authority' : 'Revoke authority'),
-                            onChanged: (v) => setLocal(() => grant = v)),
-                      ])),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel')),
-                    FilledButton(
-                        onPressed: () =>
-                            Navigator.pop(context, branchId != null),
-                        child: const Text('Apply')),
-                  ],
-                )));
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Additional Branch Authority'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<int>(
+                  initialValue: branchId,
+                  decoration: const InputDecoration(labelText: 'Branch'),
+                  items: branches
+                      .map(
+                        (b) => DropdownMenuItem(
+                          value: int.parse('${b['id']}'),
+                          child: Text('${b['name']}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setLocal(() => branchId = v),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: grant,
+                  title: Text(grant ? 'Grant authority' : 'Revoke authority'),
+                  onChanged: (v) => setLocal(() => grant = v),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, branchId != null),
+              child: const Text('Apply'),
+            ),
+          ],
+        ),
+      ),
+    );
     if (ok != true) return;
     try {
-      await ref.read(apiClientProvider).post(ApiPaths.branchAuthority, data: {
-        'employee_id': employeeId,
-        'branch_id': branchId,
-        'active': grant
-      });
+      await ref
+          .read(apiClientProvider)
+          .post(
+            ApiPaths.branchAuthority,
+            data: {
+              'employee_id': employeeId,
+              'branch_id': branchId,
+              'active': grant,
+            },
+          );
       if (mounted)
-        setState(() => message = grant
-            ? 'Additional branch authority granted.'
-            : 'Additional branch authority revoked.');
+        setState(
+          () => message = grant
+              ? 'Additional branch authority granted.'
+              : 'Additional branch authority revoked.',
+        );
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
@@ -633,73 +758,92 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     var batchMode = 'optional';
     var expiryTracking = false;
     final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-            builder: (context, setLocal) => AlertDialog(
-                  title: const Text('New Product'),
-                  content: SizedBox(
-                      width: 640,
-                      child: SingleChildScrollView(
-                          child:
-                              Column(mainAxisSize: MainAxisSize.min, children: [
-                        TextField(
-                            controller: sku,
-                            decoration:
-                                const InputDecoration(labelText: 'SKU')),
-                        const SizedBox(height: 10),
-                        TextField(
-                            controller: name,
-                            decoration: const InputDecoration(
-                                labelText: 'Product Name')),
-                        const SizedBox(height: 10),
-                        TextField(
-                            controller: uom,
-                            decoration:
-                                const InputDecoration(labelText: 'UOM')),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                            initialValue: batchMode,
-                            decoration: const InputDecoration(
-                                labelText: 'Batch Tracking'),
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 'off', child: Text('Off')),
-                              DropdownMenuItem(
-                                  value: 'optional', child: Text('Optional')),
-                              DropdownMenuItem(
-                                  value: 'required', child: Text('Required')),
-                            ],
-                            onChanged: (v) {
-                              if (v != null) setLocal(() => batchMode = v);
-                            }),
-                        CheckboxListTile(
-                            contentPadding: EdgeInsets.zero,
-                            value: expiryTracking,
-                            title: const Text('Expiry Tracking'),
-                            onChanged: (v) =>
-                                setLocal(() => expiryTracking = v == true)),
-                        _moneyPair(mrp, 'MRP', sale, 'Sale Price'),
-                        const SizedBox(height: 10),
-                        _moneyPair(ho, 'HO Amount', bm, 'BM Profit'),
-                        const SizedBox(height: 10),
-                        _moneyPair(
-                            salary, 'Salary Fund', office, 'Office Expense'),
-                        const SizedBox(height: 10),
-                        _moneyPair(points, 'Points', purchaseCost,
-                            'Initial Purchase Cost'),
-                      ]))),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel')),
-                    FilledButton(
-                        onPressed: () => Navigator.pop(
-                            context,
-                            sku.text.trim().isNotEmpty &&
-                                name.text.trim().isNotEmpty),
-                        child: const Text('Create'))
-                  ],
-                )));
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('New Product'),
+          content: SizedBox(
+            width: 640,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: sku,
+                    decoration: const InputDecoration(labelText: 'SKU'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: name,
+                    decoration: const InputDecoration(
+                      labelText: 'Product Name',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: uom,
+                    decoration: const InputDecoration(labelText: 'UOM'),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: batchMode,
+                    decoration: const InputDecoration(
+                      labelText: 'Batch Tracking',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'off', child: Text('Off')),
+                      DropdownMenuItem(
+                        value: 'optional',
+                        child: Text('Optional'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'required',
+                        child: Text('Required'),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setLocal(() => batchMode = v);
+                    },
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: expiryTracking,
+                    title: const Text('Expiry Tracking'),
+                    onChanged: (v) =>
+                        setLocal(() => expiryTracking = v == true),
+                  ),
+                  _moneyPair(mrp, 'MRP', sale, 'Sale Price'),
+                  const SizedBox(height: 10),
+                  _moneyPair(ho, 'HO Amount', bm, 'BM Profit'),
+                  const SizedBox(height: 10),
+                  _moneyPair(salary, 'Salary Fund', office, 'Office Expense'),
+                  const SizedBox(height: 10),
+                  _moneyPair(
+                    points,
+                    'Points',
+                    purchaseCost,
+                    'Initial Purchase Cost',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                context,
+                sku.text.trim().isNotEmpty && name.text.trim().isNotEmpty,
+              ),
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
     final payload = {
       'sku': sku.text.trim(),
       'name': name.text.trim(),
@@ -726,7 +870,7 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
       salary,
       office,
       points,
-      purchaseCost
+      purchaseCost,
     ]) {
       c.dispose();
     }
@@ -747,50 +891,60 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     final app = ref.read(appStateProvider);
     final id = int.parse('${product['id']}');
     showModalBottomSheet<void>(
-        context: context,
-        builder: (context) => SafeArea(
-                child: Wrap(children: [
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              title: Text('${product['name']} · ${product['sku']}'),
+              subtitle: Text(
+                'Sale ₹${product['sale_price'] ?? 0} · Batch ${product['batch_tracking']}',
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Commercial History'),
+              onTap: () => _productHistory(id),
+            ),
+            if (app.can('catalog.product.manage'))
               ListTile(
-                  title: Text('${product['name']} · ${product['sku']}'),
-                  subtitle: Text(
-                      'Sale ₹${product['sale_price'] ?? 0} · Batch ${product['batch_tracking']}')),
-              ListTile(
-                  leading: const Icon(Icons.history),
-                  title: const Text('Commercial History'),
-                  onTap: () => _productHistory(id)),
-              if (app.can('catalog.product.manage'))
-                ListTile(
-                    leading: const Icon(Icons.edit_outlined),
-                    title: const Text('New Commercial Revision'),
-                    onTap: () => _commercialRevision(product)),
-            ])));
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('New Commercial Revision'),
+                onTap: () => _commercialRevision(product),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _productHistory(int id) async {
     final closed = await OverlayTransition.closeAndSettle(context);
     if (!closed || !mounted) return;
     try {
-      final rows = (await ref
-              .read(apiClientProvider)
-              .get(ApiPaths.productHistory(id)) as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      final rows =
+          (await ref.read(apiClientProvider).get(ApiPaths.productHistory(id))
+                  as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
       if (!mounted) return;
       await showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-                title: const Text('Commercial History'),
-                content: SizedBox(
-                    width: 680,
-                    height: 420,
-                    child:
-                        RecordsList(recordType: 'product_history', rows: rows)),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Close'))
-                ],
-              ));
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Commercial History'),
+          content: SizedBox(
+            width: 680,
+            height: 420,
+            child: RecordsList(recordType: 'product_history', rows: rows),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
@@ -803,46 +957,56 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     final sale = TextEditingController(text: '${product['sale_price'] ?? 0}');
     final ho = TextEditingController(text: '${product['ho_amount'] ?? 0}');
     final bm = TextEditingController(text: '${product['bm_profit'] ?? 0}');
-    final salary =
-        TextEditingController(text: '${product['salary_fund'] ?? 0}');
-    final office =
-        TextEditingController(text: '${product['office_expense'] ?? 0}');
+    final salary = TextEditingController(
+      text: '${product['salary_fund'] ?? 0}',
+    );
+    final office = TextEditingController(
+      text: '${product['office_expense'] ?? 0}',
+    );
     final points = TextEditingController(text: '${product['points'] ?? 0}');
     final purchaseCost = TextEditingController(text: '0');
     final reason = TextEditingController();
     final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-              title: Text('Commercial Revision · ${product['name']}'),
-              content: SizedBox(
-                  width: 640,
-                  child: SingleChildScrollView(
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    _moneyPair(mrp, 'MRP', sale, 'Sale Price'),
-                    const SizedBox(height: 10),
-                    _moneyPair(ho, 'HO Amount', bm, 'BM Profit'),
-                    const SizedBox(height: 10),
-                    _moneyPair(salary, 'Salary Fund', office, 'Office Expense'),
-                    const SizedBox(height: 10),
-                    _moneyPair(points, 'Points', purchaseCost, 'Purchase Cost'),
-                    const SizedBox(height: 10),
-                    TextField(
-                        controller: reason,
-                        minLines: 2,
-                        maxLines: 4,
-                        decoration:
-                            const InputDecoration(labelText: 'Change Reason')),
-                  ]))),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel')),
-                FilledButton(
-                    onPressed: () =>
-                        Navigator.pop(context, reason.text.trim().length >= 5),
-                    child: const Text('Save Revision'))
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Commercial Revision · ${product['name']}'),
+        content: SizedBox(
+          width: 640,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _moneyPair(mrp, 'MRP', sale, 'Sale Price'),
+                const SizedBox(height: 10),
+                _moneyPair(ho, 'HO Amount', bm, 'BM Profit'),
+                const SizedBox(height: 10),
+                _moneyPair(salary, 'Salary Fund', office, 'Office Expense'),
+                const SizedBox(height: 10),
+                _moneyPair(points, 'Points', purchaseCost, 'Purchase Cost'),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: reason,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(labelText: 'Change Reason'),
+                ),
               ],
-            ));
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, reason.text.trim().length >= 5),
+            child: const Text('Save Revision'),
+          ),
+        ],
+      ),
+    );
     final payload = {
       'mrp': _num(mrp),
       'sale_price': _num(sale),
@@ -852,7 +1016,7 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
       'office_expense': _num(office),
       'points': _num(points),
       'purchase_cost': _num(purchaseCost),
-      'reason': reason.text.trim()
+      'reason': reason.text.trim(),
     };
     for (final c in [
       mrp,
@@ -863,15 +1027,18 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
       office,
       points,
       purchaseCost,
-      reason
+      reason,
     ]) {
       c.dispose();
     }
     if (ok != true) return;
     try {
-      await ref.read(apiClientProvider).post(
-          ApiPaths.productRevision(int.parse('${product['id']}')),
-          data: payload);
+      await ref
+          .read(apiClientProvider)
+          .post(
+            ApiPaths.productRevision(int.parse('${product['id']}')),
+            data: payload,
+          );
       if (mounted)
         setState(() {
           refresh++;
@@ -882,25 +1049,35 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     }
   }
 
-  Widget _moneyPair(TextEditingController a, String aLabel,
-      TextEditingController b, String bLabel) {
-    return LayoutBuilder(builder: (context, c) {
-      final first = TextField(
+  Widget _moneyPair(
+    TextEditingController a,
+    String aLabel,
+    TextEditingController b,
+    String bLabel,
+  ) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final first = TextField(
           controller: a,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: aLabel));
-      final second = TextField(
+          decoration: InputDecoration(labelText: aLabel),
+        );
+        final second = TextField(
           controller: b,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: bLabel));
-      if (c.maxWidth < 480)
-        return Column(children: [first, const SizedBox(height: 10), second]);
-      return Row(children: [
-        Expanded(child: first),
-        const SizedBox(width: 10),
-        Expanded(child: second)
-      ]);
-    });
+          decoration: InputDecoration(labelText: bLabel),
+        );
+        if (c.maxWidth < 480)
+          return Column(children: [first, const SizedBox(height: 10), second]);
+        return Row(
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: 10),
+            Expanded(child: second),
+          ],
+        );
+      },
+    );
   }
 
   double _num(TextEditingController c) => double.tryParse(c.text.trim()) ?? 0;

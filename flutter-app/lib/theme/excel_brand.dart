@@ -77,10 +77,7 @@ class ExcelBrand {
           fontWeight: FontWeight.w700,
           color: ink,
         ),
-        bodyLarge: base.textTheme.bodyLarge?.copyWith(
-          height: 1.35,
-          color: ink,
-        ),
+        bodyLarge: base.textTheme.bodyLarge?.copyWith(height: 1.35, color: ink),
         bodyMedium: base.textTheme.bodyMedium?.copyWith(
           height: 1.35,
           color: ink,
@@ -123,7 +120,10 @@ class ExcelBrand {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
         labelStyle: const TextStyle(color: muted),
         hintStyle: const TextStyle(color: Color(0xFF8A938E)),
         border: OutlineInputBorder(
@@ -156,17 +156,21 @@ class ExcelBrand {
         backgroundColor: surface,
         indicatorColor: primarySoft,
         surfaceTintColor: Colors.transparent,
-        iconTheme: WidgetStateProperty.resolveWith((states) => IconThemeData(
-              color: states.contains(WidgetState.selected) ? primary : muted,
-              size: 26,
-            )),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
-              fontSize: 12,
-              fontWeight: states.contains(WidgetState.selected)
-                  ? FontWeight.w800
-                  : FontWeight.w600,
-              color: states.contains(WidgetState.selected) ? primaryDark : muted,
-            )),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected) ? primary : muted,
+            size: 26,
+          ),
+        ),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 12,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w800
+                : FontWeight.w600,
+            color: states.contains(WidgetState.selected) ? primaryDark : muted,
+          ),
+        ),
       ),
       tabBarTheme: const TabBarThemeData(
         labelColor: primaryDark,
@@ -185,7 +189,9 @@ class ExcelBrand {
           minimumSize: const Size(48, 50),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -195,7 +201,9 @@ class ExcelBrand {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           side: const BorderSide(color: Color(0xFF9AB8A7)),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -209,7 +217,10 @@ class ExcelBrand {
         selectedColor: primarySoftStrong,
         side: BorderSide.none,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        labelStyle: const TextStyle(color: primaryDark, fontWeight: FontWeight.w700),
+        labelStyle: const TextStyle(
+          color: primaryDark,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: surface,

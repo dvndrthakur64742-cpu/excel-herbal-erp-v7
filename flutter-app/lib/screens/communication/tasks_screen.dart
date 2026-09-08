@@ -35,7 +35,10 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                 color: ExcelBrand.primarySoft,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(message!, style: const TextStyle(fontWeight: FontWeight.w600)),
+              child: Text(
+                message!,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         Expanded(
@@ -74,14 +77,22 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                               color: ExcelBrand.primarySoft,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.task_alt_outlined, color: ExcelBrand.primaryDark),
+                            child: const Icon(
+                              Icons.task_alt_outlined,
+                              color: ExcelBrand.primaryDark,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('${task['title'] ?? 'Task'}', style: Theme.of(context).textTheme.titleMedium),
+                                Text(
+                                  '${task['title'] ?? 'Task'}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
+                                ),
                                 const SizedBox(height: 4),
                                 Text(
                                   '${BusinessFormat.value('type', task['type'] ?? 'task')} · $due',
@@ -93,11 +104,18 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                           const SizedBox(width: 8),
                           IconButton(
                             tooltip: 'Mark complete',
-                            onPressed: busy ? null : () => _complete(id, '${task['title'] ?? 'Task'}'),
+                            onPressed: busy
+                                ? null
+                                : () => _complete(
+                                    id,
+                                    '${task['title'] ?? 'Task'}',
+                                  ),
                             icon: busy
                                 ? const SizedBox.square(
                                     dimension: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(Icons.check_circle_outline),
                           ),
@@ -121,8 +139,14 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         title: const Text('Complete Task?'),
         content: Text(title),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Complete')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Complete'),
+          ),
         ],
       ),
     );
@@ -132,7 +156,9 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       message = null;
     });
     try {
-      await ref.read(apiClientProvider).post(ApiPaths.taskComplete(id), data: const {});
+      await ref
+          .read(apiClientProvider)
+          .post(ApiPaths.taskComplete(id), data: const {});
       if (mounted) {
         setState(() {
           completingId = null;

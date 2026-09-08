@@ -32,95 +32,131 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
           key: ValueKey('p-${app.currentBranchId}-$refresh'),
           future: app.currentBranchId == null
               ? Future.value(const <dynamic>[])
-              : api.get(ApiPaths.performanceSummary, query: {
-                  'branch_id': app.currentBranchId,
-                  'from': _monthStart(),
-                  'to': _today()
-                }),
+              : api.get(
+                  ApiPaths.performanceSummary,
+                  query: {
+                    'branch_id': app.currentBranchId,
+                    'from': _monthStart(),
+                    'to': _today(),
+                  },
+                ),
           emptyMessage: 'Performance posting nahi hai.',
           builder: (context, data) =>
               RecordsList(recordType: 'performance', rows: _rows(data)),
-        )
+        ),
       ));
     }
     if (app.canAny(const ['performance.view', 'performance.manage'])) {
       tabs.add((
         'Targets',
-        Column(children: [
-          if (app.can('performance.manage'))
-            Padding(
+        Column(
+          children: [
+            if (app.can('performance.manage'))
+              Padding(
                 padding: const EdgeInsets.all(12),
                 child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                        onPressed: _createTarget,
-                        icon: const Icon(Icons.flag_outlined),
-                        label: const Text('New Target')))),
-          Expanded(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: _createTarget,
+                    icon: const Icon(Icons.flag_outlined),
+                    label: const Text('New Target'),
+                  ),
+                ),
+              ),
+            Expanded(
               child: AsyncPanel(
-            key: ValueKey('targets-${app.currentBranchId}-$refresh'),
-            future: app.currentBranchId == null
-                ? Future.value(const <dynamic>[])
-                : api.get(ApiPaths.performanceTargets,
-                    query: {'branch_id': app.currentBranchId}),
-            emptyMessage: 'Koi performance target nahi hai.',
-            builder: (context, data) => RecordsList(
-                recordType: 'target', rows: _rows(data), onTap: _targetAction),
-          )),
-        ])
+                key: ValueKey('targets-${app.currentBranchId}-$refresh'),
+                future: app.currentBranchId == null
+                    ? Future.value(const <dynamic>[])
+                    : api.get(
+                        ApiPaths.performanceTargets,
+                        query: {'branch_id': app.currentBranchId},
+                      ),
+                emptyMessage: 'Koi performance target nahi hai.',
+                builder: (context, data) => RecordsList(
+                  recordType: 'target',
+                  rows: _rows(data),
+                  onTap: _targetAction,
+                ),
+              ),
+            ),
+          ],
+        ),
       ));
     }
-    if (app
-        .canAny(const ['payroll.generate', 'payroll.approve', 'payroll.pay'])) {
+    if (app.canAny(const [
+      'payroll.generate',
+      'payroll.approve',
+      'payroll.pay',
+    ])) {
       tabs.add((
         'Payroll',
-        Column(children: [
-          if (app.can('payroll.generate'))
-            Padding(
+        Column(
+          children: [
+            if (app.can('payroll.generate'))
+              Padding(
                 padding: const EdgeInsets.all(12),
                 child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                        onPressed: _generate,
-                        icon: const Icon(Icons.calculate_outlined),
-                        label: const Text('Generate Payroll Draft')))),
-          Expanded(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: _generate,
+                    icon: const Icon(Icons.calculate_outlined),
+                    label: const Text('Generate Payroll Draft'),
+                  ),
+                ),
+              ),
+            Expanded(
               child: AsyncPanel(
-            key: ValueKey('payroll-${app.currentBranchId}-$refresh'),
-            future: app.currentBranchId == null
-                ? Future.value(const <dynamic>[])
-                : api.get(ApiPaths.payrollRuns,
-                    query: {'branch_id': app.currentBranchId}),
-            emptyMessage: 'Payroll run nahi hai.',
-            builder: (context, data) => RecordsList(
-                recordType: 'payroll', rows: _rows(data), onTap: _showPayroll),
-          )),
-        ])
+                key: ValueKey('payroll-${app.currentBranchId}-$refresh'),
+                future: app.currentBranchId == null
+                    ? Future.value(const <dynamic>[])
+                    : api.get(
+                        ApiPaths.payrollRuns,
+                        query: {'branch_id': app.currentBranchId},
+                      ),
+                emptyMessage: 'Payroll run nahi hai.',
+                builder: (context, data) => RecordsList(
+                  recordType: 'payroll',
+                  rows: _rows(data),
+                  onTap: _showPayroll,
+                ),
+              ),
+            ),
+          ],
+        ),
       ));
     }
     if (tabs.isEmpty)
       return const Scaffold(
-          body: Center(
-              child: Text('No authorised payroll/performance functions.')));
+        body: Center(
+          child: Text('No authorised payroll/performance functions.'),
+        ),
+      );
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-            title: const Text('Payroll & Performance'),
-            bottom: TabBar(
-                isScrollable: true,
-                tabs: [for (final tab in tabs) Tab(text: tab.$1)])),
-        body: Column(children: [
-          const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
-          if (message != null)
-            Padding(
+          title: const Text('Payroll & Performance'),
+          bottom: TabBar(
+            isScrollable: true,
+            tabs: [for (final tab in tabs) Tab(text: tab.$1)],
+          ),
+        ),
+        body: Column(
+          children: [
+            const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
+            if (message != null)
+              Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(message!)),
-          Expanded(
+                child: Text(message!),
+              ),
+            Expanded(
               child: app.currentBranchId == null
                   ? const Center(child: Text('Branch select karein.'))
-                  : TabBarView(children: [for (final tab in tabs) tab.$2])),
-        ]),
+                  : TabBarView(children: [for (final tab in tabs) tab.$2]),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -131,14 +167,16 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
   Future<void> _generate() async {
     final app = ref.read(appStateProvider);
     try {
-      final result = await ref.read(apiClientProvider).post(
-        ApiPaths.payrollRuns,
-        data: {
-          'branch_id': app.currentBranchId,
-          'period_start': _monthStart(),
-          'period_end': _today(),
-        },
-      );
+      final result = await ref
+          .read(apiClientProvider)
+          .post(
+            ApiPaths.payrollRuns,
+            data: {
+              'branch_id': app.currentBranchId,
+              'period_start': _monthStart(),
+              'period_end': _today(),
+            },
+          );
       if (mounted) {
         setState(() {
           message = 'Payroll draft #${(result as Map)['id']} generated.';
@@ -154,8 +192,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     final id = int.parse('${row['id']}');
     final app = ref.read(appStateProvider);
     try {
-      final raw =
-          await ref.read(apiClientProvider).get(ApiPaths.payrollDetail(id));
+      final raw = await ref
+          .read(apiClientProvider)
+          .get(ApiPaths.payrollDetail(id));
       final data = Map<String, dynamic>.from(raw as Map);
       final run = Map<String, dynamic>.from(data['run'] as Map);
       final items = (data['items'] as List)
@@ -192,11 +231,13 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                             'Paid ${item['paid_days']}/${item['working_days']} · Attendance ₹${item['attendance_salary']} · Fund ₹${item['salary_fund_earning']}\n'
                             'Bonus ₹${item['bonus']} · Allowance ₹${item['allowances']} · Deduction ₹${item['deductions']} · Net ₹${item['net_salary']}',
                           ),
-                          trailing: run['status'] == 'draft' &&
+                          trailing:
+                              run['status'] == 'draft' &&
                                   app.can('payroll.generate')
                               ? const Icon(Icons.edit_outlined)
                               : null,
-                          onTap: run['status'] == 'draft' &&
+                          onTap:
+                              run['status'] == 'draft' &&
                                   app.can('payroll.generate')
                               ? () async {
                                   Navigator.pop(sheetContext);
@@ -266,22 +307,25 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             children: [
               TextField(
                 controller: bonus,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(labelText: 'Bonus'),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: allowance,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(labelText: 'Allowances'),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: deduction,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(labelText: 'Deductions'),
               ),
             ],
@@ -289,24 +333,28 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save Review')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Save Review'),
+          ),
         ],
       ),
     );
     try {
       if (ok == true) {
-        await ref.read(apiClientProvider).post(
-          ApiPaths.payrollItemUpdate(runId, int.parse('${item['id']}')),
-          data: {
-            'bonus': double.tryParse(bonus.text.trim()) ?? 0,
-            'allowances': double.tryParse(allowance.text.trim()) ?? 0,
-            'deductions': double.tryParse(deduction.text.trim()) ?? 0,
-          },
-        );
+        await ref
+            .read(apiClientProvider)
+            .post(
+              ApiPaths.payrollItemUpdate(runId, int.parse('${item['id']}')),
+              data: {
+                'bonus': double.tryParse(bonus.text.trim()) ?? 0,
+                'allowances': double.tryParse(allowance.text.trim()) ?? 0,
+                'deductions': double.tryParse(deduction.text.trim()) ?? 0,
+              },
+            );
         if (mounted) {
           setState(() {
             message = 'Payroll item reviewed.';
@@ -325,16 +373,20 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
   Future<void> _payPayroll(int id) async {
     try {
-      final raw =
-          await ref.read(apiClientProvider).get(ApiPaths.financeBootstrap);
+      final raw = await ref
+          .read(apiClientProvider)
+          .get(ApiPaths.financeBootstrap);
       final data = Map<String, dynamic>.from(raw as Map);
       final accounts = (data['accounts'] as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .where(
             (e) =>
                 '${e['type']}' == 'asset' &&
-                const {'cash', 'bank', 'upi'}
-                    .contains('${e['subtype']}'.toLowerCase()),
+                const {
+                  'cash',
+                  'bank',
+                  'upi',
+                }.contains('${e['subtype']}'.toLowerCase()),
           )
           .toList();
       if (!mounted) return;
@@ -353,7 +405,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                   DropdownButtonFormField<int>(
                     initialValue: accountId,
                     decoration: const InputDecoration(
-                        labelText: 'Cash / Bank / UPI Account'),
+                      labelText: 'Cash / Bank / UPI Account',
+                    ),
                     items: accounts
                         .map(
                           (e) => DropdownMenuItem<int>(
@@ -368,15 +421,17 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                   TextField(
                     controller: date,
                     decoration: const InputDecoration(
-                        labelText: 'Payment Date YYYY-MM-DD'),
+                      labelText: 'Payment Date YYYY-MM-DD',
+                    ),
                   ),
                 ],
               ),
             ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel')),
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, accountId != null),
                 child: const Text('Post Payment'),
@@ -386,13 +441,15 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
         ),
       );
       if (ok == true && accountId != null) {
-        final result = await ref.read(apiClientProvider).post(
-          ApiPaths.payrollPay(id),
-          data: {
-            'payment_account_id': accountId,
-            'payment_date': date.text.trim()
-          },
-        );
+        final result = await ref
+            .read(apiClientProvider)
+            .post(
+              ApiPaths.payrollPay(id),
+              data: {
+                'payment_account_id': accountId,
+                'payment_date': date.text.trim(),
+              },
+            );
         if (mounted) {
           setState(() {
             message = 'Payroll paid: $result';
@@ -413,9 +470,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
       final employees = (await api.get(
         ApiPaths.employees,
         query: {'branch_id': app.currentBranchId},
-      ) as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       int? employeeId;
       final points = TextEditingController();
       final from = TextEditingController(text: _monthStart());
@@ -438,7 +493,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           (e) => DropdownMenuItem<int>(
                             value: int.parse('${e['id']}'),
                             child: Text(
-                                '${e['full_name']} · ${e['designation_code']}'),
+                              '${e['full_name']} · ${e['designation_code']}',
+                            ),
                           ),
                         )
                         .toList(),
@@ -446,32 +502,40 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                      controller: from,
-                      decoration: const InputDecoration(
-                          labelText: 'Period Start YYYY-MM-DD')),
+                    controller: from,
+                    decoration: const InputDecoration(
+                      labelText: 'Period Start YYYY-MM-DD',
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   TextField(
-                      controller: to,
-                      decoration: const InputDecoration(
-                          labelText: 'Period End YYYY-MM-DD')),
+                    controller: to,
+                    decoration: const InputDecoration(
+                      labelText: 'Period End YYYY-MM-DD',
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: points,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration:
-                        const InputDecoration(labelText: 'Target Points'),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Target Points',
+                    ),
                   ),
                 ],
               ),
             ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel')),
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
-                  onPressed: () => Navigator.pop(context, employeeId != null),
-                  child: const Text('Create Draft')),
+                onPressed: () => Navigator.pop(context, employeeId != null),
+                child: const Text('Create Draft'),
+              ),
             ],
           ),
         ),
@@ -512,8 +576,10 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
         child: Wrap(
           children: [
             ListTile(
-                title: Text(
-                    '${row['employee_name']} · Target ${row['target_points']} points')),
+              title: Text(
+                '${row['employee_name']} · Target ${row['target_points']} points',
+              ),
+            ),
             ListTile(
               leading: const Icon(Icons.check_circle_outline),
               title: const Text('Approve Target'),
@@ -530,8 +596,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
   Future<void> _postAction(String path) async {
     try {
-      final result =
-          await ref.read(apiClientProvider).post(path, data: const {});
+      final result = await ref
+          .read(apiClientProvider)
+          .post(path, data: const {});
       if (mounted) {
         setState(() {
           message = 'Done: $result';

@@ -10,49 +10,45 @@ import 'theme/excel_brand.dart';
 
 void main() {
   ErrorWidget.builder = (details) => Container(
-        color: ExcelBrand.canvas,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(28),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: ExcelBrand.primarySoft,
-                shape: BoxShape.circle,
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(14),
-                child: Icon(
-                  Icons.refresh_rounded,
-                  size: 30,
-                  color: ExcelBrand.primaryDark,
-                ),
-              ),
+    color: ExcelBrand.canvas,
+    alignment: Alignment.center,
+    padding: const EdgeInsets.all(28),
+    child: const Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: ExcelBrand.primarySoft,
+            shape: BoxShape.circle,
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(14),
+            child: Icon(
+              Icons.refresh_rounded,
+              size: 30,
+              color: ExcelBrand.primaryDark,
             ),
-            SizedBox(height: 16),
-            Text(
-              'This section needs a refresh',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: ExcelBrand.ink,
-              ),
-            ),
-            SizedBox(height: 6),
-            Text(
-              'Please refresh once. Technical details have been hidden from the business screen.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.4,
-                color: ExcelBrand.muted,
-              ),
-            ),
-          ],
+          ),
         ),
-      );
+        SizedBox(height: 16),
+        Text(
+          'This section needs a refresh',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: ExcelBrand.ink,
+          ),
+        ),
+        SizedBox(height: 6),
+        Text(
+          'Please refresh once. Technical details have been hidden from the business screen.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 14, height: 1.4, color: ExcelBrand.muted),
+        ),
+      ],
+    ),
+  );
   runApp(const ProviderScope(child: ExcelHerbalApp()));
 }
 
@@ -65,19 +61,16 @@ class ExcelHerbalApp extends ConsumerWidget {
     final home = app.loading
         ? const Scaffold(body: Center(child: CircularProgressIndicator()))
         : app.authenticated
-            ? (app.businessAccessBlocked
-                ? const _BranchAccessBlockedScreen()
-                : const AppShell())
-            : const LoginScreen();
+        ? (app.businessAccessBlocked
+              ? const _BranchAccessBlockedScreen()
+              : const AppShell())
+        : const LoginScreen();
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Excel Herbal ERP',
       theme: ExcelBrand.lightTheme(),
-      home: AppVersionGate(
-        api: ref.watch(apiClientProvider),
-        child: home,
-      ),
+      home: AppVersionGate(api: ref.watch(apiClientProvider), child: home),
     );
   }
 }

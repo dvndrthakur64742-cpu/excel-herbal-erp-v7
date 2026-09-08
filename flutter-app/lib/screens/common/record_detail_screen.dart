@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/business_format.dart';
 
 class RecordDetailScreen extends StatelessWidget {
@@ -15,10 +16,13 @@ class RecordDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(_pageTitle())),
-        body: BusinessRecordDetailView(
-            row: row, title: title, recordType: recordType),
-      );
+    appBar: AppBar(title: Text(_pageTitle())),
+    body: BusinessRecordDetailView(
+      row: row,
+      title: title,
+      recordType: recordType,
+    ),
+  );
 
   String _pageTitle() {
     final ref = _reference(row);
@@ -47,12 +51,14 @@ class BusinessRecordDetailView extends StatelessWidget {
     final status = row['status'];
     final reference = _reference(row);
     final fields = row.entries
-        .where((e) =>
-            e.key != 'status' &&
-            !BusinessFormat.isTechnicalKey(e.key) &&
-            !_skipValue(e.value) &&
-            e.value is! List &&
-            e.value is! Map)
+        .where(
+          (e) =>
+              e.key != 'status' &&
+              !BusinessFormat.isTechnicalKey(e.key) &&
+              !_skipValue(e.value) &&
+              e.value is! List &&
+              e.value is! Map,
+        )
         .toList();
     final lists = row.entries
         .where((e) => e.value is List && (e.value as List).isNotEmpty)
@@ -73,9 +79,7 @@ class BusinessRecordDetailView extends StatelessWidget {
                     Expanded(
                       child: Text(
                         BusinessFormat.displayName(title),
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
+                        style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -85,19 +89,21 @@ class BusinessRecordDetailView extends StatelessWidget {
                 ),
                 if (reference != null) ...[
                   const SizedBox(height: 6),
-                  Text(reference,
-                      style: Theme.of(context).textTheme.bodyMedium),
+                  Text(
+                    reference,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ],
               ],
             ),
           ),
         ),
         const SizedBox(height: 14),
-        Text('Details',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700)),
+        Text(
+          'Details',
+          style: Theme.of(context).textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 8),
         Card(
           child: Column(
@@ -111,11 +117,11 @@ class BusinessRecordDetailView extends StatelessWidget {
         ),
         for (final listEntry in lists) ...[
           const SizedBox(height: 18),
-          Text(BusinessFormat.label(listEntry.key),
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            BusinessFormat.label(listEntry.key),
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 8),
           ..._nestedCards(context, listEntry.value as List),
         ],
@@ -128,16 +134,21 @@ class BusinessRecordDetailView extends StatelessWidget {
     return values.map((value) {
       if (value is! Map)
         return Card(
-            child: Padding(
-                padding: const EdgeInsets.all(14), child: Text('$value')));
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Text('$value'),
+          ),
+        );
       final map = Map<String, dynamic>.from(value);
       final heading = _title(map);
       final fields = map.entries
-          .where((e) =>
-              !BusinessFormat.isTechnicalKey(e.key) &&
-              !_skipValue(e.value) &&
-              e.value is! Map &&
-              e.value is! List)
+          .where(
+            (e) =>
+                !BusinessFormat.isTechnicalKey(e.key) &&
+                !_skipValue(e.value) &&
+                e.value is! Map &&
+                e.value is! List,
+          )
           .take(8)
           .toList();
       return Padding(
@@ -149,11 +160,11 @@ class BusinessRecordDetailView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (heading.isNotEmpty) ...[
-                  Text(BusinessFormat.displayName(heading),
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  Text(
+                    BusinessFormat.displayName(heading),
+                    style: Theme.of(context).textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(height: 8),
                 ],
                 for (final f in fields)
@@ -163,12 +174,18 @@ class BusinessRecordDetailView extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
-                            width: 128,
-                            child: Text(BusinessFormat.label(f.key),
-                                style: Theme.of(context).textTheme.bodySmall)),
+                          width: 128,
+                          child: Text(
+                            BusinessFormat.label(f.key),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                         Expanded(
-                            child: Text(BusinessFormat.value(f.key, f.value),
-                                textAlign: TextAlign.right)),
+                          child: Text(
+                            BusinessFormat.value(f.key, f.value),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -193,33 +210,32 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 4,
-              child: Text(
-                BusinessFormat.label(field.key),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant),
-              ),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 4,
+          child: Text(
+            BusinessFormat.label(field.key),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 5,
-              child: Text(
-                BusinessFormat.value(field.key, field.value),
-                textAlign: TextAlign.right,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
+          ),
         ),
-      );
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 5,
+          child: Text(
+            BusinessFormat.value(field.key, field.value),
+            textAlign: TextAlign.right,
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _StatusChip extends StatelessWidget {
@@ -228,17 +244,17 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(label,
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(fontWeight: FontWeight.w700)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(
+      label,
+      style: Theme.of(context).textTheme.labelMedium
+          ?.copyWith(fontWeight: FontWeight.w700),
+    ),
+  );
 }
 
 String _title(Map<String, dynamic> row) {
@@ -253,7 +269,7 @@ String _title(Map<String, dynamic> row) {
     'reference',
     'entry_no',
     'sale_no',
-    'bill_no'
+    'bill_no',
   ];
   for (final key in keys) {
     final value = row[key];

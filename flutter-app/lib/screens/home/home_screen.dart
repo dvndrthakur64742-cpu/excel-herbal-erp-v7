@@ -47,8 +47,11 @@ class HomeScreen extends ConsumerWidget {
                           const SizedBox(height: 4),
                           Text(
                             'Your authorised ERP workspace and today’s activity.',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
                           ),
                         ],
@@ -83,17 +86,15 @@ class HomeScreen extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         'Management Overview',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                     Text(
                       'This month',
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -103,9 +104,8 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               Text(
                 'Today',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
               if (desktop)
@@ -170,7 +170,11 @@ class HomeScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(15),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(Icons.eco_outlined, color: Colors.white, size: 27),
+                child: const Icon(
+                  Icons.eco_outlined,
+                  color: Colors.white,
+                  size: 27,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -180,9 +184,9 @@ class HomeScreen extends ConsumerWidget {
                     Text(
                       'Good ${_dayPart()}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white.withOpacity(.78),
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: Colors.white.withOpacity(.78),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -190,9 +194,9 @@ class HomeScreen extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ],
                 ),
@@ -325,17 +329,17 @@ class HomeScreen extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         'Today & Next Action',
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (_) => const Scaffold(
-                                body: SafeArea(child: MyWorkScreen()))),
+                          builder: (_) => const Scaffold(
+                            body: SafeArea(child: MyWorkScreen()),
+                          ),
+                        ),
                       ),
                       icon: const Icon(Icons.arrow_forward, size: 18),
                       label: const Text('Open My Work'),
@@ -353,13 +357,15 @@ class HomeScreen extends ConsumerWidget {
                       value: attendance.isEmpty
                           ? 'Pending'
                           : BusinessFormat.status(
-                              attendance['status'] ?? 'Present'),
+                              attendance['status'] ?? 'Present',
+                            ),
                     ),
                     _StatusPill(
                       icon: Icons.inventory_2_outlined,
                       label: 'Daily Order',
-                      value:
-                          status.isEmpty ? 'Not Started' : _homeStatus(status),
+                      value: status.isEmpty
+                          ? 'Not Started'
+                          : _homeStatus(status),
                     ),
                     _StatusPill(
                       icon: Icons.task_alt_outlined,
@@ -376,15 +382,16 @@ class HomeScreen extends ConsumerWidget {
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    Icon(Icons.bolt_rounded,
-                        color: Theme.of(context).colorScheme.primary),
+                    Icon(
+                      Icons.bolt_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         next,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style: Theme.of(context).textTheme.bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],
@@ -464,15 +471,15 @@ class HomeScreen extends ConsumerWidget {
   }
 
   String _homeStatus(String status) => switch (status) {
-        'morning_draft' => 'Draft',
-        'stock_requested' => 'Approval Pending',
-        'approved' => 'Issue Pending',
-        'issued' => 'Evening Pending',
-        'evening_draft' => 'Evening Draft',
-        'evening_submitted' => 'Final Post Pending',
-        'completed' => 'Completed',
-        _ => BusinessFormat.status(status),
-      };
+    'morning_draft' => 'Draft',
+    'stock_requested' => 'Approval Pending',
+    'approved' => 'Issue Pending',
+    'issued' => 'Evening Pending',
+    'evening_draft' => 'Evening Draft',
+    'evening_submitted' => 'Final Post Pending',
+    'completed' => 'Completed',
+    _ => BusinessFormat.status(status),
+  };
 
   Widget _managementPanel(
     BuildContext context,
@@ -514,14 +521,26 @@ class HomeScreen extends ConsumerWidget {
 
         final kpis = [
           _Kpi('Gross Sales', BusinessFormat.money(gross), Icons.trending_up),
-          _Kpi('Collected', BusinessFormat.money(collected),
-              Icons.payments_outlined),
-          _Kpi('Outstanding', BusinessFormat.money(outstanding),
-              Icons.pending_actions_outlined),
-          _Kpi('Purchases', BusinessFormat.money(purchase),
-              Icons.shopping_bag_outlined),
-          _Kpi('Stock Value', BusinessFormat.money(stockValue),
-              Icons.inventory_2_outlined),
+          _Kpi(
+            'Collected',
+            BusinessFormat.money(collected),
+            Icons.payments_outlined,
+          ),
+          _Kpi(
+            'Outstanding',
+            BusinessFormat.money(outstanding),
+            Icons.pending_actions_outlined,
+          ),
+          _Kpi(
+            'Purchases',
+            BusinessFormat.money(purchase),
+            Icons.shopping_bag_outlined,
+          ),
+          _Kpi(
+            'Stock Value',
+            BusinessFormat.money(stockValue),
+            Icons.inventory_2_outlined,
+          ),
           _Kpi('Pending Work', '$pending', Icons.approval_outlined),
         ];
 
@@ -548,10 +567,8 @@ class HomeScreen extends ConsumerWidget {
                   scrollDirection: Axis.horizontal,
                   itemCount: kpis.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (_, i) => SizedBox(
-                    width: 176,
-                    child: _KpiCard(kpi: kpis[i]),
-                  ),
+                  itemBuilder: (_, i) =>
+                      SizedBox(width: 176, child: _KpiCard(kpi: kpis[i])),
                 ),
               ),
             if (performance.isNotEmpty) ...[
@@ -595,127 +612,123 @@ class HomeScreen extends ConsumerWidget {
   }
 
   num _sum(List<Map<String, dynamic>> rows, String key) => rows.fold<num>(
-        0,
-        (sum, row) => sum + (num.tryParse('${row[key] ?? 0}') ?? 0),
-      );
+    0,
+    (sum, row) => sum + (num.tryParse('${row[key] ?? 0}') ?? 0),
+  );
 
   Widget _attendanceCard(dynamic api) => AsyncPanel(
-        future: api.get(ApiPaths.attendanceToday),
-        emptyMessage: 'Aaj attendance start nahi hui.',
-        builder: (context, data) {
-          if (data == null) {
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    _HomeIcon(icon: Icons.schedule_rounded),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Attendance pending',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          SizedBox(height: 3),
-                          Text('Check-In karke duty start karein.'),
-                        ],
+    future: api.get(ApiPaths.attendanceToday),
+    emptyMessage: 'Aaj attendance start nahi hui.',
+    builder: (context, data) {
+      if (data == null) {
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                _HomeIcon(icon: Icons.schedule_rounded),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Attendance pending',
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
+                      SizedBox(height: 3),
+                      Text('Check-In karke duty start karein.'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      final r = Map<String, dynamic>.from(data as Map);
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              const _HomeIcon(icon: Icons.verified_user_outlined),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      BusinessFormat.status('${r['status'] ?? 'present'}'),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    Text('Check-In: ${DateTimeText.local(r['check_in_at'])}'),
+                    Text('Check-Out: ${DateTimeText.local(r['check_out_at'])}'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget _performanceCard(dynamic api, AppState app, int branch) => AsyncPanel(
+    reloadToken: branch,
+    future: api.get(
+      ApiPaths.performanceSummary,
+      query: {
+        'branch_id': branch,
+        'from': _monthStart(),
+        'to': _today(),
+        'employee_id': (app.me['employee'] as Map?)?['id'],
+      },
+    ),
+    emptyMessage: 'Is month performance posting nahi hai.',
+    builder: (context, data) {
+      final rows = (data as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (rows.isEmpty) return const SizedBox.shrink();
+      final r = rows.first;
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              const _HomeIcon(icon: Icons.insights_outlined),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Monthly Performance',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    Text('Points: ${BusinessFormat.quantity(r['points'])}'),
+                    Text(
+                      'Salary Fund: ${BusinessFormat.money(r['salary_fund'])}',
                     ),
                   ],
                 ),
               ),
-            );
-          }
-          final r = Map<String, dynamic>.from(data as Map);
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Row(
-                children: [
-                  const _HomeIcon(icon: Icons.verified_user_outlined),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          BusinessFormat.status('${r['status'] ?? 'present'}'),
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                            'Check-In: ${DateTimeText.local(r['check_in_at'])}'),
-                        Text(
-                            'Check-Out: ${DateTimeText.local(r['check_out_at'])}'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-
-  Widget _performanceCard(dynamic api, AppState app, int branch) => AsyncPanel(
-        reloadToken: branch,
-        future: api.get(
-          ApiPaths.performanceSummary,
-          query: {
-            'branch_id': branch,
-            'from': _monthStart(),
-            'to': _today(),
-            'employee_id': (app.me['employee'] as Map?)?['id'],
-          },
+            ],
+          ),
         ),
-        emptyMessage: 'Is month performance posting nahi hai.',
-        builder: (context, data) {
-          final rows = (data as List)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
-          if (rows.isEmpty) return const SizedBox.shrink();
-          final r = rows.first;
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Row(
-                children: [
-                  const _HomeIcon(icon: Icons.insights_outlined),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Monthly Performance',
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text('Points: ${BusinessFormat.quantity(r['points'])}'),
-                        Text(
-                            'Salary Fund: ${BusinessFormat.money(r['salary_fund'])}'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
       );
+    },
+  );
 
   String _designation(AppState app) {
-    final e =
-        Map<String, dynamic>.from((app.me['employee'] as Map?) ?? const {});
+    final e = Map<String, dynamic>.from(
+      (app.me['employee'] as Map?) ?? const {},
+    );
     final name = '${e['designation_name'] ?? ''}'.trim();
     final code = '${e['designation_code'] ?? ''}'.trim();
     if (name.isNotEmpty && code.isNotEmpty) return '$name ($code)';
@@ -750,7 +763,11 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _HeroMetric extends StatelessWidget {
-  const _HeroMetric({required this.icon, required this.label, required this.value});
+  const _HeroMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   final IconData icon;
   final String label;
@@ -758,67 +775,67 @@ class _HeroMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(minHeight: 88),
-        padding: const EdgeInsets.all(11),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.13),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(.12)),
+    constraints: const BoxConstraints(minHeight: 88),
+    padding: const EdgeInsets.all(11),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(.13),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.white.withOpacity(.12)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 19, color: Colors.white),
+        const SizedBox(height: 10),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: Colors.white.withOpacity(.7)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 19, color: Colors.white),
-            const SizedBox(height: 10),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.white.withOpacity(.7),
-                  ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ],
+        const SizedBox(height: 2),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelLarge
+              ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill(
-      {required this.icon, required this.label, required this.value});
+  const _StatusPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
   final IconData icon;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
+    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18),
+        const SizedBox(width: 7),
+        Text('$label: ', style: Theme.of(context).textTheme.labelMedium),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.labelMedium
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18),
-            const SizedBox(width: 7),
-            Text('$label: ', style: Theme.of(context).textTheme.labelMedium),
-            Text(value,
-                style: Theme.of(context)
-                    .textTheme
-                    .labelMedium
-                    ?.copyWith(fontWeight: FontWeight.w800)),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }
 
 class _CompactInfoRow extends StatelessWidget {
@@ -856,18 +873,16 @@ class _CompactInfoRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                  style: Theme.of(context).textTheme.labelMedium
+                      ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(context).textTheme.bodyLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ],
             ),
@@ -900,49 +915,51 @@ class _HomeIcon extends StatelessWidget {
 }
 
 class _InfoCard extends StatelessWidget {
-  const _InfoCard(
-      {required this.icon, required this.label, required this.value});
+  const _InfoCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
   final IconData icon;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label, style: Theme.of(context).textTheme.labelMedium),
-                    const SizedBox(height: 3),
-                    Text(
-                      value,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 22),
           ),
-        ),
-      );
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _Kpi {
@@ -958,43 +975,41 @@ class _KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor:
-                    Theme.of(context).colorScheme.secondaryContainer,
-                child: Icon(kpi.icon, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      kpi.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      kpi.value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+            child: Icon(kpi.icon, size: 20),
           ),
-        ),
-      );
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  kpi.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  kpi.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _PerformanceRanking extends StatelessWidget {
@@ -1019,9 +1034,8 @@ class _PerformanceRanking extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Top Performance',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ],
             ),
@@ -1040,7 +1054,8 @@ class _PerformanceRanking extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     BusinessFormat.quantity(
-                        num.tryParse('${rows[i]['points'] ?? 0}') ?? 0),
+                      num.tryParse('${rows[i]['points'] ?? 0}') ?? 0,
+                    ),
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ],
@@ -1050,9 +1065,9 @@ class _PerformanceRanking extends StatelessWidget {
                 value: maxPoints <= 0
                     ? 0
                     : ((double.tryParse('${rows[i]['points'] ?? 0}') ?? 0) /
-                            maxPoints)
-                        .clamp(0, 1)
-                        .toDouble(),
+                              maxPoints)
+                          .clamp(0, 1)
+                          .toDouble(),
                 minHeight: 6,
                 borderRadius: BorderRadius.circular(10),
               ),

@@ -13,7 +13,7 @@ class BusinessFormat {
     'Sep',
     'Oct',
     'Nov',
-    'Dec'
+    'Dec',
   ];
 
   static const _moneyKeys = {
@@ -292,12 +292,15 @@ class BusinessFormat {
   static String displayName(String input) {
     final s = input.trim();
     if (s.isEmpty) return s;
-    return s.split(RegExp(r'\s+')).map((word) {
-      if (word.length <= 3 && word == word.toUpperCase()) return word;
-      if (RegExp(r'^[A-Z0-9-]+$').hasMatch(word) && word.length > 1)
-        return word;
-      return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
-    }).join(' ');
+    return s
+        .split(RegExp(r'\s+'))
+        .map((word) {
+          if (word.length <= 3 && word == word.toUpperCase()) return word;
+          if (RegExp(r'^[A-Z0-9-]+$').hasMatch(word) && word.length > 1)
+            return word;
+          return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+        })
+        .join(' ');
   }
 
   static String _titleWords(String input) => input

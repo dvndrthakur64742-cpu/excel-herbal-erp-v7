@@ -40,21 +40,21 @@ class _AsyncPanelState extends State<AsyncPanel> {
 
   @override
   Widget build(BuildContext context) => FutureBuilder<dynamic>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _LoadingState();
-          }
-          if (snapshot.hasError) {
-            return _ErrorState(error: snapshot.error!, onRetry: _retry);
-          }
-          final data = snapshot.data;
-          if (data is List && data.isEmpty) {
-            return _EmptyState(message: widget.emptyMessage);
-          }
-          return widget.builder(context, data);
-        },
-      );
+    future: _future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const _LoadingState();
+      }
+      if (snapshot.hasError) {
+        return _ErrorState(error: snapshot.error!, onRetry: _retry);
+      }
+      final data = snapshot.data;
+      if (data is List && data.isEmpty) {
+        return _EmptyState(message: widget.emptyMessage);
+      }
+      return widget.builder(context, data);
+    },
+  );
 }
 
 class _LoadingState extends StatelessWidget {
@@ -62,14 +62,14 @@ class _LoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: SizedBox.square(
-            dimension: 30,
-            child: CircularProgressIndicator(strokeWidth: 2.6),
-          ),
-        ),
-      );
+    child: Padding(
+      padding: EdgeInsets.all(32),
+      child: SizedBox.square(
+        dimension: 30,
+        child: CircularProgressIndicator(strokeWidth: 2.6),
+      ),
+    ),
+  );
 }
 
 class _EmptyState extends StatelessWidget {
@@ -78,38 +78,38 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: const BoxDecoration(
-                    color: ExcelBrand.primarySoft,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.inbox_outlined,
-                    color: ExcelBrand.primaryDark,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: const BoxDecoration(
+                color: ExcelBrand.primarySoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.inbox_outlined,
+                color: ExcelBrand.primaryDark,
+              ),
             ),
-          ),
+            const SizedBox(height: 14),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _ErrorState extends StatelessWidget {
@@ -146,9 +146,7 @@ class _ErrorState extends StatelessWidget {
               Text(
                 'Section load nahi ho paaya',
                 textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
+                style: Theme.of(context).textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 7),
@@ -156,8 +154,8 @@ class _ErrorState extends StatelessWidget {
                 UiError.message(error),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               if (reference != null) ...[
                 const SizedBox(height: 8),

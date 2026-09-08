@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../core/business_format.dart';
 import '../screens/common/record_detail_screen.dart';
 
@@ -100,9 +101,8 @@ class _RecordsListState extends State<RecordsList> {
                     numeric: _isNumericKey(key),
                     label: Text(
                       BusinessFormat.label(key),
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      style: Theme.of(context).textTheme.labelLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                 const DataColumn(label: Text('Action')),
@@ -115,8 +115,9 @@ class _RecordsListState extends State<RecordsList> {
                       for (final key in keys)
                         DataCell(
                           ConstrainedBox(
-                            constraints:
-                                BoxConstraints(maxWidth: _cellWidth(key)),
+                            constraints: BoxConstraints(
+                              maxWidth: _cellWidth(key),
+                            ),
                             child: Text(
                               BusinessFormat.value(key, row[key]),
                               maxLines: 2,
@@ -133,10 +134,11 @@ class _RecordsListState extends State<RecordsList> {
                               ? _openDetail(row)
                               : _handleAction(row),
                           icon: Icon(
-                              widget.onTap == null
-                                  ? Icons.arrow_forward_ios
-                                  : Icons.more_horiz,
-                              size: 18),
+                            widget.onTap == null
+                                ? Icons.arrow_forward_ios
+                                : Icons.more_horiz,
+                            size: 18,
+                          ),
                         ),
                       ),
                     ],
@@ -150,19 +152,20 @@ class _RecordsListState extends State<RecordsList> {
   }
 
   Widget _mobileCards(BuildContext context) => ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-        itemCount: widget.rows.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _BusinessCard(
-          row: widget.rows[i],
-          title: _title(widget.rows[i], i),
-          fields: _mobileFields(widget.rows[i]),
-          recordType: widget.recordType,
-          onTap: () => _openDetail(widget.rows[i]),
-          onAction:
-              widget.onTap == null ? null : () => _handleAction(widget.rows[i]),
-        ),
-      );
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+    itemCount: widget.rows.length,
+    separatorBuilder: (_, __) => const SizedBox(height: 10),
+    itemBuilder: (_, i) => _BusinessCard(
+      row: widget.rows[i],
+      title: _title(widget.rows[i], i),
+      fields: _mobileFields(widget.rows[i]),
+      recordType: widget.recordType,
+      onTap: () => _openDetail(widget.rows[i]),
+      onAction: widget.onTap == null
+          ? null
+          : () => _handleAction(widget.rows[i]),
+    ),
+  );
 
   Future<void> _handleAction(Map<String, dynamic> row) async {
     if (_opening || !mounted || widget.onTap == null) return;
@@ -196,22 +199,24 @@ class _RecordsListState extends State<RecordsList> {
                         Expanded(
                           child: Text(
                             'Record Details',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
+                            style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                         ),
                         IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: const Icon(Icons.close)),
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                        ),
                       ],
                     ),
                   ),
                   const Divider(height: 1),
                   Expanded(
                     child: BusinessRecordDetailView(
-                        row: row, title: title, recordType: widget.recordType),
+                      row: row,
+                      title: title,
+                      recordType: widget.recordType,
+                    ),
                   ),
                 ],
               ),
@@ -222,7 +227,10 @@ class _RecordsListState extends State<RecordsList> {
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => RecordDetailScreen(
-                row: row, title: title, recordType: widget.recordType),
+              row: row,
+              title: title,
+              recordType: widget.recordType,
+            ),
           ),
         );
       }
@@ -255,43 +263,46 @@ class _RecordsListState extends State<RecordsList> {
       'reference',
       'entry_no',
       'sale_no',
-      'bill_no'
+      'bill_no',
     };
     final available = <String, dynamic>{};
     for (final entry in row.entries) {
       if (BusinessFormat.isTechnicalKey(entry.key) ||
-          hidden.contains(entry.key)) continue;
+          hidden.contains(entry.key))
+        continue;
       if (entry.value == null ||
           entry.value is Map ||
           entry.value is List ||
           '${entry.value}'.trim().isEmpty ||
-          '${entry.value}' == 'null') continue;
+          '${entry.value}' == 'null')
+        continue;
       if ((entry.key == 'batch_no' || entry.key == 'custodian_name') &&
-          '${entry.value}'.trim().isEmpty) continue;
+          '${entry.value}'.trim().isEmpty)
+        continue;
       available[entry.key] = entry.value;
     }
 
     final typePriority = switch (widget.recordType) {
       'stock' => const [
-          'quantity',
-          'sku',
-          'uom',
-          'batch_no',
-          'custodian_name',
-          'expires_on'
-        ],
+        'quantity',
+        'sku',
+        'uom',
+        'batch_no',
+        'custodian_name',
+        'expires_on',
+      ],
       'purchase' => const [
-          'bill_date',
-          'total_amount',
-          'paid_amount',
-          'outstanding_amount'
-        ],
+        'bill_date',
+        'total_amount',
+        'paid_amount',
+        'outstanding_amount',
+      ],
       'sales' => const [
-          'business_date',
-          'gross_amount',
-          'paid_amount',
-          'outstanding_amount'
-        ],
+        'business_date',
+        'gross_amount',
+        'paid_amount',
+        'outstanding_amount',
+      ],
       'finance' => const ['entry_date', 'debit', 'credit', 'balance', 'memo'],
       'customer' => const ['mobile', 'email', 'outstanding_amount', 'status'],
       'supplier' => const ['mobile', 'gstin', 'outstanding_amount', 'status'],
@@ -299,57 +310,57 @@ class _RecordsListState extends State<RecordsList> {
       'announcement' => const ['created_at', 'description', 'message'],
       'notification' => const ['created_at', 'type', 'message'],
       'attendance' => const [
-          'business_date',
-          'check_in_at',
-          'check_out_at',
-          'status'
-        ],
+        'business_date',
+        'check_in_at',
+        'check_out_at',
+        'status',
+      ],
       'employee' => const [
-          'employee_code',
-          'designation_code',
-          'mobile',
-          'status'
-        ],
+        'employee_code',
+        'designation_code',
+        'mobile',
+        'status',
+      ],
       'product' => const ['sku', 'mrp', 'sale_price', 'status'],
       'daily_order' => const [
-          'business_date',
-          'employee_name',
-          'branch_name',
-          'status'
-        ],
+        'business_date',
+        'employee_name',
+        'branch_name',
+        'status',
+      ],
       'performance' => const [
-          'employee_name',
-          'points',
-          'salary_fund',
-          'business_date'
-        ],
+        'employee_name',
+        'points',
+        'salary_fund',
+        'business_date',
+      ],
       'target' => const [
-          'employee_name',
-          'target_points',
-          'from_date',
-          'to_date'
-        ],
+        'employee_name',
+        'target_points',
+        'from_date',
+        'to_date',
+      ],
       'payroll' => const [
-          'period_start',
-          'period_end',
-          'gross_total',
-          'net_total',
-          'status'
-        ],
+        'period_start',
+        'period_end',
+        'gross_total',
+        'net_total',
+        'status',
+      ],
       'reversal' => const ['source_type', 'reason', 'created_at', 'status'],
       'audit' => const ['event_type', 'entity_type', 'created_at', 'action'],
       'branch_history' => const [
-          'branch_name',
-          'from_date',
-          'to_date',
-          'reason'
-        ],
+        'branch_name',
+        'from_date',
+        'to_date',
+        'reason',
+      ],
       'product_history' => const [
-          'effective_from',
-          'mrp',
-          'sale_price',
-          'status'
-        ],
+        'effective_from',
+        'mrp',
+        'sale_price',
+        'status',
+      ],
       _ => const <String>[],
     };
 
@@ -403,7 +414,7 @@ class _RecordsListState extends State<RecordsList> {
           'debit',
           'credit',
           'balance',
-          'points'
+          'points',
         }.contains(k);
   }
 
@@ -416,13 +427,14 @@ class _RecordsListState extends State<RecordsList> {
 }
 
 class _BusinessCard extends StatelessWidget {
-  const _BusinessCard(
-      {required this.row,
-      required this.title,
-      required this.fields,
-      required this.onTap,
-      this.recordType,
-      this.onAction});
+  const _BusinessCard({
+    required this.row,
+    required this.title,
+    required this.fields,
+    required this.onTap,
+    this.recordType,
+    this.onAction,
+  });
 
   final Map<String, dynamic> row;
   final String title;
@@ -475,9 +487,7 @@ class _BusinessCard extends StatelessWidget {
                             title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   height: 1.18,
@@ -495,10 +505,8 @@ class _BusinessCard extends StatelessWidget {
                       Text(
                         reference,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                     if (fields.isNotEmpty) ...[
@@ -527,8 +535,10 @@ class _BusinessCard extends StatelessWidget {
                               .surfaceContainerHighest,
                           shape: BoxShape.circle,
                         ),
-                        child:
-                            const Icon(Icons.chevron_right_rounded, size: 20),
+                        child: const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                        ),
                       )
                     : IconButton(
                         tooltip: 'Actions',
@@ -557,15 +567,19 @@ _RecordVisual? _recordVisual(String? recordType, Map<String, dynamic> row) {
   final type = (recordType ?? '${row['type'] ?? ''}').toLowerCase();
   return switch (type) {
     'announcement' => const _RecordVisual(Icons.campaign_outlined, .14),
-    'notification' =>
-      const _RecordVisual(Icons.notifications_none_rounded, .16),
+    'notification' => const _RecordVisual(
+      Icons.notifications_none_rounded,
+      .16,
+    ),
     'task' => const _RecordVisual(Icons.task_alt_rounded, .12),
     'attendance' => const _RecordVisual(Icons.verified_user_outlined, .12),
     'sales' => const _RecordVisual(Icons.point_of_sale_outlined, .12),
     'purchase' => const _RecordVisual(Icons.shopping_bag_outlined, .12),
     'stock' => const _RecordVisual(Icons.inventory_2_outlined, .12),
-    'finance' =>
-      const _RecordVisual(Icons.account_balance_wallet_outlined, .12),
+    'finance' => const _RecordVisual(
+      Icons.account_balance_wallet_outlined,
+      .12,
+    ),
     _ => null,
   };
 }
@@ -584,30 +598,28 @@ class _FieldValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 92, maxWidth: 160),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              BusinessFormat.label(field.key),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              BusinessFormat.value(field.key, field.value),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ],
+    constraints: const BoxConstraints(minWidth: 92, maxWidth: 160),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          BusinessFormat.label(field.key),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
-      );
+        const SizedBox(height: 2),
+        Text(
+          BusinessFormat.value(field.key, field.value),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ],
+    ),
+  );
 }
 
 class _StatusPill extends StatelessWidget {
@@ -616,15 +628,15 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(label,
-            style: Theme.of(context)
-                .textTheme
-                .labelSmall
-                ?.copyWith(fontWeight: FontWeight.w700)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(
+      label,
+      style: Theme.of(context).textTheme.labelSmall
+          ?.copyWith(fontWeight: FontWeight.w700),
+    ),
+  );
 }

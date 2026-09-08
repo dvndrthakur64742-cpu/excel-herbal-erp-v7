@@ -75,7 +75,9 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   ),
                 ),
               ),
-            Expanded(child: TabBarView(children: [for (final tab in tabs) tab.$3])),
+            Expanded(
+              child: TabBarView(children: [for (final tab in tabs) tab.$3]),
+            ),
           ],
         ),
       ),
@@ -86,10 +88,19 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     final api = ref.watch(apiClientProvider);
     final tracker = ref.watch(gpsTrackingProvider);
     final now = DateTime.now();
-    final from = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
-    final to = DateTime(now.year, now.month, now.day, 23, 59, 59)
-        .toUtc()
-        .toIso8601String();
+    final from = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).toUtc().toIso8601String();
+    final to = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      23,
+      59,
+      59,
+    ).toUtc().toIso8601String();
 
     return RefreshIndicator(
       onRefresh: () async => setState(() => refresh++),
@@ -99,10 +110,14 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: tracker.active ? ExcelBrand.primarySoft : ExcelBrand.surface,
+              color: tracker.active
+                  ? ExcelBrand.primarySoft
+                  : ExcelBrand.surface,
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: tracker.active ? const Color(0xFFB9DFC8) : ExcelBrand.border,
+                color: tracker.active
+                    ? const Color(0xFFB9DFC8)
+                    : ExcelBrand.border,
               ),
             ),
             child: Column(
@@ -138,8 +153,11 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            tracker.active ? 'Tracking active' : 'Tracking stopped',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            tracker.active
+                                ? 'Tracking active'
+                                : 'Tracking stopped',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
                                   color: tracker.active
                                       ? ExcelBrand.primaryDark
                                       : ExcelBrand.muted,
@@ -150,7 +168,10 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: tracker.active
                             ? const Color(0xFFD4EEDC)
@@ -174,8 +195,11 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      const Icon(Icons.check_circle_outline,
-                          size: 19, color: ExcelBrand.primaryDark),
+                      const Icon(
+                        Icons.check_circle_outline,
+                        size: 19,
+                        color: ExcelBrand.primaryDark,
+                      ),
                       const SizedBox(width: 7),
                       Expanded(
                         child: Text(
@@ -198,8 +222,11 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.info_outline,
-                            size: 19, color: ExcelBrand.danger),
+                        const Icon(
+                          Icons.info_outline,
+                          size: 19,
+                          color: ExcelBrand.danger,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -256,7 +283,8 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                         ? () async {
                             try {
                               await ref.read(gpsTrackingProvider).sendNow();
-                              if (ref.read(gpsTrackingProvider).lastError == null) {
+                              if (ref.read(gpsTrackingProvider).lastError ==
+                                  null) {
                                 _msg('Current GPS point synced.');
                               }
                             } catch (e) {
@@ -299,8 +327,11 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         alignment: Alignment.center,
-                        child: const Icon(Icons.location_on_outlined,
-                            size: 21, color: ExcelBrand.primaryDark),
+                        child: const Icon(
+                          Icons.location_on_outlined,
+                          size: 21,
+                          color: ExcelBrand.primaryDark,
+                        ),
                       ),
                       title: Text(
                         '${r['latitude']}, ${r['longitude']}',
@@ -310,7 +341,8 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                         '${BusinessFormat.dateTime(r['recorded_at'])} · accuracy ${r['accuracy_m'] ?? '—'} m',
                       ),
                     ),
-                    if (r != rows.reversed.take(12).last) const Divider(height: 1),
+                    if (r != rows.reversed.take(12).last)
+                      const Divider(height: 1),
                   ],
                 ],
               );
@@ -326,11 +358,15 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                     icon: const Icon(Icons.add_rounded),
                   )
                 : null,
-            future: api.get(ApiPaths.holidays, query: {
-              if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
-              'from': '${now.year}-01-01',
-              'to': '${now.year}-12-31',
-            }),
+            future: api.get(
+              ApiPaths.holidays,
+              query: {
+                if (app.currentBranchId != null)
+                  'branch_id': app.currentBranchId,
+                'from': '${now.year}-01-01',
+                'to': '${now.year}-12-31',
+              },
+            ),
             builder: (data) {
               final rows = _rows(data);
               if (rows.isEmpty) {
@@ -347,17 +383,21 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   final id = int.tryParse('${r['id']}') ?? 0;
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.event_outlined,
-                        color: ExcelBrand.primaryDark),
-                    title: Text('${r['name'] ?? ''}',
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    leading: const Icon(
+                      Icons.event_outlined,
+                      color: ExcelBrand.primaryDark,
+                    ),
+                    title: Text(
+                      '${r['name'] ?? ''}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     subtitle: Text(BusinessFormat.date(r['holiday_date'])),
                     trailing: app.can('workforce.leave.manage') && id > 0
                         ? IconButton(
                             tooltip: 'Deactivate',
                             icon: const Icon(Icons.more_vert_rounded),
-                            onPressed: () => _post(
-                                ApiPaths.holidayDeactivate(id), const {}),
+                            onPressed: () =>
+                                _post(ApiPaths.holidayDeactivate(id), const {}),
                           )
                         : null,
                   );
@@ -371,42 +411,44 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   }
 
   Widget _emptyInline(IconData icon, String title, String message) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F5F2),
-                borderRadius: BorderRadius.circular(13),
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, color: ExcelBrand.primaryDark, size: 22),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 3),
-                  Text(message,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: ExcelBrand.muted,
-                          )),
-                ],
-              ),
-            ),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F5F2),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, color: ExcelBrand.primaryDark, size: 22),
         ),
-      );
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: ExcelBrand.muted),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _accountTab(AppState app) {
     final api = ref.watch(apiClientProvider);
     final employee = Map<String, dynamic>.from(
-        (app.me['employee'] as Map?) ?? const <String, dynamic>{});
+      (app.me['employee'] as Map?) ?? const <String, dynamic>{},
+    );
     final employeeId = int.tryParse('${employee['id'] ?? ''}') ?? 0;
 
     return ListView(
@@ -417,11 +459,16 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
           action: TextButton(
             onPressed: () async {
               final ok = await _confirm(
-                  'Logout all devices?', 'Is device par bhi dobara login karna padega.');
+                'Logout all devices?',
+                'Is device par bhi dobara login karna padega.',
+              );
               if (ok != true) return;
               try {
-                await api.post(ApiPaths.logoutAll,
-                    data: const {}, idempotent: false);
+                await api.post(
+                  ApiPaths.logoutAll,
+                  data: const {},
+                  idempotent: false,
+                );
               } catch (_) {}
               await ref.read(appStateProvider.notifier).logout();
             },
@@ -440,18 +487,21 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   leading: Icon(current ? Icons.phone_android : Icons.devices),
                   title: Text('${r['device_name'] ?? 'Mobile device'}'),
                   subtitle: Text(
-                      '${active ? 'Active' : 'Inactive'} · ${r['last_used_at'] ?? r['created_at'] ?? ''}'),
+                    '${active ? 'Active' : 'Inactive'} · ${r['last_used_at'] ?? r['created_at'] ?? ''}',
+                  ),
                   trailing: active && !current && id > 0
                       ? IconButton(
                           tooltip: 'Logout device',
                           icon: const Icon(Icons.logout),
                           onPressed: () => _post(
-                              ApiPaths.authSessionRevoke(id), const {},
-                              idempotent: false),
+                            ApiPaths.authSessionRevoke(id),
+                            const {},
+                            idempotent: false,
+                          ),
                         )
                       : current
-                          ? const Chip(label: Text('This device'))
-                          : null,
+                      ? const Chip(label: Text('This device'))
+                      : null,
                 );
               }).toList(),
             );
@@ -486,8 +536,10 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                             onPressed: () async {
                               final uri = Uri.tryParse(url);
                               if (uri != null) {
-                                await launchUrl(uri,
-                                    mode: LaunchMode.externalApplication);
+                                await launchUrl(
+                                  uri,
+                                  mode: LaunchMode.externalApplication,
+                                );
                               }
                             },
                             icon: const Icon(Icons.open_in_new),
@@ -578,7 +630,9 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                     trailing: id > 0
                         ? TextButton(
                             onPressed: () => _post(
-                                ApiPaths.announcementAcknowledge(id), const {}),
+                              ApiPaths.announcementAcknowledge(id),
+                              const {},
+                            ),
                             child: const Text('Acknowledge'),
                           )
                         : null,
@@ -590,9 +644,11 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   final id = int.tryParse('${r['id']}') ?? 0;
                   final read = '${r['read_at'] ?? ''}'.isNotEmpty;
                   return ListTile(
-                    leading: Icon(read
-                        ? Icons.notifications_none
-                        : Icons.notifications_active_outlined),
+                    leading: Icon(
+                      read
+                          ? Icons.notifications_none
+                          : Icons.notifications_active_outlined,
+                    ),
                     title: Text('${r['title'] ?? ''}'),
                     subtitle: Text('${r['body'] ?? ''}'),
                     trailing: !read && id > 0
@@ -621,8 +677,10 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
         if (app.can('organization.employee.manage'))
           _futureCard(
             title: 'Employee App Login Management',
-            future: api.get(ApiPaths.employees,
-                query: {'status': 'all', 'limit': 200}),
+            future: api.get(
+              ApiPaths.employees,
+              query: {'status': 'all', 'limit': 200},
+            ),
             builder: (data) {
               final rows = _rows(data);
               if (rows.isEmpty) return const Text('No employees.');
@@ -630,14 +688,17 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                 children: rows.map((r) {
                   final id = int.tryParse('${r['id']}') ?? 0;
                   return ListTile(
-                    leading: Icon(r['login_enabled'] == '1' ||
-                            r['login_enabled'] == 1 ||
-                            r['login_enabled'] == true
-                        ? Icons.verified_user_outlined
-                        : Icons.person_off_outlined),
+                    leading: Icon(
+                      r['login_enabled'] == '1' ||
+                              r['login_enabled'] == 1 ||
+                              r['login_enabled'] == true
+                          ? Icons.verified_user_outlined
+                          : Icons.person_off_outlined,
+                    ),
                     title: Text('${r['full_name'] ?? ''}'),
                     subtitle: Text(
-                        '${r['employee_code'] ?? ''} · ${r['mobile'] ?? 'No mobile'} · ${r['status'] ?? ''}'),
+                      '${r['employee_code'] ?? ''} · ${r['mobile'] ?? 'No mobile'} · ${r['status'] ?? ''}',
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: id > 0 ? () => _employeeLoginDialog(r) : null,
                   );
@@ -648,13 +709,14 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
         const SizedBox(height: 12),
         if (app.canAny(const [
           'administration.access.manage',
-          'administration.audit.view'
+          'administration.audit.view',
         ]))
           _futureCard(
             title: 'Backend Diagnostics',
             action: app.can('administration.access.manage')
                 ? TextButton.icon(
-                    onPressed: () => _post(ApiPaths.maintenanceCleanup, const {}),
+                    onPressed: () =>
+                        _post(ApiPaths.maintenanceCleanup, const {}),
                     icon: const Icon(Icons.cleaning_services_outlined),
                     label: const Text('Cleanup'),
                   )
@@ -675,11 +737,13 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   Future<Map<String, dynamic>> _versionPolicy() async {
     final info = await PackageInfo.fromPlatform();
     final build = int.tryParse(info.buildNumber) ?? 0;
-    final data = await ref.read(apiClientProvider).get(
-      ApiPaths.appVersionPolicy,
-      query: {'client_build': build},
-      authenticated: false,
-    );
+    final data = await ref
+        .read(apiClientProvider)
+        .get(
+          ApiPaths.appVersionPolicy,
+          query: {'client_build': build},
+          authenticated: false,
+        );
     return Map<String, dynamic>.from((data as Map?) ?? const {});
   }
 
@@ -696,12 +760,17 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Expanded(
-                  child: Text(title,
-                      style: Theme.of(context).textTheme.titleMedium)),
-              if (action != null) action,
-            ]),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (action != null) action,
+              ],
+            ),
             const Divider(),
             FutureBuilder<dynamic>(
               future: future,
@@ -729,13 +798,13 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   }
 
   Widget _sectionTitle(String value) => Padding(
-        padding: const EdgeInsets.only(top: 14, bottom: 6),
-        child: Text(value,
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700)),
-      );
+    padding: const EdgeInsets.only(top: 14, bottom: 6),
+    child: Text(
+      value,
+      style: Theme.of(context).textTheme.titleSmall
+          ?.copyWith(fontWeight: FontWeight.w700),
+    ),
+  );
 
   Future<void> _createHoliday(AppState app) async {
     final name = TextEditingController();
@@ -744,14 +813,29 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('New Holiday'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: date, decoration: const InputDecoration(labelText: 'Date YYYY-MM-DD')),
-          const SizedBox(height: 10),
-          TextField(controller: name, decoration: const InputDecoration(labelText: 'Holiday Name')),
-        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: date,
+              decoration: const InputDecoration(labelText: 'Date YYYY-MM-DD'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Holiday Name'),
+            ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Create')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Create'),
+          ),
         ],
       ),
     );
@@ -781,28 +865,45 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Upload Employee Document'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: type, decoration: const InputDecoration(labelText: 'Document Type')),
-          const SizedBox(height: 10),
-          TextField(controller: title, decoration: const InputDecoration(labelText: 'Title')),
-        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: type,
+              decoration: const InputDecoration(labelText: 'Document Type'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: title,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Upload')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Upload'),
+          ),
         ],
       ),
     );
     if (ok == true) {
       try {
-        await ref.read(apiClientProvider).uploadFile(
-          ApiPaths.employeeDocumentUpload(employeeId),
-          filePath: file.path!,
-          filename: file.name,
-          fields: {
-            'document_type': type.text.trim(),
-            'title': title.text.trim(),
-          },
-        );
+        await ref
+            .read(apiClientProvider)
+            .uploadFile(
+              ApiPaths.employeeDocumentUpload(employeeId),
+              filePath: file.path!,
+              filename: file.name,
+              fields: {
+                'document_type': type.text.trim(),
+                'title': title.text.trim(),
+              },
+            );
         _msg('Document uploaded.');
         setState(() => refresh++);
       } catch (e) {
@@ -815,12 +916,16 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
 
   Future<List<Map<String, dynamic>>> _employeeChoices() async {
     final app = ref.read(appStateProvider);
-    final data = await ref.read(apiClientProvider).get(ApiPaths.employees,
-        query: {
-          if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
-          'status': 'active',
-          'limit': 200,
-        });
+    final data = await ref
+        .read(apiClientProvider)
+        .get(
+          ApiPaths.employees,
+          query: {
+            if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+            'status': 'active',
+            'limit': 200,
+          },
+        );
     return _rows(data);
   }
 
@@ -836,26 +941,48 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
         builder: (context) => StatefulBuilder(
           builder: (context, setLocal) => AlertDialog(
             title: const Text('New Task'),
-            content: Column(mainAxisSize: MainAxisSize.min, children: [
-              DropdownButtonFormField<int>(
-                value: employeeId,
-                items: employees
-                    .map((e) => DropdownMenuItem<int>(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<int>(
+                  value: employeeId,
+                  items: employees
+                      .map(
+                        (e) => DropdownMenuItem<int>(
                           value: int.tryParse('${e['id']}') ?? 0,
-                          child: Text('${e['full_name']} (${e['employee_code']})'),
-                        ))
-                    .toList(),
-                onChanged: (v) => setLocal(() => employeeId = v ?? employeeId),
-                decoration: const InputDecoration(labelText: 'Assign To'),
-              ),
-              const SizedBox(height: 10),
-              TextField(controller: title, decoration: const InputDecoration(labelText: 'Task Title')),
-              const SizedBox(height: 10),
-              TextField(controller: due, decoration: const InputDecoration(labelText: 'Due At (optional ISO date/time)')),
-            ]),
+                          child: Text(
+                            '${e['full_name']} (${e['employee_code']})',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) =>
+                      setLocal(() => employeeId = v ?? employeeId),
+                  decoration: const InputDecoration(labelText: 'Assign To'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: title,
+                  decoration: const InputDecoration(labelText: 'Task Title'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: due,
+                  decoration: const InputDecoration(
+                    labelText: 'Due At (optional ISO date/time)',
+                  ),
+                ),
+              ],
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Create')),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Create'),
+              ),
             ],
           ),
         ),
@@ -881,14 +1008,30 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Publish Announcement'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: title, decoration: const InputDecoration(labelText: 'Title')),
-          const SizedBox(height: 10),
-          TextField(controller: body, maxLines: 4, decoration: const InputDecoration(labelText: 'Message')),
-        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: title,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: body,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Message'),
+            ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Publish')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Publish'),
+          ),
         ],
       ),
     );
@@ -915,26 +1058,47 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
         builder: (context) => StatefulBuilder(
           builder: (context, setLocal) => AlertDialog(
             title: const Text('Send Notification'),
-            content: Column(mainAxisSize: MainAxisSize.min, children: [
-              DropdownButtonFormField<int>(
-                value: employeeId,
-                items: employees
-                    .map((e) => DropdownMenuItem<int>(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<int>(
+                  value: employeeId,
+                  items: employees
+                      .map(
+                        (e) => DropdownMenuItem<int>(
                           value: int.tryParse('${e['id']}') ?? 0,
-                          child: Text('${e['full_name']} (${e['employee_code']})'),
-                        ))
-                    .toList(),
-                onChanged: (v) => setLocal(() => employeeId = v ?? employeeId),
-                decoration: const InputDecoration(labelText: 'Employee'),
-              ),
-              const SizedBox(height: 10),
-              TextField(controller: title, decoration: const InputDecoration(labelText: 'Title')),
-              const SizedBox(height: 10),
-              TextField(controller: body, maxLines: 3, decoration: const InputDecoration(labelText: 'Message')),
-            ]),
+                          child: Text(
+                            '${e['full_name']} (${e['employee_code']})',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) =>
+                      setLocal(() => employeeId = v ?? employeeId),
+                  decoration: const InputDecoration(labelText: 'Employee'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: title,
+                  decoration: const InputDecoration(labelText: 'Title'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: body,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Message'),
+                ),
+              ],
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Send')),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Send'),
+              ),
             ],
           ),
         ),
@@ -959,8 +1123,9 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     if (id < 1) return;
     try {
       final status = Map<String, dynamic>.from(
-          await ref.read(apiClientProvider).get(ApiPaths.employeeLoginStatus(id))
-              as Map);
+        await ref.read(apiClientProvider).get(ApiPaths.employeeLoginStatus(id))
+            as Map,
+      );
       if (!mounted) return;
       final password = TextEditingController();
       await showDialog<void>(
@@ -969,28 +1134,42 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
           title: Text('${employee['full_name']} · App Login'),
           content: SizedBox(
             width: 480,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Login enabled: ${status['login_enabled'] ?? false}'),
-                subtitle: Text('Active sessions: ${status['active_sessions'] ?? 0}'),
-              ),
-              TextField(
-                controller: password,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Set / Reset Password'),
-              ),
-              const SizedBox(height: 10),
-              const Text('Password manually employee ko secure channel se batayein.'),
-            ]),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Login enabled: ${status['login_enabled'] ?? false}',
+                  ),
+                  subtitle: Text(
+                    'Active sessions: ${status['active_sessions'] ?? 0}',
+                  ),
+                ),
+                TextField(
+                  controller: password,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Set / Reset Password',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Password manually employee ko secure channel se batayein.',
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () async {
                 try {
-                  await ref.read(apiClientProvider).post(
-                      ApiPaths.employeeRevokeSessions(id),
-                      data: const {});
+                  await ref
+                      .read(apiClientProvider)
+                      .post(
+                        ApiPaths.employeeRevokeSessions(id),
+                        data: const {},
+                      );
                   if (mounted) Navigator.pop(context);
                   _msg('Employee sessions revoked.');
                 } catch (e) {
@@ -1006,10 +1185,12 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   return;
                 }
                 try {
-                  await ref.read(apiClientProvider).post(
-                    ApiPaths.employeeCredentials(id),
-                    data: {'password': password.text},
-                  );
+                  await ref
+                      .read(apiClientProvider)
+                      .post(
+                        ApiPaths.employeeCredentials(id),
+                        data: {'password': password.text},
+                      );
                   if (mounted) Navigator.pop(context);
                   _msg('Login password updated.');
                   setState(() => refresh++);
@@ -1028,11 +1209,15 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     }
   }
 
-  Future<void> _post(String path, Map<String, dynamic> data,
-      {bool idempotent = true}) async {
+  Future<void> _post(
+    String path,
+    Map<String, dynamic> data, {
+    bool idempotent = true,
+  }) async {
     try {
-      await ref.read(apiClientProvider).post(path,
-          data: data, idempotent: idempotent);
+      await ref
+          .read(apiClientProvider)
+          .post(path, data: data, idempotent: idempotent);
       _msg('Saved successfully.');
       if (mounted) setState(() => refresh++);
     } catch (e) {
@@ -1041,20 +1226,22 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   }
 
   Future<bool?> _confirm(String title, String body) => showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(title),
-          content: Text(body),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Confirm')),
-          ],
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Text(body),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
         ),
-      );
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Confirm'),
+        ),
+      ],
+    ),
+  );
 
   void _msg(String value) {
     if (!mounted) return;

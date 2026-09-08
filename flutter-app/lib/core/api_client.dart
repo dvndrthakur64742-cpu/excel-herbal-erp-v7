@@ -37,15 +37,15 @@ class _MutationKey {
 
 class ApiClient {
   ApiClient(this.session)
-      : dio = Dio(
-          BaseOptions(
-            baseUrl: AppConfig.apiBaseUrl,
-            connectTimeout: const Duration(seconds: 15),
-            sendTimeout: const Duration(seconds: 45),
-            receiveTimeout: const Duration(seconds: 45),
-            headers: const {'Accept': 'application/json'},
-          ),
-        );
+    : dio = Dio(
+        BaseOptions(
+          baseUrl: AppConfig.apiBaseUrl,
+          connectTimeout: const Duration(seconds: 15),
+          sendTimeout: const Duration(seconds: 45),
+          receiveTimeout: const Duration(seconds: 45),
+          headers: const {'Accept': 'application/json'},
+        ),
+      );
 
   final SecureSession session;
   final Dio dio;
@@ -58,27 +58,20 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? query,
     bool authenticated = true,
-  }) =>
-      _request(
-        'GET',
-        path,
-        query: query,
-        authenticated: authenticated,
-      );
+  }) => _request('GET', path, query: query, authenticated: authenticated);
 
   Future<dynamic> post(
     String path, {
     Map<String, dynamic>? data,
     bool idempotent = true,
     bool authenticated = true,
-  }) =>
-      _request(
-        'POST',
-        path,
-        data: data,
-        idempotent: idempotent,
-        authenticated: authenticated,
-      );
+  }) => _request(
+    'POST',
+    path,
+    data: data,
+    idempotent: idempotent,
+    authenticated: authenticated,
+  );
 
   Future<dynamic> uploadFile(
     String path, {
@@ -101,10 +94,7 @@ class ApiClient {
       return dio.post<dynamic>(
         path,
         data: form,
-        options: Options(
-          headers: headers,
-          contentType: 'multipart/form-data',
-        ),
+        options: Options(headers: headers, contentType: 'multipart/form-data'),
       );
     }
 
@@ -271,10 +261,7 @@ class ApiClient {
     try {
       final response = await dio.post<dynamic>(
         ApiPaths.refresh,
-        data: {
-          'refresh_token': refresh,
-          'device': 'Excel Herbal ERP Android',
-        },
+        data: {'refresh_token': refresh, 'device': 'Excel Herbal ERP Android'},
       );
       final data = _unwrap(response.data, response.statusCode);
       final map = Map<String, dynamic>.from(data as Map);

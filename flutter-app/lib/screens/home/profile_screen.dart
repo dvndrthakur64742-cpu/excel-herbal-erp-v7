@@ -35,7 +35,11 @@ class ProfileScreen extends ConsumerWidget {
                     color: ExcelBrand.primarySoft,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.person_rounded, color: ExcelBrand.primaryDark, size: 30),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: ExcelBrand.primaryDark,
+                    size: 30,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -49,7 +53,8 @@ class ProfileScreen extends ConsumerWidget {
                       const SizedBox(height: 3),
                       Text(
                         '${employee['employee_code'] ?? '—'} · $designation',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: ExcelBrand.muted),
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(color: ExcelBrand.muted),
                       ),
                     ],
                   ),
@@ -62,13 +67,30 @@ class ProfileScreen extends ConsumerWidget {
         Card(
           child: Column(
             children: [
-              _InfoTile(icon: Icons.store_outlined, label: 'Current Branch', value: app.currentBranchName),
+              _InfoTile(
+                icon: Icons.store_outlined,
+                label: 'Current Branch',
+                value: app.currentBranchName,
+              ),
               const Divider(height: 1),
-              _InfoTile(icon: Icons.shield_outlined, label: 'Authorised Access', value: '${app.branches.length} branch${app.branches.length == 1 ? '' : 'es'}'),
+              _InfoTile(
+                icon: Icons.shield_outlined,
+                label: 'Authorised Access',
+                value:
+                    '${app.branches.length} branch${app.branches.length == 1 ? '' : 'es'}',
+              ),
               const Divider(height: 1),
-              _InfoTile(icon: Icons.phone_outlined, label: 'Mobile', value: '${employee['mobile'] ?? '—'}'),
+              _InfoTile(
+                icon: Icons.phone_outlined,
+                label: 'Mobile',
+                value: '${employee['mobile'] ?? '—'}',
+              ),
               const Divider(height: 1),
-              _InfoTile(icon: Icons.email_outlined, label: 'Email', value: '${employee['email'] ?? '—'}'),
+              _InfoTile(
+                icon: Icons.email_outlined,
+                label: 'Email',
+                value: '${employee['email'] ?? '—'}',
+              ),
               const Divider(height: 1),
               _InfoTile(
                 icon: Icons.account_tree_outlined,
@@ -76,8 +98,8 @@ class ProfileScreen extends ConsumerWidget {
                 value: manager.isEmpty
                     ? 'Not assigned'
                     : managerCode.isEmpty
-                        ? manager
-                        : '$manager · $managerCode',
+                    ? manager
+                    : '$manager · $managerCode',
               ),
             ],
           ),
@@ -94,7 +116,11 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 class _InfoTile extends StatelessWidget {
-  const _InfoTile({required this.icon, required this.label, required this.value});
+  const _InfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   final IconData icon;
   final String label;
@@ -102,11 +128,15 @@ class _InfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListTile(
-        leading: Icon(icon),
-        title: Text(label, style: Theme.of(context).textTheme.bodySmall),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Text(value, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-        ),
-      );
+    leading: Icon(icon),
+    title: Text(label, style: Theme.of(context).textTheme.bodySmall),
+    subtitle: Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text(
+        value,
+        style: Theme.of(context).textTheme.bodyLarge
+            ?.copyWith(fontWeight: FontWeight.w600),
+      ),
+    ),
+  );
 }

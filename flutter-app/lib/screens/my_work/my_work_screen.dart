@@ -63,7 +63,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
           ),
           Expanded(
-              child: TabBarView(children: [for (final tab in tabs) tab.$2])),
+            child: TabBarView(children: [for (final tab in tabs) tab.$2]),
+          ),
         ],
       ),
     );
@@ -135,8 +136,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               ),
               if (app.can('daily_order.self') || app.can('daily_order.others'))
                 FilledButton.icon(
-                  onPressed:
-                      app.currentBranchId == null ? null : _newDailyOrder,
+                  onPressed: app.currentBranchId == null
+                      ? null
+                      : _newDailyOrder,
                   icon: const Icon(Icons.add),
                   label: const Text('New Order'),
                 ),
@@ -189,7 +191,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                     DataCell(Text('#${r['id']}')),
                                     DataCell(Text(_dailyEmployeeLabel(r))),
                                     DataCell(
-                                        Text('${r['business_date'] ?? '—'}')),
+                                      Text('${r['business_date'] ?? '—'}'),
+                                    ),
                                     DataCell(
                                       Text(_statusText('${r['status']}')),
                                     ),
@@ -246,17 +249,17 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                                   .textTheme
                                                   .titleMedium
                                                   ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w700),
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
                                             ),
                                           ),
                                           _orderStatusChip('${r['status']}'),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
-                                      Text(code.isEmpty
-                                          ? name
-                                          : '$name · $code'),
+                                      Text(
+                                        code.isEmpty ? name : '$name · $code',
+                                      ),
                                       const SizedBox(height: 3),
                                       Text(
                                         '${r['branch_name'] ?? 'Authorised Branch'} · ${BusinessFormat.date(r['business_date'])}',
@@ -295,15 +298,15 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _dailyRows(
-      AppState app, dynamic api) async {
+    AppState app,
+    dynamic api,
+  ) async {
     final rows = (await api.get(
       ApiPaths.dailyCycles,
       query: {
         if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
       },
-    ) as List)
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+    ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 
     final branchNames = <int, String>{
       for (final b in app.branches)
@@ -315,17 +318,17 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       final employees = (await api.get(
         ApiPaths.employees,
         query: {
-          if (app.currentBranchId != null) 'branch_id': app.currentBranchId
+          if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
         },
-      ) as List)
-          .map((e) => Map<String, dynamic>.from(e as Map));
+      ) as List).map((e) => Map<String, dynamic>.from(e as Map));
       for (final e in employees) {
         final id = int.tryParse('${e['id']}');
         if (id != null) employeeNames[id] = e;
       }
     } catch (_) {
-      final me =
-          Map<String, dynamic>.from((app.me['employee'] as Map?) ?? const {});
+      final me = Map<String, dynamic>.from(
+        (app.me['employee'] as Map?) ?? const {},
+      );
       final id = int.tryParse('${me['id'] ?? ''}');
       if (id != null) employeeNames[id] = me;
     }
@@ -362,7 +365,6 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     };
     return map[status] ?? status;
   }
-
 
   Widget _orderStatusChip(String status) {
     Color background;
@@ -422,7 +424,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     ];
     if (status == 'morning_draft') {
       out.add(
-          const PopupMenuItem(value: 'submit', child: Text('Submit Order')));
+        const PopupMenuItem(value: 'submit', child: Text('Submit Order')),
+      );
     }
     if (status == 'stock_requested' && app.can('daily_order.approve')) {
       out.add(const PopupMenuItem(value: 'approve', child: Text('Approve')));
@@ -432,19 +435,32 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     }
     if (status == 'issued') {
       if (app.can('daily_order.self') || app.can('daily_order.others')) {
-        out.add(const PopupMenuItem(
-            value: 'additional', child: Text('Additional Requirement')));
+        out.add(
+          const PopupMenuItem(
+            value: 'additional',
+            child: Text('Additional Requirement'),
+          ),
+        );
       }
-      out.add(const PopupMenuItem(
-          value: 'evening', child: Text('Start Evening Closing')));
+      out.add(
+        const PopupMenuItem(
+          value: 'evening',
+          child: Text('Start Evening Closing'),
+        ),
+      );
     }
     if (status == 'evening_draft') {
-      out.add(const PopupMenuItem(
-          value: 'evening_edit', child: Text('Edit Evening Closing')));
+      out.add(
+        const PopupMenuItem(
+          value: 'evening_edit',
+          child: Text('Edit Evening Closing'),
+        ),
+      );
     }
     if (status == 'evening_submitted' && app.can('daily_order.review')) {
       out.add(
-          const PopupMenuItem(value: 'final_post', child: Text('Final Post')));
+        const PopupMenuItem(value: 'final_post', child: Text('Final Post')),
+      );
     }
     return out;
   }
@@ -459,8 +475,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           Row(
             children: [
               Expanded(
-                child: Text('Leave',
-                    style: Theme.of(context).textTheme.titleLarge),
+                child: Text(
+                  'Leave',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
               FilledButton.icon(
                 onPressed: _applyLeave,
@@ -492,10 +510,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                         isThreeLine: true,
                         trailing: Text(
                           BusinessFormat.status(row['status']),
-                          style:
-                              Theme.of(context).textTheme.labelMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
@@ -533,12 +549,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                           Expanded(
                             child: Text(
                               'Visit #$id Running',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],
@@ -546,7 +558,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       const SizedBox(height: 8),
                       Text('${current['purpose'] ?? 'Field Visit'}'),
                       Text(
-                          'Started: ${DateTimeText.local(current['started_at'])}'),
+                        'Started: ${DateTimeText.local(current['started_at'])}',
+                      ),
                       const SizedBox(height: 12),
                       FilledButton.tonalIcon(
                         onPressed: () => _completeVisit(id),
@@ -581,7 +594,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
 
   Widget _feedbackBanner(String text) {
     final lower = text.toLowerCase();
-    final isError = lower.contains('required') ||
+    final isError =
+        lower.contains('required') ||
         lower.contains('invalid') ||
         lower.contains('failed') ||
         lower.contains('error') ||
@@ -600,7 +614,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            isError ? Icons.info_outline_rounded : Icons.check_circle_outline_rounded,
+            isError
+                ? Icons.info_outline_rounded
+                : Icons.check_circle_outline_rounded,
             size: 20,
             color: fg,
           ),
@@ -642,14 +658,16 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     }
     try {
       final p = await _position();
-      await ref.read(apiClientProvider).post(
-        checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
-        data: {
-          if (checkIn) 'branch_id': app.currentBranchId,
-          'lat': p.latitude,
-          'lng': p.longitude,
-        },
-      );
+      await ref
+          .read(apiClientProvider)
+          .post(
+            checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
+            data: {
+              if (checkIn) 'branch_id': app.currentBranchId,
+              'lat': p.latitude,
+              'lng': p.longitude,
+            },
+          );
       if (checkIn) {
         try {
           await ref.read(gpsTrackingProvider).start();
@@ -692,9 +710,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         employees = (await api.get(
           ApiPaths.employees,
           query: {'branch_id': app.currentBranchId},
-        ) as List)
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
+        ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         if (employees.any((e) => int.parse('${e['id']}') == selectedEmployee) ==
                 false &&
             employees.isNotEmpty) {
@@ -720,9 +736,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                   children: [
                     if (employees.isNotEmpty) ...[
                       DropdownButtonFormField<int>(
-                        value: selectedEmployee,
-                        decoration:
-                            const InputDecoration(labelText: 'Employee'),
+                        initialValue: selectedEmployee,
+                        decoration: const InputDecoration(
+                          labelText: 'Employee',
+                        ),
                         items: employees
                             .map(
                               (e) => DropdownMenuItem<int>(
@@ -745,8 +762,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       final price = p['sale_price'] == null
                           ? ''
                           : ' · ₹${p['sale_price']}';
-                      final points =
-                          p['points'] == null ? '' : ' · ${p['points']} pts';
+                      final points = p['points'] == null
+                          ? ''
+                          : ' · ${p['points']} pts';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: TextField(
@@ -807,14 +825,16 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           data: {
             'branch_id': app.currentBranchId,
             'employee_id': selectedEmployee,
-            'business_date': _today(),
+            'business_date': app.businessDate,
             'lines': lines,
           },
         ) as Map,
       );
       if (mode == 'submit') {
-        await api.post(ApiPaths.dailySubmit(int.parse('${created['id']}')),
-            data: const {});
+        await api.post(
+          ApiPaths.dailySubmit(int.parse('${created['id']}')),
+          data: const {},
+        );
       }
       if (mounted) {
         setState(() {
@@ -839,8 +859,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     Map<String, dynamic> detail,
     String status,
   ) {
-    final rows = ((detail['requests'] as List?) ?? const [])
-        .map((e) => Map<String, dynamic>.from(e as Map));
+    final rows = ((detail['requests'] as List?) ?? const []).map(
+      (e) => Map<String, dynamic>.from(e as Map),
+    );
     for (final r in rows) {
       if ('${r['status']}' == status) return r;
     }
@@ -861,8 +882,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         final d = await _dailyDetail(id);
         final r = _requestWithStatus(d, 'submitted');
         if (r == null) throw Exception('Submitted request not found.');
-        await api.post(ApiPaths.dailyApprove(int.parse('${r['id']}')),
-            data: const {});
+        await api.post(
+          ApiPaths.dailyApprove(int.parse('${r['id']}')),
+          data: const {},
+        );
         message = 'Daily Order approved. Stock issue pending.';
       } else if (action == 'issue') {
         await _issueDaily(id);
@@ -889,8 +912,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
 
   Future<void> _additionalDaily(int id) async {
     final api = ref.read(apiClientProvider);
-    final data =
-        Map<String, dynamic>.from(await api.get(ApiPaths.masterData) as Map);
+    final data = Map<String, dynamic>.from(
+      await api.get(ApiPaths.masterData) as Map,
+    );
     final products = ((data['products'] as List?) ?? const [])
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
@@ -923,8 +947,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       controller: qty[int.parse('${product['id']}')],
                       keyboardType: TextInputType.number,
                       inputFormatters: [WholePcs.positiveFormatter],
-                      decoration:
-                          InputDecoration(labelText: '${product['name']}'),
+                      decoration: InputDecoration(
+                        labelText: '${product['name']}',
+                      ),
                     ),
                   ),
               ],
@@ -978,164 +1003,161 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     if (lines.isEmpty) throw Exception('Approved request lines missing.');
 
     final ok = await showModalBottomSheet<bool>(
-        context: context,
-        useSafeArea: true,
-        isScrollControlled: true,
-        builder: (sheetContext) => FractionallySizedBox(
-          heightFactor: .92,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 12, 12),
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: .92,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 12, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: ExcelBrand.primarySoft,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.inventory_2_outlined,
+                      color: ExcelBrand.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Issue Stock',
+                          style: Theme.of(sheetContext).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Daily Order #$id · ${lines.length} products',
+                          style: Theme.of(sheetContext).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(sheetContext, false),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                itemCount: lines.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final l = lines[index];
+                  final name = BusinessFormat.displayName(
+                    '${l['product_name'] ?? 'Product'}',
+                  );
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: ExcelBrand.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: ExcelBrand.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: ExcelBrand.primarySoft,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'Requested ${BusinessFormat.quantity(l['quantity'])}',
+                                style: const TextStyle(
+                                  color: ExcelBrand.primaryDark,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.inventory_outlined,
+                              size: 18,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Full approved quantity will be issued',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                decoration: const BoxDecoration(
+                  color: ExcelBrand.surface,
+                  border: Border(top: BorderSide(color: ExcelBrand.border)),
+                ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: ExcelBrand.primarySoft,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.inventory_2_outlined,
-                        color: ExcelBrand.primaryDark,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Issue Stock',
-                            style: Theme.of(sheetContext).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Daily Order #$id · ${lines.length} products',
-                            style: Theme.of(sheetContext).textTheme.bodySmall,
-                          ),
-                        ],
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        child: const Text('Cancel'),
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.pop(sheetContext, false),
-                      icon: const Icon(Icons.close_rounded),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.pop(sheetContext, true),
+                        icon: const Icon(Icons.verified_outlined),
+                        label: const Text('Verify & Issue'),
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-                  itemCount: lines.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final l = lines[index];
-                    final lid = int.parse('${l['id']}');
-                    final name = BusinessFormat.displayName(
-                      '${l['product_name'] ?? 'Product'}',
-                    );
-                    return Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: ExcelBrand.surface,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: ExcelBrand.border),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  name,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w800),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 9,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: ExcelBrand.primarySoft,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  'Requested ${BusinessFormat.quantity(l['quantity'])}',
-                                  style: const TextStyle(
-                                    color: ExcelBrand.primaryDark,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.inventory_outlined,
-                                size: 18,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Full approved quantity will be issued',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              SafeArea(
-                top: false,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  decoration: const BoxDecoration(
-                    color: ExcelBrand.surface,
-                    border: Border(top: BorderSide(color: ExcelBrand.border)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(sheetContext, false),
-                          child: const Text('Cancel'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: FilledButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, true),
-                          icon: const Icon(Icons.verified_outlined),
-                          label: const Text('Verify & Issue'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
 
     if (ok == true) {
       final allocations = <Map<String, dynamic>>[];
@@ -1143,10 +1165,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         final lid = int.parse('${l['id']}');
         final q = num.tryParse('${l['quantity'] ?? 0}')?.toDouble() ?? 0;
         if (q <= 0) throw Exception('Approved issue quantity missing.');
-        allocations.add({
-          'request_line_id': lid,
-          'quantity': q,
-        });
+        allocations.add({'request_line_id': lid, 'quantity': q});
       }
       await api.post(
         ApiPaths.dailyIssue(int.parse('${r['id']}')),
@@ -1164,8 +1183,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   Future<void> _editEvening(int id) async {
     final api = ref.read(apiClientProvider);
     final d = await _dailyDetail(id);
-    final evening =
-        Map<String, dynamic>.from((d['evening'] as Map?) ?? const {});
+    final evening = Map<String, dynamic>.from(
+      (d['evening'] as Map?) ?? const {},
+    );
     final lines = ((evening['lines'] as List?) ?? const [])
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
@@ -1176,117 +1196,326 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     final wholesaleRate = <int, TextEditingController>{};
     for (final l in lines) {
       final key = int.parse('${l['issue_line_id']}');
-      returns[key] =
-          TextEditingController(text: '${l['return_quantity'] ?? 0}');
-      wholesale[key] =
-          TextEditingController(text: '${l['wholesale_quantity'] ?? 0}');
-      wholesaleRate[key] =
-          TextEditingController(text: '${l['wholesale_rate'] ?? 0}');
+      returns[key] = TextEditingController(
+        text: '${l['return_quantity'] ?? 0}',
+      );
+      wholesale[key] = TextEditingController(
+        text: '${l['wholesale_quantity'] ?? 0}',
+      );
+      wholesaleRate[key] = TextEditingController(
+        text: '${l['wholesale_rate'] ?? 0}',
+      );
     }
     final customer = TextEditingController(
-        text: '${evening['wholesale_customer_name'] ?? ''}');
+      text: '${evening['wholesale_customer_name'] ?? ''}',
+    );
     final note = TextEditingController(text: '${evening['notes'] ?? ''}');
     String? mode;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Evening Closing · Order #$id'),
-        content: SizedBox(
-          width: 720,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                      'Return + Wholesale enter karein. Sold automatically backend calculate karega.'),
-                ),
-                const SizedBox(height: 12),
-                ...lines.map((l) {
-                  final key = int.parse('${l['issue_line_id']}');
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+
+    try {
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (context, setLocal) => DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: .92,
+            minChildSize: .64,
+            maxChildSize: .98,
+            builder: (context, scrollController) => Material(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+                    child: Row(
                       children: [
-                        Text(
-                            '${l['product_name']} · Issue ${l['issued_quantity']} · Retail ₹${l['retail_rate']}'),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: returns[key],
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [WholePcs.positiveFormatter],
-                                decoration:
-                                    const InputDecoration(labelText: 'Return'),
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: ExcelBrand.primarySoft,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.nightlight_round,
+                            color: ExcelBrand.primaryDark,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Evening Closing',
+                                style: Theme.of(context).textTheme.titleLarge,
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: wholesale[key],
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [WholePcs.positiveFormatter],
-                                decoration: const InputDecoration(
-                                    labelText: 'Wholesale Qty'),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Daily Order #$id · ${lines.length} products',
+                                style: Theme.of(context).textTheme.bodySmall,
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: wholesaleRate[key],
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                    labelText: 'Wholesale Rate'),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close',
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close_rounded),
                         ),
                       ],
                     ),
-                  );
-                }),
-                TextField(
-                  controller: customer,
-                  decoration: const InputDecoration(
-                    labelText: 'Wholesale Customer (if wholesale)',
                   ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: note,
-                  decoration: const InputDecoration(labelText: 'Note'),
-                ),
-              ],
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(13),
+                          decoration: BoxDecoration(
+                            color: ExcelBrand.primarySoft,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.calculate_outlined,
+                                color: ExcelBrand.primaryDark,
+                              ),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Return aur Wholesale quantity enter karein. Retail Sold quantity ERP automatically calculate karega.',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ...lines.map((l) {
+                          final key = int.parse('${l['issue_line_id']}');
+                          final issued =
+                              double.tryParse('${l['issued_quantity']}') ?? 0;
+                          final retailRate =
+                              double.tryParse('${l['retail_rate']}') ?? 0;
+                          final ret = WholePcs.parseOrZero(returns[key]!.text);
+                          final wh = WholePcs.parseOrZero(wholesale[key]!.text);
+                          final calculated = issued - ret - wh;
+                          final sold = calculated < 0 ? 0 : calculated;
+                          final over = ret + wh > issued + .0001;
+
+                          Widget returnField() => TextField(
+                            controller: returns[key],
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [WholePcs.positiveFormatter],
+                            onChanged: (_) => setLocal(() {}),
+                            decoration: const InputDecoration(
+                              labelText: 'Return Qty',
+                              prefixIcon: Icon(Icons.keyboard_return_rounded),
+                            ),
+                          );
+
+                          Widget wholesaleField() => TextField(
+                            controller: wholesale[key],
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [WholePcs.positiveFormatter],
+                            onChanged: (_) => setLocal(() {}),
+                            decoration: const InputDecoration(
+                              labelText: 'Wholesale Qty',
+                              prefixIcon: Icon(Icons.storefront_outlined),
+                            ),
+                          );
+
+                          Widget rateField() => TextField(
+                            controller: wholesaleRate[key],
+                            enabled: wh > 0,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Wholesale Rate',
+                              prefixText: '₹ ',
+                              helperText: wh > 0
+                                  ? 'Max ₹${retailRate.toStringAsFixed(2)}'
+                                  : 'Wholesale Qty enter karein',
+                            ),
+                          );
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 11),
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                BusinessFormat.displayName(
+                                                  '${l['product_name'] ?? 'Product'}',
+                                                ),
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Issued ${BusinessFormat.quantity(issued)} · Retail ₹${retailRate.toStringAsFixed(2)}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: over
+                                                ? const Color(0xFFFFECEC)
+                                                : ExcelBrand.primarySoft,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            over
+                                                ? 'Check Qty'
+                                                : 'Sold ${BusinessFormat.quantity(sold)}',
+                                            style: TextStyle(
+                                              color: over
+                                                  ? ExcelBrand.danger
+                                                  : ExcelBrand.primaryDark,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        if (constraints.maxWidth < 520) {
+                                          return Column(
+                                            children: [
+                                              returnField(),
+                                              const SizedBox(height: 10),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: wholesaleField(),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(child: rateField()),
+                                                ],
+                                              ),
+                                            ],
+                                          );
+                                        }
+                                        return Row(
+                                          children: [
+                                            Expanded(child: returnField()),
+                                            const SizedBox(width: 10),
+                                            Expanded(child: wholesaleField()),
+                                            const SizedBox(width: 10),
+                                            Expanded(child: rateField()),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 2),
+                        TextField(
+                          controller: customer,
+                          decoration: const InputDecoration(
+                            labelText: 'Wholesale Customer',
+                            hintText: 'Wholesale sale ho tab required',
+                            prefixIcon: Icon(Icons.person_outline_rounded),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: note,
+                          minLines: 2,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText: 'Note (optional)',
+                            prefixIcon: Icon(Icons.notes_rounded),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(sheetContext),
+                            child: const Text('Cancel'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () {
+                              mode = 'save';
+                              Navigator.pop(sheetContext);
+                            },
+                            icon: const Icon(Icons.save_outlined),
+                            label: const Text('Save Draft'),
+                          ),
+                          FilledButton.icon(
+                            onPressed: () {
+                              mode = 'submit';
+                              Navigator.pop(sheetContext);
+                            },
+                            icon: const Icon(Icons.check_circle_outline),
+                            label: const Text('Save & Submit'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.tonal(
-            onPressed: () {
-              mode = 'save';
-              Navigator.pop(context);
-            },
-            child: const Text('Save Draft'),
-          ),
-          FilledButton(
-            onPressed: () {
-              mode = 'submit';
-              Navigator.pop(context);
-            },
-            child: const Text('Save & Submit'),
-          ),
-        ],
-      ),
-    );
-    if (mode != null) {
+      );
+
+      if (mode == null) return;
+
       final payload = <Map<String, dynamic>>[];
       var anyWholesale = false;
       for (final l in lines) {
@@ -1294,22 +1523,33 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         final ret = WholePcs.parseOrZero(returns[key]!.text);
         final wh = WholePcs.parseOrZero(wholesale[key]!.text);
         final issued = double.tryParse('${l['issued_quantity']}') ?? 0;
+        final retailRate = double.tryParse('${l['retail_rate']}') ?? 0;
+        final whRate = double.tryParse(wholesaleRate[key]!.text) ?? 0;
+
         if (ret + wh > issued + 0.0001) {
           throw Exception(
-              'Return + Wholesale issue quantity se zyada nahi ho sakta.');
+            '${l['product_name']}: Return + Wholesale issued quantity se zyada nahi ho sakta.',
+          );
+        }
+        if (wh > 0 && (whRate <= 0 || whRate > retailRate + .005)) {
+          throw Exception(
+            '${l['product_name']}: Wholesale rate 0 se zyada aur retail rate se kam/equal hona chahiye.',
+          );
         }
         if (wh > 0) anyWholesale = true;
         payload.add({
           'issue_line_id': key,
           'return_quantity': ret,
           'wholesale_quantity': wh,
-          'retail_rate': double.tryParse('${l['retail_rate']}') ?? 0,
-          'wholesale_rate': double.tryParse(wholesaleRate[key]!.text) ?? 0,
+          'retail_rate': retailRate,
+          'wholesale_rate': whRate,
         });
       }
+
       if (anyWholesale && customer.text.trim().isEmpty) {
         throw Exception('Wholesale customer name required.');
       }
+
       await api.post(
         ApiPaths.eveningSave(id),
         data: {
@@ -1331,19 +1571,21 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               : 'Evening draft saved.';
         });
       }
+    } finally {
+      for (final c in returns.values) c.dispose();
+      for (final c in wholesale.values) c.dispose();
+      for (final c in wholesaleRate.values) c.dispose();
+      customer.dispose();
+      note.dispose();
     }
-    for (final c in returns.values) c.dispose();
-    for (final c in wholesale.values) c.dispose();
-    for (final c in wholesaleRate.values) c.dispose();
-    customer.dispose();
-    note.dispose();
   }
 
   Future<void> _finalPost(int id) async {
     final api = ref.read(apiClientProvider);
     final d = await _dailyDetail(id);
-    final evening =
-        Map<String, dynamic>.from((d['evening'] as Map?) ?? const {});
+    final evening = Map<String, dynamic>.from(
+      (d['evening'] as Map?) ?? const {},
+    );
     final expected = double.tryParse('${evening['expected_amount'] ?? 0}') ?? 0;
     final cash = TextEditingController(text: expected.toStringAsFixed(2));
     final upi = TextEditingController(text: '0');
@@ -1358,15 +1600,17 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
             children: [
               TextField(
                 controller: cash,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(labelText: 'Cash'),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: upi,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(labelText: 'UPI / Online'),
               ),
               const SizedBox(height: 12),
@@ -1430,11 +1674,17 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       var employeeCode = '${cycle['employee_code'] ?? ''}'.trim();
       if (employeeName.isEmpty && employeeId != null) {
         try {
-          final employees = (await ref.read(apiClientProvider).get(
-            ApiPaths.employees,
-            query: {if (branchId != null) 'branch_id': branchId},
-          ) as List)
-              .map((e) => Map<String, dynamic>.from(e as Map));
+          final employees =
+              (await ref
+                          .read(apiClientProvider)
+                          .get(
+                            ApiPaths.employees,
+                            query: {
+                              if (branchId != null) 'branch_id': branchId,
+                            },
+                          )
+                      as List)
+                  .map((e) => Map<String, dynamic>.from(e as Map));
           for (final e in employees) {
             if (int.tryParse('${e['id']}') == employeeId) {
               employeeName = '${e['full_name'] ?? e['name'] ?? ''}'.trim();
@@ -1479,20 +1729,18 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       children: [
                         Text(
                           'Daily Order #$id',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
+                          style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           BusinessFormat.date(cycle['business_date']),
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
                         ),
                       ],
                     ),
@@ -1507,25 +1755,30 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                   child: Column(
                     children: [
                       _dailyInfoRow(
-                          context,
-                          Icons.person_outline,
-                          'Employee',
-                          employeeCode.isEmpty
-                              ? employeeName
-                              : '$employeeName · $employeeCode'),
+                        context,
+                        Icons.person_outline,
+                        'Employee',
+                        employeeCode.isEmpty
+                            ? employeeName
+                            : '$employeeName · $employeeCode',
+                      ),
                       const Divider(height: 18),
                       _dailyInfoRow(
-                          context, Icons.store_outlined, 'Branch', branchName),
+                        context,
+                        Icons.store_outlined,
+                        'Branch',
+                        branchName,
+                      ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 18),
-              Text('Order Requests',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700)),
+              Text(
+                'Order Requests',
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 8),
               ...requests.map((r) {
                 final lines = ((r['lines'] as List?) ?? const [])
@@ -1544,17 +1797,13 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                               Expanded(
                                 child: Text(
                                   _requestTypeText('${r['type']}'),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
+                                  style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                               ),
                               Text(
                                 BusinessFormat.status(r['status']),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelMedium
+                                style: Theme.of(context).textTheme.labelMedium
                                     ?.copyWith(
                                       color: Theme.of(context)
                                           .colorScheme
@@ -1572,18 +1821,21 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                   Expanded(
                                     child: Text(
                                       BusinessFormat.displayName(
-                                          '${lines[i]['product_name'] ?? 'Product'}'),
-                                      style:
-                                          Theme.of(context).textTheme.bodyLarge,
+                                        '${lines[i]['product_name'] ?? 'Product'}',
+                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge,
                                     ),
                                   ),
                                   Text(
-                                    BusinessFormat.quantity(num.tryParse(
-                                            '${lines[i]['quantity'] ?? 0}') ??
-                                        0),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyLarge
+                                    BusinessFormat.quantity(
+                                      num.tryParse(
+                                            '${lines[i]['quantity'] ?? 0}',
+                                          ) ??
+                                          0,
+                                    ),
+                                    style: Theme.of(context).textTheme.bodyLarge
                                         ?.copyWith(fontWeight: FontWeight.w700),
                                   ),
                                 ],
@@ -1599,11 +1851,11 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               }),
               if (evening != null) ...[
                 const SizedBox(height: 8),
-                Text('Evening Closing',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700)),
+                Text(
+                  'Evening Closing',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 8),
                 Card(
                   child: Padding(
@@ -1611,29 +1863,41 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(BusinessFormat.status(evening['status']),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700)),
+                        Text(
+                          BusinessFormat.status(evening['status']),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
                         const SizedBox(height: 8),
                         ...(((evening['lines'] as List?) ?? const []).map((e) {
                           final l = Map<String, dynamic>.from(e as Map);
-                          final returned = num.tryParse(
-                                  '${l['return_quantity'] ?? l['return_qty'] ?? 0}') ??
+                          final returned =
+                              num.tryParse(
+                                '${l['return_quantity'] ?? l['return_qty'] ?? 0}',
+                              ) ??
                               0;
-                          final sold = num.tryParse(
-                                  '${l['sold_quantity'] ?? l['sold_qty'] ?? 0}') ??
-                              0;
+                          final issued =
+                              num.tryParse('${l['issued_quantity'] ?? 0}') ?? 0;
+                          final soldRaw = l['sold_quantity'] ?? l['sold_qty'];
+                          final calculatedSold = issued - returned;
+                          final sold = soldRaw == null
+                              ? (calculatedSold > 0 ? calculatedSold : 0)
+                              : (num.tryParse('$soldRaw') ??
+                                    (calculatedSold > 0 ? calculatedSold : 0));
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             child: Row(
                               children: [
                                 Expanded(
-                                    child: Text(BusinessFormat.displayName(
-                                        '${l['product_name'] ?? 'Product'}'))),
+                                  child: Text(
+                                    BusinessFormat.displayName(
+                                      '${l['product_name'] ?? 'Product'}',
+                                    ),
+                                  ),
+                                ),
                                 Text(
-                                    'Sold ${BusinessFormat.quantity(sold)} · Return ${BusinessFormat.quantity(returned)}'),
+                                  'Sold ${BusinessFormat.quantity(sold)} · Return ${BusinessFormat.quantity(returned)}',
+                                ),
                               ],
                             ),
                           );
@@ -1653,36 +1917,42 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   }
 
   Widget _dailyInfoRow(
-          BuildContext context, IconData icon, String label, String value) =>
-      Row(
-        children: [
-          Icon(icon, size: 21),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                const SizedBox(height: 2),
-                Text(value,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyLarge
-                        ?.copyWith(fontWeight: FontWeight.w600)),
-              ],
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) => Row(
+    children: [
+      Icon(icon, size: 21),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-        ],
-      );
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.bodyLarge
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 
   String _requestTypeText(String type) => switch (type) {
-        'initial' => 'Morning Order',
-        'additional' => 'Additional Order',
-        'replacement' => 'Replacement Order',
-        _ => BusinessFormat.displayName(type.replaceAll('_', ' ')),
-      };
+    'initial' => 'Morning Order',
+    'additional' => 'Additional Order',
+    'replacement' => 'Replacement Order',
+    _ => BusinessFormat.displayName(type.replaceAll('_', ' ')),
+  };
 
   Future<void> _applyLeave() async {
     final type = TextEditingController(text: 'Casual Leave');
@@ -1699,18 +1969,19 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                  controller: type,
-                  decoration: const InputDecoration(labelText: 'Leave Type')),
+                controller: type,
+                decoration: const InputDecoration(labelText: 'Leave Type'),
+              ),
               const SizedBox(height: 10),
               TextField(
-                  controller: from,
-                  decoration:
-                      const InputDecoration(labelText: 'From YYYY-MM-DD')),
+                controller: from,
+                decoration: const InputDecoration(labelText: 'From YYYY-MM-DD'),
+              ),
               const SizedBox(height: 10),
               TextField(
-                  controller: to,
-                  decoration:
-                      const InputDecoration(labelText: 'To YYYY-MM-DD')),
+                controller: to,
+                decoration: const InputDecoration(labelText: 'To YYYY-MM-DD'),
+              ),
               const SizedBox(height: 10),
               TextField(
                 controller: reason,
@@ -1735,15 +2006,17 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     );
     if (ok == true) {
       try {
-        await ref.read(apiClientProvider).post(
-          ApiPaths.leave,
-          data: {
-            'leave_type': type.text.trim(),
-            'date_from': from.text.trim(),
-            'date_to': to.text.trim(),
-            'reason': reason.text.trim(),
-          },
-        );
+        await ref
+            .read(apiClientProvider)
+            .post(
+              ApiPaths.leave,
+              data: {
+                'leave_type': type.text.trim(),
+                'date_from': from.text.trim(),
+                'date_to': to.text.trim(),
+                'reason': reason.text.trim(),
+              },
+            );
         if (mounted)
           setState(() {
             refresh++;
@@ -1762,10 +2035,12 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   Future<void> _completeVisit(int id) async {
     try {
       final p = await _position();
-      await ref.read(apiClientProvider).post(
-        ApiPaths.visitComplete(id),
-        data: {'lat': p.latitude, 'lng': p.longitude},
-      );
+      await ref
+          .read(apiClientProvider)
+          .post(
+            ApiPaths.visitComplete(id),
+            data: {'lat': p.latitude, 'lng': p.longitude},
+          );
       if (mounted) {
         setState(() {
           refresh++;
@@ -1811,15 +2086,18 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       try {
         final p = await _position();
         final r = Map<String, dynamic>.from(
-          await ref.read(apiClientProvider).post(
-            ApiPaths.fieldVisitStart,
-            data: {
-              'branch_id': app.currentBranchId,
-              'purpose': purpose.text.trim(),
-              'lat': p.latitude,
-              'lng': p.longitude,
-            },
-          ) as Map,
+          await ref
+                  .read(apiClientProvider)
+                  .post(
+                    ApiPaths.fieldVisitStart,
+                    data: {
+                      'branch_id': app.currentBranchId,
+                      'purpose': purpose.text.trim(),
+                      'lat': p.latitude,
+                      'lng': p.longitude,
+                    },
+                  )
+              as Map,
         );
         if (mounted)
           setState(() {

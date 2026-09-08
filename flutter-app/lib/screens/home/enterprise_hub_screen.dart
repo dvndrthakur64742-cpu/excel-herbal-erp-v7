@@ -67,7 +67,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                 ),
               ),
             Expanded(
-                child: TabBarView(children: [for (final tab in tabs) tab.$2])),
+              child: TabBarView(children: [for (final tab in tabs) tab.$2]),
+            ),
           ],
         ),
       ),
@@ -86,7 +87,10 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _ErrorState(message: UiError.message(snapshot.error!), onRetry: _refresh);
+          return _ErrorState(
+            message: UiError.message(snapshot.error!),
+            onRetry: _refresh,
+          );
         }
         final result = snapshot.data ?? const _ApprovalResult([], []);
         return RefreshIndicator(
@@ -130,9 +134,10 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                     itemCount: result.items.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (_, index) => _ApprovalCard(
-                        item: result.items[index],
-                        onAction: _approvalAction,
-                        onOpen: _openApprovalSource),
+                      item: result.items[index],
+                      onAction: _approvalAction,
+                      onOpen: _openApprovalSource,
+                    ),
                   ),
                 ),
             ],
@@ -151,15 +156,17 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           children: [
             Padding(
               padding: EdgeInsets.fromLTRB(
-                  desktop ? 24 : 16, 18, desktop ? 24 : 16, 12),
+                desktop ? 24 : 16,
+                18,
+                desktop ? 24 : 16,
+                12,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Global ERP Search',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
+                    style: Theme.of(context).textTheme.titleLarge
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
@@ -176,8 +183,7 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                           textInputAction: TextInputAction.search,
                           decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.search),
-                            hintText:
-                                'Employee, product, supplier, bill, order, amount...',
+                            hintText: 'Employee, product, supplier, bill, order, amount...',
                             border: OutlineInputBorder(),
                           ),
                           onSubmitted: (value) => _runSearch(value, app),
@@ -202,7 +208,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                       builder: (context, snapshot) {
                         if (snapshot.connectionState != ConnectionState.done) {
                           return const Center(
-                              child: CircularProgressIndicator());
+                            child: CircularProgressIndicator(),
+                          );
                         }
                         if (snapshot.hasError) {
                           return _ErrorState(
@@ -214,12 +221,18 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                             snapshot.data ?? const _SearchResult([], []);
                         if (result.hits.isEmpty) {
                           return const Center(
-                              child: Text(
-                                  'No matching authorised records found.'));
+                            child: Text(
+                              'No matching authorised records found.',
+                            ),
+                          );
                         }
                         return ListView.separated(
                           padding: EdgeInsets.fromLTRB(
-                              desktop ? 24 : 16, 4, desktop ? 24 : 16, 24),
+                            desktop ? 24 : 16,
+                            4,
+                            desktop ? 24 : 16,
+                            24,
+                          ),
                           itemCount: result.hits.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 8),
@@ -243,8 +256,10 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
     final items = <_ApprovalItem>[];
     final errors = <String>[];
 
-    Future<List<Map<String, dynamic>>> list(String path,
-        {Map<String, dynamic>? query}) async {
+    Future<List<Map<String, dynamic>>> list(
+      String path, {
+      Map<String, dynamic>? query,
+    }) async {
       try {
         final raw = await api.get(path, query: query);
         return ((raw as List?) ?? const [])
@@ -260,152 +275,183 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       'daily_order.approve',
       'daily_order.issue',
       'daily_order.review',
-      'daily_order.others'
+      'daily_order.others',
     ])) {
-      final rows =
-          await list(ApiPaths.dailyCycles, query: {'branch_id': branch});
+      final rows = await list(
+        ApiPaths.dailyCycles,
+        query: {'branch_id': branch},
+      );
       for (final row in rows) {
-        final requestStatus =
-            '${row['initial_request_status'] ?? ''}'.toLowerCase();
+        final requestStatus = '${row['initial_request_status'] ?? ''}'
+            .toLowerCase();
         if (requestStatus == 'submitted' && app.can('daily_order.approve')) {
-          items.add(_ApprovalItem(
-            kind: 'daily',
-            title: 'Daily Order Approval',
-            subtitle:
-                '${row['employee_name'] ?? 'Employee'} · ${BusinessFormat.date(row['business_date'])}',
-            status: 'Approval Pending',
-            row: row,
-            primaryAction: 'Approve',
-            actionId: int.tryParse('${row['initial_request_id']}'),
-            sortKey: '${row['business_date'] ?? ''}',
-          ));
+          items.add(
+            _ApprovalItem(
+              kind: 'daily',
+              title: 'Daily Order Approval',
+              subtitle:
+                  '${row['employee_name'] ?? 'Employee'} · ${BusinessFormat.date(row['business_date'])}',
+              status: 'Approval Pending',
+              row: row,
+              primaryAction: 'Approve',
+              actionId: int.tryParse('${row['initial_request_id']}'),
+              sortKey: '${row['business_date'] ?? ''}',
+            ),
+          );
         } else if (requestStatus == 'approved' &&
             app.can('daily_order.issue')) {
-          items.add(_ApprovalItem(
-            kind: 'daily_issue',
-            title: 'Daily Order Stock Issue',
-            subtitle:
-                '${row['employee_name'] ?? 'Employee'} · ${BusinessFormat.date(row['business_date'])}',
-            status: 'Approved · Issue Pending',
-            row: row,
-            primaryAction: 'Open Team',
-            sortKey: '${row['business_date'] ?? ''}',
-          ));
+          items.add(
+            _ApprovalItem(
+              kind: 'daily_issue',
+              title: 'Daily Order Stock Issue',
+              subtitle:
+                  '${row['employee_name'] ?? 'Employee'} · ${BusinessFormat.date(row['business_date'])}',
+              status: 'Approved · Issue Pending',
+              row: row,
+              primaryAction: 'Open Team',
+              sortKey: '${row['business_date'] ?? ''}',
+            ),
+          );
         }
       }
     }
 
     if (app.can('finance.expense.approve')) {
       final rows = await list(ApiPaths.expenses, query: {'branch_id': branch});
-      for (final row
-          in rows.where((r) => '${r['status']}'.toLowerCase() == 'pending')) {
-        items.add(_ApprovalItem(
-          kind: 'expense',
-          title: 'Expense Approval',
-          subtitle:
-              '${row['expense_head'] ?? 'Expense'} · ${BusinessFormat.money(num.tryParse('${row['amount'] ?? 0}') ?? 0)}',
-          status: 'Pending',
-          row: row,
-          primaryAction: 'Approve',
-          secondaryAction: 'Reject',
-          actionId: int.tryParse('${row['id']}'),
-          sortKey: '${row['created_at'] ?? row['expense_date'] ?? ''}',
-        ));
+      for (final row in rows.where(
+        (r) => '${r['status']}'.toLowerCase() == 'pending',
+      )) {
+        items.add(
+          _ApprovalItem(
+            kind: 'expense',
+            title: 'Expense Approval',
+            subtitle:
+                '${row['expense_head'] ?? 'Expense'} · ${BusinessFormat.money(num.tryParse('${row['amount'] ?? 0}') ?? 0)}',
+            status: 'Pending',
+            row: row,
+            primaryAction: 'Approve',
+            secondaryAction: 'Reject',
+            actionId: int.tryParse('${row['id']}'),
+            sortKey: '${row['created_at'] ?? row['expense_date'] ?? ''}',
+          ),
+        );
       }
     }
 
     if (app.can('inventory.adjustment.approve') && app.can('inventory.view')) {
-      final rows =
-          await list(ApiPaths.adjustments, query: {'branch_id': branch});
-      for (final row
-          in rows.where((r) => '${r['status']}'.toLowerCase() == 'pending')) {
-        items.add(_ApprovalItem(
-          kind: 'adjustment',
-          title: 'Stock Adjustment Approval',
-          subtitle: '${row['reason'] ?? 'Stock adjustment'}',
-          status: 'Pending',
-          row: row,
-          primaryAction: 'Approve',
-          secondaryAction: 'Reject',
-          actionId: int.tryParse('${row['id']}'),
-          sortKey: '${row['created_at'] ?? ''}',
-        ));
+      final rows = await list(
+        ApiPaths.adjustments,
+        query: {'branch_id': branch},
+      );
+      for (final row in rows.where(
+        (r) => '${r['status']}'.toLowerCase() == 'pending',
+      )) {
+        items.add(
+          _ApprovalItem(
+            kind: 'adjustment',
+            title: 'Stock Adjustment Approval',
+            subtitle: '${row['reason'] ?? 'Stock adjustment'}',
+            status: 'Pending',
+            row: row,
+            primaryAction: 'Approve',
+            secondaryAction: 'Reject',
+            actionId: int.tryParse('${row['id']}'),
+            sortKey: '${row['created_at'] ?? ''}',
+          ),
+        );
       }
     }
 
     if (app.can('workforce.leave.manage')) {
-      final rows =
-          await list(ApiPaths.leavePending, query: {'branch_id': branch});
+      final rows = await list(
+        ApiPaths.leavePending,
+        query: {'branch_id': branch},
+      );
       for (final row in rows) {
-        items.add(_ApprovalItem(
-          kind: 'leave',
-          title: 'Leave Approval',
-          subtitle:
-              '${row['full_name'] ?? 'Employee'} · ${BusinessFormat.date(row['date_from'])} → ${BusinessFormat.date(row['date_to'])}',
-          status: 'Submitted',
-          row: row,
-          primaryAction: 'Approve',
-          secondaryAction: 'Reject',
-          actionId: int.tryParse('${row['id']}'),
-          sortKey: '${row['requested_at'] ?? row['date_from'] ?? ''}',
-        ));
+        items.add(
+          _ApprovalItem(
+            kind: 'leave',
+            title: 'Leave Approval',
+            subtitle:
+                '${row['full_name'] ?? 'Employee'} · ${BusinessFormat.date(row['date_from'])} → ${BusinessFormat.date(row['date_to'])}',
+            status: 'Submitted',
+            row: row,
+            primaryAction: 'Approve',
+            secondaryAction: 'Reject',
+            actionId: int.tryParse('${row['id']}'),
+            sortKey: '${row['requested_at'] ?? row['date_from'] ?? ''}',
+          ),
+        );
       }
     }
 
     if (app.can('performance.manage')) {
-      final rows =
-          await list(ApiPaths.performanceTargets, query: {'branch_id': branch});
-      for (final row
-          in rows.where((r) => '${r['status']}'.toLowerCase() == 'draft')) {
-        items.add(_ApprovalItem(
-          kind: 'target',
-          title: 'Performance Target Approval',
-          subtitle:
-              '${row['employee_name'] ?? 'Employee'} · ${BusinessFormat.quantity(num.tryParse('${row['target_points'] ?? 0}') ?? 0)} points',
-          status: 'Draft · Approval Pending',
-          row: row,
-          primaryAction: 'Approve',
-          actionId: int.tryParse('${row['id']}'),
-          sortKey: '${row['created_at'] ?? row['period_end'] ?? ''}',
-        ));
+      final rows = await list(
+        ApiPaths.performanceTargets,
+        query: {'branch_id': branch},
+      );
+      for (final row in rows.where(
+        (r) => '${r['status']}'.toLowerCase() == 'draft',
+      )) {
+        items.add(
+          _ApprovalItem(
+            kind: 'target',
+            title: 'Performance Target Approval',
+            subtitle:
+                '${row['employee_name'] ?? 'Employee'} · ${BusinessFormat.quantity(num.tryParse('${row['target_points'] ?? 0}') ?? 0)} points',
+            status: 'Draft · Approval Pending',
+            row: row,
+            primaryAction: 'Approve',
+            actionId: int.tryParse('${row['id']}'),
+            sortKey: '${row['created_at'] ?? row['period_end'] ?? ''}',
+          ),
+        );
       }
     }
 
     if (app.can('payroll.approve')) {
-      final rows =
-          await list(ApiPaths.payrollRuns, query: {'branch_id': branch});
-      for (final row
-          in rows.where((r) => '${r['status']}'.toLowerCase() == 'draft')) {
-        items.add(_ApprovalItem(
-          kind: 'payroll',
-          title: 'Payroll Approval',
-          subtitle:
-              '${BusinessFormat.date(row['period_start'])} → ${BusinessFormat.date(row['period_end'])} · ${BusinessFormat.money(num.tryParse('${row['net_total'] ?? 0}') ?? 0)}',
-          status: 'Draft · Approval Pending',
-          row: row,
-          primaryAction: 'Approve',
-          actionId: int.tryParse('${row['id']}'),
-          sortKey: '${row['period_end'] ?? ''}',
-        ));
+      final rows = await list(
+        ApiPaths.payrollRuns,
+        query: {'branch_id': branch},
+      );
+      for (final row in rows.where(
+        (r) => '${r['status']}'.toLowerCase() == 'draft',
+      )) {
+        items.add(
+          _ApprovalItem(
+            kind: 'payroll',
+            title: 'Payroll Approval',
+            subtitle:
+                '${BusinessFormat.date(row['period_start'])} → ${BusinessFormat.date(row['period_end'])} · ${BusinessFormat.money(num.tryParse('${row['net_total'] ?? 0}') ?? 0)}',
+            status: 'Draft · Approval Pending',
+            row: row,
+            primaryAction: 'Approve',
+            actionId: int.tryParse('${row['id']}'),
+            sortKey: '${row['period_end'] ?? ''}',
+          ),
+        );
       }
     }
 
     if (app.can('finance.reversal.approve')) {
       final rows = await list(ApiPaths.reversals, query: {'branch_id': branch});
-      for (final row
-          in rows.where((r) => '${r['status']}'.toLowerCase() == 'pending')) {
-        items.add(_ApprovalItem(
-          kind: 'reversal',
-          title: 'Reversal Approval',
-          subtitle:
-              '${BusinessFormat.value('source_type', row['source_type'])} · ${row['reason'] ?? ''}',
-          status: 'Pending',
-          row: row,
-          primaryAction: 'Approve',
-          secondaryAction: 'Reject',
-          actionId: int.tryParse('${row['id']}'),
-          sortKey: '${row['requested_at'] ?? row['created_at'] ?? ''}',
-        ));
+      for (final row in rows.where(
+        (r) => '${r['status']}'.toLowerCase() == 'pending',
+      )) {
+        items.add(
+          _ApprovalItem(
+            kind: 'reversal',
+            title: 'Reversal Approval',
+            subtitle:
+                '${BusinessFormat.value('source_type', row['source_type'])} · ${row['reason'] ?? ''}',
+            status: 'Pending',
+            row: row,
+            primaryAction: 'Approve',
+            secondaryAction: 'Reject',
+            actionId: int.tryParse('${row['id']}'),
+            sortKey: '${row['requested_at'] ?? row['created_at'] ?? ''}',
+          ),
+        );
       }
     }
 
@@ -427,16 +473,22 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           await api.post(ApiPaths.dailyApprove(id), data: const {});
           break;
         case 'expense':
-          await api
-              .post(ApiPaths.expenseDecision(id), data: {'approve': approve});
+          await api.post(
+            ApiPaths.expenseDecision(id),
+            data: {'approve': approve},
+          );
           break;
         case 'adjustment':
-          await api.post(ApiPaths.adjustmentDecision(id),
-              data: {'approve': approve});
+          await api.post(
+            ApiPaths.adjustmentDecision(id),
+            data: {'approve': approve},
+          );
           break;
         case 'leave':
-          await api
-              .post(ApiPaths.leaveDecision(id), data: {'approve': approve});
+          await api.post(
+            ApiPaths.leaveDecision(id),
+            data: {'approve': approve},
+          );
           break;
         case 'target':
           await api.post(ApiPaths.targetApprove(id), data: const {});
@@ -445,14 +497,17 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           await api.post(ApiPaths.payrollApprove(id), data: const {});
           break;
         case 'reversal':
-          await api
-              .post(ApiPaths.reversalDecision(id), data: {'approve': approve});
+          await api.post(
+            ApiPaths.reversalDecision(id),
+            data: {'approve': approve},
+          );
           break;
       }
       if (mounted) {
         setState(() {
-          message =
-              approve ? '${item.title} approved.' : '${item.title} rejected.';
+          message = approve
+              ? '${item.title} approved.'
+              : '${item.title} rejected.';
           refresh++;
         });
       }
@@ -468,7 +523,10 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       'adjustment' => const InventoryScreen(),
       'target' || 'payroll' => const PerformanceScreen(),
       _ => RecordDetailScreen(
-          row: item.row, title: item.title, recordType: item.kind),
+        row: item.row,
+        title: item.title,
+        recordType: item.kind,
+      ),
     };
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
@@ -511,12 +569,14 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
             .toList();
         for (final row in rows) {
           if (!_matches(row, needle)) continue;
-          hits.add(_SearchHit(
-            group: group,
-            recordType: recordType,
-            row: row,
-            title: _searchTitle(row, titleKeys, group),
-          ));
+          hits.add(
+            _SearchHit(
+              group: group,
+              recordType: recordType,
+              row: row,
+              title: _searchTitle(row, titleKeys, group),
+            ),
+          );
           if (hits.length >= 120) return;
         }
       } catch (e) {
@@ -526,120 +586,148 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
 
     final futures = <Future<void>>[];
     if (branch != null && app.can('organization.employee.view')) {
-      futures.add(source(
-        group: 'Employees',
-        recordType: 'employee',
-        path: ApiPaths.employees,
-        params: {'branch_id': branch},
-        titleKeys: const ['full_name', 'employee_code'],
-      ));
+      futures.add(
+        source(
+          group: 'Employees',
+          recordType: 'employee',
+          path: ApiPaths.employees,
+          params: {'branch_id': branch},
+          titleKeys: const ['full_name', 'employee_code'],
+        ),
+      );
     }
     if (app.canAny(const [
       'catalog.product.view',
       'catalog.product.manage',
       'inventory.view',
       'purchase.create',
-      'sales.create'
+      'sales.create',
     ])) {
-      futures.add(source(
-        group: 'Products',
-        recordType: 'product',
-        path: ApiPaths.products,
-        titleKeys: const ['name', 'sku'],
-      ));
+      futures.add(
+        source(
+          group: 'Products',
+          recordType: 'product',
+          path: ApiPaths.products,
+          titleKeys: const ['name', 'sku'],
+        ),
+      );
     }
-    if (app
-        .canAny(const ['sales.view', 'sales.create', 'sales.receipt.create'])) {
-      futures.add(source(
-        group: 'Customers',
-        recordType: 'customer',
-        path: ApiPaths.customers,
-        titleKeys: const ['name', 'customer_name', 'mobile'],
-      ));
+    if (app.canAny(const [
+      'sales.view',
+      'sales.create',
+      'sales.receipt.create',
+    ])) {
+      futures.add(
+        source(
+          group: 'Customers',
+          recordType: 'customer',
+          path: ApiPaths.customers,
+          titleKeys: const ['name', 'customer_name', 'mobile'],
+        ),
+      );
       if (branch != null) {
-        futures.add(source(
-          group: 'Sales',
-          recordType: 'sales',
-          path: ApiPaths.openSales,
-          params: {'branch_id': branch},
-          titleKeys: const ['sale_no', 'customer_name'],
-        ));
+        futures.add(
+          source(
+            group: 'Sales',
+            recordType: 'sales',
+            path: ApiPaths.openSales,
+            params: {'branch_id': branch},
+            titleKeys: const ['sale_no', 'customer_name'],
+          ),
+        );
       }
     }
     if (app.canAny(const [
       'purchase.view',
       'purchase.create',
-      'finance.supplier_payment.create'
+      'finance.supplier_payment.create',
     ])) {
-      futures.add(source(
-        group: 'Suppliers',
-        recordType: 'supplier',
-        path: ApiPaths.suppliers,
-        titleKeys: const ['name', 'supplier_name', 'mobile'],
-      ));
+      futures.add(
+        source(
+          group: 'Suppliers',
+          recordType: 'supplier',
+          path: ApiPaths.suppliers,
+          titleKeys: const ['name', 'supplier_name', 'mobile'],
+        ),
+      );
       if (branch != null) {
-        futures.add(source(
-          group: 'Purchase Bills',
-          recordType: 'purchase',
-          path: ApiPaths.openBills,
-          params: {'branch_id': branch},
-          titleKeys: const ['bill_no', 'supplier_name'],
-        ));
+        futures.add(
+          source(
+            group: 'Purchase Bills',
+            recordType: 'purchase',
+            path: ApiPaths.openBills,
+            params: {'branch_id': branch},
+            titleKeys: const ['bill_no', 'supplier_name'],
+          ),
+        );
       }
     }
     if (branch != null &&
         app.canAny(const ['daily_order.self', 'daily_order.others'])) {
-      futures.add(source(
-        group: 'Daily Orders',
-        recordType: 'daily_order',
-        path: ApiPaths.dailyCycles,
-        params: {'branch_id': branch},
-        titleKeys: const ['employee_name', 'business_date'],
-      ));
+      futures.add(
+        source(
+          group: 'Daily Orders',
+          recordType: 'daily_order',
+          path: ApiPaths.dailyCycles,
+          params: {'branch_id': branch},
+          titleKeys: const ['employee_name', 'business_date'],
+        ),
+      );
     }
     if (branch != null && app.can('inventory.view')) {
-      futures.add(source(
-        group: 'Stock',
-        recordType: 'stock',
-        path: ApiPaths.inventoryStock,
-        params: {'branch_id': branch},
-        titleKeys: const ['product_name', 'sku'],
-      ));
+      futures.add(
+        source(
+          group: 'Stock',
+          recordType: 'stock',
+          path: ApiPaths.inventoryStock,
+          params: {'branch_id': branch},
+          titleKeys: const ['product_name', 'sku'],
+        ),
+      );
     }
     if (branch != null &&
         app.canAny(const [
           'finance.view',
           'finance.expense.create',
-          'finance.expense.approve'
+          'finance.expense.approve',
         ])) {
-      futures.add(source(
-        group: 'Expenses',
-        recordType: 'expense',
-        path: ApiPaths.expenses,
-        params: {'branch_id': branch},
-        titleKeys: const ['expense_head', 'description'],
-      ));
+      futures.add(
+        source(
+          group: 'Expenses',
+          recordType: 'expense',
+          path: ApiPaths.expenses,
+          params: {'branch_id': branch},
+          titleKeys: const ['expense_head', 'description'],
+        ),
+      );
     }
     if (branch != null &&
         app.canAny(const ['performance.view', 'performance.manage'])) {
-      futures.add(source(
-        group: 'Targets',
-        recordType: 'target',
-        path: ApiPaths.performanceTargets,
-        params: {'branch_id': branch},
-        titleKeys: const ['employee_name', 'period_end'],
-      ));
+      futures.add(
+        source(
+          group: 'Targets',
+          recordType: 'target',
+          path: ApiPaths.performanceTargets,
+          params: {'branch_id': branch},
+          titleKeys: const ['employee_name', 'period_end'],
+        ),
+      );
     }
     if (branch != null &&
-        app.canAny(
-            const ['payroll.generate', 'payroll.approve', 'payroll.pay'])) {
-      futures.add(source(
-        group: 'Payroll',
-        recordType: 'payroll',
-        path: ApiPaths.payrollRuns,
-        params: {'branch_id': branch},
-        titleKeys: const ['period_end', 'period_start'],
-      ));
+        app.canAny(const [
+          'payroll.generate',
+          'payroll.approve',
+          'payroll.pay',
+        ])) {
+      futures.add(
+        source(
+          group: 'Payroll',
+          recordType: 'payroll',
+          path: ApiPaths.payrollRuns,
+          params: {'branch_id': branch},
+          titleKeys: const ['period_end', 'period_start'],
+        ),
+      );
     }
 
     await Future.wait(futures);
@@ -654,16 +742,22 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
     return row.entries.any((entry) {
       if (BusinessFormat.isTechnicalKey(entry.key) ||
           entry.value is Map ||
-          entry.value is List) return false;
+          entry.value is List)
+        return false;
       final raw = '${entry.value ?? ''}'.toLowerCase();
-      final formatted =
-          BusinessFormat.value(entry.key, entry.value).toLowerCase();
+      final formatted = BusinessFormat.value(
+        entry.key,
+        entry.value,
+      ).toLowerCase();
       return raw.contains(needle) || formatted.contains(needle);
     });
   }
 
   String _searchTitle(
-      Map<String, dynamic> row, List<String> keys, String fallback) {
+    Map<String, dynamic> row,
+    List<String> keys,
+    String fallback,
+  ) {
     for (final key in keys) {
       final value = row[key];
       if (value != null && '$value'.trim().isNotEmpty) {
@@ -674,27 +768,29 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
   }
 
   void _openSearchHit(_SearchHit hit) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => RecordDetailScreen(
-        row: hit.row,
-        title: hit.title,
-        recordType: hit.recordType,
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RecordDetailScreen(
+          row: hit.row,
+          title: hit.title,
+          recordType: hit.recordType,
+        ),
       ),
-    ));
+    );
   }
 
   void _refresh() => setState(() => refresh++);
 
   bool _approvalVisible(AppState app) => app.canAny(const [
-        'daily_order.approve',
-        'daily_order.issue',
-        'finance.expense.approve',
-        'inventory.adjustment.approve',
-        'workforce.leave.manage',
-        'performance.manage',
-        'payroll.approve',
-        'finance.reversal.approve',
-      ]);
+    'daily_order.approve',
+    'daily_order.issue',
+    'finance.expense.approve',
+    'inventory.adjustment.approve',
+    'workforce.leave.manage',
+    'performance.manage',
+    'payroll.approve',
+    'finance.reversal.approve',
+  ]);
 }
 
 class _ApprovalItem {
@@ -728,11 +824,12 @@ class _ApprovalResult {
 }
 
 class _SearchHit {
-  const _SearchHit(
-      {required this.group,
-      required this.recordType,
-      required this.row,
-      required this.title});
+  const _SearchHit({
+    required this.group,
+    required this.recordType,
+    required this.row,
+    required this.title,
+  });
   final String group;
   final String recordType;
   final Map<String, dynamic> row;
@@ -752,90 +849,98 @@ class _ApprovalHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.approval_outlined),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Unified Approval Inbox',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 3),
-                    Text(
-                        '$count pending item${count == 1 ? '' : 's'} in your authorised branch scope${warnings > 0 ? ' · $warnings source warning${warnings == 1 ? '' : 's'}' : ''}.'),
-                  ],
-                ),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.approval_outlined),
           ),
-        ),
-      );
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Unified Approval Inbox',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$count pending item${count == 1 ? '' : 's'} in your authorised branch scope${warnings > 0 ? ' · $warnings source warning${warnings == 1 ? '' : 's'}' : ''}.',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ApprovalCard extends StatelessWidget {
-  const _ApprovalCard(
-      {required this.item, required this.onAction, required this.onOpen});
+  const _ApprovalCard({
+    required this.item,
+    required this.onAction,
+    required this.onOpen,
+  });
   final _ApprovalItem item;
   final Future<void> Function(_ApprovalItem, bool) onAction;
   final void Function(_ApprovalItem) onOpen;
 
   @override
   Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                      child: Text(item.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700))),
-                  _StatusChip(item.status),
-                ],
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
               ),
-              const SizedBox(height: 7),
-              Text(item.subtitle),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                      onPressed: () => onOpen(item),
-                      icon: const Icon(Icons.open_in_new, size: 18),
-                      label: const Text('Review')),
-                  if (item.secondaryAction != null)
-                    OutlinedButton(
-                        onPressed: () => onAction(item, false),
-                        child: Text(item.secondaryAction!)),
-                  FilledButton(
-                      onPressed: () => onAction(item, true),
-                      child: Text(item.primaryAction)),
-                ],
+              _StatusChip(item.status),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Text(item.subtitle),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => onOpen(item),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('Review'),
+              ),
+              if (item.secondaryAction != null)
+                OutlinedButton(
+                  onPressed: () => onAction(item, false),
+                  child: Text(item.secondaryAction!),
+                ),
+              FilledButton(
+                onPressed: () => onAction(item, true),
+                child: Text(item.primaryAction),
               ),
             ],
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
 
 class _SearchHitCard extends StatelessWidget {
@@ -846,13 +951,15 @@ class _SearchHitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final visible = hit.row.entries
-        .where((e) =>
-            !BusinessFormat.isTechnicalKey(e.key) &&
-            e.key != 'status' &&
-            e.value != null &&
-            e.value is! Map &&
-            e.value is! List &&
-            '${e.value}'.trim().isNotEmpty)
+        .where(
+          (e) =>
+              !BusinessFormat.isTechnicalKey(e.key) &&
+              e.key != 'status' &&
+              e.value != null &&
+              e.value is! Map &&
+              e.value is! List &&
+              '${e.value}'.trim().isNotEmpty,
+        )
         .take(3)
         .toList();
     return Card(
@@ -871,30 +978,38 @@ class _SearchHitCard extends StatelessWidget {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .secondaryContainer,
-                              borderRadius: BorderRadius.circular(20)),
-                          child: Text(hit.group,
-                              style: Theme.of(context).textTheme.labelSmall),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .secondaryContainer,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            hit.group,
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                            child: Text(hit.title,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w700))),
+                          child: Text(
+                            hit.title,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
                       ],
                     ),
                     if (visible.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
                         visible
-                            .map((e) =>
-                                '${BusinessFormat.label(e.key)}: ${BusinessFormat.value(e.key, e.value)}')
+                            .map(
+                              (e) =>
+                                  '${BusinessFormat.label(e.key)}: ${BusinessFormat.value(e.key, e.value)}',
+                            )
                             .join(' · '),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -919,35 +1034,42 @@ class _StatusChip extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-        decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(20)),
-        child: Text(text, style: Theme.of(context).textTheme.labelSmall),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(text, style: Theme.of(context).textTheme.labelSmall),
+  );
 }
 
 class _SearchHelp extends StatelessWidget {
   const _SearchHelp();
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.manage_search_outlined,
-                  size: 52, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 12),
-              Text('Search authorised ERP data',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 6),
-              const Text(
-                  'Search is executed on demand so normal ERP navigation stays fast.'),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.manage_search_outlined,
+            size: 52,
+            color: Theme.of(context).colorScheme.primary,
           ),
-        ),
-      );
+          const SizedBox(height: 12),
+          Text(
+            'Search authorised ERP data',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Search is executed on demand so normal ERP navigation stays fast.',
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ErrorState extends StatelessWidget {
@@ -956,19 +1078,18 @@ class _ErrorState extends StatelessWidget {
   final VoidCallback onRetry;
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 42),
-              const SizedBox(height: 10),
-              Text(message, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              FilledButton.tonal(
-                  onPressed: onRetry, child: const Text('Retry')),
-            ],
-          ),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, size: 42),
+          const SizedBox(height: 10),
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    ),
+  );
 }

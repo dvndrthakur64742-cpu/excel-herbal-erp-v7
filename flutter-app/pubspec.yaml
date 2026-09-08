@@ -1,7 +1,7 @@
 name: excel_herbal_erp
 description: Excel Herbal ERP Flutter client recovered from UAT APK and aligned to ERP backend v7.2.0.
 publish_to: 'none'
-version: 7.3.1+731
+version: 7.4.0+740
 
 environment:
   sdk: '>=3.6.0 <4.0.0'
