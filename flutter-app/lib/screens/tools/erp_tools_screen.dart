@@ -110,9 +110,8 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: tracker.active
-                  ? ExcelBrand.primarySoft
-                  : ExcelBrand.surface,
+              color:
+                  tracker.active ? ExcelBrand.primarySoft : ExcelBrand.surface,
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
                 color: tracker.active
@@ -156,7 +155,9 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                             tracker.active
                                 ? 'Tracking active'
                                 : 'Tracking stopped',
-                            style: Theme.of(context).textTheme.bodyMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
                                 ?.copyWith(
                                   color: tracker.active
                                       ? ExcelBrand.primaryDark
@@ -396,8 +397,17 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                         ? IconButton(
                             tooltip: 'Deactivate',
                             icon: const Icon(Icons.more_vert_rounded),
-                            onPressed: () =>
-                                _post(ApiPaths.holidayDeactivate(id), const {}),
+                            onPressed: () async {
+                              final ok = await _confirm(
+                                'Deactivate holiday?',
+                                'Ye holiday active list se deactivate ho jayega. Continue?',
+                              );
+                              if (ok != true) return;
+                              await _post(
+                                ApiPaths.holidayDeactivate(id),
+                                const {},
+                              );
+                            },
                           )
                         : null,
                   );
@@ -411,38 +421,41 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   }
 
   Widget _emptyInline(IconData icon, String title, String message) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0F5F2),
-            borderRadius: BorderRadius.circular(13),
-          ),
-          alignment: Alignment.center,
-          child: Icon(icon, color: ExcelBrand.primaryDark, size: 22),
-        ),
-        const SizedBox(width: 11),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 3),
-              Text(
-                message,
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: ExcelBrand.muted),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F5F2),
+                borderRadius: BorderRadius.circular(13),
               ),
-            ],
-          ),
+              alignment: Alignment.center,
+              child: Icon(icon, color: ExcelBrand.primaryDark, size: 22),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 3),
+                  Text(
+                    message,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: ExcelBrand.muted),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   Widget _accountTab(AppState app) {
     final api = ref.watch(apiClientProvider);
@@ -500,8 +513,8 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                           ),
                         )
                       : current
-                      ? const Chip(label: Text('This device'))
-                      : null,
+                          ? const Chip(label: Text('This device'))
+                          : null,
                 );
               }).toList(),
             );
@@ -715,8 +728,14 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
             title: 'Backend Diagnostics',
             action: app.can('administration.access.manage')
                 ? TextButton.icon(
-                    onPressed: () =>
-                        _post(ApiPaths.maintenanceCleanup, const {}),
+                    onPressed: () async {
+                      final ok = await _confirm(
+                        'Run backend cleanup?',
+                        'Maintenance cleanup backend data housekeeping run karega. Sirf jab diagnostics/maintenance ke liye zaroori ho tab continue karein.',
+                      );
+                      if (ok != true) return;
+                      await _post(ApiPaths.maintenanceCleanup, const {});
+                    },
                     icon: const Icon(Icons.cleaning_services_outlined),
                     label: const Text('Cleanup'),
                   )
@@ -737,9 +756,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   Future<Map<String, dynamic>> _versionPolicy() async {
     final info = await PackageInfo.fromPlatform();
     final build = int.tryParse(info.buildNumber) ?? 0;
-    final data = await ref
-        .read(apiClientProvider)
-        .get(
+    final data = await ref.read(apiClientProvider).get(
           ApiPaths.appVersionPolicy,
           query: {'client_build': build},
           authenticated: false,
@@ -798,13 +815,15 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   }
 
   Widget _sectionTitle(String value) => Padding(
-    padding: const EdgeInsets.only(top: 14, bottom: 6),
-    child: Text(
-      value,
-      style: Theme.of(context).textTheme.titleSmall
-          ?.copyWith(fontWeight: FontWeight.w700),
-    ),
-  );
+        padding: const EdgeInsets.only(top: 14, bottom: 6),
+        child: Text(
+          value,
+          style: Theme.of(context)
+              .textTheme
+              .titleSmall
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      );
 
   Future<void> _createHoliday(AppState app) async {
     final name = TextEditingController();
@@ -893,17 +912,15 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     );
     if (ok == true) {
       try {
-        await ref
-            .read(apiClientProvider)
-            .uploadFile(
-              ApiPaths.employeeDocumentUpload(employeeId),
-              filePath: file.path!,
-              filename: file.name,
-              fields: {
-                'document_type': type.text.trim(),
-                'title': title.text.trim(),
-              },
-            );
+        await ref.read(apiClientProvider).uploadFile(
+          ApiPaths.employeeDocumentUpload(employeeId),
+          filePath: file.path!,
+          filename: file.name,
+          fields: {
+            'document_type': type.text.trim(),
+            'title': title.text.trim(),
+          },
+        );
         _msg('Document uploaded.');
         setState(() => refresh++);
       } catch (e) {
@@ -916,16 +933,14 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
 
   Future<List<Map<String, dynamic>>> _employeeChoices() async {
     final app = ref.read(appStateProvider);
-    final data = await ref
-        .read(apiClientProvider)
-        .get(
-          ApiPaths.employees,
-          query: {
-            if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
-            'status': 'active',
-            'limit': 200,
-          },
-        );
+    final data = await ref.read(apiClientProvider).get(
+      ApiPaths.employees,
+      query: {
+        if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+        'status': 'active',
+        'limit': 200,
+      },
+    );
     return _rows(data);
   }
 
@@ -1163,13 +1178,16 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
           actions: [
             TextButton(
               onPressed: () async {
+                final ok = await _confirm(
+                  'Revoke employee sessions?',
+                  'Is employee ke sab active app sessions logout ho jayenge. Continue?',
+                );
+                if (ok != true) return;
                 try {
-                  await ref
-                      .read(apiClientProvider)
-                      .post(
-                        ApiPaths.employeeRevokeSessions(id),
-                        data: const {},
-                      );
+                  await ref.read(apiClientProvider).post(
+                    ApiPaths.employeeRevokeSessions(id),
+                    data: const {},
+                  );
                   if (mounted) Navigator.pop(context);
                   _msg('Employee sessions revoked.');
                 } catch (e) {
@@ -1185,12 +1203,10 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   return;
                 }
                 try {
-                  await ref
-                      .read(apiClientProvider)
-                      .post(
-                        ApiPaths.employeeCredentials(id),
-                        data: {'password': password.text},
-                      );
+                  await ref.read(apiClientProvider).post(
+                    ApiPaths.employeeCredentials(id),
+                    data: {'password': password.text},
+                  );
                   if (mounted) Navigator.pop(context);
                   _msg('Login password updated.');
                   setState(() => refresh++);
@@ -1226,22 +1242,22 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   }
 
   Future<bool?> _confirm(String title, String body) => showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(title),
-      content: Text(body),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm'),
+            ),
+          ],
         ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Confirm'),
-        ),
-      ],
-    ),
-  );
+      );
 
   void _msg(String value) {
     if (!mounted) return;

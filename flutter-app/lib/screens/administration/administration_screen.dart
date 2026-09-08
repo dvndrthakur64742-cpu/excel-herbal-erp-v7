@@ -207,7 +207,30 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                 subtitle: const Text(
                   'Stock, outstanding, journal aur audit chain backend se reverse honge.',
                 ),
-                onTap: () => _post(ApiPaths.reversalExecute(id), const {}),
+                onTap: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Execute approved reversal?'),
+                      content: const Text(
+                        'Ye stock, outstanding, journal aur audit-linked reversal execute karega. Is action ko sirf approved reversal ke liye continue karein.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(dialogContext, true),
+                          child: const Text('Execute Reversal'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed == true) {
+                    await _post(ApiPaths.reversalExecute(id), const {});
+                  }
+                },
               ),
           ],
         ),
@@ -249,10 +272,13 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       ),
     );
     if (ok == true)
-      await _post(ApiPaths.adminRoles, {
-        'code': code.text.trim(),
-        'name': name.text.trim(),
-      }, closeSheet: false);
+      await _post(
+          ApiPaths.adminRoles,
+          {
+            'code': code.text.trim(),
+            'name': name.text.trim(),
+          },
+          closeSheet: false);
     code.dispose();
     name.dispose();
   }
@@ -316,10 +342,13 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       ),
     );
     if (saved == true)
-      await _post(ApiPaths.roleCapabilities(int.parse('${role['id']}')), {
-        'capabilities': selected.toList()..sort(),
-        'reason': reason.text.trim(),
-      }, closeSheet: false);
+      await _post(
+          ApiPaths.roleCapabilities(int.parse('${role['id']}')),
+          {
+            'capabilities': selected.toList()..sort(),
+            'reason': reason.text.trim(),
+          },
+          closeSheet: false);
     reason.dispose();
   }
 
@@ -431,8 +460,8 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                                 final value = grants.contains(cap)
                                     ? 'grant'
                                     : denies.contains(cap)
-                                    ? 'deny'
-                                    : 'inherit';
+                                        ? 'deny'
+                                        : 'inherit';
                                 return ListTile(
                                   dense: true,
                                   title: Text(_capLabel(cap)),
@@ -497,8 +526,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       );
       if (saved == true) {
         final rolesChanged = !_sameInts(originalRoles, selectedRoles);
-        final overridesChanged =
-            overrideSupported &&
+        final overridesChanged = overrideSupported &&
             (!_sameStrings(originalGrants, grants) ||
                 !_sameStrings(originalDenies, denies));
         if ((rolesChanged || overridesChanged) &&
@@ -510,27 +538,23 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             );
         } else {
           if (rolesChanged) {
-            await ref
-                .read(apiClientProvider)
-                .post(
-                  ApiPaths.employeeRoles(id),
-                  data: {
-                    'role_ids': selectedRoles.toList()..sort(),
-                    'reason': reason.text.trim(),
-                  },
-                );
+            await ref.read(apiClientProvider).post(
+              ApiPaths.employeeRoles(id),
+              data: {
+                'role_ids': selectedRoles.toList()..sort(),
+                'reason': reason.text.trim(),
+              },
+            );
           }
           if (overridesChanged) {
-            await ref
-                .read(apiClientProvider)
-                .post(
-                  ApiPaths.employeeOverrides(id),
-                  data: {
-                    'grants': grants.toList()..sort(),
-                    'denies': denies.toList()..sort(),
-                    'reason': reason.text.trim(),
-                  },
-                );
+            await ref.read(apiClientProvider).post(
+              ApiPaths.employeeOverrides(id),
+              data: {
+                'grants': grants.toList()..sort(),
+                'denies': denies.toList()..sort(),
+                'reason': reason.text.trim(),
+              },
+            );
           }
           if (mounted) {
             setState(() {
