@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../core/api_paths.dart';
 import '../../core/date_time_text.dart';
 import '../../core/business_format.dart';
+import '../../core/daily_order_math.dart';
 import '../../core/providers.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
@@ -136,9 +137,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               ),
               if (app.can('daily_order.self') || app.can('daily_order.others'))
                 FilledButton.icon(
-                  onPressed: app.currentBranchId == null
-                      ? null
-                      : _newDailyOrder,
+                  onPressed:
+                      app.currentBranchId == null ? null : _newDailyOrder,
                   icon: const Icon(Icons.add),
                   label: const Text('New Order'),
                 ),
@@ -306,7 +306,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       query: {
         if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
       },
-    ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    ) as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
 
     final branchNames = <int, String>{
       for (final b in app.branches)
@@ -320,7 +322,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         query: {
           if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
         },
-      ) as List).map((e) => Map<String, dynamic>.from(e as Map));
+      ) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map));
       for (final e in employees) {
         final id = int.tryParse('${e['id']}');
         if (id != null) employeeNames[id] = e;
@@ -510,7 +513,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                         isThreeLine: true,
                         trailing: Text(
                           BusinessFormat.status(row['status']),
-                          style: Theme.of(context).textTheme.labelMedium
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelMedium
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
@@ -549,7 +554,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                           Expanded(
                             child: Text(
                               'Visit #$id Running',
-                              style: Theme.of(context).textTheme.titleMedium
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
                                   ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
@@ -594,8 +601,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
 
   Widget _feedbackBanner(String text) {
     final lower = text.toLowerCase();
-    final isError =
-        lower.contains('required') ||
+    final isError = lower.contains('required') ||
         lower.contains('invalid') ||
         lower.contains('failed') ||
         lower.contains('error') ||
@@ -658,16 +664,14 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     }
     try {
       final p = await _position();
-      await ref
-          .read(apiClientProvider)
-          .post(
-            checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
-            data: {
-              if (checkIn) 'branch_id': app.currentBranchId,
-              'lat': p.latitude,
-              'lng': p.longitude,
-            },
-          );
+      await ref.read(apiClientProvider).post(
+        checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
+        data: {
+          if (checkIn) 'branch_id': app.currentBranchId,
+          'lat': p.latitude,
+          'lng': p.longitude,
+        },
+      );
       if (checkIn) {
         try {
           await ref.read(gpsTrackingProvider).start();
@@ -710,7 +714,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         employees = (await api.get(
           ApiPaths.employees,
           query: {'branch_id': app.currentBranchId},
-        ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        ) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
         if (employees.any((e) => int.parse('${e['id']}') == selectedEmployee) ==
                 false &&
             employees.isNotEmpty) {
@@ -762,9 +768,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       final price = p['sale_price'] == null
                           ? ''
                           : ' · ₹${p['sale_price']}';
-                      final points = p['points'] == null
-                          ? ''
-                          : ' · ${p['points']} pts';
+                      final points =
+                          p['points'] == null ? '' : ' · ${p['points']} pts';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: TextField(
@@ -1078,7 +1083,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                             Expanded(
                               child: Text(
                                 name,
-                                style: Theme.of(context).textTheme.titleMedium
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               ),
                             ),
@@ -1210,6 +1217,11 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       text: '${evening['wholesale_customer_name'] ?? ''}',
     );
     final note = TextEditingController(text: '${evening['notes'] ?? ''}');
+    var wholesaleEnabled = customer.text.trim().isNotEmpty ||
+        lines.any(
+          (line) =>
+              (num.tryParse('${line['wholesale_quantity'] ?? 0}') ?? 0) > 0,
+        );
     String? mode;
 
     try {
@@ -1281,6 +1293,57 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
                       children: [
                         Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(13),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Wholesale sale?',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 8),
+                              SegmentedButton<bool>(
+                                segments: const [
+                                  ButtonSegment<bool>(
+                                    value: false,
+                                    icon: Icon(Icons.close_rounded),
+                                    label: Text('No'),
+                                  ),
+                                  ButtonSegment<bool>(
+                                    value: true,
+                                    icon: Icon(Icons.storefront_outlined),
+                                    label: Text('Yes'),
+                                  ),
+                                ],
+                                selected: {wholesaleEnabled},
+                                onSelectionChanged: (selection) {
+                                  setLocal(
+                                    () => wholesaleEnabled = selection.first,
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                wholesaleEnabled
+                                    ? 'Wholesale Qty aur Wholesale Rate product-wise enter karein.'
+                                    : 'Wholesale No: sirf Return Qty enter karein.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
                           padding: const EdgeInsets.all(13),
                           decoration: BoxDecoration(
                             color: ExcelBrand.primarySoft,
@@ -1310,47 +1373,54 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                           final retailRate =
                               double.tryParse('${l['retail_rate']}') ?? 0;
                           final ret = WholePcs.parseOrZero(returns[key]!.text);
-                          final wh = WholePcs.parseOrZero(wholesale[key]!.text);
-                          final calculated = issued - ret - wh;
-                          final sold = calculated < 0 ? 0 : calculated;
+                          final wh = wholesaleEnabled
+                              ? WholePcs.parseOrZero(wholesale[key]!.text)
+                              : 0;
+                          final sold = DailyOrderMath.retailSold(
+                            issued,
+                            ret,
+                            wh,
+                          );
                           final over = ret + wh > issued + .0001;
 
                           Widget returnField() => TextField(
-                            controller: returns[key],
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [WholePcs.positiveFormatter],
-                            onChanged: (_) => setLocal(() {}),
-                            decoration: const InputDecoration(
-                              labelText: 'Return Qty',
-                              prefixIcon: Icon(Icons.keyboard_return_rounded),
-                            ),
-                          );
+                                controller: returns[key],
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [WholePcs.positiveFormatter],
+                                onChanged: (_) => setLocal(() {}),
+                                decoration: const InputDecoration(
+                                  labelText: 'Return Qty',
+                                  prefixIcon:
+                                      Icon(Icons.keyboard_return_rounded),
+                                ),
+                              );
 
                           Widget wholesaleField() => TextField(
-                            controller: wholesale[key],
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [WholePcs.positiveFormatter],
-                            onChanged: (_) => setLocal(() {}),
-                            decoration: const InputDecoration(
-                              labelText: 'Wholesale Qty',
-                              prefixIcon: Icon(Icons.storefront_outlined),
-                            ),
-                          );
+                                controller: wholesale[key],
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [WholePcs.positiveFormatter],
+                                onChanged: (_) => setLocal(() {}),
+                                decoration: const InputDecoration(
+                                  labelText: 'Wholesale Qty',
+                                  prefixIcon: Icon(Icons.storefront_outlined),
+                                ),
+                              );
 
                           Widget rateField() => TextField(
-                            controller: wholesaleRate[key],
-                            enabled: wh > 0,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: InputDecoration(
-                              labelText: 'Wholesale Rate',
-                              prefixText: '₹ ',
-                              helperText: wh > 0
-                                  ? 'Max ₹${retailRate.toStringAsFixed(2)}'
-                                  : 'Wholesale Qty enter karein',
-                            ),
-                          );
+                                controller: wholesaleRate[key],
+                                enabled: wh > 0,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'Wholesale Rate',
+                                  prefixText: '₹ ',
+                                  helperText: wh > 0
+                                      ? 'Max ₹${retailRate.toStringAsFixed(2)}'
+                                      : 'Wholesale Qty enter karein',
+                                ),
+                              );
 
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 11),
@@ -1417,6 +1487,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                     const SizedBox(height: 12),
                                     LayoutBuilder(
                                       builder: (context, constraints) {
+                                        if (!wholesaleEnabled) {
+                                          return returnField();
+                                        }
                                         if (constraints.maxWidth < 520) {
                                           return Column(
                                             children: [
@@ -1452,15 +1525,17 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                           );
                         }),
                         const SizedBox(height: 2),
-                        TextField(
-                          controller: customer,
-                          decoration: const InputDecoration(
-                            labelText: 'Wholesale Customer',
-                            hintText: 'Wholesale sale ho tab required',
-                            prefixIcon: Icon(Icons.person_outline_rounded),
+                        if (wholesaleEnabled) ...[
+                          TextField(
+                            controller: customer,
+                            decoration: const InputDecoration(
+                              labelText: 'Wholesale Customer',
+                              hintText: 'Wholesale customer name required',
+                              prefixIcon: Icon(Icons.person_outline_rounded),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
+                          const SizedBox(height: 10),
+                        ],
                         TextField(
                           controller: note,
                           minLines: 2,
@@ -1521,10 +1596,13 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       for (final l in lines) {
         final key = int.parse('${l['issue_line_id']}');
         final ret = WholePcs.parseOrZero(returns[key]!.text);
-        final wh = WholePcs.parseOrZero(wholesale[key]!.text);
+        final wh =
+            wholesaleEnabled ? WholePcs.parseOrZero(wholesale[key]!.text) : 0;
         final issued = double.tryParse('${l['issued_quantity']}') ?? 0;
         final retailRate = double.tryParse('${l['retail_rate']}') ?? 0;
-        final whRate = double.tryParse(wholesaleRate[key]!.text) ?? 0;
+        final whRate = wholesaleEnabled
+            ? (double.tryParse(wholesaleRate[key]!.text) ?? 0)
+            : 0;
 
         if (ret + wh > issued + 0.0001) {
           throw Exception(
@@ -1546,7 +1624,12 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         });
       }
 
-      if (anyWholesale && customer.text.trim().isEmpty) {
+      if (wholesaleEnabled && !anyWholesale) {
+        throw Exception(
+          'Wholesale Yes select kiya hai. Kam se kam ek Wholesale Qty enter karein.',
+        );
+      }
+      if (wholesaleEnabled && customer.text.trim().isEmpty) {
         throw Exception('Wholesale customer name required.');
       }
 
@@ -1555,7 +1638,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         data: {
           'lines': payload,
           'wholesale_details': {
-            'wholesale_customer_name': customer.text.trim(),
+            'wholesale_customer_name':
+                wholesaleEnabled ? customer.text.trim() : '',
           },
           'price_reason': note.text.trim(),
         },
@@ -1674,17 +1758,13 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       var employeeCode = '${cycle['employee_code'] ?? ''}'.trim();
       if (employeeName.isEmpty && employeeId != null) {
         try {
-          final employees =
-              (await ref
-                          .read(apiClientProvider)
-                          .get(
-                            ApiPaths.employees,
-                            query: {
-                              if (branchId != null) 'branch_id': branchId,
-                            },
-                          )
-                      as List)
-                  .map((e) => Map<String, dynamic>.from(e as Map));
+          final employees = (await ref.read(apiClientProvider).get(
+            ApiPaths.employees,
+            query: {
+              if (branchId != null) 'branch_id': branchId,
+            },
+          ) as List)
+              .map((e) => Map<String, dynamic>.from(e as Map));
           for (final e in employees) {
             if (int.tryParse('${e['id']}') == employeeId) {
               employeeName = '${e['full_name'] ?? e['name'] ?? ''}'.trim();
@@ -1729,18 +1809,20 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       children: [
                         Text(
                           'Daily Order #$id',
-                          style: Theme.of(context).textTheme.headlineSmall
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           BusinessFormat.date(cycle['business_date']),
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
                         ),
                       ],
                     ),
@@ -1776,7 +1858,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               const SizedBox(height: 18),
               Text(
                 'Order Requests',
-                style: Theme.of(context).textTheme.titleMedium
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
@@ -1797,13 +1881,17 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                               Expanded(
                                 child: Text(
                                   _requestTypeText('${r['type']}'),
-                                  style: Theme.of(context).textTheme.titleMedium
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                               ),
                               Text(
                                 BusinessFormat.status(r['status']),
-                                style: Theme.of(context).textTheme.labelMedium
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelMedium
                                     ?.copyWith(
                                       color: Theme.of(context)
                                           .colorScheme
@@ -1823,9 +1911,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                       BusinessFormat.displayName(
                                         '${lines[i]['product_name'] ?? 'Product'}',
                                       ),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyLarge,
+                                      style:
+                                          Theme.of(context).textTheme.bodyLarge,
                                     ),
                                   ),
                                   Text(
@@ -1835,7 +1922,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                           ) ??
                                           0,
                                     ),
-                                    style: Theme.of(context).textTheme.bodyLarge
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
                                         ?.copyWith(fontWeight: FontWeight.w700),
                                   ),
                                 ],
@@ -1853,7 +1942,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Evening Closing',
-                  style: Theme.of(context).textTheme.titleMedium
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
@@ -1865,25 +1956,36 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       children: [
                         Text(
                           BusinessFormat.status(evening['status']),
-                          style: Theme.of(context).textTheme.titleSmall
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
                         ...(((evening['lines'] as List?) ?? const []).map((e) {
                           final l = Map<String, dynamic>.from(e as Map);
-                          final returned =
-                              num.tryParse(
+                          final returned = num.tryParse(
                                 '${l['return_quantity'] ?? l['return_qty'] ?? 0}',
                               ) ??
                               0;
+                          final wholesaleSold =
+                              num.tryParse('${l['wholesale_quantity'] ?? 0}') ??
+                                  0;
                           final issued =
                               num.tryParse('${l['issued_quantity'] ?? 0}') ?? 0;
                           final soldRaw = l['sold_quantity'] ?? l['sold_qty'];
-                          final calculatedSold = issued - returned;
                           final sold = soldRaw == null
-                              ? (calculatedSold > 0 ? calculatedSold : 0)
+                              ? DailyOrderMath.retailSold(
+                                  issued,
+                                  returned,
+                                  wholesaleSold,
+                                )
                               : (num.tryParse('$soldRaw') ??
-                                    (calculatedSold > 0 ? calculatedSold : 0));
+                                  DailyOrderMath.retailSold(
+                                    issued,
+                                    returned,
+                                    wholesaleSold,
+                                  ));
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             child: Row(
@@ -1896,7 +1998,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'Sold ${BusinessFormat.quantity(sold)} · Return ${BusinessFormat.quantity(returned)}',
+                                  'Retail ${BusinessFormat.quantity(sold)} · Wholesale ${BusinessFormat.quantity(wholesaleSold)} · Return ${BusinessFormat.quantity(returned)}',
                                 ),
                               ],
                             ),
@@ -1921,38 +2023,41 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     IconData icon,
     String label,
     String value,
-  ) => Row(
-    children: [
-      Icon(icon, size: 21),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+  ) =>
+      Row(
+        children: [
+          Icon(icon, size: 21),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.bodyLarge
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
+          ),
+        ],
+      );
 
   String _requestTypeText(String type) => switch (type) {
-    'initial' => 'Morning Order',
-    'additional' => 'Additional Order',
-    'replacement' => 'Replacement Order',
-    _ => BusinessFormat.displayName(type.replaceAll('_', ' ')),
-  };
+        'initial' => 'Morning Order',
+        'additional' => 'Additional Order',
+        'replacement' => 'Replacement Order',
+        _ => BusinessFormat.displayName(type.replaceAll('_', ' ')),
+      };
 
   Future<void> _applyLeave() async {
     final type = TextEditingController(text: 'Casual Leave');
@@ -2006,17 +2111,15 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     );
     if (ok == true) {
       try {
-        await ref
-            .read(apiClientProvider)
-            .post(
-              ApiPaths.leave,
-              data: {
-                'leave_type': type.text.trim(),
-                'date_from': from.text.trim(),
-                'date_to': to.text.trim(),
-                'reason': reason.text.trim(),
-              },
-            );
+        await ref.read(apiClientProvider).post(
+          ApiPaths.leave,
+          data: {
+            'leave_type': type.text.trim(),
+            'date_from': from.text.trim(),
+            'date_to': to.text.trim(),
+            'reason': reason.text.trim(),
+          },
+        );
         if (mounted)
           setState(() {
             refresh++;
@@ -2035,12 +2138,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   Future<void> _completeVisit(int id) async {
     try {
       final p = await _position();
-      await ref
-          .read(apiClientProvider)
-          .post(
-            ApiPaths.visitComplete(id),
-            data: {'lat': p.latitude, 'lng': p.longitude},
-          );
+      await ref.read(apiClientProvider).post(
+        ApiPaths.visitComplete(id),
+        data: {'lat': p.latitude, 'lng': p.longitude},
+      );
       if (mounted) {
         setState(() {
           refresh++;
@@ -2086,18 +2187,15 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       try {
         final p = await _position();
         final r = Map<String, dynamic>.from(
-          await ref
-                  .read(apiClientProvider)
-                  .post(
-                    ApiPaths.fieldVisitStart,
-                    data: {
-                      'branch_id': app.currentBranchId,
-                      'purpose': purpose.text.trim(),
-                      'lat': p.latitude,
-                      'lng': p.longitude,
-                    },
-                  )
-              as Map,
+          await ref.read(apiClientProvider).post(
+            ApiPaths.fieldVisitStart,
+            data: {
+              'branch_id': app.currentBranchId,
+              'purpose': purpose.text.trim(),
+              'lat': p.latitude,
+              'lng': p.longitude,
+            },
+          ) as Map,
         );
         if (mounted)
           setState(() {
