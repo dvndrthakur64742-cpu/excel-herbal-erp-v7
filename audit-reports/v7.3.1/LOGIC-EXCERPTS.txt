@@ -1,0 +1,317 @@
+core/api_client.dart:63 bool idempotent = true,
+core/api_client.dart:70 idempotent: idempotent,
+core/api_client.dart:85 headers['X-Idempotency-Key'] = _requestKey();
+core/api_client.dart:127 idempotent: false,
+core/api_client.dart:138 Future<void> logout() async {
+core/api_client.dart:140 await post(ApiPaths.logout, data: const {}, idempotent: false);
+core/api_client.dart:142 // Local logout still proceeds when the network is unavailable.
+core/api_client.dart:153 bool idempotent = false,
+core/api_client.dart:168 if (idempotent && method != 'GET') {
+core/api_client.dart:173 headers['X-Idempotency-Key'] = mutationKey;
+core/api_client.dart:195 idempotent: idempotent,
+core/api_paths.dart:6 logout = '/auth/logout',
+core/api_paths.dart:8 logoutAll = '/auth/logout-all',
+core/api_paths.dart:141 static String eveningStart(int id) => '/daily/cycles/$id/evening/start';
+core/api_paths.dart:142 static String eveningSave(int id) => '/daily/cycles/$id/evening/save';
+core/api_paths.dart:143 static String eveningSubmit(int id) => '/daily/cycles/$id/evening/submit';
+core/branch_projection.dart:2 const BranchProjection({required this.assignedBranchId, required this.branchIds});
+core/branch_projection.dart:3 final int assignedBranchId;
+core/branch_projection.dart:4 final List<int> branchIds;
+core/branch_projection.dart:5 bool get selectorVisible => branchIds.length > 1;
+core/branch_projection.dart:6 int? get automaticBranchId => branchIds.length == 1 ? branchIds.first : null;
+core/branch_projection.dart:7 bool allows(int id) => branchIds.contains(id);
+core/business_format.dart:92 'evening_draft': 'Evening Draft',
+core/business_format.dart:93 'evening_submitted': 'Final Post Pending',
+core/gps_tracking_service.dart:27 await _ensurePermission();
+core/gps_tracking_service.dart:72 Future<void> _ensurePermission() async {
+core/gps_tracking_service.dart:73 var permission = await Geolocator.checkPermission();
+core/gps_tracking_service.dart:74 if (permission == LocationPermission.denied) {
+core/gps_tracking_service.dart:75 permission = await Geolocator.requestPermission();
+core/gps_tracking_service.dart:77 if (permission == LocationPermission.denied ||
+core/gps_tracking_service.dart:78 permission == LocationPermission.deniedForever) {
+core/gps_tracking_service.dart:79 throw Exception('Location permission required.');
+main.dart:126 ref.read(appStateProvider.notifier).logout(),
+main.dart:127 icon: const Icon(Icons.logout),
+main.dart:128 label: const Text('Logout'),
+screens/administration/administration_screen.dart:43 tabs.add(('Access', _accessTab(app.currentBranchId)));
+screens/administration/administration_screen.dart:79 Widget _accessTab(int? branchId) {
+screens/administration/administration_screen.dart:80 if (branchId == null)
+screens/administration/administration_screen.dart:84 key: ValueKey('access-$refresh-$branchId'),
+screens/administration/administration_screen.dart:87 api.get(ApiPaths.employees, query: {'branch_id': branchId}),
+screens/administration/administration_screen.dart:106 child: Text('Roles & Permissions',
+screens/administration/administration_screen.dart:119 '${r['code']} · ${((r['capabilities'] as List?) ?? const []).length} permissions'),
+screens/administration/administration_screen.dart:128 'Designation recommended permissions are automatic; roles are additional access.',
+screens/administration/administration_screen.dart:227 title: Text('Permissions · ${role['name']}'),
+screens/administration/administration_screen.dart:296 .map((e) => '${e['capability']}')
+screens/administration/administration_screen.dart:301 .map((e) => '${e['capability']}')
+screens/administration/administration_screen.dart:330 'Designation: ${employee['designation_code']} · recommended permissions apply automatically.',
+screens/finance/finance_screen.dart:86 key: ValueKey('tb-${app.currentBranchId}-$refresh'),
+screens/finance/finance_screen.dart:89 if (app.currentBranchId != null) 'branch_id': app.currentBranchId
+screens/finance/finance_screen.dart:98 if (app.currentBranchId == null)
+screens/finance/finance_screen.dart:112 key: ValueKey('expenses-${app.currentBranchId}-$refresh'),
+screens/finance/finance_screen.dart:114 query: {'branch_id': app.currentBranchId}),
+screens/finance/finance_screen.dart:124 if (app.currentBranchId == null)
+screens/finance/finance_screen.dart:144 key: ValueKey('closing-${app.currentBranchId}-$refresh'),
+screens/finance/finance_screen.dart:146 query: {'branch_id': app.currentBranchId}),
+screens/finance/finance_screen.dart:158 if (app.currentBranchId == null)
+screens/finance/finance_screen.dart:172 key: ValueKey('bank-${app.currentBranchId}-$refresh'),
+screens/finance/finance_screen.dart:174 query: {'branch_id': app.currentBranchId}),
+screens/finance/finance_screen.dart:452 'branch_id': app.currentBranchId,
+screens/finance/finance_screen.dart:501 query: {'branch_id': app.currentBranchId, 'business_date': _today()});
+screens/finance/finance_screen.dart:512 data: {'branch_id': app.currentBranchId, 'business_date': _today()});
+screens/finance/finance_screen.dart:619 'branch_id': app.currentBranchId,
+screens/home/actions_screen.dart:2 class ActionsScreen extends StatelessWidget{const ActionsScreen({super.key,required this.openMyWork,required this.openModule});final VoidCallback openMyWork;final void Function(String) openModule;@override Widget build(BuildContext context){final actions=[('Check-In / Out',Icons.location_on_outlined
+screens/home/enterprise_hub_screen.dart:78 if (app.currentBranchId == null) {
+screens/home/enterprise_hub_screen.dart:82 key: ValueKey('approval-${app.currentBranchId}-$refresh'),
+screens/home/enterprise_hub_screen.dart:167 'Search only across records allowed by your designation, permissions and current branch authority.',
+screens/home/enterprise_hub_screen.dart:242 final branch = app.currentBranchId!;
+screens/home/enterprise_hub_screen.dart:260 'daily_order.approve',
+screens/home/enterprise_hub_screen.dart:261 'daily_order.issue',
+screens/home/enterprise_hub_screen.dart:262 'daily_order.review',
+screens/home/enterprise_hub_screen.dart:263 'daily_order.others'
+screens/home/enterprise_hub_screen.dart:270 if (requestStatus == 'submitted' && app.can('daily_order.approve')) {
+screens/home/enterprise_hub_screen.dart:283 app.can('daily_order.issue')) {
+screens/home/enterprise_hub_screen.dart:495 final branch = app.currentBranchId;
+screens/home/enterprise_hub_screen.dart:591 app.canAny(const ['daily_order.self', 'daily_order.others'])) {
+screens/home/enterprise_hub_screen.dart:594 recordType: 'daily_order',
+screens/home/enterprise_hub_screen.dart:689 'daily_order.approve',
+screens/home/enterprise_hub_screen.dart:690 'daily_order.issue',
+screens/home/home_screen.dart:20 final branch = app.currentBranchId;
+screens/home/home_screen.dart:458 'issued' => 'Next: Field work / Additional Requirement / Evening Closing',
+screens/home/home_screen.dart:459 'evening_draft' => 'Next: Submit Evening Closing',
+screens/home/home_screen.dart:460 'evening_submitted' => 'Next: Office Final Post pending',
+screens/home/home_screen.dart:470 'issued' => 'Evening Pending',
+screens/home/home_screen.dart:471 'evening_draft' => 'Evening Draft',
+screens/home/home_screen.dart:472 'evening_submitted' => 'Final Post Pending',
+screens/home/home_screen.dart:512 status == 'evening_submitted';
+screens/home/home_screen.dart:579 final includeDaily = app.can('daily_order.others');
+screens/home/home_screen.dart:728 if (int.tryParse('${b['id']}') == app.currentBranchId)
+screens/home/home_screen.dart:738 return 'evening';
+screens/home/profile_screen.dart:2 class ProfileScreen extends ConsumerWidget{const ProfileScreen({super.key});@override Widget build(BuildContext context,WidgetRef ref){final app=ref.watch(appStateProvider);final e=Map<String,dynamic>.from((app.me['employee'] as Map?)??const{});return ListView(padding:const EdgeInsets.all(16),childr
+screens/inventory/inventory_screen.dart:32 key: ValueKey('s-${app.currentBranchId}-$refresh'),
+screens/inventory/inventory_screen.dart:33 future: app.currentBranchId == null
+screens/inventory/inventory_screen.dart:36 query: {'branch_id': app.currentBranchId}),
+screens/inventory/inventory_screen.dart:51 key: ValueKey('t-${app.currentBranchId}-$refresh'),
+screens/inventory/inventory_screen.dart:52 future: app.currentBranchId == null
+screens/inventory/inventory_screen.dart:55 query: {'branch_id': app.currentBranchId}),
+screens/inventory/inventory_screen.dart:70 key: ValueKey('a-${app.currentBranchId}-$refresh'),
+screens/inventory/inventory_screen.dart:71 future: app.currentBranchId == null
+screens/inventory/inventory_screen.dart:74 query: {'branch_id': app.currentBranchId}),
+screens/inventory/inventory_screen.dart:87 key: ValueKey('q-${app.currentBranchId}-$refresh'),
+screens/inventory/inventory_screen.dart:88 future: app.currentBranchId == null
+screens/inventory/inventory_screen.dart:91 query: {'branch_id': app.currentBranchId}),
+screens/inventory/inventory_screen.dart:119 app.currentBranchId == null ? null : _createTransfer,
+screens/inventory/inventory_screen.dart:125 app.currentBranchId == null ? null : _createAdjustment,
+screens/inventory/inventory_screen.dart:133 child: app.currentBranchId == null
+screens/inventory/inventory_screen.dart:147 query: {'branch_id': app.currentBranchId}) as List)
+screens/inventory/inventory_screen.dart:184 app.currentBranchId)
+screens/inventory/inventory_screen.dart:236 'source_branch_id': app.currentBranchId,
+screens/inventory/inventory_screen.dart:323 'branch_id': app.currentBranchId,
+screens/my_work/my_work_screen.dart:35 'daily_order.self',
+screens/my_work/my_work_screen.dart:36 'daily_order.others',
+screens/my_work/my_work_screen.dart:37 'daily_order.approve',
+screens/my_work/my_work_screen.dart:38 'daily_order.issue',
+screens/my_work/my_work_screen.dart:39 'daily_order.review',
+screens/my_work/my_work_screen.dart:112 icon: const Icon(Icons.logout),
+screens/my_work/my_work_screen.dart:136 if (app.can('daily_order.self') || app.can('daily_order.others'))
+screens/my_work/my_work_screen.dart:139 app.currentBranchId == null ? null : _newDailyOrder,
+screens/my_work/my_work_screen.dart:156 key: ValueKey('daily-${app.currentBranchId}-$refresh'),
+screens/my_work/my_work_screen.dart:302 if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+screens/my_work/my_work_screen.dart:318 if (app.currentBranchId != null) 'branch_id': app.currentBranchId
+screens/my_work/my_work_screen.dart:335 final branchId = int.tryParse('${row['branch_id'] ?? ''}');
+screens/my_work/my_work_screen.dart:341 if (branchId != null) row['branch_name'] ??= branchNames[branchId];
+screens/my_work/my_work_screen.dart:357 'issued': 'Evening Pending',
+screens/my_work/my_work_screen.dart:358 'evening_draft': 'Evening Draft',
+screens/my_work/my_work_screen.dart:359 'evening_submitted': 'Final Post Pending',
+screens/my_work/my_work_screen.dart:380 case 'evening_submitted':
+screens/my_work/my_work_screen.dart:427 if (status == 'stock_requested' && app.can('daily_order.approve')) {
+screens/my_work/my_work_screen.dart:430 if (status == 'approved' && app.can('daily_order.issue')) {
+screens/my_work/my_work_screen.dart:431 out.add(const PopupMenuItem(value: 'issue', child: Text('Issue Stock')));
+screens/my_work/my_work_screen.dart:434 if (app.can('daily_order.self') || app.can('daily_order.others')) {
+screens/my_work/my_work_screen.dart:439 value: 'evening', child: Text('Start Evening Closing')));
+screens/my_work/my_work_screen.dart:441 if (status == 'evening_draft') {
+screens/my_work/my_work_screen.dart:443 value: 'evening_edit', child: Text('Edit Evening Closing')));
+screens/my_work/my_work_screen.dart:445 if (status == 'evening_submitted' && app.can('daily_order.review')) {
+screens/my_work/my_work_screen.dart:624 var permission = await Geolocator.checkPermission();
+screens/my_work/my_work_screen.dart:625 if (permission == LocationPermission.denied) {
+screens/my_work/my_work_screen.dart:626 permission = await Geolocator.requestPermission();
+screens/my_work/my_work_screen.dart:628 if (permission == LocationPermission.denied ||
+screens/my_work/my_work_screen.dart:629 permission == LocationPermission.deniedForever) {
+screens/my_work/my_work_screen.dart:630 throw Exception('Location permission required.');
+screens/my_work/my_work_screen.dart:639 if (checkIn && app.currentBranchId == null) {
+screens/my_work/my_work_screen.dart:648 if (checkIn) 'branch_id': app.currentBranchId,
+screens/my_work/my_work_screen.dart:676 Future<void> _newDailyOrder() async {
+screens/my_work/my_work_screen.dart:691 if (app.can('daily_order.others')) {
+screens/my_work/my_work_screen.dart:694 query: {'branch_id': app.currentBranchId},
+screens/my_work/my_work_screen.dart:808 'branch_id': app.currentBranchId,
+screens/my_work/my_work_screen.dart:873 } else if (action == 'evening') {
+screens/my_work/my_work_screen.dart:874 await api.post(ApiPaths.eveningStart(id), data: const {});
+screens/my_work/my_work_screen.dart:875 await _editEvening(id);
+screens/my_work/my_work_screen.dart:877 } else if (action == 'evening_edit') {
+screens/my_work/my_work_screen.dart:878 await _editEvening(id);
+screens/my_work/my_work_screen.dart:1011 'Issue Stock',
+screens/my_work/my_work_screen.dart:1158 message = 'Stock issued successfully. Evening Closing is pending.';
+screens/my_work/my_work_screen.dart:1164 Future<void> _editEvening(int id) async {
+screens/my_work/my_work_screen.dart:1167 final evening =
+screens/my_work/my_work_screen.dart:1168 Map<String, dynamic>.from((d['evening'] as Map?) ?? const {});
+screens/my_work/my_work_screen.dart:1169 final lines = ((evening['lines'] as List?) ?? const [])
+screens/my_work/my_work_screen.dart:1172 if (lines.isEmpty) throw Exception('Evening lines not found.');
+screens/my_work/my_work_screen.dart:1175 final wholesale = <int, TextEditingController>{};
+screens/my_work/my_work_screen.dart:1176 final wholesaleRate = <int, TextEditingController>{};
+screens/my_work/my_work_screen.dart:1180 TextEditingController(text: '${l['return_quantity'] ?? 0}');
+screens/my_work/my_work_screen.dart:1181 wholesale[key] =
+screens/my_work/my_work_screen.dart:1182 TextEditingController(text: '${l['wholesale_quantity'] ?? 0}');
+screens/my_work/my_work_screen.dart:1183 wholesaleRate[key] =
+screens/my_work/my_work_screen.dart:1184 TextEditingController(text: '${l['wholesale_rate'] ?? 0}');
+screens/my_work/my_work_screen.dart:1187 text: '${evening['wholesale_customer_name'] ?? ''}');
+screens/my_work/my_work_screen.dart:1188 final note = TextEditingController(text: '${evening['notes'] ?? ''}');
+screens/my_work/my_work_screen.dart:1193 title: Text('Evening Closing · Order #$id'),
+screens/my_work/my_work_screen.dart:1203 'Return + Wholesale enter karein. Sold automatically backend calculate karega.'),
+screens/my_work/my_work_screen.dart:1230 controller: wholesale[key],
+screens/my_work/my_work_screen.dart:1234 labelText: 'Wholesale Qty'),
+screens/my_work/my_work_screen.dart:1240 controller: wholesaleRate[key],
+screens/my_work/my_work_screen.dart:1243 labelText: 'Wholesale Rate'),
+screens/my_work/my_work_screen.dart:1255 labelText: 'Wholesale Customer (if wholesale)',
+screens/my_work/my_work_screen.dart:1291 var anyWholesale = false;
+screens/my_work/my_work_screen.dart:1295 final wh = WholePcs.parseOrZero(wholesale[key]!.text);
+screens/my_work/my_work_screen.dart:1299 'Return + Wholesale issue quantity se zyada nahi ho sakta.');
+screens/my_work/my_work_screen.dart:1301 if (wh > 0) anyWholesale = true;
+screens/my_work/my_work_screen.dart:1304 'return_quantity': ret,
+screens/my_work/my_work_screen.dart:1305 'wholesale_quantity': wh,
+screens/my_work/my_work_screen.dart:1307 'wholesale_rate': double.tryParse(wholesaleRate[key]!.text) ?? 0,
+screens/my_work/my_work_screen.dart:1310 if (anyWholesale && customer.text.trim().isEmpty) {
+screens/my_work/my_work_screen.dart:1311 throw Exception('Wholesale customer name required.');
+screens/my_work/my_work_screen.dart:1314 ApiPaths.eveningSave(id),
+screens/my_work/my_work_screen.dart:1317 'wholesale_details': {
+screens/my_work/my_work_screen.dart:1318 'wholesale_customer_name': customer.text.trim(),
+screens/my_work/my_work_screen.dart:1324 await api.post(ApiPaths.eveningSubmit(id), data: const {});
+screens/my_work/my_work_screen.dart:1330 ? 'Evening submitted. Final Post pending.'
+screens/my_work/my_work_screen.dart:1331 : 'Evening draft saved.';
+screens/my_work/my_work_screen.dart:1336 for (final c in wholesale.values) c.dispose();
+screens/my_work/my_work_screen.dart:1337 for (final c in wholesaleRate.values) c.dispose();
+screens/my_work/my_work_screen.dart:1345 final evening =
+screens/my_work/my_work_screen.dart:1346 Map<String, dynamic>.from((d['evening'] as Map?) ?? const {});
+screens/my_work/my_work_screen.dart:1347 final expected = double.tryParse('${evening['expected_amount'] ?? 0}') ?? 0;
+screens/my_work/my_work_screen.dart:1415 final evening = d['evening'] is Map
+screens/my_work/my_work_screen.dart:1416 ? Map<String, dynamic>.from(d['evening'] as Map)
+screens/my_work/my_work_screen.dart:1420 final branchId = int.tryParse('${cycle['branch_id'] ?? ''}');
+screens/my_work/my_work_screen.dart:1424 if (int.tryParse('${b['id']}') == branchId) {
+screens/my_work/my_work_screen.dart:1435 query: {if (branchId != null) 'branch_id': branchId},
+screens/my_work/my_work_screen.dart:1600 if (evening != null) ...[
+screens/my_work/my_work_screen.dart:1602 Text('Evening Closing',
+screens/my_work/my_work_screen.dart:1614 Text(BusinessFormat.status(evening['status']),
+screens/my_work/my_work_screen.dart:1620 ...(((evening['lines'] as List?) ?? const []).map((e) {
+screens/my_work/my_work_screen.dart:1623 '${l['return_quantity'] ?? l['return_qty'] ?? 0}') ??
+screens/my_work/my_work_screen.dart:1782 if (app.currentBranchId == null) {
+screens/my_work/my_work_screen.dart:1817 'branch_id': app.currentBranchId,
+screens/organization/organization_screen.dart:88 trailing: int.tryParse('${b['id']}') == app.currentBranchId
+screens/organization/organization_screen.dart:145 onPressed: app.currentBranchId == null ? null : _createEmployee,
+screens/organization/organization_screen.dart:152 child: app.currentBranchId == null
+screens/organization/organization_screen.dart:155 key: ValueKey('employees-${app.currentBranchId}-$refresh'),
+screens/organization/organization_screen.dart:157 query: {'branch_id': app.currentBranchId}),
+screens/organization/organization_screen.dart:269 api.get(ApiPaths.employees, query: {'branch_id': app.currentBranchId}),
+screens/organization/organization_screen.dart:386 'assigned_branch_id': app.currentBranchId,
+screens/organization/organization_screen.dart:481 int? branchId;
+screens/organization/organization_screen.dart:501 initialValue: branchId,
+screens/organization/organization_screen.dart:509 onChanged: (v) => setLocal(() => branchId = v)),
+screens/organization/organization_screen.dart:529 branchId != null && reason.text.trim().length >= 5),
+screens/organization/organization_screen.dart:534 'branch_id': branchId,
+screens/organization/organization_screen.dart:559 int? branchId;
+screens/organization/organization_screen.dart:578 initialValue: branchId,
+screens/organization/organization_screen.dart:586 onChanged: (v) => setLocal(() => branchId = v)),
+screens/organization/organization_screen.dart:601 Navigator.pop(context, branchId != null),
+screens/organization/organization_screen.dart:609 'branch_id': branchId,
+screens/organization/team_screen.dart:27 'daily_order.others',
+screens/organization/team_screen.dart:28 'daily_order.approve',
+screens/organization/team_screen.dart:29 'daily_order.issue',
+screens/organization/team_screen.dart:30 'daily_order.review',
+screens/organization/team_screen.dart:35 key: ValueKey('d-${app.currentBranchId}-$refresh'),
+screens/organization/team_screen.dart:36 future: app.currentBranchId == null
+screens/organization/team_screen.dart:39 query: {'branch_id': app.currentBranchId}),
+screens/organization/team_screen.dart:41 recordType: 'daily_order',
+screens/organization/team_screen.dart:54 key: ValueKey('a-${app.currentBranchId}-$refresh'),
+screens/organization/team_screen.dart:55 future: app.currentBranchId == null
+screens/organization/team_screen.dart:58 'branch_id': app.currentBranchId,
+screens/organization/team_screen.dart:76 reloadToken: app.currentBranchId,
+screens/organization/team_screen.dart:77 future: app.currentBranchId == null
+screens/organization/team_screen.dart:80 query: {'branch_id': app.currentBranchId}),
+screens/organization/team_screen.dart:108 child: app.currentBranchId == null
+screens/organization/team_screen.dart:169 child: const Text('Issue Stock'))
+screens/organization/team_screen.dart:191 Future<void> _issue(Map<String, dynamic> request, int branchId) async {
+screens/organization/team_screen.dart:195 query: {'branch_id': branchId}) as List)
+screens/performance/performance_screen.dart:32 key: ValueKey('p-${app.currentBranchId}-$refresh'),
+screens/performance/performance_screen.dart:33 future: app.currentBranchId == null
+screens/performance/performance_screen.dart:36 'branch_id': app.currentBranchId,
+screens/performance/performance_screen.dart:61 key: ValueKey('targets-${app.currentBranchId}-$refresh'),
+screens/performance/performance_screen.dart:62 future: app.currentBranchId == null
+screens/performance/performance_screen.dart:65 query: {'branch_id': app.currentBranchId}),
+screens/performance/performance_screen.dart:89 key: ValueKey('payroll-${app.currentBranchId}-$refresh'),
+screens/performance/performance_screen.dart:90 future: app.currentBranchId == null
+screens/performance/performance_screen.dart:93 query: {'branch_id': app.currentBranchId}),
+screens/performance/performance_screen.dart:120 child: app.currentBranchId == null
+screens/performance/performance_screen.dart:137 'branch_id': app.currentBranchId,
+screens/performance/performance_screen.dart:415 query: {'branch_id': app.currentBranchId},
+screens/performance/performance_screen.dart:483 'branch_id': app.currentBranchId,
+screens/purchase/purchase_screen.dart:34 onPressed: app.currentBranchId == null ? null : _newBill,
+screens/purchase/purchase_screen.dart:39 onPressed: app.currentBranchId == null ? null : _payBill,
+screens/purchase/purchase_screen.dart:51 child: app.currentBranchId == null
+screens/purchase/purchase_screen.dart:54 key: ValueKey('${app.currentBranchId}-$refresh'),
+screens/purchase/purchase_screen.dart:56 query: {'branch_id': app.currentBranchId}),
+screens/purchase/purchase_screen.dart:251 'branch_id': app.currentBranchId,
+screens/purchase/purchase_screen.dart:274 query: {'branch_id': app.currentBranchId}) as List)
+screens/reports/reports_screen.dart:3 class _ReportsScreenState extends ConsumerState<ReportsScreen>{String type='sales';@override Widget build(BuildContext context){final app=ref.watch(appStateProvider);final api=ref.watch(apiClientProvider);final path={'sales':ApiPaths.reportsSales,'purchase':ApiPaths.reportsPurchase,'stock':ApiPaths.
+screens/sales/sales_screen.dart:35 onPressed: app.currentBranchId == null ? null : _counterSale,
+screens/sales/sales_screen.dart:41 onPressed: app.currentBranchId == null ? null : _createCustomer,
+screens/sales/sales_screen.dart:47 onPressed: app.currentBranchId == null ? null : _receipt,
+screens/sales/sales_screen.dart:56 child: app.currentBranchId == null
+screens/sales/sales_screen.dart:59 key: ValueKey('${app.currentBranchId}-$refresh'),
+screens/sales/sales_screen.dart:61 query: {'branch_id': app.currentBranchId}),
+screens/sales/sales_screen.dart:121 'branch_id': app.currentBranchId,
+screens/sales/sales_screen.dart:151 query: {'branch_id': app.currentBranchId}),
+screens/sales/sales_screen.dart:152 api.get(ApiPaths.customers, query: {'branch_id': app.currentBranchId}),
+screens/sales/sales_screen.dart:308 'branch_id': app.currentBranchId,
+screens/sales/sales_screen.dart:330 final branchId = app.currentBranchId;
+screens/sales/sales_screen.dart:331 if (branchId == null) return;
+screens/sales/sales_screen.dart:334 api.get(ApiPaths.openSales, query: {'branch_id': branchId}),
+screens/sales/sales_screen.dart:433 'branch_id': branchId,
+screens/tools/erp_tools_screen.dart:330 if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+screens/tools/erp_tools_screen.dart:420 'Logout all devices?', 'Is device par bhi dobara login karna padega.');
+screens/tools/erp_tools_screen.dart:423 await api.post(ApiPaths.logoutAll,
+screens/tools/erp_tools_screen.dart:424 data: const {}, idempotent: false);
+screens/tools/erp_tools_screen.dart:426 await ref.read(appStateProvider.notifier).logout();
+screens/tools/erp_tools_screen.dart:428 child: const Text('Logout All'),
+screens/tools/erp_tools_screen.dart:446 tooltip: 'Logout device',
+screens/tools/erp_tools_screen.dart:447 icon: const Icon(Icons.logout),
+screens/tools/erp_tools_screen.dart:450 idempotent: false),
+screens/tools/erp_tools_screen.dart:760 if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+screens/tools/erp_tools_screen.dart:820 if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+screens/tools/erp_tools_screen.dart:897 if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+screens/tools/erp_tools_screen.dart:1032 {bool idempotent = true}) async {
+screens/tools/erp_tools_screen.dart:1035 data: data, idempotent: idempotent);
+shell/app_shell.dart:232 tooltip: 'Logout',
+shell/app_shell.dart:233 onPressed: () => ref.read(appStateProvider.notifier).logout(),
+shell/app_shell.dart:234 icon: const Icon(Icons.logout, size: 20),
+shell/app_shell.dart:500 leading: const Icon(Icons.logout_rounded, color: ExcelBrand.danger),
+shell/app_shell.dart:502 'Logout',
+shell/app_shell.dart:511 ref.read(appStateProvider.notifier).logout();
+shell/app_shell.dart:585 if (int.tryParse('${branch['id']}') == app.currentBranchId) {
+shell/app_shell.dart:736 'daily_order.self',
+shell/app_shell.dart:737 'daily_order.others',
+shell/app_shell.dart:756 'daily_order.approve',
+shell/app_shell.dart:757 'daily_order.issue',
+state/app_state.dart:13 this.currentBranchId,
+state/app_state.dart:18 final int? currentBranchId;
+state/app_state.dart:40 if (currentBranchId == null) return 'All Authorised Branches';
+state/app_state.dart:42 if (int.tryParse('${branch['id']}') == currentBranchId) {
+state/app_state.dart:52 bool can(String capability) => capabilities.contains(capability);
+state/app_state.dart:72 int? currentBranchId,
+state/app_state.dart:79 currentBranchId: currentBranchId ?? this.currentBranchId,
+state/app_state.dart:118 final current = state.currentBranchId != null &&
+state/app_state.dart:119 ids.contains(state.currentBranchId)
+state/app_state.dart:120 ? state.currentBranchId
+state/app_state.dart:128 currentBranchId: current);
+state/app_state.dart:154 state = state.copyWith(currentBranchId: id, clearError: true);
+state/app_state.dart:157 Future<void> logout() async {
+state/app_state.dart:158 await api.logout();
+widgets/branch_selector.dart:7 @override Widget build(BuildContext context,WidgetRef ref){final app=ref.watch(appStateProvider);if(!app.branchSelectorVisible)return const SizedBox.shrink();return DropdownButtonFormField<int>(initialValue:app.currentBranchId,decoration:const InputDecoration(labelText:'Authorised Branch',prefixIcon
+widgets/records_list.dart:314 'daily_order' => const [

@@ -1,0 +1,287 @@
+# Excel Herbal ERP Flutter v7.3.1 Full Static Audit
+
+Dart files: **39**  
+Screen files: **19**  
+Total Dart lines: **13273**  
+API reference lines: **211**  
+Risk flags: **HIGH 4 / MEDIUM 15 / LOW 8**
+
+## UI inventory
+
+- scaffold: 26
+- safe_area: 19
+- dialogs: 0
+- bottom_sheets: 14
+- text_fields: 95
+- dropdowns: 68
+- list_views: 27
+- scroll_views: 15
+- rows: 74
+- cards: 69
+- buttons: 118
+
+## Risk flags
+
+- **HIGH** `screens/administration/administration_screen.dart` — Bottom sheet exists without isScrollControlled:true; long forms can clip.
+- **HIGH** `screens/inventory/inventory_screen.dart` — Bottom sheet exists without isScrollControlled:true; long forms can clip.
+- **HIGH** `screens/organization/organization_screen.dart` — Bottom sheet exists without isScrollControlled:true; long forms can clip.
+- **HIGH** `state/app_state.dart` — Session clearing/logout occurs near catch handling; network errors may risk unintended logout—manual review required.
+- **MEDIUM** `core/api_client.dart` — Request-id diagnostics are not visibly consumed by the app client.
+- **MEDIUM** `screens/auth/login_screen.dart` — Exception terminology is present in a screen; verify no technical text leaks to users.
+- **MEDIUM** `screens/finance/finance_screen.dart` — Raw toString() appears near error handling; verify error mapping is centralized.
+- **MEDIUM** `screens/inventory/inventory_screen.dart` — Exception terminology is present in a screen; verify no technical text leaks to users.
+- **MEDIUM** `screens/my_work/my_work_screen.dart` — Exception terminology is present in a screen; verify no technical text leaks to users.
+- **MEDIUM** `screens/my_work/my_work_screen.dart` — Raw toString() appears near error handling; verify error mapping is centralized.
+- **MEDIUM** `screens/organization/organization_screen.dart` — Raw toString() appears near error handling; verify error mapping is centralized.
+- **MEDIUM** `screens/organization/team_screen.dart` — Exception terminology is present in a screen; verify no technical text leaks to users.
+- **MEDIUM** `screens/organization/team_screen.dart` — Raw toString() appears near error handling; verify error mapping is centralized.
+- **MEDIUM** `screens/organization/team_screen.dart` — Bottom-sheet code has no explicit SafeArea in this screen.
+- **MEDIUM** `screens/performance/performance_screen.dart` — Raw toString() appears near error handling; verify error mapping is centralized.
+- **MEDIUM** `screens/purchase/purchase_screen.dart` — Exception terminology is present in a screen; verify no technical text leaks to users.
+- **MEDIUM** `screens/purchase/purchase_screen.dart` — Raw toString() appears near error handling; verify error mapping is centralized.
+- **MEDIUM** `screens/sales/sales_screen.dart` — Exception terminology is present in a screen; verify no technical text leaks to users.
+- **MEDIUM** `screens/tools/erp_tools_screen.dart` — Raw toString() appears near error handling; verify error mapping is centralized.
+- **LOW** `screens/administration/administration_screen.dart` — Large fixed dimension detected (680); responsiveness should be checked.
+- **LOW** `screens/finance/finance_screen.dart` — Large fixed dimension detected (540); responsiveness should be checked.
+- **LOW** `screens/inventory/inventory_screen.dart` — Large fixed dimension detected (560); responsiveness should be checked.
+- **LOW** `screens/my_work/my_work_screen.dart` — Large fixed dimension detected (720); responsiveness should be checked.
+- **LOW** `screens/organization/organization_screen.dart` — Large fixed dimension detected (680); responsiveness should be checked.
+- **LOW** `screens/performance/performance_screen.dart` — Large fixed dimension detected (520); responsiveness should be checked.
+- **LOW** `screens/purchase/purchase_screen.dart` — Large fixed dimension detected (620); responsiveness should be checked.
+- **LOW** `screens/sales/sales_screen.dart` — Large fixed dimension detected (680); responsiveness should be checked.
+
+## Per-screen inventory
+
+- `screens/administration/administration_screen.dart` — 495 lines; fields 4; dialogs 0; sheets 1; SafeArea 1; rows 1; buttons 6
+- `screens/auth/login_screen.dart` — 206 lines; fields 2; dialogs 0; sheets 0; SafeArea 1; rows 1; buttons 2
+- `screens/common/record_detail_screen.dart` — 274 lines; fields 0; dialogs 0; sheets 0; SafeArea 0; rows 5; buttons 0
+- `screens/communication/communication_screen.dart` — 3 lines; fields 0; dialogs 0; sheets 0; SafeArea 0; rows 0; buttons 0
+- `screens/communication/tasks_screen.dart` — 5 lines; fields 0; dialogs 0; sheets 0; SafeArea 0; rows 0; buttons 1
+- `screens/finance/finance_screen.dart` — 963 lines; fields 18; dialogs 0; sheets 3; SafeArea 2; rows 0; buttons 18
+- `screens/home/actions_screen.dart` — 3 lines; fields 0; dialogs 0; sheets 0; SafeArea 0; rows 0; buttons 0
+- `screens/home/enterprise_hub_screen.dart` — 975 lines; fields 1; dialogs 0; sheets 0; SafeArea 0; rows 5; buttons 3
+- `screens/home/home_screen.dart` — 1067 lines; fields 0; dialogs 0; sheets 0; SafeArea 1; rows 21; buttons 0
+- `screens/home/profile_screen.dart` — 3 lines; fields 0; dialogs 0; sheets 0; SafeArea 0; rows 0; buttons 0
+- `screens/inventory/inventory_screen.dart` — 592 lines; fields 6; dialogs 0; sheets 3; SafeArea 3; rows 1; buttons 8
+- `screens/my_work/my_work_screen.dart` — 1841 lines; fields 14; dialogs 0; sheets 2; SafeArea 1; rows 21; buttons 14
+- `screens/organization/organization_screen.dart` — 912 lines; fields 16; dialogs 0; sheets 2; SafeArea 2; rows 2; buttons 15
+- `screens/organization/team_screen.dart` — 247 lines; fields 0; dialogs 0; sheets 1; SafeArea 0; rows 0; buttons 1
+- `screens/performance/performance_screen.dart` — 556 lines; fields 7; dialogs 0; sheets 2; SafeArea 2; rows 0; buttons 7
+- `screens/purchase/purchase_screen.dart` — 363 lines; fields 8; dialogs 0; sheets 0; SafeArea 0; rows 1; buttons 6
+- `screens/reports/reports_screen.dart` — 6 lines; fields 0; dialogs 0; sheets 0; SafeArea 0; rows 0; buttons 0
+- `screens/sales/sales_screen.dart` — 452 lines; fields 8; dialogs 0; sheets 0; SafeArea 0; rows 1; buttons 6
+- `screens/tools/erp_tools_screen.dart` — 1083 lines; fields 11; dialogs 0; sheets 0; SafeArea 0; rows 6; buttons 25
+
+## API call/reference excerpts
+
+- `core/api_client.dart:121` `ApiPaths.login,`
+- `core/api_client.dart:140` `await post(ApiPaths.logout, data: const {}, idempotent: false);`
+- `core/api_client.dart:257` `ApiPaths.refresh,`
+- `core/app_version_gate.dart:30` `final data = await widget.api.get(`
+- `core/app_version_gate.dart:31` `ApiPaths.appVersionPolicy,`
+- `core/gps_tracking_service.dart:51` `await api.post(`
+- `core/gps_tracking_service.dart:52` `ApiPaths.gpsPoints,`
+- `screens/administration/administration_screen.dart:32` `future: api.get(ApiPaths.reversals),`
+- `screens/administration/administration_screen.dart:50` `future: api.get(ApiPaths.audit),`
+- `screens/administration/administration_screen.dart:86` `api.get(ApiPaths.accessMatrix),`
+- `screens/administration/administration_screen.dart:87` `api.get(ApiPaths.employees, query: {'branch_id': branchId}),`
+- `screens/administration/administration_screen.dart:167` `ApiPaths.reversalDecision(id), {'approve': true})),`
+- `screens/administration/administration_screen.dart:172` `ApiPaths.reversalDecision(id), {'approve': false})),`
+- `screens/administration/administration_screen.dart:180` `onTap: () => _post(ApiPaths.reversalExecute(id), const {})),`
+- `screens/administration/administration_screen.dart:210` `await _post(ApiPaths.adminRoles,`
+- `screens/administration/administration_screen.dart:261` `ApiPaths.roleCapabilities(int.parse('${role['id']}')),`
+- `screens/administration/administration_screen.dart:276` `.get(ApiPaths.employeeAccess(id)) as Map);`
+- `screens/administration/administration_screen.dart:433` `ApiPaths.employeeRoles(id),`
+- `screens/administration/administration_screen.dart:442` `ApiPaths.employeeOverrides(id),`
+- `screens/communication/communication_screen.dart:2` `class CommunicationScreen extends ConsumerWidget{const CommunicationScreen({super.key});@override Widget build(BuildContext context,WidgetRef ref){final api=ref.watch(apiClientProvider);return Scaffold(appBar:AppBar(title:const Text('Communication')),body:AsyncPanel(future:api.ge`
+- `screens/communication/tasks_screen.dart:3` `class _TasksScreenState extends ConsumerState<TasksScreen>{int refresh=0;@override Widget build(BuildContext context){final api=ref.watch(apiClientProvider);return AsyncPanel(key:ValueKey(refresh),future:api.get(ApiPaths.communicationSummary),builder:(context,data){final d=Map<St`
+- `screens/communication/tasks_screen.dart:4` `Future<void> _complete(int id) async{await ref.read(apiClientProvider).post(ApiPaths.taskComplete(id),data:const {});if(mounted)setState(()=>refresh++);}}`
+- `screens/finance/finance_screen.dart:87` `future: api.get(ApiPaths.trialBalance, query: {`
+- `screens/finance/finance_screen.dart:113` `future: api.get(ApiPaths.expenses,`
+- `screens/finance/finance_screen.dart:145` `future: api.get(ApiPaths.branchClosing,`
+- `screens/finance/finance_screen.dart:173` `future: api.get(ApiPaths.bankReconciliations,`
+- `screens/finance/finance_screen.dart:202` `future: api.get(ApiPaths.periods),`
+- `screens/finance/finance_screen.dart:295` `ApiPaths.financeAccounts,`
+- `screens/finance/finance_screen.dart:311` `.get(ApiPaths.financeBootstrap) as Map);`
+- `screens/finance/finance_screen.dart:362` `ApiPaths.expenseHeads,`
+- `screens/finance/finance_screen.dart:381` `await api.get(ApiPaths.financeBootstrap) as Map);`
+- `screens/finance/finance_screen.dart:451` `await api.post(ApiPaths.expenses, data: {`
+- `screens/finance/finance_screen.dart:488` `_post(ApiPaths.expenseDecision(id), {'approve': true})),`
+- `screens/finance/finance_screen.dart:493` `_post(ApiPaths.expenseDecision(id), {'approve': false})),`
+- `screens/finance/finance_screen.dart:500` `final r = await ref.read(apiClientProvider).get(ApiPaths.closingPreflight,`
+- `screens/finance/finance_screen.dart:511` `final r = await ref.read(apiClientProvider).post(ApiPaths.branchClosing,`
+- `screens/finance/finance_screen.dart:536` `onTap: () => _post(ApiPaths.closingClose(id), const {})),`
+- `screens/finance/finance_screen.dart:539` `_reasonPost(ApiPaths.closingReopen(id), 'Branch reopen reason');`
+- `screens/finance/finance_screen.dart:548` `await api.get(ApiPaths.financeBootstrap) as Map);`
+- `screens/finance/finance_screen.dart:618` `final r = await api.post(ApiPaths.bankReconciliations, data: {`
+- `screens/finance/finance_screen.dart:646` `.get(ApiPaths.bankDetail(id)) as Map);`
+- `screens/finance/finance_screen.dart:712` `await _post(ApiPaths.bankFinalize(id), const {},`
+- `screens/finance/finance_screen.dart:778` `ApiPaths.bankImport(id),`
+- `screens/finance/finance_screen.dart:846` `await _post(ApiPaths.bankMatch(int.parse('${line['id']}')),`
+- `screens/finance/finance_screen.dart:852` `await _post(ApiPaths.bankExclude(int.parse('${line['id']}')),`
+- `screens/finance/finance_screen.dart:889` `await _post(ApiPaths.periodClose,`
+- `screens/finance/finance_screen.dart:898` `_reasonPost(ApiPaths.periodReopen(int.parse('${row['id']}')),`
+- `screens/home/enterprise_hub_screen.dart:249` `final raw = await api.get(path, query: query);`
+- `screens/home/enterprise_hub_screen.dart:266` `await list(ApiPaths.dailyCycles, query: {'branch_id': branch});`
+- `screens/home/enterprise_hub_screen.dart:299` `final rows = await list(ApiPaths.expenses, query: {'branch_id': branch});`
+- `screens/home/enterprise_hub_screen.dart:319` `await list(ApiPaths.adjustments, query: {'branch_id': branch});`
+- `screens/home/enterprise_hub_screen.dart:338` `await list(ApiPaths.leavePending, query: {'branch_id': branch});`
+- `screens/home/enterprise_hub_screen.dart:357` `await list(ApiPaths.performanceTargets, query: {'branch_id': branch});`
+- `screens/home/enterprise_hub_screen.dart:376` `await list(ApiPaths.payrollRuns, query: {'branch_id': branch});`
+- `screens/home/enterprise_hub_screen.dart:394` `final rows = await list(ApiPaths.reversals, query: {'branch_id': branch});`
+- `screens/home/enterprise_hub_screen.dart:427` `await api.post(ApiPaths.dailyApprove(id), data: const {});`
+- `screens/home/enterprise_hub_screen.dart:431` `.post(ApiPaths.expenseDecision(id), data: {'approve': approve});`
+- `screens/home/enterprise_hub_screen.dart:434` `await api.post(ApiPaths.adjustmentDecision(id),`
+- `screens/home/enterprise_hub_screen.dart:439` `.post(ApiPaths.leaveDecision(id), data: {'approve': approve});`
+- `screens/home/enterprise_hub_screen.dart:442` `await api.post(ApiPaths.targetApprove(id), data: const {});`
+- `screens/home/enterprise_hub_screen.dart:445` `await api.post(ApiPaths.payrollApprove(id), data: const {});`
+- `screens/home/enterprise_hub_screen.dart:449` `.post(ApiPaths.reversalDecision(id), data: {'approve': approve});`
+- `screens/home/enterprise_hub_screen.dart:508` `final raw = await api.get(path, query: params);`
+- `screens/home/enterprise_hub_screen.dart:532` `path: ApiPaths.employees,`
+- `screens/home/enterprise_hub_screen.dart:547` `path: ApiPaths.products,`
+- `screens/home/enterprise_hub_screen.dart:556` `path: ApiPaths.customers,`
+- `screens/home/enterprise_hub_screen.dart:563` `path: ApiPaths.openSales,`
+- `screens/home/enterprise_hub_screen.dart:577` `path: ApiPaths.suppliers,`
+- `screens/home/enterprise_hub_screen.dart:584` `path: ApiPaths.openBills,`
+- `screens/home/enterprise_hub_screen.dart:595` `path: ApiPaths.dailyCycles,`
+- `screens/home/enterprise_hub_screen.dart:604` `path: ApiPaths.inventoryStock,`
+- `screens/home/enterprise_hub_screen.dart:618` `path: ApiPaths.expenses,`
+- `screens/home/enterprise_hub_screen.dart:628` `path: ApiPaths.performanceTargets,`
+- `screens/home/enterprise_hub_screen.dart:639` `path: ApiPaths.payrollRuns,`
+- `screens/home/home_screen.dart:406` `api.get(ApiPaths.attendanceToday),`
+- `screens/home/home_screen.dart:407` `api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}),`
+- `screens/home/home_screen.dart:408` `api.get(ApiPaths.communicationSummary),`
+- `screens/home/home_screen.dart:574` `api.get(ApiPaths.reportsSales, query: period),`
+- `screens/home/home_screen.dart:575` `api.get(ApiPaths.reportsPurchase, query: period),`
+- `screens/home/home_screen.dart:576` `api.get(ApiPaths.reportsStock, query: {'branch_id': branch}),`
+- `screens/home/home_screen.dart:577` `api.get(ApiPaths.performanceSummary, query: period),`
+- `screens/home/home_screen.dart:581` `futures.add(api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}));`
+- `screens/home/home_screen.dart:603` `future: api.get(ApiPaths.attendanceToday),`
+- `screens/home/home_screen.dart:668` `future: api.get(`
+- `screens/home/home_screen.dart:669` `ApiPaths.performanceSummary,`
+- `screens/inventory/inventory_screen.dart:35` `: api.get(ApiPaths.inventoryStock,`
+- `screens/inventory/inventory_screen.dart:54` `: api.get(ApiPaths.transfers,`
+- `screens/inventory/inventory_screen.dart:73` `: api.get(ApiPaths.adjustments,`
+- `screens/inventory/inventory_screen.dart:90` `: api.get(ApiPaths.quarantine,`
+- `screens/inventory/inventory_screen.dart:146` `return (await ref.read(apiClientProvider).get(ApiPaths.inventoryStock,`
+- `screens/inventory/inventory_screen.dart:235` `await api.post(ApiPaths.transfers, data: {`
+- `screens/inventory/inventory_screen.dart:322` `await api.post(ApiPaths.adjustments, data: {`
+- `screens/inventory/inventory_screen.dart:359` `onTap: () => _act(ApiPaths.transferPack(id))),`
+- `screens/inventory/inventory_screen.dart:364` `onTap: () => _act(ApiPaths.transferDispatch(id))),`
+- `screens/inventory/inventory_screen.dart:378` `onTap: () => _reasonAction(ApiPaths.transferCorrect(id),`
+- `screens/inventory/inventory_screen.dart:385` `onTap: () => _reasonAction(ApiPaths.transferCancel(id),`
+- `screens/inventory/inventory_screen.dart:394` `onTap: () => _reasonAction(ApiPaths.transferCancel(id),`
+- `screens/inventory/inventory_screen.dart:405` `.get(ApiPaths.transferDetail(id)) as Map);`
+- `screens/inventory/inventory_screen.dart:470` `.post(ApiPaths.transferReceive(id), data: {'lines': payload});`
+- `screens/inventory/inventory_screen.dart:496` `onTap: () => _act(ApiPaths.adjustmentDecision(id),`
+- `screens/inventory/inventory_screen.dart:501` `onTap: () => _act(ApiPaths.adjustmentDecision(id),`
+- `screens/inventory/inventory_screen.dart:534` `await _act(ApiPaths.quarantineResolve(id),`
+- `screens/my_work/my_work_screen.dart:79` `future: api.get(ApiPaths.attendanceToday),`
+- `screens/my_work/my_work_screen.dart:299` `final rows = (await api.get(`
+- `screens/my_work/my_work_screen.dart:300` `ApiPaths.dailyCycles,`
+- `screens/my_work/my_work_screen.dart:315` `final employees = (await api.get(`
+- `screens/my_work/my_work_screen.dart:316` `ApiPaths.employees,`
+- `screens/my_work/my_work_screen.dart:475` `future: api.get(ApiPaths.leaveMine),`
+- `screens/my_work/my_work_screen.dart:515` `future: api.get(ApiPaths.fieldVisitCurrent),`
+- `screens/my_work/my_work_screen.dart:646` `checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,`
+- `screens/my_work/my_work_screen.dart:681` `await api.get(ApiPaths.masterData) as Map,`
+- `screens/my_work/my_work_screen.dart:692` `employees = (await api.get(`
+- `screens/my_work/my_work_screen.dart:693` `ApiPaths.employees,`
+- `screens/my_work/my_work_screen.dart:805` `await api.post(`
+- `screens/my_work/my_work_screen.dart:806` `ApiPaths.dailyCycles,`
+- `screens/my_work/my_work_screen.dart:816` `await api.post(ApiPaths.dailySubmit(int.parse('${created['id']}')),`
+- `screens/my_work/my_work_screen.dart:834` `await ref.read(apiClientProvider).get(ApiPaths.dailyDetail(id)) as Map,`
+- `screens/my_work/my_work_screen.dart:858` `await api.post(ApiPaths.dailySubmit(id), data: const {});`
+- `screens/my_work/my_work_screen.dart:864` `await api.post(ApiPaths.dailyApprove(int.parse('${r['id']}')),`
+- `screens/my_work/my_work_screen.dart:874` `await api.post(ApiPaths.eveningStart(id), data: const {});`
+- `screens/my_work/my_work_screen.dart:893` `Map<String, dynamic>.from(await api.get(ApiPaths.masterData) as Map);`
+- `screens/my_work/my_work_screen.dart:957` `await api.post(ApiPaths.dailyAdditional(id), data: {'lines': lines});`
+- `screens/my_work/my_work_screen.dart:1151` `await api.post(`
+- `screens/my_work/my_work_screen.dart:1152` `ApiPaths.dailyIssue(int.parse('${r['id']}')),`
+- `screens/my_work/my_work_screen.dart:1313` `await api.post(`
+- `screens/my_work/my_work_screen.dart:1314` `ApiPaths.eveningSave(id),`
+- `screens/my_work/my_work_screen.dart:1324` `await api.post(ApiPaths.eveningSubmit(id), data: const {});`
+- `screens/my_work/my_work_screen.dart:1395` `await api.post(ApiPaths.finalPost(id), data: {'cash': c, 'upi': u});`
+- `screens/my_work/my_work_screen.dart:1434` `ApiPaths.employees,`
+- `screens/my_work/my_work_screen.dart:1739` `ApiPaths.leave,`
+- `screens/my_work/my_work_screen.dart:1766` `ApiPaths.visitComplete(id),`
+- `screens/my_work/my_work_screen.dart:1815` `ApiPaths.fieldVisitStart,`
+- `screens/organization/organization_screen.dart:156` `future: api.get(ApiPaths.employees,`
+- `screens/organization/organization_screen.dart:188` `future: api.get(ApiPaths.products),`
+- `screens/organization/organization_screen.dart:252` `await ref.read(apiClientProvider).post(ApiPaths.branches, data: payload);`
+- `screens/organization/organization_screen.dart:267` `api.get(ApiPaths.designations),`
+- `screens/organization/organization_screen.dart:268` `api.get(ApiPaths.roles),`
+- `screens/organization/organization_screen.dart:269` `api.get(ApiPaths.employees, query: {'branch_id': app.currentBranchId}),`
+- `screens/organization/organization_screen.dart:404` `await api.post(ApiPaths.employees, data: payload);`
+- `screens/organization/organization_screen.dart:453` `.get(ApiPaths.employeeHistory(id)) as List)`
+- `screens/organization/organization_screen.dart:544` `.post(ApiPaths.employeeTransfer(employeeId), data: payload);`
+- `screens/organization/organization_screen.dart:607` `await ref.read(apiClientProvider).post(ApiPaths.branchAuthority, data: {`
+- `screens/organization/organization_screen.dart:735` `await ref.read(apiClientProvider).post(ApiPaths.products, data: payload);`
+- `screens/organization/organization_screen.dart:775` `.get(ApiPaths.productHistory(id)) as List)`
+- `screens/organization/organization_screen.dart:873` `ApiPaths.productRevision(int.parse('${product['id']}')),`
+- `screens/organization/team_screen.dart:38` `: api.get(ApiPaths.dailyCycles,`
+- `screens/organization/team_screen.dart:57` `: api.get(ApiPaths.attendanceReport, query: {`
+- `screens/organization/team_screen.dart:79` `: api.get(ApiPaths.employees,`
+- `screens/organization/team_screen.dart:122` `await api.get(ApiPaths.dailyDetail(id)) as Map);`
+- `screens/organization/team_screen.dart:184` `.post(ApiPaths.dailyApprove(requestId), data: const {});`
+- `screens/organization/team_screen.dart:194` `final stock = (await api.get(ApiPaths.inventoryStock,`
+- `screens/organization/team_screen.dart:229` `await api.post(ApiPaths.dailyIssue(int.parse('${request['id']}')),`
+- `screens/performance/performance_screen.dart:35` `: api.get(ApiPaths.performanceSummary, query: {`
+- `screens/performance/performance_screen.dart:64` `: api.get(ApiPaths.performanceTargets,`
+- `screens/performance/performance_screen.dart:92` `: api.get(ApiPaths.payrollRuns,`
+- `screens/performance/performance_screen.dart:135` `ApiPaths.payrollRuns,`
+- `screens/performance/performance_screen.dart:158` `await ref.read(apiClientProvider).get(ApiPaths.payrollDetail(id));`
+- `screens/performance/performance_screen.dart:223` `await _postAction(ApiPaths.payrollApprove(id));`
+- `screens/performance/performance_screen.dart:303` `ApiPaths.payrollItemUpdate(runId, int.parse('${item['id']}')),`
+- `screens/performance/performance_screen.dart:329` `await ref.read(apiClientProvider).get(ApiPaths.financeBootstrap);`
+- `screens/performance/performance_screen.dart:390` `ApiPaths.payrollPay(id),`
+- `screens/performance/performance_screen.dart:413` `final employees = (await api.get(`
+- `screens/performance/performance_screen.dart:414` `ApiPaths.employees,`
+- `screens/performance/performance_screen.dart:480` `await api.post(`
+- `screens/performance/performance_screen.dart:481` `ApiPaths.performanceTargets,`
+- `screens/performance/performance_screen.dart:522` `_postAction(ApiPaths.targetApprove(id));`
+- `screens/purchase/purchase_screen.dart:55` `future: api.get(ApiPaths.openBills,`
+- `screens/purchase/purchase_screen.dart:112` `await ref.read(apiClientProvider).post(ApiPaths.suppliers, data: payload);`
+- `screens/purchase/purchase_screen.dart:127` `final suppliers = (await api.get(ApiPaths.suppliers) as List)`
+- `screens/purchase/purchase_screen.dart:130` `final products = (await api.get(ApiPaths.products) as List)`
+- `screens/purchase/purchase_screen.dart:250` `final r = await api.post(ApiPaths.purchaseBills, data: {`
+- `screens/purchase/purchase_screen.dart:273` `final bills = (await api.get(ApiPaths.openBills,`
+- `screens/purchase/purchase_screen.dart:278` `await api.get(ApiPaths.financeBootstrap) as Map);`
+- `screens/purchase/purchase_screen.dart:341` `await api.post(ApiPaths.supplierPayments, data: {`
+- `screens/reports/reports_screen.dart:3` `class _ReportsScreenState extends ConsumerState<ReportsScreen>{String type='sales';@override Widget build(BuildContext context){final app=ref.watch(appStateProvider);final api=ref.watch(apiClientProvider);final path={'sales':ApiPaths.reportsSales,'purchase':ApiPaths.reportsPurcha`
+- `screens/sales/sales_screen.dart:60` `future: api.get(ApiPaths.customers,`
+- `screens/sales/sales_screen.dart:133` `await ref.read(apiClientProvider).post(ApiPaths.customers, data: payload);`
+- `screens/sales/sales_screen.dart:149` `api.get(ApiPaths.products),`
+- `screens/sales/sales_screen.dart:150` `api.get(ApiPaths.availableStock,`
+- `screens/sales/sales_screen.dart:152` `api.get(ApiPaths.customers, query: {'branch_id': app.currentBranchId}),`
+- `screens/sales/sales_screen.dart:153` `api.get(ApiPaths.financeBootstrap),`
+- `screens/sales/sales_screen.dart:307` `final r = await api.post(ApiPaths.counterSale, data: {`
+- `screens/sales/sales_screen.dart:334` `api.get(ApiPaths.openSales, query: {'branch_id': branchId}),`
+- `screens/sales/sales_screen.dart:335` `api.get(ApiPaths.financeBootstrap),`
+- `screens/sales/sales_screen.dart:432` `await api.post(ApiPaths.customerReceipt, data: {`
+- `screens/tools/erp_tools_screen.dart:277` `future: api.get(ApiPaths.gpsRoute, query: {'from': from, 'to': to}),`
+- `screens/tools/erp_tools_screen.dart:329` `future: api.get(ApiPaths.holidays, query: {`
+- `screens/tools/erp_tools_screen.dart:360` `ApiPaths.holidayDeactivate(id), const {}),`
+- `screens/tools/erp_tools_screen.dart:423` `await api.post(ApiPaths.logoutAll,`
+- `screens/tools/erp_tools_screen.dart:430` `future: api.get(ApiPaths.authSessions),`
+- `screens/tools/erp_tools_screen.dart:449` `ApiPaths.authSessionRevoke(id), const {},`
+- `screens/tools/erp_tools_screen.dart:471` `future: api.get(ApiPaths.employeeDocuments(employeeId)),`
+- `screens/tools/erp_tools_screen.dart:540` `onPressed: () => _post(ApiPaths.notificationReadAll, const {}),`
+- `screens/tools/erp_tools_screen.dart:543` `future: api.get(ApiPaths.communicationSummary),`
+- `screens/tools/erp_tools_screen.dart:565` `_post(ApiPaths.taskComplete(id), const {}),`
+- `screens/tools/erp_tools_screen.dart:581` `ApiPaths.announcementAcknowledge(id), const {}),`
+- `screens/tools/erp_tools_screen.dart:602` `_post(ApiPaths.notificationRead(id), const {}),`
+- `screens/tools/erp_tools_screen.dart:624` `future: api.get(ApiPaths.employees,`
+- `screens/tools/erp_tools_screen.dart:657` `onPressed: () => _post(ApiPaths.maintenanceCleanup, const {}),`
+- `screens/tools/erp_tools_screen.dart:662` `future: api.get(ApiPaths.diagnostics),`
+- `screens/tools/erp_tools_screen.dart:679` `ApiPaths.appVersionPolicy,`
+- `screens/tools/erp_tools_screen.dart:759` `await _post(ApiPaths.holidays, {`
+- `screens/tools/erp_tools_screen.dart:798` `ApiPaths.employeeDocumentUpload(employeeId),`
+- `screens/tools/erp_tools_screen.dart:818` `final data = await ref.read(apiClientProvider).get(ApiPaths.employees,`
+- `screens/tools/erp_tools_screen.dart:864` `await _post(ApiPaths.tasks, {`
+- `screens/tools/erp_tools_screen.dart:896` `await _post(ApiPaths.announcements, {`
+- `screens/tools/erp_tools_screen.dart:943` `await _post(ApiPaths.notifications, {`
+- `screens/tools/erp_tools_screen.dart:962` `await ref.read(apiClientProvider).get(ApiPaths.employeeLoginStatus(id))`
+- `screens/tools/erp_tools_screen.dart:992` `ApiPaths.employeeRevokeSessions(id),`
+- `screens/tools/erp_tools_screen.dart:1010` `ApiPaths.employeeCredentials(id),`
+- `state/app_state.dart:112` `Map<String, dynamic>.from(await api.get(ApiPaths.bootstrap) as Map);`

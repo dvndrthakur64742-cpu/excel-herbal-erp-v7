@@ -1,0 +1,3578 @@
+{
+  "summary": {
+    "dart_files": 39,
+    "screen_files": 19,
+    "total_lines": 13273,
+    "api_reference_lines": 211,
+    "logic_reference_lines": 317,
+    "risk_counts": {
+      "HIGH": 4,
+      "LOW": 8,
+      "MEDIUM": 15
+    },
+    "ui_totals": {
+      "scaffold": 26,
+      "safe_area": 19,
+      "dialogs": 0,
+      "bottom_sheets": 14,
+      "text_fields": 95,
+      "dropdowns": 68,
+      "list_views": 27,
+      "scroll_views": 15,
+      "rows": 74,
+      "cards": 69,
+      "buttons": 118
+    }
+  },
+  "files": [
+    {
+      "file": "core/api_client.dart",
+      "lines": 334,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 6,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/api_paths.dart",
+      "lines": 198,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 4
+    },
+    {
+      "file": "core/app_config.dart",
+      "lines": 20,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/app_version_gate.dart",
+      "lines": 96,
+      "scaffold": 1,
+      "safe_area": 1,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 1,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 1,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/branch_projection.dart",
+      "lines": 9,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/business_format.dart",
+      "lines": 330,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/date_time_text.dart",
+      "lines": 33,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "lines": 89,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 1,
+      "permission_refs": 13
+    },
+    {
+      "file": "core/overlay_transition.dart",
+      "lines": 21,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/providers.dart",
+      "lines": 15,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/secure_session.dart",
+      "lines": 20,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/ui_error.dart",
+      "lines": 49,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "core/whole_pcs.dart",
+      "lines": 41,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "main.dart",
+      "lines": 141,
+      "scaffold": 2,
+      "safe_area": 1,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 2,
+      "cards": 1,
+      "containers": 1,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "lines": 495,
+      "scaffold": 2,
+      "safe_area": 1,
+      "dialogs": 0,
+      "bottom_sheets": 1,
+      "text_fields": 4,
+      "dropdowns": 4,
+      "list_views": 4,
+      "scroll_views": 0,
+      "rows": 1,
+      "columns": 4,
+      "cards": 2,
+      "containers": 0,
+      "buttons": 6,
+      "catch_blocks": 2,
+      "permission_refs": 19
+    },
+    {
+      "file": "screens/auth/login_screen.dart",
+      "lines": 206,
+      "scaffold": 1,
+      "safe_area": 1,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 2,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 1,
+      "rows": 1,
+      "columns": 2,
+      "cards": 0,
+      "containers": 4,
+      "buttons": 2,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "screens/common/record_detail_screen.dart",
+      "lines": 274,
+      "scaffold": 1,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 1,
+      "scroll_views": 0,
+      "rows": 5,
+      "columns": 3,
+      "cards": 4,
+      "containers": 1,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "screens/communication/communication_screen.dart",
+      "lines": 3,
+      "scaffold": 1,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 1,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "screens/communication/tasks_screen.dart",
+      "lines": 5,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 1,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 2,
+      "containers": 0,
+      "buttons": 1,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "lines": 963,
+      "scaffold": 2,
+      "safe_area": 2,
+      "dialogs": 0,
+      "bottom_sheets": 3,
+      "text_fields": 18,
+      "dropdowns": 14,
+      "list_views": 1,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 13,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 18,
+      "catch_blocks": 7,
+      "permission_refs": 11
+    },
+    {
+      "file": "screens/home/actions_screen.dart",
+      "lines": 3,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 1,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 1,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "lines": 975,
+      "scaffold": 1,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 1,
+      "dropdowns": 0,
+      "list_views": 1,
+      "scroll_views": 0,
+      "rows": 5,
+      "columns": 8,
+      "cards": 8,
+      "containers": 3,
+      "buttons": 3,
+      "catch_blocks": 3,
+      "permission_refs": 12
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "lines": 1067,
+      "scaffold": 1,
+      "safe_area": 1,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 2,
+      "scroll_views": 0,
+      "rows": 21,
+      "columns": 14,
+      "cards": 21,
+      "containers": 7,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 3
+    },
+    {
+      "file": "screens/home/profile_screen.dart",
+      "lines": 3,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 1,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 1,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "lines": 592,
+      "scaffold": 2,
+      "safe_area": 3,
+      "dialogs": 0,
+      "bottom_sheets": 3,
+      "text_fields": 6,
+      "dropdowns": 6,
+      "list_views": 0,
+      "scroll_views": 2,
+      "rows": 1,
+      "columns": 4,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 8,
+      "catch_blocks": 4,
+      "permission_refs": 12
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "lines": 1841,
+      "scaffold": 0,
+      "safe_area": 1,
+      "dialogs": 0,
+      "bottom_sheets": 2,
+      "text_fields": 14,
+      "dropdowns": 2,
+      "list_views": 5,
+      "scroll_views": 4,
+      "rows": 21,
+      "columns": 24,
+      "cards": 7,
+      "containers": 7,
+      "buttons": 14,
+      "catch_blocks": 10,
+      "permission_refs": 24
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "lines": 912,
+      "scaffold": 2,
+      "safe_area": 2,
+      "dialogs": 0,
+      "bottom_sheets": 2,
+      "text_fields": 16,
+      "dropdowns": 16,
+      "list_views": 1,
+      "scroll_views": 3,
+      "rows": 2,
+      "columns": 11,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 15,
+      "catch_blocks": 8,
+      "permission_refs": 7
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "lines": 247,
+      "scaffold": 2,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 1,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 1,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 2,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 1,
+      "catch_blocks": 3,
+      "permission_refs": 2
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "lines": 556,
+      "scaffold": 2,
+      "safe_area": 2,
+      "dialogs": 0,
+      "bottom_sheets": 2,
+      "text_fields": 7,
+      "dropdowns": 4,
+      "list_views": 1,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 7,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 7,
+      "catch_blocks": 6,
+      "permission_refs": 8
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "lines": 363,
+      "scaffold": 1,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 8,
+      "dropdowns": 6,
+      "list_views": 0,
+      "scroll_views": 1,
+      "rows": 1,
+      "columns": 5,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 6,
+      "catch_blocks": 3,
+      "permission_refs": 3
+    },
+    {
+      "file": "screens/reports/reports_screen.dart",
+      "lines": 6,
+      "scaffold": 1,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 1,
+      "rows": 0,
+      "columns": 1,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "lines": 452,
+      "scaffold": 1,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 8,
+      "dropdowns": 10,
+      "list_views": 0,
+      "scroll_views": 1,
+      "rows": 1,
+      "columns": 5,
+      "cards": 1,
+      "containers": 0,
+      "buttons": 6,
+      "catch_blocks": 3,
+      "permission_refs": 3
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "lines": 1083,
+      "scaffold": 1,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 11,
+      "dropdowns": 4,
+      "list_views": 4,
+      "scroll_views": 0,
+      "rows": 6,
+      "columns": 17,
+      "cards": 11,
+      "containers": 6,
+      "buttons": 25,
+      "catch_blocks": 10,
+      "permission_refs": 7
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "lines": 774,
+      "scaffold": 2,
+      "safe_area": 4,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 2,
+      "scroll_views": 0,
+      "rows": 5,
+      "columns": 6,
+      "cards": 0,
+      "containers": 6,
+      "buttons": 3,
+      "catch_blocks": 0,
+      "permission_refs": 3
+    },
+    {
+      "file": "state/app_state.dart",
+      "lines": 166,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 3,
+      "permission_refs": 6
+    },
+    {
+      "file": "theme/excel_brand.dart",
+      "lines": 236,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "widgets/async_panel.dart",
+      "lines": 15,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 1,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "widgets/branch_selector.dart",
+      "lines": 9,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 2,
+      "list_views": 0,
+      "scroll_views": 0,
+      "rows": 0,
+      "columns": 0,
+      "cards": 0,
+      "containers": 0,
+      "buttons": 0,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    },
+    {
+      "file": "widgets/records_list.dart",
+      "lines": 631,
+      "scaffold": 0,
+      "safe_area": 0,
+      "dialogs": 0,
+      "bottom_sheets": 0,
+      "text_fields": 0,
+      "dropdowns": 0,
+      "list_views": 1,
+      "scroll_views": 2,
+      "rows": 4,
+      "columns": 5,
+      "cards": 3,
+      "containers": 3,
+      "buttons": 3,
+      "catch_blocks": 0,
+      "permission_refs": 0
+    }
+  ],
+  "risks": [
+    {
+      "severity": "HIGH",
+      "file": "screens/administration/administration_screen.dart",
+      "line": null,
+      "message": "Bottom sheet exists without isScrollControlled:true; long forms can clip."
+    },
+    {
+      "severity": "LOW",
+      "file": "screens/administration/administration_screen.dart",
+      "line": null,
+      "message": "Large fixed dimension detected (680); responsiveness should be checked."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/auth/login_screen.dart",
+      "line": null,
+      "message": "Exception terminology is present in a screen; verify no technical text leaks to users."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/finance/finance_screen.dart",
+      "line": null,
+      "message": "Raw toString() appears near error handling; verify error mapping is centralized."
+    },
+    {
+      "severity": "LOW",
+      "file": "screens/finance/finance_screen.dart",
+      "line": null,
+      "message": "Large fixed dimension detected (540); responsiveness should be checked."
+    },
+    {
+      "severity": "HIGH",
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": null,
+      "message": "Bottom sheet exists without isScrollControlled:true; long forms can clip."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": null,
+      "message": "Exception terminology is present in a screen; verify no technical text leaks to users."
+    },
+    {
+      "severity": "LOW",
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": null,
+      "message": "Large fixed dimension detected (560); responsiveness should be checked."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": null,
+      "message": "Exception terminology is present in a screen; verify no technical text leaks to users."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": null,
+      "message": "Raw toString() appears near error handling; verify error mapping is centralized."
+    },
+    {
+      "severity": "LOW",
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": null,
+      "message": "Large fixed dimension detected (720); responsiveness should be checked."
+    },
+    {
+      "severity": "HIGH",
+      "file": "screens/organization/organization_screen.dart",
+      "line": null,
+      "message": "Bottom sheet exists without isScrollControlled:true; long forms can clip."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/organization/organization_screen.dart",
+      "line": null,
+      "message": "Raw toString() appears near error handling; verify error mapping is centralized."
+    },
+    {
+      "severity": "LOW",
+      "file": "screens/organization/organization_screen.dart",
+      "line": null,
+      "message": "Large fixed dimension detected (680); responsiveness should be checked."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/organization/team_screen.dart",
+      "line": null,
+      "message": "Exception terminology is present in a screen; verify no technical text leaks to users."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/organization/team_screen.dart",
+      "line": null,
+      "message": "Raw toString() appears near error handling; verify error mapping is centralized."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/organization/team_screen.dart",
+      "line": null,
+      "message": "Bottom-sheet code has no explicit SafeArea in this screen."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/performance/performance_screen.dart",
+      "line": null,
+      "message": "Raw toString() appears near error handling; verify error mapping is centralized."
+    },
+    {
+      "severity": "LOW",
+      "file": "screens/performance/performance_screen.dart",
+      "line": null,
+      "message": "Large fixed dimension detected (520); responsiveness should be checked."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": null,
+      "message": "Exception terminology is present in a screen; verify no technical text leaks to users."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": null,
+      "message": "Raw toString() appears near error handling; verify error mapping is centralized."
+    },
+    {
+      "severity": "LOW",
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": null,
+      "message": "Large fixed dimension detected (620); responsiveness should be checked."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/sales/sales_screen.dart",
+      "line": null,
+      "message": "Exception terminology is present in a screen; verify no technical text leaks to users."
+    },
+    {
+      "severity": "LOW",
+      "file": "screens/sales/sales_screen.dart",
+      "line": null,
+      "message": "Large fixed dimension detected (680); responsiveness should be checked."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": null,
+      "message": "Raw toString() appears near error handling; verify error mapping is centralized."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "core/api_client.dart",
+      "line": null,
+      "message": "Request-id diagnostics are not visibly consumed by the app client."
+    },
+    {
+      "severity": "HIGH",
+      "file": "state/app_state.dart",
+      "line": null,
+      "message": "Session clearing/logout occurs near catch handling; network errors may risk unintended logout\u2014manual review required."
+    }
+  ],
+  "api": [
+    {
+      "file": "core/api_client.dart",
+      "line": 121,
+      "text": "ApiPaths.login,"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 140,
+      "text": "await post(ApiPaths.logout, data: const {}, idempotent: false);"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 257,
+      "text": "ApiPaths.refresh,"
+    },
+    {
+      "file": "core/app_version_gate.dart",
+      "line": 30,
+      "text": "final data = await widget.api.get("
+    },
+    {
+      "file": "core/app_version_gate.dart",
+      "line": 31,
+      "text": "ApiPaths.appVersionPolicy,"
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 51,
+      "text": "await api.post("
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 52,
+      "text": "ApiPaths.gpsPoints,"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 32,
+      "text": "future: api.get(ApiPaths.reversals),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 50,
+      "text": "future: api.get(ApiPaths.audit),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 86,
+      "text": "api.get(ApiPaths.accessMatrix),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 87,
+      "text": "api.get(ApiPaths.employees, query: {'branch_id': branchId}),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 167,
+      "text": "ApiPaths.reversalDecision(id), {'approve': true})),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 172,
+      "text": "ApiPaths.reversalDecision(id), {'approve': false})),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 180,
+      "text": "onTap: () => _post(ApiPaths.reversalExecute(id), const {})),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 210,
+      "text": "await _post(ApiPaths.adminRoles,"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 261,
+      "text": "ApiPaths.roleCapabilities(int.parse('${role['id']}')),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 276,
+      "text": ".get(ApiPaths.employeeAccess(id)) as Map);"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 433,
+      "text": "ApiPaths.employeeRoles(id),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 442,
+      "text": "ApiPaths.employeeOverrides(id),"
+    },
+    {
+      "file": "screens/communication/communication_screen.dart",
+      "line": 2,
+      "text": "class CommunicationScreen extends ConsumerWidget{const CommunicationScreen({super.key});@override Widget build(BuildContext context,WidgetRef ref){final api=ref.watch(apiClientProvider);return Scaffold(appBar:AppBar(title:const Text('Communication')),body:AsyncPanel(future:api.ge"
+    },
+    {
+      "file": "screens/communication/tasks_screen.dart",
+      "line": 3,
+      "text": "class _TasksScreenState extends ConsumerState<TasksScreen>{int refresh=0;@override Widget build(BuildContext context){final api=ref.watch(apiClientProvider);return AsyncPanel(key:ValueKey(refresh),future:api.get(ApiPaths.communicationSummary),builder:(context,data){final d=Map<St"
+    },
+    {
+      "file": "screens/communication/tasks_screen.dart",
+      "line": 4,
+      "text": "Future<void> _complete(int id) async{await ref.read(apiClientProvider).post(ApiPaths.taskComplete(id),data:const {});if(mounted)setState(()=>refresh++);}}"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 87,
+      "text": "future: api.get(ApiPaths.trialBalance, query: {"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 113,
+      "text": "future: api.get(ApiPaths.expenses,"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 145,
+      "text": "future: api.get(ApiPaths.branchClosing,"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 173,
+      "text": "future: api.get(ApiPaths.bankReconciliations,"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 202,
+      "text": "future: api.get(ApiPaths.periods),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 295,
+      "text": "ApiPaths.financeAccounts,"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 311,
+      "text": ".get(ApiPaths.financeBootstrap) as Map);"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 362,
+      "text": "ApiPaths.expenseHeads,"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 381,
+      "text": "await api.get(ApiPaths.financeBootstrap) as Map);"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 451,
+      "text": "await api.post(ApiPaths.expenses, data: {"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 488,
+      "text": "_post(ApiPaths.expenseDecision(id), {'approve': true})),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 493,
+      "text": "_post(ApiPaths.expenseDecision(id), {'approve': false})),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 500,
+      "text": "final r = await ref.read(apiClientProvider).get(ApiPaths.closingPreflight,"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 511,
+      "text": "final r = await ref.read(apiClientProvider).post(ApiPaths.branchClosing,"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 536,
+      "text": "onTap: () => _post(ApiPaths.closingClose(id), const {})),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 539,
+      "text": "_reasonPost(ApiPaths.closingReopen(id), 'Branch reopen reason');"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 548,
+      "text": "await api.get(ApiPaths.financeBootstrap) as Map);"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 618,
+      "text": "final r = await api.post(ApiPaths.bankReconciliations, data: {"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 646,
+      "text": ".get(ApiPaths.bankDetail(id)) as Map);"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 712,
+      "text": "await _post(ApiPaths.bankFinalize(id), const {},"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 778,
+      "text": "ApiPaths.bankImport(id),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 846,
+      "text": "await _post(ApiPaths.bankMatch(int.parse('${line['id']}')),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 852,
+      "text": "await _post(ApiPaths.bankExclude(int.parse('${line['id']}')),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 889,
+      "text": "await _post(ApiPaths.periodClose,"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 898,
+      "text": "_reasonPost(ApiPaths.periodReopen(int.parse('${row['id']}')),"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 249,
+      "text": "final raw = await api.get(path, query: query);"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 266,
+      "text": "await list(ApiPaths.dailyCycles, query: {'branch_id': branch});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 299,
+      "text": "final rows = await list(ApiPaths.expenses, query: {'branch_id': branch});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 319,
+      "text": "await list(ApiPaths.adjustments, query: {'branch_id': branch});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 338,
+      "text": "await list(ApiPaths.leavePending, query: {'branch_id': branch});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 357,
+      "text": "await list(ApiPaths.performanceTargets, query: {'branch_id': branch});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 376,
+      "text": "await list(ApiPaths.payrollRuns, query: {'branch_id': branch});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 394,
+      "text": "final rows = await list(ApiPaths.reversals, query: {'branch_id': branch});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 427,
+      "text": "await api.post(ApiPaths.dailyApprove(id), data: const {});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 431,
+      "text": ".post(ApiPaths.expenseDecision(id), data: {'approve': approve});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 434,
+      "text": "await api.post(ApiPaths.adjustmentDecision(id),"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 439,
+      "text": ".post(ApiPaths.leaveDecision(id), data: {'approve': approve});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 442,
+      "text": "await api.post(ApiPaths.targetApprove(id), data: const {});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 445,
+      "text": "await api.post(ApiPaths.payrollApprove(id), data: const {});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 449,
+      "text": ".post(ApiPaths.reversalDecision(id), data: {'approve': approve});"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 508,
+      "text": "final raw = await api.get(path, query: params);"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 532,
+      "text": "path: ApiPaths.employees,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 547,
+      "text": "path: ApiPaths.products,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 556,
+      "text": "path: ApiPaths.customers,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 563,
+      "text": "path: ApiPaths.openSales,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 577,
+      "text": "path: ApiPaths.suppliers,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 584,
+      "text": "path: ApiPaths.openBills,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 595,
+      "text": "path: ApiPaths.dailyCycles,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 604,
+      "text": "path: ApiPaths.inventoryStock,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 618,
+      "text": "path: ApiPaths.expenses,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 628,
+      "text": "path: ApiPaths.performanceTargets,"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 639,
+      "text": "path: ApiPaths.payrollRuns,"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 406,
+      "text": "api.get(ApiPaths.attendanceToday),"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 407,
+      "text": "api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}),"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 408,
+      "text": "api.get(ApiPaths.communicationSummary),"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 574,
+      "text": "api.get(ApiPaths.reportsSales, query: period),"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 575,
+      "text": "api.get(ApiPaths.reportsPurchase, query: period),"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 576,
+      "text": "api.get(ApiPaths.reportsStock, query: {'branch_id': branch}),"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 577,
+      "text": "api.get(ApiPaths.performanceSummary, query: period),"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 581,
+      "text": "futures.add(api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}));"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 603,
+      "text": "future: api.get(ApiPaths.attendanceToday),"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 668,
+      "text": "future: api.get("
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 669,
+      "text": "ApiPaths.performanceSummary,"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 35,
+      "text": ": api.get(ApiPaths.inventoryStock,"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 54,
+      "text": ": api.get(ApiPaths.transfers,"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 73,
+      "text": ": api.get(ApiPaths.adjustments,"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 90,
+      "text": ": api.get(ApiPaths.quarantine,"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 146,
+      "text": "return (await ref.read(apiClientProvider).get(ApiPaths.inventoryStock,"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 235,
+      "text": "await api.post(ApiPaths.transfers, data: {"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 322,
+      "text": "await api.post(ApiPaths.adjustments, data: {"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 359,
+      "text": "onTap: () => _act(ApiPaths.transferPack(id))),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 364,
+      "text": "onTap: () => _act(ApiPaths.transferDispatch(id))),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 378,
+      "text": "onTap: () => _reasonAction(ApiPaths.transferCorrect(id),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 385,
+      "text": "onTap: () => _reasonAction(ApiPaths.transferCancel(id),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 394,
+      "text": "onTap: () => _reasonAction(ApiPaths.transferCancel(id),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 405,
+      "text": ".get(ApiPaths.transferDetail(id)) as Map);"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 470,
+      "text": ".post(ApiPaths.transferReceive(id), data: {'lines': payload});"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 496,
+      "text": "onTap: () => _act(ApiPaths.adjustmentDecision(id),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 501,
+      "text": "onTap: () => _act(ApiPaths.adjustmentDecision(id),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 534,
+      "text": "await _act(ApiPaths.quarantineResolve(id),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 79,
+      "text": "future: api.get(ApiPaths.attendanceToday),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 299,
+      "text": "final rows = (await api.get("
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 300,
+      "text": "ApiPaths.dailyCycles,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 315,
+      "text": "final employees = (await api.get("
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 316,
+      "text": "ApiPaths.employees,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 475,
+      "text": "future: api.get(ApiPaths.leaveMine),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 515,
+      "text": "future: api.get(ApiPaths.fieldVisitCurrent),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 646,
+      "text": "checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 681,
+      "text": "await api.get(ApiPaths.masterData) as Map,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 692,
+      "text": "employees = (await api.get("
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 693,
+      "text": "ApiPaths.employees,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 805,
+      "text": "await api.post("
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 806,
+      "text": "ApiPaths.dailyCycles,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 816,
+      "text": "await api.post(ApiPaths.dailySubmit(int.parse('${created['id']}')),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 834,
+      "text": "await ref.read(apiClientProvider).get(ApiPaths.dailyDetail(id)) as Map,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 858,
+      "text": "await api.post(ApiPaths.dailySubmit(id), data: const {});"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 864,
+      "text": "await api.post(ApiPaths.dailyApprove(int.parse('${r['id']}')),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 874,
+      "text": "await api.post(ApiPaths.eveningStart(id), data: const {});"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 893,
+      "text": "Map<String, dynamic>.from(await api.get(ApiPaths.masterData) as Map);"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 957,
+      "text": "await api.post(ApiPaths.dailyAdditional(id), data: {'lines': lines});"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1151,
+      "text": "await api.post("
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1152,
+      "text": "ApiPaths.dailyIssue(int.parse('${r['id']}')),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1313,
+      "text": "await api.post("
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1314,
+      "text": "ApiPaths.eveningSave(id),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1324,
+      "text": "await api.post(ApiPaths.eveningSubmit(id), data: const {});"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1395,
+      "text": "await api.post(ApiPaths.finalPost(id), data: {'cash': c, 'upi': u});"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1434,
+      "text": "ApiPaths.employees,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1739,
+      "text": "ApiPaths.leave,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1766,
+      "text": "ApiPaths.visitComplete(id),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1815,
+      "text": "ApiPaths.fieldVisitStart,"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 156,
+      "text": "future: api.get(ApiPaths.employees,"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 188,
+      "text": "future: api.get(ApiPaths.products),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 252,
+      "text": "await ref.read(apiClientProvider).post(ApiPaths.branches, data: payload);"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 267,
+      "text": "api.get(ApiPaths.designations),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 268,
+      "text": "api.get(ApiPaths.roles),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 269,
+      "text": "api.get(ApiPaths.employees, query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 404,
+      "text": "await api.post(ApiPaths.employees, data: payload);"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 453,
+      "text": ".get(ApiPaths.employeeHistory(id)) as List)"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 544,
+      "text": ".post(ApiPaths.employeeTransfer(employeeId), data: payload);"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 607,
+      "text": "await ref.read(apiClientProvider).post(ApiPaths.branchAuthority, data: {"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 735,
+      "text": "await ref.read(apiClientProvider).post(ApiPaths.products, data: payload);"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 775,
+      "text": ".get(ApiPaths.productHistory(id)) as List)"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 873,
+      "text": "ApiPaths.productRevision(int.parse('${product['id']}')),"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 38,
+      "text": ": api.get(ApiPaths.dailyCycles,"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 57,
+      "text": ": api.get(ApiPaths.attendanceReport, query: {"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 79,
+      "text": ": api.get(ApiPaths.employees,"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 122,
+      "text": "await api.get(ApiPaths.dailyDetail(id)) as Map);"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 184,
+      "text": ".post(ApiPaths.dailyApprove(requestId), data: const {});"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 194,
+      "text": "final stock = (await api.get(ApiPaths.inventoryStock,"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 229,
+      "text": "await api.post(ApiPaths.dailyIssue(int.parse('${request['id']}')),"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 35,
+      "text": ": api.get(ApiPaths.performanceSummary, query: {"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 64,
+      "text": ": api.get(ApiPaths.performanceTargets,"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 92,
+      "text": ": api.get(ApiPaths.payrollRuns,"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 135,
+      "text": "ApiPaths.payrollRuns,"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 158,
+      "text": "await ref.read(apiClientProvider).get(ApiPaths.payrollDetail(id));"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 223,
+      "text": "await _postAction(ApiPaths.payrollApprove(id));"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 303,
+      "text": "ApiPaths.payrollItemUpdate(runId, int.parse('${item['id']}')),"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 329,
+      "text": "await ref.read(apiClientProvider).get(ApiPaths.financeBootstrap);"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 390,
+      "text": "ApiPaths.payrollPay(id),"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 413,
+      "text": "final employees = (await api.get("
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 414,
+      "text": "ApiPaths.employees,"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 480,
+      "text": "await api.post("
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 481,
+      "text": "ApiPaths.performanceTargets,"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 522,
+      "text": "_postAction(ApiPaths.targetApprove(id));"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 55,
+      "text": "future: api.get(ApiPaths.openBills,"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 112,
+      "text": "await ref.read(apiClientProvider).post(ApiPaths.suppliers, data: payload);"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 127,
+      "text": "final suppliers = (await api.get(ApiPaths.suppliers) as List)"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 130,
+      "text": "final products = (await api.get(ApiPaths.products) as List)"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 250,
+      "text": "final r = await api.post(ApiPaths.purchaseBills, data: {"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 273,
+      "text": "final bills = (await api.get(ApiPaths.openBills,"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 278,
+      "text": "await api.get(ApiPaths.financeBootstrap) as Map);"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 341,
+      "text": "await api.post(ApiPaths.supplierPayments, data: {"
+    },
+    {
+      "file": "screens/reports/reports_screen.dart",
+      "line": 3,
+      "text": "class _ReportsScreenState extends ConsumerState<ReportsScreen>{String type='sales';@override Widget build(BuildContext context){final app=ref.watch(appStateProvider);final api=ref.watch(apiClientProvider);final path={'sales':ApiPaths.reportsSales,'purchase':ApiPaths.reportsPurcha"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 60,
+      "text": "future: api.get(ApiPaths.customers,"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 133,
+      "text": "await ref.read(apiClientProvider).post(ApiPaths.customers, data: payload);"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 149,
+      "text": "api.get(ApiPaths.products),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 150,
+      "text": "api.get(ApiPaths.availableStock,"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 152,
+      "text": "api.get(ApiPaths.customers, query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 153,
+      "text": "api.get(ApiPaths.financeBootstrap),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 307,
+      "text": "final r = await api.post(ApiPaths.counterSale, data: {"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 334,
+      "text": "api.get(ApiPaths.openSales, query: {'branch_id': branchId}),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 335,
+      "text": "api.get(ApiPaths.financeBootstrap),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 432,
+      "text": "await api.post(ApiPaths.customerReceipt, data: {"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 277,
+      "text": "future: api.get(ApiPaths.gpsRoute, query: {'from': from, 'to': to}),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 329,
+      "text": "future: api.get(ApiPaths.holidays, query: {"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 360,
+      "text": "ApiPaths.holidayDeactivate(id), const {}),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 423,
+      "text": "await api.post(ApiPaths.logoutAll,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 430,
+      "text": "future: api.get(ApiPaths.authSessions),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 449,
+      "text": "ApiPaths.authSessionRevoke(id), const {},"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 471,
+      "text": "future: api.get(ApiPaths.employeeDocuments(employeeId)),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 540,
+      "text": "onPressed: () => _post(ApiPaths.notificationReadAll, const {}),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 543,
+      "text": "future: api.get(ApiPaths.communicationSummary),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 565,
+      "text": "_post(ApiPaths.taskComplete(id), const {}),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 581,
+      "text": "ApiPaths.announcementAcknowledge(id), const {}),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 602,
+      "text": "_post(ApiPaths.notificationRead(id), const {}),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 624,
+      "text": "future: api.get(ApiPaths.employees,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 657,
+      "text": "onPressed: () => _post(ApiPaths.maintenanceCleanup, const {}),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 662,
+      "text": "future: api.get(ApiPaths.diagnostics),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 679,
+      "text": "ApiPaths.appVersionPolicy,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 759,
+      "text": "await _post(ApiPaths.holidays, {"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 798,
+      "text": "ApiPaths.employeeDocumentUpload(employeeId),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 818,
+      "text": "final data = await ref.read(apiClientProvider).get(ApiPaths.employees,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 864,
+      "text": "await _post(ApiPaths.tasks, {"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 896,
+      "text": "await _post(ApiPaths.announcements, {"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 943,
+      "text": "await _post(ApiPaths.notifications, {"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 962,
+      "text": "await ref.read(apiClientProvider).get(ApiPaths.employeeLoginStatus(id))"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 992,
+      "text": "ApiPaths.employeeRevokeSessions(id),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 1010,
+      "text": "ApiPaths.employeeCredentials(id),"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 112,
+      "text": "Map<String, dynamic>.from(await api.get(ApiPaths.bootstrap) as Map);"
+    }
+  ],
+  "logic": [
+    {
+      "file": "core/api_client.dart",
+      "line": 63,
+      "text": "bool idempotent = true,"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 70,
+      "text": "idempotent: idempotent,"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 85,
+      "text": "headers['X-Idempotency-Key'] = _requestKey();"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 127,
+      "text": "idempotent: false,"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 138,
+      "text": "Future<void> logout() async {"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 140,
+      "text": "await post(ApiPaths.logout, data: const {}, idempotent: false);"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 142,
+      "text": "// Local logout still proceeds when the network is unavailable."
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 153,
+      "text": "bool idempotent = false,"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 168,
+      "text": "if (idempotent && method != 'GET') {"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 173,
+      "text": "headers['X-Idempotency-Key'] = mutationKey;"
+    },
+    {
+      "file": "core/api_client.dart",
+      "line": 195,
+      "text": "idempotent: idempotent,"
+    },
+    {
+      "file": "core/api_paths.dart",
+      "line": 6,
+      "text": "logout = '/auth/logout',"
+    },
+    {
+      "file": "core/api_paths.dart",
+      "line": 8,
+      "text": "logoutAll = '/auth/logout-all',"
+    },
+    {
+      "file": "core/api_paths.dart",
+      "line": 141,
+      "text": "static String eveningStart(int id) => '/daily/cycles/$id/evening/start';"
+    },
+    {
+      "file": "core/api_paths.dart",
+      "line": 142,
+      "text": "static String eveningSave(int id) => '/daily/cycles/$id/evening/save';"
+    },
+    {
+      "file": "core/api_paths.dart",
+      "line": 143,
+      "text": "static String eveningSubmit(int id) => '/daily/cycles/$id/evening/submit';"
+    },
+    {
+      "file": "core/branch_projection.dart",
+      "line": 2,
+      "text": "const BranchProjection({required this.assignedBranchId, required this.branchIds});"
+    },
+    {
+      "file": "core/branch_projection.dart",
+      "line": 3,
+      "text": "final int assignedBranchId;"
+    },
+    {
+      "file": "core/branch_projection.dart",
+      "line": 4,
+      "text": "final List<int> branchIds;"
+    },
+    {
+      "file": "core/branch_projection.dart",
+      "line": 5,
+      "text": "bool get selectorVisible => branchIds.length > 1;"
+    },
+    {
+      "file": "core/branch_projection.dart",
+      "line": 6,
+      "text": "int? get automaticBranchId => branchIds.length == 1 ? branchIds.first : null;"
+    },
+    {
+      "file": "core/branch_projection.dart",
+      "line": 7,
+      "text": "bool allows(int id) => branchIds.contains(id);"
+    },
+    {
+      "file": "core/business_format.dart",
+      "line": 92,
+      "text": "'evening_draft': 'Evening Draft',"
+    },
+    {
+      "file": "core/business_format.dart",
+      "line": 93,
+      "text": "'evening_submitted': 'Final Post Pending',"
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 27,
+      "text": "await _ensurePermission();"
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 72,
+      "text": "Future<void> _ensurePermission() async {"
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 73,
+      "text": "var permission = await Geolocator.checkPermission();"
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 74,
+      "text": "if (permission == LocationPermission.denied) {"
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 75,
+      "text": "permission = await Geolocator.requestPermission();"
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 77,
+      "text": "if (permission == LocationPermission.denied ||"
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 78,
+      "text": "permission == LocationPermission.deniedForever) {"
+    },
+    {
+      "file": "core/gps_tracking_service.dart",
+      "line": 79,
+      "text": "throw Exception('Location permission required.');"
+    },
+    {
+      "file": "main.dart",
+      "line": 126,
+      "text": "ref.read(appStateProvider.notifier).logout(),"
+    },
+    {
+      "file": "main.dart",
+      "line": 127,
+      "text": "icon: const Icon(Icons.logout),"
+    },
+    {
+      "file": "main.dart",
+      "line": 128,
+      "text": "label: const Text('Logout'),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 43,
+      "text": "tabs.add(('Access', _accessTab(app.currentBranchId)));"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 79,
+      "text": "Widget _accessTab(int? branchId) {"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 80,
+      "text": "if (branchId == null)"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 84,
+      "text": "key: ValueKey('access-$refresh-$branchId'),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 87,
+      "text": "api.get(ApiPaths.employees, query: {'branch_id': branchId}),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 106,
+      "text": "child: Text('Roles & Permissions',"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 119,
+      "text": "'${r['code']} \u00b7 ${((r['capabilities'] as List?) ?? const []).length} permissions'),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 128,
+      "text": "'Designation recommended permissions are automatic; roles are additional access.',"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 227,
+      "text": "title: Text('Permissions \u00b7 ${role['name']}'),"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 296,
+      "text": ".map((e) => '${e['capability']}')"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 301,
+      "text": ".map((e) => '${e['capability']}')"
+    },
+    {
+      "file": "screens/administration/administration_screen.dart",
+      "line": 330,
+      "text": "'Designation: ${employee['designation_code']} \u00b7 recommended permissions apply automatically.',"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 86,
+      "text": "key: ValueKey('tb-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 89,
+      "text": "if (app.currentBranchId != null) 'branch_id': app.currentBranchId"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 98,
+      "text": "if (app.currentBranchId == null)"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 112,
+      "text": "key: ValueKey('expenses-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 114,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 124,
+      "text": "if (app.currentBranchId == null)"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 144,
+      "text": "key: ValueKey('closing-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 146,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 158,
+      "text": "if (app.currentBranchId == null)"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 172,
+      "text": "key: ValueKey('bank-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 174,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 452,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 501,
+      "text": "query: {'branch_id': app.currentBranchId, 'business_date': _today()});"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 512,
+      "text": "data: {'branch_id': app.currentBranchId, 'business_date': _today()});"
+    },
+    {
+      "file": "screens/finance/finance_screen.dart",
+      "line": 619,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/home/actions_screen.dart",
+      "line": 2,
+      "text": "class ActionsScreen extends StatelessWidget{const ActionsScreen({super.key,required this.openMyWork,required this.openModule});final VoidCallback openMyWork;final void Function(String) openModule;@override Widget build(BuildContext context){final actions=[('Check-In / Out',Icons.location_on_outlined"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 78,
+      "text": "if (app.currentBranchId == null) {"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 82,
+      "text": "key: ValueKey('approval-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 167,
+      "text": "'Search only across records allowed by your designation, permissions and current branch authority.',"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 242,
+      "text": "final branch = app.currentBranchId!;"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 260,
+      "text": "'daily_order.approve',"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 261,
+      "text": "'daily_order.issue',"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 262,
+      "text": "'daily_order.review',"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 263,
+      "text": "'daily_order.others'"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 270,
+      "text": "if (requestStatus == 'submitted' && app.can('daily_order.approve')) {"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 283,
+      "text": "app.can('daily_order.issue')) {"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 495,
+      "text": "final branch = app.currentBranchId;"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 591,
+      "text": "app.canAny(const ['daily_order.self', 'daily_order.others'])) {"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 594,
+      "text": "recordType: 'daily_order',"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 689,
+      "text": "'daily_order.approve',"
+    },
+    {
+      "file": "screens/home/enterprise_hub_screen.dart",
+      "line": 690,
+      "text": "'daily_order.issue',"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 20,
+      "text": "final branch = app.currentBranchId;"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 458,
+      "text": "'issued' => 'Next: Field work / Additional Requirement / Evening Closing',"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 459,
+      "text": "'evening_draft' => 'Next: Submit Evening Closing',"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 460,
+      "text": "'evening_submitted' => 'Next: Office Final Post pending',"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 470,
+      "text": "'issued' => 'Evening Pending',"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 471,
+      "text": "'evening_draft' => 'Evening Draft',"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 472,
+      "text": "'evening_submitted' => 'Final Post Pending',"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 512,
+      "text": "status == 'evening_submitted';"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 579,
+      "text": "final includeDaily = app.can('daily_order.others');"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 728,
+      "text": "if (int.tryParse('${b['id']}') == app.currentBranchId)"
+    },
+    {
+      "file": "screens/home/home_screen.dart",
+      "line": 738,
+      "text": "return 'evening';"
+    },
+    {
+      "file": "screens/home/profile_screen.dart",
+      "line": 2,
+      "text": "class ProfileScreen extends ConsumerWidget{const ProfileScreen({super.key});@override Widget build(BuildContext context,WidgetRef ref){final app=ref.watch(appStateProvider);final e=Map<String,dynamic>.from((app.me['employee'] as Map?)??const{});return ListView(padding:const EdgeInsets.all(16),childr"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 32,
+      "text": "key: ValueKey('s-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 33,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 36,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 51,
+      "text": "key: ValueKey('t-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 52,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 55,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 70,
+      "text": "key: ValueKey('a-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 71,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 74,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 87,
+      "text": "key: ValueKey('q-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 88,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 91,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 119,
+      "text": "app.currentBranchId == null ? null : _createTransfer,"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 125,
+      "text": "app.currentBranchId == null ? null : _createAdjustment,"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 133,
+      "text": "child: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 147,
+      "text": "query: {'branch_id': app.currentBranchId}) as List)"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 184,
+      "text": "app.currentBranchId)"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 236,
+      "text": "'source_branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/inventory/inventory_screen.dart",
+      "line": 323,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 35,
+      "text": "'daily_order.self',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 36,
+      "text": "'daily_order.others',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 37,
+      "text": "'daily_order.approve',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 38,
+      "text": "'daily_order.issue',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 39,
+      "text": "'daily_order.review',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 112,
+      "text": "icon: const Icon(Icons.logout),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 136,
+      "text": "if (app.can('daily_order.self') || app.can('daily_order.others'))"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 139,
+      "text": "app.currentBranchId == null ? null : _newDailyOrder,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 156,
+      "text": "key: ValueKey('daily-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 302,
+      "text": "if (app.currentBranchId != null) 'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 318,
+      "text": "if (app.currentBranchId != null) 'branch_id': app.currentBranchId"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 335,
+      "text": "final branchId = int.tryParse('${row['branch_id'] ?? ''}');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 341,
+      "text": "if (branchId != null) row['branch_name'] ??= branchNames[branchId];"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 357,
+      "text": "'issued': 'Evening Pending',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 358,
+      "text": "'evening_draft': 'Evening Draft',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 359,
+      "text": "'evening_submitted': 'Final Post Pending',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 380,
+      "text": "case 'evening_submitted':"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 427,
+      "text": "if (status == 'stock_requested' && app.can('daily_order.approve')) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 430,
+      "text": "if (status == 'approved' && app.can('daily_order.issue')) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 431,
+      "text": "out.add(const PopupMenuItem(value: 'issue', child: Text('Issue Stock')));"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 434,
+      "text": "if (app.can('daily_order.self') || app.can('daily_order.others')) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 439,
+      "text": "value: 'evening', child: Text('Start Evening Closing')));"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 441,
+      "text": "if (status == 'evening_draft') {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 443,
+      "text": "value: 'evening_edit', child: Text('Edit Evening Closing')));"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 445,
+      "text": "if (status == 'evening_submitted' && app.can('daily_order.review')) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 624,
+      "text": "var permission = await Geolocator.checkPermission();"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 625,
+      "text": "if (permission == LocationPermission.denied) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 626,
+      "text": "permission = await Geolocator.requestPermission();"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 628,
+      "text": "if (permission == LocationPermission.denied ||"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 629,
+      "text": "permission == LocationPermission.deniedForever) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 630,
+      "text": "throw Exception('Location permission required.');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 639,
+      "text": "if (checkIn && app.currentBranchId == null) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 648,
+      "text": "if (checkIn) 'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 676,
+      "text": "Future<void> _newDailyOrder() async {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 691,
+      "text": "if (app.can('daily_order.others')) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 694,
+      "text": "query: {'branch_id': app.currentBranchId},"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 808,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 873,
+      "text": "} else if (action == 'evening') {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 874,
+      "text": "await api.post(ApiPaths.eveningStart(id), data: const {});"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 875,
+      "text": "await _editEvening(id);"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 877,
+      "text": "} else if (action == 'evening_edit') {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 878,
+      "text": "await _editEvening(id);"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1011,
+      "text": "'Issue Stock',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1158,
+      "text": "message = 'Stock issued successfully. Evening Closing is pending.';"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1164,
+      "text": "Future<void> _editEvening(int id) async {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1167,
+      "text": "final evening ="
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1168,
+      "text": "Map<String, dynamic>.from((d['evening'] as Map?) ?? const {});"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1169,
+      "text": "final lines = ((evening['lines'] as List?) ?? const [])"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1172,
+      "text": "if (lines.isEmpty) throw Exception('Evening lines not found.');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1175,
+      "text": "final wholesale = <int, TextEditingController>{};"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1176,
+      "text": "final wholesaleRate = <int, TextEditingController>{};"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1180,
+      "text": "TextEditingController(text: '${l['return_quantity'] ?? 0}');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1181,
+      "text": "wholesale[key] ="
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1182,
+      "text": "TextEditingController(text: '${l['wholesale_quantity'] ?? 0}');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1183,
+      "text": "wholesaleRate[key] ="
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1184,
+      "text": "TextEditingController(text: '${l['wholesale_rate'] ?? 0}');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1187,
+      "text": "text: '${evening['wholesale_customer_name'] ?? ''}');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1188,
+      "text": "final note = TextEditingController(text: '${evening['notes'] ?? ''}');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1193,
+      "text": "title: Text('Evening Closing \u00b7 Order #$id'),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1203,
+      "text": "'Return + Wholesale enter karein. Sold automatically backend calculate karega.'),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1230,
+      "text": "controller: wholesale[key],"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1234,
+      "text": "labelText: 'Wholesale Qty'),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1240,
+      "text": "controller: wholesaleRate[key],"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1243,
+      "text": "labelText: 'Wholesale Rate'),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1255,
+      "text": "labelText: 'Wholesale Customer (if wholesale)',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1291,
+      "text": "var anyWholesale = false;"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1295,
+      "text": "final wh = WholePcs.parseOrZero(wholesale[key]!.text);"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1299,
+      "text": "'Return + Wholesale issue quantity se zyada nahi ho sakta.');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1301,
+      "text": "if (wh > 0) anyWholesale = true;"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1304,
+      "text": "'return_quantity': ret,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1305,
+      "text": "'wholesale_quantity': wh,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1307,
+      "text": "'wholesale_rate': double.tryParse(wholesaleRate[key]!.text) ?? 0,"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1310,
+      "text": "if (anyWholesale && customer.text.trim().isEmpty) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1311,
+      "text": "throw Exception('Wholesale customer name required.');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1314,
+      "text": "ApiPaths.eveningSave(id),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1317,
+      "text": "'wholesale_details': {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1318,
+      "text": "'wholesale_customer_name': customer.text.trim(),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1324,
+      "text": "await api.post(ApiPaths.eveningSubmit(id), data: const {});"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1330,
+      "text": "? 'Evening submitted. Final Post pending.'"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1331,
+      "text": ": 'Evening draft saved.';"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1336,
+      "text": "for (final c in wholesale.values) c.dispose();"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1337,
+      "text": "for (final c in wholesaleRate.values) c.dispose();"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1345,
+      "text": "final evening ="
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1346,
+      "text": "Map<String, dynamic>.from((d['evening'] as Map?) ?? const {});"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1347,
+      "text": "final expected = double.tryParse('${evening['expected_amount'] ?? 0}') ?? 0;"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1415,
+      "text": "final evening = d['evening'] is Map"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1416,
+      "text": "? Map<String, dynamic>.from(d['evening'] as Map)"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1420,
+      "text": "final branchId = int.tryParse('${cycle['branch_id'] ?? ''}');"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1424,
+      "text": "if (int.tryParse('${b['id']}') == branchId) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1435,
+      "text": "query: {if (branchId != null) 'branch_id': branchId},"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1600,
+      "text": "if (evening != null) ...["
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1602,
+      "text": "Text('Evening Closing',"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1614,
+      "text": "Text(BusinessFormat.status(evening['status']),"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1620,
+      "text": "...(((evening['lines'] as List?) ?? const []).map((e) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1623,
+      "text": "'${l['return_quantity'] ?? l['return_qty'] ?? 0}') ??"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1782,
+      "text": "if (app.currentBranchId == null) {"
+    },
+    {
+      "file": "screens/my_work/my_work_screen.dart",
+      "line": 1817,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 88,
+      "text": "trailing: int.tryParse('${b['id']}') == app.currentBranchId"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 145,
+      "text": "onPressed: app.currentBranchId == null ? null : _createEmployee,"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 152,
+      "text": "child: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 155,
+      "text": "key: ValueKey('employees-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 157,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 269,
+      "text": "api.get(ApiPaths.employees, query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 386,
+      "text": "'assigned_branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 481,
+      "text": "int? branchId;"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 501,
+      "text": "initialValue: branchId,"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 509,
+      "text": "onChanged: (v) => setLocal(() => branchId = v)),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 529,
+      "text": "branchId != null && reason.text.trim().length >= 5),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 534,
+      "text": "'branch_id': branchId,"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 559,
+      "text": "int? branchId;"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 578,
+      "text": "initialValue: branchId,"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 586,
+      "text": "onChanged: (v) => setLocal(() => branchId = v)),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 601,
+      "text": "Navigator.pop(context, branchId != null),"
+    },
+    {
+      "file": "screens/organization/organization_screen.dart",
+      "line": 609,
+      "text": "'branch_id': branchId,"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 27,
+      "text": "'daily_order.others',"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 28,
+      "text": "'daily_order.approve',"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 29,
+      "text": "'daily_order.issue',"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 30,
+      "text": "'daily_order.review',"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 35,
+      "text": "key: ValueKey('d-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 36,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 39,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 41,
+      "text": "recordType: 'daily_order',"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 54,
+      "text": "key: ValueKey('a-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 55,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 58,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 76,
+      "text": "reloadToken: app.currentBranchId,"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 77,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 80,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 108,
+      "text": "child: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 169,
+      "text": "child: const Text('Issue Stock'))"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 191,
+      "text": "Future<void> _issue(Map<String, dynamic> request, int branchId) async {"
+    },
+    {
+      "file": "screens/organization/team_screen.dart",
+      "line": 195,
+      "text": "query: {'branch_id': branchId}) as List)"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 32,
+      "text": "key: ValueKey('p-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 33,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 36,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 61,
+      "text": "key: ValueKey('targets-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 62,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 65,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 89,
+      "text": "key: ValueKey('payroll-${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 90,
+      "text": "future: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 93,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 120,
+      "text": "child: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 137,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 415,
+      "text": "query: {'branch_id': app.currentBranchId},"
+    },
+    {
+      "file": "screens/performance/performance_screen.dart",
+      "line": 483,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 34,
+      "text": "onPressed: app.currentBranchId == null ? null : _newBill,"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 39,
+      "text": "onPressed: app.currentBranchId == null ? null : _payBill,"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 51,
+      "text": "child: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 54,
+      "text": "key: ValueKey('${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 56,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 251,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/purchase/purchase_screen.dart",
+      "line": 274,
+      "text": "query: {'branch_id': app.currentBranchId}) as List)"
+    },
+    {
+      "file": "screens/reports/reports_screen.dart",
+      "line": 3,
+      "text": "class _ReportsScreenState extends ConsumerState<ReportsScreen>{String type='sales';@override Widget build(BuildContext context){final app=ref.watch(appStateProvider);final api=ref.watch(apiClientProvider);final path={'sales':ApiPaths.reportsSales,'purchase':ApiPaths.reportsPurchase,'stock':ApiPaths."
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 35,
+      "text": "onPressed: app.currentBranchId == null ? null : _counterSale,"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 41,
+      "text": "onPressed: app.currentBranchId == null ? null : _createCustomer,"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 47,
+      "text": "onPressed: app.currentBranchId == null ? null : _receipt,"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 56,
+      "text": "child: app.currentBranchId == null"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 59,
+      "text": "key: ValueKey('${app.currentBranchId}-$refresh'),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 61,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 121,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 151,
+      "text": "query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 152,
+      "text": "api.get(ApiPaths.customers, query: {'branch_id': app.currentBranchId}),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 308,
+      "text": "'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 330,
+      "text": "final branchId = app.currentBranchId;"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 331,
+      "text": "if (branchId == null) return;"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 334,
+      "text": "api.get(ApiPaths.openSales, query: {'branch_id': branchId}),"
+    },
+    {
+      "file": "screens/sales/sales_screen.dart",
+      "line": 433,
+      "text": "'branch_id': branchId,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 330,
+      "text": "if (app.currentBranchId != null) 'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 420,
+      "text": "'Logout all devices?', 'Is device par bhi dobara login karna padega.');"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 423,
+      "text": "await api.post(ApiPaths.logoutAll,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 424,
+      "text": "data: const {}, idempotent: false);"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 426,
+      "text": "await ref.read(appStateProvider.notifier).logout();"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 428,
+      "text": "child: const Text('Logout All'),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 446,
+      "text": "tooltip: 'Logout device',"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 447,
+      "text": "icon: const Icon(Icons.logout),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 450,
+      "text": "idempotent: false),"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 760,
+      "text": "if (app.currentBranchId != null) 'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 820,
+      "text": "if (app.currentBranchId != null) 'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 897,
+      "text": "if (app.currentBranchId != null) 'branch_id': app.currentBranchId,"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 1032,
+      "text": "{bool idempotent = true}) async {"
+    },
+    {
+      "file": "screens/tools/erp_tools_screen.dart",
+      "line": 1035,
+      "text": "data: data, idempotent: idempotent);"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 232,
+      "text": "tooltip: 'Logout',"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 233,
+      "text": "onPressed: () => ref.read(appStateProvider.notifier).logout(),"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 234,
+      "text": "icon: const Icon(Icons.logout, size: 20),"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 500,
+      "text": "leading: const Icon(Icons.logout_rounded, color: ExcelBrand.danger),"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 502,
+      "text": "'Logout',"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 511,
+      "text": "ref.read(appStateProvider.notifier).logout();"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 585,
+      "text": "if (int.tryParse('${branch['id']}') == app.currentBranchId) {"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 736,
+      "text": "'daily_order.self',"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 737,
+      "text": "'daily_order.others',"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 756,
+      "text": "'daily_order.approve',"
+    },
+    {
+      "file": "shell/app_shell.dart",
+      "line": 757,
+      "text": "'daily_order.issue',"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 13,
+      "text": "this.currentBranchId,"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 18,
+      "text": "final int? currentBranchId;"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 40,
+      "text": "if (currentBranchId == null) return 'All Authorised Branches';"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 42,
+      "text": "if (int.tryParse('${branch['id']}') == currentBranchId) {"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 52,
+      "text": "bool can(String capability) => capabilities.contains(capability);"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 72,
+      "text": "int? currentBranchId,"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 79,
+      "text": "currentBranchId: currentBranchId ?? this.currentBranchId,"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 118,
+      "text": "final current = state.currentBranchId != null &&"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 119,
+      "text": "ids.contains(state.currentBranchId)"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 120,
+      "text": "? state.currentBranchId"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 128,
+      "text": "currentBranchId: current);"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 154,
+      "text": "state = state.copyWith(currentBranchId: id, clearError: true);"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 157,
+      "text": "Future<void> logout() async {"
+    },
+    {
+      "file": "state/app_state.dart",
+      "line": 158,
+      "text": "await api.logout();"
+    },
+    {
+      "file": "widgets/branch_selector.dart",
+      "line": 7,
+      "text": "@override Widget build(BuildContext context,WidgetRef ref){final app=ref.watch(appStateProvider);if(!app.branchSelectorVisible)return const SizedBox.shrink();return DropdownButtonFormField<int>(initialValue:app.currentBranchId,decoration:const InputDecoration(labelText:'Authorised Branch',prefixIcon"
+    },
+    {
+      "file": "widgets/records_list.dart",
+      "line": 314,
+      "text": "'daily_order' => const ["
+    }
+  ]
+}
