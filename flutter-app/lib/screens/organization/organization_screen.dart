@@ -1081,7 +1081,8 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
           ApiPaths.productRevision(int.parse('${product['id']}')),
           data: {
             ...commercial.toPayload(),
-            'effective_from': '${effectiveDate.text.trim()} 00:00:00',
+            if (effectiveDate.text.trim() != app.businessDate)
+              'effective_from': '${effectiveDate.text.trim()} 00:00:00',
             'reason': reason.text.trim(),
           },
         );
