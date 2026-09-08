@@ -78,6 +78,16 @@ jobs:
           cat build-input/flutter-v731-issue-review-fix.parts/part-*.b64 | base64 -d > /tmp/v731-review.tar.xz
           echo "2512983ae7b07fbd6c50bf76c2d26862e6d846ad12eece2e543824c9f8ae53a0  /tmp/v731-review.tar.xz" | sha256sum -c -
           tar -xJf /tmp/v731-review.tar.xz -C work
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('work/flutter/excel_herbal_erp/lib/screens/my_work/my_work_screen.dart')
+          s = p.read_text()
+          old = "                    final l = lines[index];\n                    final lid = int.parse('${l['id']}');\n                    final name = BusinessFormat.displayName("
+          new = "                    final l = lines[index];\n                    final name = BusinessFormat.displayName("
+          if old not in s:
+              raise SystemExit('Expected Issue Stock list pattern not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
           grep -q "version: 7.3.1+731" work/flutter/excel_herbal_erp/pubspec.yaml
           ! grep -q "Batch ID" work/flutter/excel_herbal_erp/lib/screens/my_work/my_work_screen.dart
           ! grep -q "labelText: 'Issue quantity'" work/flutter/excel_herbal_erp/lib/screens/my_work/my_work_screen.dart
