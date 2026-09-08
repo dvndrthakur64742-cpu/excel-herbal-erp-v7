@@ -14,3 +14,5 @@ if text.count(old) != 1:
 text = text.replace(old, new, 1)
 script.write_text(text, encoding='utf-8')
 exec(compile(text, str(script), 'exec'), {'__name__': '__main__', '__file__': str(script)})
+
+# Trigger marker: corrected finance date assertion.
