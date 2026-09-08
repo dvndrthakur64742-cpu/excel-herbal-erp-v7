@@ -1,0 +1,78 @@
+name: EH7 Flutter v7.4.0 Run Finalizer
+
+on:
+  push:
+    branches: [flutter-v720-build]
+    paths:
+      - '.github/workflows/eh7-v740-run-finalizer.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract and apply final patch
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          source = Path('.github/workflows/eh7-v740-finalize-code.yml').read_text()
+          marker = "          python3 <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          chunk = source[start:end]
+          lines = []
+          for line in chunk.splitlines():
+              if line.startswith('          '):
+                  line = line[10:]
+              lines.append(line)
+          script = '\n'.join(lines) + '\n'
+          path = Path('/tmp/patch_v740.py')
+          path.write_text(script)
+          subprocess.run(['python3', '-m', 'py_compile', str(path)], check=True)
+          subprocess.run(['python3', str(path)], check=True)
+          PY
+
+      - name: Install Flutter 3.47.2
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Format
+        working-directory: flutter-app
+        run: dart format lib test
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: flutter-app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test
+        working-directory: flutter-app
+        run: flutter test
+
+      - name: Commit canonical v7.4 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add flutter-app
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Finalize Flutter v7.4.0 Daily Order UX and business logic'
+          git push origin HEAD:flutter-v720-build
