@@ -52,11 +52,10 @@ jobs:
           git add \
             flutter-app/lib/screens/my_work/my_work_screen.dart \
             flutter-app/lib/core/daily_order_math.dart \
-            flutter-app/test/daily_order_math_test.dart \
-            .github/workflows/eh7-v740-stabilization-build.yml
+            flutter-app/test/daily_order_math_test.dart
           if git diff --cached --quiet; then
             echo 'No stabilization changes to commit.'
             exit 0
           fi
-          git commit -m 'Stabilize v7.4 Daily Order wholesale flow and APK release'
+          git commit -m 'Stabilize v7.4 Daily Order wholesale flow'
           git push origin HEAD:flutter-v720-build
