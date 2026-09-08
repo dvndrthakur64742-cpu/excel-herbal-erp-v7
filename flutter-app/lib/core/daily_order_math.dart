@@ -31,4 +31,31 @@ abstract final class DailyOrderMath {
 
   static bool depositMatches(num entered, num expected) =>
       (entered.toDouble() - expected.toDouble()).abs() <= 0.005;
+
+  static bool paymentComponentsValid(num cash, num online) =>
+      cash.toDouble().isFinite &&
+      online.toDouble().isFinite &&
+      cash.toDouble() >= 0 &&
+      online.toDouble() >= 0;
+
+  static bool reconciliationMatches(num serverExpected, num calculated) =>
+      (serverExpected.toDouble() - calculated.toDouble()).abs() <= 0.01;
+
+  static bool finalPostAllowed({
+    required num cash,
+    required num online,
+    required num expected,
+    required num calculatedExpected,
+    num? serverExpected,
+  }) {
+    if (!paymentComponentsValid(cash, online)) return false;
+    if (!depositMatches(cash.toDouble() + online.toDouble(), expected)) {
+      return false;
+    }
+    if (serverExpected != null &&
+        !reconciliationMatches(serverExpected, calculatedExpected)) {
+      return false;
+    }
+    return true;
+  }
 }

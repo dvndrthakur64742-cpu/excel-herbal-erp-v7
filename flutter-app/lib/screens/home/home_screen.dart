@@ -429,7 +429,7 @@ class HomeScreen extends ConsumerWidget {
       (app.me['employee'] as Map?) ?? const {},
     );
     final employeeId = int.tryParse('${employee['id'] ?? ''}');
-    final today = _today();
+    final today = app.businessDate;
     Map<String, dynamic> order = {};
     for (final row in rows.reversed) {
       final rowEmployee = int.tryParse('${row['employee_id'] ?? ''}');
@@ -586,7 +586,11 @@ class HomeScreen extends ConsumerWidget {
     AppState app,
     int branch,
   ) async {
-    final period = {'branch_id': branch, 'from': _monthStart(), 'to': _today()};
+    final period = {
+      'branch_id': branch,
+      'from': app.businessMonthStart,
+      'to': app.businessDate,
+    };
     final futures = <Future<dynamic>>[
       api.get(ApiPaths.reportsSales, query: period),
       api.get(ApiPaths.reportsPurchase, query: period),
@@ -682,8 +686,8 @@ class HomeScreen extends ConsumerWidget {
       ApiPaths.performanceSummary,
       query: {
         'branch_id': branch,
-        'from': _monthStart(),
-        'to': _today(),
+        'from': app.businessMonthStart,
+        'to': app.businessDate,
         'employee_id': (app.me['employee'] as Map?)?['id'],
       },
     ),
@@ -749,16 +753,6 @@ class HomeScreen extends ConsumerWidget {
     if (h < 12) return 'morning';
     if (h < 17) return 'afternoon';
     return 'evening';
-  }
-
-  static String _today() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  }
-
-  static String _monthStart() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-01';
   }
 }
 
