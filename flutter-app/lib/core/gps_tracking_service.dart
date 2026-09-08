@@ -62,7 +62,7 @@ class GpsTrackingService extends ChangeNotifier {
       _lastError = null;
     } catch (e) {
       _lastError = UiError.message(e);
-      if ('$e'.contains('gps_checkin_required')) stop();
+      if (e is ApiException && e.code == 'gps_checkin_required') stop();
     } finally {
       _sending = false;
       notifyListeners();
