@@ -5,7 +5,6 @@ on:
     branches: [flutter-v720-build]
     paths:
       - 'flutter-app/**'
-      - '.github/workflows/eh7-v740-stabilization-build.yml'
   workflow_dispatch:
 
 permissions:
@@ -75,9 +74,12 @@ jobs:
           TAG=v7.4.0-stabilization-uat
           APK=dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
           HASH=dist/flutter-v7.4.0/APK-SHA256.txt
-          NOTES='Full APK stabilization candidate from canonical editable Flutter source. Includes responsive Daily Order Evening Closing, business-date alignment, session/error/idempotency/GPS improvements, permission-aware quick actions, common async states, Reports Centre, Communication read/acknowledgement flows, Profile cleanup and brand asset fixes. UAT only.'
+          NOTES="Full APK stabilization candidate from canonical editable Flutter source. Source commit: ${GITHUB_SHA}. Includes responsive Daily Order Evening Closing, Final Post reconciliation, business-date alignment, session/error/idempotency/GPS improvements, destructive-action confirmations, permission-aware quick actions, common async states, Reports Centre, Communication read/acknowledgement flows, Profile cleanup, brand fixes, and canonical source hygiene. UAT only."
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" "$HASH" --clobber
-          else
-            gh release create "$TAG" "$APK" "$HASH" --target "$GITHUB_SHA" --title "Excel Herbal ERP Flutter v7.4.0 Stabilization UAT" --notes "$NOTES"
+            gh release delete "$TAG" --cleanup-tag --yes
           fi
+          gh release create "$TAG" "$APK" "$HASH" \
+            --target "$GITHUB_SHA" \
+            --title "Excel Herbal ERP Flutter v7.4.0 Stabilization UAT" \
+            --notes "$NOTES" \
+            --prerelease
