@@ -36,8 +36,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                   ApiPaths.performanceSummary,
                   query: {
                     'branch_id': app.currentBranchId,
-                    'from': _monthStart(),
-                    'to': _today(),
+                    'from': app.businessMonthStart,
+                    'to': app.businessDate,
                   },
                 ),
           emptyMessage: 'Performance posting nahi hai.',
@@ -173,8 +173,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             ApiPaths.payrollRuns,
             data: {
               'branch_id': app.currentBranchId,
-              'period_start': _monthStart(),
-              'period_end': _today(),
+              'period_start': app.businessMonthStart,
+              'period_end': app.businessDate,
             },
           );
       if (mounted) {
@@ -372,6 +372,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
   }
 
   Future<void> _payPayroll(int id) async {
+    final app = ref.read(appStateProvider);
     try {
       final raw = await ref
           .read(apiClientProvider)
@@ -391,7 +392,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
           .toList();
       if (!mounted) return;
       int? accountId;
-      final date = TextEditingController(text: _today());
+      final date = TextEditingController(text: app.businessDate);
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -473,8 +474,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
       ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       int? employeeId;
       final points = TextEditingController();
-      final from = TextEditingController(text: _monthStart());
-      final to = TextEditingController(text: _today());
+      final from = TextEditingController(text: app.businessMonthStart);
+      final to = TextEditingController(text: app.businessDate);
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -608,15 +609,5 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
-  }
-
-  static String _today() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  }
-
-  static String _monthStart() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-01';
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/daily_order_workflow.dart';
+import '../../core/stock_allocation.dart';
 import '../../core/providers.dart';
 import '../../core/overlay_transition.dart';
 import '../../core/ui_error.dart';
@@ -61,8 +63,8 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                   ApiPaths.attendanceReport,
                   query: {
                     'branch_id': app.currentBranchId,
-                    'from': _monthStart(),
-                    'to': _today(),
+                    'from': app.businessMonthStart,
+                    'to': app.businessDate,
                   },
                 ),
           emptyMessage: 'Attendance record nahi hai.',
@@ -130,6 +132,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     final id = int.parse('${row['id']}');
     try {
       final api = ref.read(apiClientProvider);
+      final app = ref.read(appStateProvider);
       final data = Map<String, dynamic>.from(
         await api.get(ApiPaths.dailyDetail(id)) as Map,
       );
@@ -173,13 +176,19 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          if ('${r['status']}' == 'submitted')
+                          if (DailyOrderWorkflow.canApproveRequest(
+                            '${r['status']}',
+                            app.capabilities,
+                          ))
                             FilledButton.tonal(
                               onPressed: () =>
                                   _approve(int.parse('${r['id']}')),
                               child: const Text('Approve Request'),
                             ),
-                          if ('${r['status']}' == 'approved')
+                          if (DailyOrderWorkflow.canIssueRequest(
+                            '${r['status']}',
+                            app.capabilities,
+                          ))
                             FilledButton(
                               onPressed: () => _issue(
                                 r,
@@ -205,6 +214,11 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
   }
 
   Future<void> _approve(int requestId) async {
+    final app = ref.read(appStateProvider);
+    if (!app.can('daily_order.approve')) {
+      setState(() => message = 'Daily Order approval permission required hai.');
+      return;
+    }
     final closed = await OverlayTransition.closeAndSettle(context);
     if (!closed || !mounted) return;
     try {
@@ -218,51 +232,26 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
   }
 
   Future<void> _issue(Map<String, dynamic> request, int branchId) async {
+    final app = ref.read(appStateProvider);
+    if (!app.can('daily_order.issue')) {
+      setState(() => message = 'Daily Order stock issue permission required hai.');
+      return;
+    }
     try {
       final api = ref.read(apiClientProvider);
-      final stock =
-          (await api.get(
-                ApiPaths.inventoryStock,
-                query: {'branch_id': branchId},
-              ) as List)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .where(
-                (e) =>
-                    (int.tryParse('${e['custodian_key']}') ?? 0) == 0 &&
-                    (double.tryParse('${e['quantity']}') ?? 0) > 0,
-              )
-              .toList();
-      final allocations = <Map<String, dynamic>>[];
-      for (final raw in (request['lines'] as List)) {
-        final l = Map<String, dynamic>.from(raw as Map);
-        var remaining = double.tryParse('${l['quantity']}') ?? 0;
-        final pid = int.parse('${l['product_id']}');
-        final candidates =
-            stock
-                .where((s) => int.tryParse('${s['product_id']}') == pid)
-                .toList()
-              ..sort(
-                (x, y) => '${x['expires_on'] ?? '9999-12-31'}'.compareTo(
-                  '${y['expires_on'] ?? '9999-12-31'}',
-                ),
-              );
-        for (final s in candidates) {
-          if (remaining <= .0001) break;
-          final available = double.tryParse('${s['quantity']}') ?? 0;
-          final take = available < remaining ? available : remaining;
-          final batchKey = int.tryParse('${s['batch_key']}') ?? 0;
-          allocations.add({
-            'request_line_id': l['id'],
-            'quantity': take,
-            if (batchKey > 0) 'batch_id': batchKey,
-          });
-          remaining -= take;
-        }
-        if (remaining > .0001)
-          throw Exception(
-            '${l['product_name']} ka authorised branch stock insufficient hai.',
-          );
-      }
+      final stock = (await api.get(
+        ApiPaths.inventoryStock,
+        query: {'branch_id': branchId},
+      ) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      final requestLines = (request['lines'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      final allocations = StockAllocation.fefo(
+        requestLines: requestLines,
+        stock: stock,
+      );
       final closed = await OverlayTransition.closeAndSettle(context);
       if (!closed || !mounted) return;
       await api.post(
@@ -275,13 +264,4 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     }
   }
 
-  static String _today() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  }
-
-  static String _monthStart() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-01';
-  }
 }

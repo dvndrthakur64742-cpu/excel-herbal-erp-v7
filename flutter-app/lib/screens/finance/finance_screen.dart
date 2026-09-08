@@ -104,7 +104,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           future: api.get(
             ApiPaths.trialBalance,
             query: {
-              'to': _today(),
+              'to': app.businessDate,
               if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
             },
           ),
@@ -556,7 +556,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             'expense_head_id': head,
             'amount': double.tryParse(amount.text) ?? 0,
             'payment_account_id': account,
-            'expense_date': _today(),
+            'expense_date': app.businessDate,
             'description': desc.text.trim(),
           },
         );
@@ -612,7 +612,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             ApiPaths.closingPreflight,
             query: {
               'branch_id': app.currentBranchId,
-              'business_date': _today(),
+              'business_date': app.businessDate,
             },
           );
       if (mounted) setState(() => message = 'Preflight: $r');
@@ -628,7 +628,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           .read(apiClientProvider)
           .post(
             ApiPaths.branchClosing,
-            data: {'branch_id': app.currentBranchId, 'business_date': _today()},
+            data: {'branch_id': app.currentBranchId, 'business_date': app.businessDate},
           );
       if (mounted)
         setState(() {
@@ -681,8 +681,8 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           )
           .toList();
       int? accountId;
-      final from = TextEditingController(text: _monthStart());
-      final to = TextEditingController(text: _today());
+      final from = TextEditingController(text: app.businessMonthStart);
+      final to = TextEditingController(text: app.businessDate);
       final opening = TextEditingController(text: '0');
       final closing = TextEditingController(text: '0');
       final ok = await showDialog<bool>(
@@ -890,7 +890,8 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   }
 
   Future<void> _addBankLine(int id) async {
-    final date = TextEditingController(text: _today());
+    final app = ref.read(appStateProvider);
+    final date = TextEditingController(text: app.businessDate);
     final description = TextEditingController();
     final reference = TextEditingController();
     final debit = TextEditingController(text: '0');
@@ -1052,8 +1053,9 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   }
 
   Future<void> _closePeriod() async {
-    final from = TextEditingController(text: _monthStart());
-    final to = TextEditingController(text: _today());
+    final app = ref.read(appStateProvider);
+    final from = TextEditingController(text: app.businessMonthStart);
+    final to = TextEditingController(text: app.businessDate);
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1160,15 +1162,5 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
-  }
-
-  static String _today() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  }
-
-  static String _monthStart() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-01';
   }
 }

@@ -332,7 +332,7 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
       final mobile = TextEditingController();
       final email = TextEditingController();
       final salary = TextEditingController(text: '0');
-      final joining = TextEditingController(text: _today());
+      final joining = TextEditingController(text: app.businessDate);
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -567,7 +567,7 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     if (!closed || !mounted) return;
     final app = ref.read(appStateProvider);
     int? branchId;
-    final date = TextEditingController(text: _today());
+    final date = TextEditingController(text: app.businessDate);
     final reason = TextEditingController();
     final available = app.branches
         .where((b) => int.parse('${b['id']}') != currentBranch)
@@ -1080,9 +1080,4 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     );
   }
 
-  double _num(TextEditingController c) => double.tryParse(c.text.trim()) ?? 0;
-  static String _today() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  }
-}
+  double _num(TextEditingController c) => double.tryParse(c.text.trim()) ?? 0;}

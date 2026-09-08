@@ -6,6 +6,8 @@ import '../../core/api_paths.dart';
 import '../../core/date_time_text.dart';
 import '../../core/business_format.dart';
 import '../../core/daily_order_math.dart';
+import '../../core/daily_order_workflow.dart';
+import '../../core/stock_allocation.dart';
 import '../../core/providers.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
@@ -425,7 +427,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     final out = <PopupMenuEntry<String>>[
       const PopupMenuItem(value: 'view', child: Text('View Details')),
     ];
-    if (status == 'morning_draft') {
+    if (DailyOrderWorkflow.canSubmitDraft(status, app.capabilities)) {
       out.add(
         const PopupMenuItem(value: 'submit', child: Text('Submit Order')),
       );
@@ -436,15 +438,14 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     if (status == 'approved' && app.can('daily_order.issue')) {
       out.add(const PopupMenuItem(value: 'issue', child: Text('Issue Stock')));
     }
-    if (status == 'issued') {
-      if (app.can('daily_order.self') || app.can('daily_order.others')) {
-        out.add(
-          const PopupMenuItem(
-            value: 'additional',
-            child: Text('Additional Requirement'),
-          ),
-        );
-      }
+    if (status == 'issued' &&
+        DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
+      out.add(
+        const PopupMenuItem(
+          value: 'additional',
+          child: Text('Additional Requirement'),
+        ),
+      );
       out.add(
         const PopupMenuItem(
           value: 'evening',
@@ -672,10 +673,13 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           'lng': p.longitude,
         },
       );
+      var gpsStarted = !checkIn;
       if (checkIn) {
         try {
           await ref.read(gpsTrackingProvider).start();
+          gpsStarted = true;
         } catch (_) {
+          gpsStarted = false;
           // Attendance remains successful even if periodic tracking could not
           // start; the ERP Tools screen exposes the tracking status/retry.
         }
@@ -686,7 +690,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         setState(() {
           refresh++;
           message = checkIn
-              ? 'Check-In successful. GPS tracking started.'
+              ? (gpsStarted
+                    ? 'Check-In successful. GPS tracking started.'
+                    : 'Check-In successful. GPS tracking could not start; ERP Tools se retry karein.')
               : 'Check-Out successful. GPS tracking stopped.';
         });
       }
@@ -876,6 +882,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   Future<void> _dailyAction(int id, String action) async {
     try {
       final api = ref.read(apiClientProvider);
+      final app = ref.read(appStateProvider);
       if (action == 'view') {
         await _showDaily(id);
         return;
@@ -899,6 +906,20 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         await _additionalDaily(id);
         return;
       } else if (action == 'evening') {
+        final detail = await _dailyDetail(id);
+        final cycle = Map<String, dynamic>.from(
+          (detail['cycle'] as Map?) ?? const {},
+        );
+        final requests = ((detail['requests'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        final blockReason = DailyOrderWorkflow.eveningBlockReason(
+          cycleStatus: '${cycle['status']}',
+          requests: requests,
+          capabilities: app.capabilities,
+        );
+        if (blockReason != null) throw Exception(blockReason);
         await api.post(ApiPaths.eveningStart(id), data: const {});
         await _editEvening(id);
         return;
@@ -1006,6 +1027,19 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
     if (lines.isEmpty) throw Exception('Approved request lines missing.');
+    final cycle = Map<String, dynamic>.from((d['cycle'] as Map?) ?? const {});
+    final branchId = int.tryParse('${cycle['branch_id'] ?? ''}');
+    if (branchId == null) throw Exception('Daily Order branch missing.');
+    final stock = (await api.get(
+      ApiPaths.inventoryStock,
+      query: {'branch_id': branchId},
+    ) as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    final allocations = StockAllocation.fefo(
+      requestLines: lines,
+      stock: stock,
+    );
 
     final ok = await showModalBottomSheet<bool>(
       context: context,
@@ -1121,7 +1155,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Full approved quantity will be issued',
+                              'Full approved quantity will be issued using FEFO batches',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
@@ -1167,13 +1201,6 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     );
 
     if (ok == true) {
-      final allocations = <Map<String, dynamic>>[];
-      for (final l in lines) {
-        final lid = int.parse('${l['id']}');
-        final q = num.tryParse('${l['quantity'] ?? 0}')?.toDouble() ?? 0;
-        if (q <= 0) throw Exception('Approved issue quantity missing.');
-        allocations.add({'request_line_id': lid, 'quantity': q});
-      }
       await api.post(
         ApiPaths.dailyIssue(int.parse('${r['id']}')),
         data: {'allocations': allocations},
@@ -1730,6 +1757,11 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     final reconciliationDifference = backendExpected == null
         ? 0.0
         : (backendExpected - calculatedExpected).abs();
+    final reconciliationOk = backendExpected == null ||
+        DailyOrderMath.reconciliationMatches(
+          backendExpected,
+          calculatedExpected,
+        );
 
     final cash = TextEditingController(text: expected.toStringAsFixed(2));
     final upi = TextEditingController(text: '0');
@@ -1744,7 +1776,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
             final cashValue = BusinessFormat.number(cash.text)?.toDouble() ?? 0;
             final upiValue = BusinessFormat.number(upi.text)?.toDouble() ?? 0;
             final deposit = cashValue + upiValue;
-            final matched = DailyOrderMath.depositMatches(deposit, expected);
+            final matched =
+                DailyOrderMath.paymentComponentsValid(cashValue, upiValue) &&
+                reconciliationOk &&
+                DailyOrderMath.depositMatches(deposit, expected);
 
             Widget paymentField({
               required TextEditingController controller,
@@ -1886,7 +1921,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                             if (reconciliationDifference > .01) ...[
                               const SizedBox(height: 6),
                               Text(
-                                'Server total ${BusinessFormat.money(backendExpected)} · Product calculation ${BusinessFormat.money(calculatedExpected)}. Posting server expected total ke against verify hoga.',
+                                'Server total ${BusinessFormat.money(backendExpected)} · Product calculation ${BusinessFormat.money(calculatedExpected)}. Final Post blocked hai jab tak dono totals reconcile nahi hote.',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -2001,9 +2036,15 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       if (confirmed == true) {
         final c = BusinessFormat.number(cash.text)?.toDouble() ?? 0;
         final u = BusinessFormat.number(upi.text)?.toDouble() ?? 0;
-        if (!DailyOrderMath.depositMatches(c + u, expected)) {
+        if (!DailyOrderMath.finalPostAllowed(
+          cash: c,
+          online: u,
+          expected: expected,
+          calculatedExpected: calculatedExpected,
+          serverExpected: backendExpected,
+        )) {
           throw Exception(
-            'Cash + Online expected amount ke barabar hona chahiye.',
+            'Final Post blocked: payment components aur product/server reconciliation verify karein.',
           );
         }
         await api.post(ApiPaths.finalPost(id), data: {'cash': c, 'upi': u});
@@ -2348,9 +2389,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       };
 
   Future<void> _applyLeave() async {
+    final app = ref.read(appStateProvider);
     final type = TextEditingController(text: 'Casual Leave');
-    final from = TextEditingController(text: _today());
-    final to = TextEditingController(text: _today());
+    final from = TextEditingController(text: app.businessDate);
+    final to = TextEditingController(text: app.businessDate);
     final reason = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
@@ -2495,10 +2537,5 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       }
     }
     purpose.dispose();
-  }
-
-  static String _today() {
-    final d = DateTime.now();
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 }

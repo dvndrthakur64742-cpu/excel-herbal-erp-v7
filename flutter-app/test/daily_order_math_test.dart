@@ -31,4 +31,48 @@ void main() {
     expect(DailyOrderMath.depositMatches(1000, 1000.004), isTrue);
     expect(DailyOrderMath.depositMatches(1000, 1000.01), isFalse);
   });
+
+  test('negative payment components are rejected', () {
+    expect(DailyOrderMath.paymentComponentsValid(500, 500), isTrue);
+    expect(DailyOrderMath.paymentComponentsValid(-1, 1001), isFalse);
+    expect(DailyOrderMath.paymentComponentsValid(1001, -1), isFalse);
+  });
+
+  test('server and product totals must reconcile', () {
+    expect(DailyOrderMath.reconciliationMatches(1000, 1000.009), isTrue);
+    expect(DailyOrderMath.reconciliationMatches(1000, 999.98), isFalse);
+  });
+
+  test('final post requires valid components, deposit and reconciliation', () {
+    expect(
+      DailyOrderMath.finalPostAllowed(
+        cash: 600,
+        online: 400,
+        expected: 1000,
+        calculatedExpected: 1000,
+        serverExpected: 1000,
+      ),
+      isTrue,
+    );
+    expect(
+      DailyOrderMath.finalPostAllowed(
+        cash: -100,
+        online: 1100,
+        expected: 1000,
+        calculatedExpected: 1000,
+        serverExpected: 1000,
+      ),
+      isFalse,
+    );
+    expect(
+      DailyOrderMath.finalPostAllowed(
+        cash: 600,
+        online: 400,
+        expected: 1000,
+        calculatedExpected: 950,
+        serverExpected: 1000,
+      ),
+      isFalse,
+    );
+  });
 }
