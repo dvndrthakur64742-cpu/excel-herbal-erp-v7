@@ -5,6 +5,7 @@ on:
     branches: [flutter-v720-build]
     paths:
       - 'build-input/flutter-v730-brand-small.parts/**'
+      - 'build-input/flutter-v730-analyzer-fix.parts/**'
       - '.github/workflows/eh7-v720-build.yml'
   workflow_dispatch:
 
@@ -75,6 +76,17 @@ jobs:
           test -f work/flutter/excel_herbal_erp/lib/theme/excel_brand.dart
           test -f work/flutter/excel_herbal_erp/lib/core/ui_error.dart
           grep -q "'source': 'duty'" work/flutter/excel_herbal_erp/lib/core/gps_tracking_service.dart
+
+      - name: Apply v7.3.0 analyzer compatibility fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build-input/flutter-v730-analyzer-fix.parts -maxdepth 1 -type f -name 'part-*.b64' | wc -l)" -eq 2
+          cat build-input/flutter-v730-analyzer-fix.parts/part-*.b64 | base64 -d > /tmp/flutter-v730-analyzer-fix.tar.xz
+          echo "88e1af8322d038fdd9f68f501c480727129515945f5d50a0e0aa1c99faeb7d47  /tmp/flutter-v730-analyzer-fix.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter-v730-analyzer-fix.tar.xz -C work
+          grep -q "this.recordType" work/flutter/excel_herbal_erp/lib/widgets/records_list.dart
+          ! grep -q "Drawer _mobileDrawer(AppState app) {$" work/flutter/excel_herbal_erp/lib/shell/app_shell.dart || true
 
       - name: Bootstrap Android wrapper
         working-directory: work
