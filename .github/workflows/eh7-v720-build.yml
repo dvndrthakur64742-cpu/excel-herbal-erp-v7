@@ -6,6 +6,7 @@ on:
     paths:
       - 'build-input/flutter-v720.parts3/**'
       - 'build-input/flutter-v720-missing.parts/**'
+      - 'build-input/flutter-v720-record-detail.b64'
       - '.github/workflows/eh7-v720-build.yml'
   workflow_dispatch:
 
@@ -64,11 +65,15 @@ jobs:
           cat build-input/flutter-v720-missing.parts/part-*.b64 | base64 -d > /tmp/flutter-v720-missing-delta.tar.xz
           echo "f2b77954d97d373b6f39d5a10ebca33ffabde05efba866723157aceb1a7d9a4c  /tmp/flutter-v720-missing-delta.tar.xz" | sha256sum -c -
           tar -xJf /tmp/flutter-v720-missing-delta.tar.xz -C work
+          base64 -d build-input/flutter-v720-record-detail.b64 > /tmp/flutter-v720-record-detail-delta.tar.xz
+          echo "7dbfe5194ee26dc799d2682bfe49c7d55809a5bf352208e8f11ae24200aa225e  /tmp/flutter-v720-record-detail-delta.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter-v720-record-detail-delta.tar.xz -C work
           test -f work/flutter/excel_herbal_erp/lib/core/business_format.dart
           test -f work/flutter/excel_herbal_erp/lib/core/date_time_text.dart
           test -f work/flutter/excel_herbal_erp/lib/core/whole_pcs.dart
           test -f work/flutter/excel_herbal_erp/lib/core/overlay_transition.dart
           test -f work/flutter/excel_herbal_erp/lib/screens/home/enterprise_hub_screen.dart
+          test -f work/flutter/excel_herbal_erp/lib/screens/common/record_detail_screen.dart
 
       - name: Bootstrap Android wrapper
         working-directory: work
