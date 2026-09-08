@@ -34,10 +34,25 @@ jobs:
                   line = line[10:]
               lines.append(line)
           script = '\n'.join(lines) + '\n'
+          script = script.replace(
+              "if old_sold not in text:\n    raise SystemExit('Daily detail sold block not found')\ntext = text.replace(old_sold, new_sold, 1)",
+              "if old_sold in text:\n    text = text.replace(old_sold, new_sold, 1)\nelse:\n    print('Daily detail sold block shape changed; applying robust fallback next.')",
+          )
           path = Path('/tmp/patch_v740.py')
           path.write_text(script)
           subprocess.run(['python3', '-m', 'py_compile', str(path)], check=True)
           subprocess.run(['python3', str(path)], check=True)
+
+          # Robust sold fallback: patch by structural anchors rather than exact formatting.
+          my_work = Path('flutter-app/lib/screens/my_work/my_work_screen.dart')
+          text = my_work.read_text()
+          if 'final soldRaw =' not in text:
+              anchor = text.index("                        ...(((evening['lines'] as List?) ?? const []).map((e) {")
+              block_start = text.index('                          final returned =', anchor)
+              block_end = text.index('                          return Padding(', block_start)
+              replacement = """                          final returned = num.tryParse(\n                                  '${l['return_quantity'] ?? l['return_qty'] ?? 0}') ??\n                              0;\n                          final issued = num.tryParse(\n                                  '${l['issued_quantity'] ?? 0}') ??\n                              0;\n                          final soldRaw = l['sold_quantity'] ?? l['sold_qty'];\n                          final calculatedSold = issued - returned;\n                          final sold = soldRaw == null\n                              ? (calculatedSold > 0 ? calculatedSold : 0)\n                              : (num.tryParse('$soldRaw') ??\n                                  (calculatedSold > 0 ? calculatedSold : 0));\n"""
+              text = text[:block_start] + replacement + text[block_end:]
+              my_work.write_text(text)
           PY
 
       - name: Install Flutter 3.47.2
