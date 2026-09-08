@@ -4,7 +4,7 @@ on:
   push:
     branches: [flutter-v720-build]
     paths:
-      - 'build-input/flutter-v730-brand.parts/**'
+      - 'build-input/flutter-v730-brand-small.parts/**'
       - '.github/workflows/eh7-v720-build.yml'
   workflow_dispatch:
 
@@ -66,11 +66,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat build-input/flutter-v730-brand.parts/part-00.b64 build-input/flutter-v730-brand.parts/part-rest.b64 | base64 -d > /tmp/flutter-v730-brand-polish-delta.tar.xz
-          echo "1f6427b90dc79758a12bfbcf79d7b8e1f5805e62f84794d60a807c5afe1c4624  /tmp/flutter-v730-brand-polish-delta.tar.xz" | sha256sum -c -
-          tar -xJf /tmp/flutter-v730-brand-polish-delta.tar.xz -C work
+          test "$(find build-input/flutter-v730-brand-small.parts -maxdepth 1 -type f -name 'part-*.b64' | wc -l)" -eq 11
+          cat build-input/flutter-v730-brand-small.parts/part-*.b64 | base64 -d > /tmp/flutter-v730-brand-small.tar.xz
+          echo "942d426faed11fd98120b07f294da8fd0da0abd8b8b1a7338030b10a5b16c534  /tmp/flutter-v730-brand-small.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter-v730-brand-small.tar.xz -C work
           grep -q "version: 7.3.0+730" work/flutter/excel_herbal_erp/pubspec.yaml
-          test -f work/flutter/excel_herbal_erp/assets/branding/excel-herbal-logo.png
+          test -f work/flutter/excel_herbal_erp/assets/branding/excel-herbal-logo.webp
           test -f work/flutter/excel_herbal_erp/lib/theme/excel_brand.dart
           test -f work/flutter/excel_herbal_erp/lib/core/ui_error.dart
           grep -q "'source': 'duty'" work/flutter/excel_herbal_erp/lib/core/gps_tracking_service.dart
