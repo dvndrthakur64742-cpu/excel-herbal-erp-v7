@@ -1,0 +1,82 @@
+name: EH7 Flutter v7.4.0 Stabilization Build
+
+on:
+  push:
+    branches: [flutter-v720-build]
+    paths:
+      - 'flutter-app/**'
+      - '.github/workflows/eh7-v740-stabilization-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter 3.47.2
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: flutter-app
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        working-directory: flutter-app
+        run: flutter test
+
+      - name: Build APK
+        working-directory: flutter-app
+        run: >-
+          flutter build apk --debug
+          --build-name=7.4.0
+          --build-number=740
+          --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          --dart-define=EH7_ENVIRONMENT=uat
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=flutter-app/build/app/outputs/flutter-apk/app-debug.apk
+          test -s "$APK"
+          mkdir -p dist/flutter-v7.4.0
+          cp "$APK" dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
+          sha256sum dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk | tee dist/flutter-v7.4.0/APK-SHA256.txt
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Excel-Herbal-ERP-v7.4.0-Stabilization-UAT
+          path: |
+            dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
+            dist/flutter-v7.4.0/APK-SHA256.txt
+          if-no-files-found: error
+
+      - name: Publish UAT release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=v7.4.0-stabilization-uat
+          APK=dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
+          HASH=dist/flutter-v7.4.0/APK-SHA256.txt
+          NOTES='Full APK stabilization candidate from canonical editable Flutter source. Includes core session/error/idempotency/GPS improvements, permission-aware quick actions, common async states, communication read/acknowledgement flows, and ongoing UI/UX consistency fixes. UAT only.'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$HASH" --clobber
+          else
+            gh release create "$TAG" "$APK" "$HASH" --target "$GITHUB_SHA" --title "Excel Herbal ERP Flutter v7.4.0 Stabilization UAT" --notes "$NOTES"
+          fi
