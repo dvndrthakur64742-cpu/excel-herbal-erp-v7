@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/providers.dart';
+import '../../core/transaction_guardrails.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -233,8 +234,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                                       controller: cost[id],
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
+                                        decimal: true,
+                                      ),
                                       decoration: const InputDecoration(
                                         labelText: 'Unit Cost',
                                       ),
@@ -246,7 +247,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                               TextField(
                                 controller: batchNo[id],
                                 decoration: const InputDecoration(
-                                  labelText: 'Batch No. (optional / required by product)',
+                                  labelText:
+                                      'Batch No. (optional / required by product)',
                                 ),
                               ),
                             ],
@@ -279,14 +281,27 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
         for (final p in products) {
           final id = int.parse('${p['id']}');
           final q = WholePcs.parseOrZero(qty[id]!.text);
-          if (q > 0)
-            lines.add({
-              'product_id': id,
-              'quantity': q,
-              'unit_cost': double.tryParse(cost[id]!.text) ?? 0,
-              if (batchNo[id]!.text.trim().isNotEmpty)
-                'batch_no': batchNo[id]!.text.trim(),
-            });
+          if (q <= 0) continue;
+          final rawCost = cost[id]!.text.trim();
+          final unitCost = double.tryParse(rawCost);
+          if (unitCost == null) {
+            throw Exception(
+                '${p['name']} ka Unit Cost valid number me enter karein. Zero-cost item ke liye 0 explicitly enter karein.');
+          }
+          final batch = batchNo[id]!.text.trim();
+          final guardError = TransactionGuardrails.purchaseLine(
+            quantity: q,
+            unitCost: unitCost,
+            batchRequired: '${p['batch_tracking']}' == 'required',
+            batchNo: batch,
+          );
+          if (guardError != null) throw Exception('${p['name']}: $guardError');
+          lines.add({
+            'product_id': id,
+            'quantity': q,
+            'unit_cost': unitCost,
+            if (batch.isNotEmpty) 'batch_no': batch,
+          });
         }
         if (lines.isEmpty) throw Exception('Product line required.');
         final r = await api.post(
@@ -319,7 +334,9 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
       final bills = (await api.get(
         ApiPaths.openBills,
         query: {'branch_id': app.currentBranchId},
-      ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      ) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
       final finance = Map<String, dynamic>.from(
         await api.get(ApiPaths.financeBootstrap) as Map,
       );
@@ -363,7 +380,15 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => setLocal(() => billId = v),
+                    onChanged: (v) {
+                      setLocal(() => billId = v);
+                      if (v != null) {
+                        final selected = bills.firstWhere(
+                          (bill) => int.tryParse('${bill['id']}') == v,
+                        );
+                        amount.text = '${selected['outstanding_amount']}';
+                      }
+                    },
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int>(
@@ -407,11 +432,28 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
         ),
       );
       if (ok == true) {
+        final selected = bills.firstWhere(
+          (bill) => int.tryParse('${bill['id']}') == billId,
+        );
+        final outstanding =
+            double.tryParse('${selected['outstanding_amount']}') ?? 0;
+        final paymentAmount = double.tryParse(amount.text.trim());
+        if (paymentAmount == null) {
+          throw Exception(
+              'Supplier Payment amount valid number me enter karein.');
+        }
+        final guardError = TransactionGuardrails.supplierPayment(
+          billId: billId,
+          paymentAccountId: accountId,
+          amount: paymentAmount,
+          outstanding: outstanding,
+        );
+        if (guardError != null) throw Exception(guardError);
         await api.post(
           ApiPaths.supplierPayments,
           data: {
             'purchase_bill_id': billId,
-            'amount': double.tryParse(amount.text) ?? 0,
+            'amount': paymentAmount,
             'payment_account_id': accountId,
           },
         );

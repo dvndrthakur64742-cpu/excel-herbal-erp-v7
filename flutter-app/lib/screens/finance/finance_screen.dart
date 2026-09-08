@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/providers.dart';
+import '../../core/transaction_guardrails.dart';
 import '../../core/overlay_transition.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -29,14 +30,12 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       'finance.view',
       'finance.accounting.view',
       'finance.account.manage',
-    ]))
-      tabs.add(('Books', _books(app, api)));
+    ])) tabs.add(('Books', _books(app, api)));
     if (app.canAny(const [
       'finance.view',
       'finance.expense.create',
       'finance.expense.approve',
-    ]))
-      tabs.add(('Expenses', _expenses(app, api)));
+    ])) tabs.add(('Expenses', _expenses(app, api)));
     if (app.canAny(const ['finance.branch_close', 'finance.branch_reopen']))
       tabs.add(('Closing', _closing(app, api)));
     if (app.can('finance.bank_reconcile')) tabs.add(('Bank', _bank(app, api)));
@@ -74,46 +73,47 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   }
 
   Widget _books(AppState app, dynamic api) => Column(
-    children: [
-      if (app.can('finance.account.manage'))
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.tonalIcon(
-                  onPressed: _newLedger,
-                  icon: const Icon(Icons.account_balance_wallet_outlined),
-                  label: const Text('New Ledger'),
+        children: [
+          if (app.can('finance.account.manage'))
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.tonalIcon(
+                      onPressed: _newLedger,
+                      icon: const Icon(Icons.account_balance_wallet_outlined),
+                      label: const Text('New Ledger'),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: _newExpenseHead,
+                      icon: const Icon(Icons.category_outlined),
+                      label: const Text('New Expense Head'),
+                    ),
+                  ],
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: _newExpenseHead,
-                  icon: const Icon(Icons.category_outlined),
-                  label: const Text('New Expense Head'),
-                ),
-              ],
+              ),
+            ),
+          Expanded(
+            child: AsyncPanel(
+              key: ValueKey('tb-${app.currentBranchId}-$refresh'),
+              future: api.get(
+                ApiPaths.trialBalance,
+                query: {
+                  'to': app.businessDate,
+                  if (app.currentBranchId != null)
+                    'branch_id': app.currentBranchId,
+                },
+              ),
+              builder: (context, data) =>
+                  RecordsList(recordType: 'trial_balance', rows: _rows(data)),
             ),
           ),
-        ),
-      Expanded(
-        child: AsyncPanel(
-          key: ValueKey('tb-${app.currentBranchId}-$refresh'),
-          future: api.get(
-            ApiPaths.trialBalance,
-            query: {
-              'to': app.businessDate,
-              if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
-            },
-          ),
-          builder: (context, data) =>
-              RecordsList(recordType: 'trial_balance', rows: _rows(data)),
-        ),
-      ),
-    ],
-  );
+        ],
+      );
 
   Widget _expenses(AppState app, dynamic api) {
     if (app.currentBranchId == null)
@@ -299,21 +299,20 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                 DropdownButtonFormField<String>(
                   initialValue: type,
                   decoration: const InputDecoration(labelText: 'Account Type'),
-                  items:
-                      const [
-                            'asset',
-                            'liability',
-                            'equity',
-                            'income',
-                            'expense',
-                          ]
-                          .map(
-                            (v) => DropdownMenuItem(
-                              value: v,
-                              child: Text(v.toUpperCase()),
-                            ),
-                          )
-                          .toList(),
+                  items: const [
+                    'asset',
+                    'liability',
+                    'equity',
+                    'income',
+                    'expense',
+                  ]
+                      .map(
+                        (v) => DropdownMenuItem(
+                          value: v,
+                          child: Text(v.toUpperCase()),
+                        ),
+                      )
+                      .toList(),
                   onChanged: (v) => setLocal(() {
                     type = v ?? 'asset';
                     if (type != 'asset' &&
@@ -327,25 +326,24 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Subtype (optional)',
                   ),
-                  items:
-                      const [
-                            'cash',
-                            'bank',
-                            'upi',
-                            'receivable',
-                            'inventory',
-                            'payable',
-                            'payroll_payable',
-                            'sales',
-                            'cogs',
-                            'stock_variance',
-                            'payroll',
-                            'office',
-                          ]
-                          .map(
-                            (v) => DropdownMenuItem(value: v, child: Text(v)),
-                          )
-                          .toList(),
+                  items: const [
+                    'cash',
+                    'bank',
+                    'upi',
+                    'receivable',
+                    'inventory',
+                    'payable',
+                    'payroll_payable',
+                    'sales',
+                    'cogs',
+                    'stock_variance',
+                    'payroll',
+                    'office',
+                  ]
+                      .map(
+                        (v) => DropdownMenuItem(value: v, child: Text(v)),
+                      )
+                      .toList(),
                   onChanged: (v) => setLocal(() => subtype = v ?? ''),
                 ),
               ],
@@ -365,12 +363,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       ),
     );
     if (ok == true)
-      await _post(ApiPaths.financeAccounts, {
-        'code': code.text.trim(),
-        'name': name.text.trim(),
-        'type': type,
-        'subtype': subtype,
-      }, closeSheet: false);
+      await _post(
+          ApiPaths.financeAccounts,
+          {
+            'code': code.text.trim(),
+            'name': name.text.trim(),
+            'type': type,
+            'subtype': subtype,
+          },
+          closeSheet: false);
     code.dispose();
     name.dispose();
   }
@@ -440,11 +441,14 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         ),
       );
       if (ok == true && accountId != null)
-        await _post(ApiPaths.expenseHeads, {
-          'code': code.text.trim(),
-          'name': name.text.trim(),
-          'expense_account_id': accountId,
-        }, closeSheet: false);
+        await _post(
+            ApiPaths.expenseHeads,
+            {
+              'code': code.text.trim(),
+              'name': name.text.trim(),
+              'expense_account_id': accountId,
+            },
+            closeSheet: false);
       code.dispose();
       name.dispose();
     } catch (e) {
@@ -549,12 +553,22 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         ),
       );
       if (ok == true) {
+        final expenseAmount = double.tryParse(amount.text.trim());
+        if (expenseAmount == null) {
+          throw Exception('Expense amount valid number me enter karein.');
+        }
+        final guardError = TransactionGuardrails.expense(
+          expenseHeadId: head,
+          paymentAccountId: account,
+          amount: expenseAmount,
+        );
+        if (guardError != null) throw Exception(guardError);
         await api.post(
           ApiPaths.expenses,
           data: {
             'branch_id': app.currentBranchId,
             'expense_head_id': head,
-            'amount': double.tryParse(amount.text) ?? 0,
+            'amount': expenseAmount,
             'payment_account_id': account,
             'expense_date': app.businessDate,
             'description': desc.text.trim(),
@@ -606,15 +620,13 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   Future<void> _preflight() async {
     final app = ref.read(appStateProvider);
     try {
-      final r = await ref
-          .read(apiClientProvider)
-          .get(
-            ApiPaths.closingPreflight,
-            query: {
-              'branch_id': app.currentBranchId,
-              'business_date': app.businessDate,
-            },
-          );
+      final r = await ref.read(apiClientProvider).get(
+        ApiPaths.closingPreflight,
+        query: {
+          'branch_id': app.currentBranchId,
+          'business_date': app.businessDate,
+        },
+      );
       if (mounted) setState(() => message = 'Preflight: $r');
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
@@ -624,12 +636,13 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   Future<void> _closingDraft() async {
     final app = ref.read(appStateProvider);
     try {
-      final r = await ref
-          .read(apiClientProvider)
-          .post(
-            ApiPaths.branchClosing,
-            data: {'branch_id': app.currentBranchId, 'business_date': app.businessDate},
-          );
+      final r = await ref.read(apiClientProvider).post(
+        ApiPaths.branchClosing,
+        data: {
+          'branch_id': app.currentBranchId,
+          'business_date': app.businessDate
+        },
+      );
       if (mounted)
         setState(() {
           message = 'Closing draft #${(r as Map)['id']} created.';
@@ -763,6 +776,17 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         ),
       );
       if (ok == true) {
+        final rangeError = TransactionGuardrails.dateRange(
+          from.text.trim(),
+          to.text.trim(),
+        );
+        if (rangeError != null) throw Exception(rangeError);
+        final openingValue = double.tryParse(opening.text.trim());
+        final closingValue = double.tryParse(closing.text.trim());
+        if (openingValue == null || closingValue == null) {
+          throw Exception(
+              'Opening aur Closing Balance valid number me enter karein.');
+        }
         final r = await api.post(
           ApiPaths.bankReconciliations,
           data: {
@@ -770,8 +794,8 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             'account_id': accountId,
             'statement_from': from.text.trim(),
             'statement_to': to.text.trim(),
-            'opening_balance': double.tryParse(opening.text) ?? 0,
-            'closing_balance': double.tryParse(closing.text) ?? 0,
+            'opening_balance': openingValue,
+            'closing_balance': closingValue,
           },
         );
         if (mounted)
@@ -850,8 +874,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                           ? 'Dr ${line['debit']}'
                           : 'Cr ${line['credit']}',
                     ),
-                    onTap:
-                        '${r['status']}' == 'draft' &&
+                    onTap: '${r['status']}' == 'draft' &&
                             '${line['status']}' == 'unmatched'
                         ? () async {
                             final closed =
@@ -953,17 +976,31 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       ),
     );
     if (ok == true) {
-      await _post(ApiPaths.bankImport(id), {
-        'lines': [
+      final debitValue = double.tryParse(debit.text.trim());
+      final creditValue = double.tryParse(credit.text.trim());
+      if (debitValue == null || creditValue == null) {
+        throw Exception('Debit/Credit valid number me enter karein.');
+      }
+      final guardError = TransactionGuardrails.bankStatementLine(
+        date: date.text.trim(),
+        debit: debitValue,
+        credit: creditValue,
+      );
+      if (guardError != null) throw Exception(guardError);
+      await _post(
+          ApiPaths.bankImport(id),
           {
-            'txn_date': date.text.trim(),
-            'description': description.text.trim(),
-            'reference': reference.text.trim(),
-            'debit': double.tryParse(debit.text) ?? 0,
-            'credit': double.tryParse(credit.text) ?? 0,
+            'lines': [
+              {
+                'txn_date': date.text.trim(),
+                'description': description.text.trim(),
+                'reference': reference.text.trim(),
+                'debit': debitValue,
+                'credit': creditValue,
+              },
+            ],
           },
-        ],
-      }, closeSheet: false);
+          closeSheet: false);
     }
     date.dispose();
     description.dispose();
@@ -977,12 +1014,10 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     Map<String, dynamic> line,
     List<Map<String, dynamic>> candidates,
   ) async {
-    final statementNet =
-        (double.tryParse('${line['credit']}') ?? 0) -
+    final statementNet = (double.tryParse('${line['credit']}') ?? 0) -
         (double.tryParse('${line['debit']}') ?? 0);
     final matching = candidates.where((c) {
-      final journalNet =
-          (double.tryParse('${c['debit']}') ?? 0) -
+      final journalNet = (double.tryParse('${c['debit']}') ?? 0) -
           (double.tryParse('${c['credit']}') ?? 0);
       return (statementNet - journalNet).abs() < .005;
     }).toList();
@@ -1039,15 +1074,21 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       ),
     );
     if (choice == 'match' && candidateId != null)
-      await _post(ApiPaths.bankMatch(int.parse('${line['id']}')), {
-        'journal_line_id': candidateId,
-      }, closeSheet: false);
+      await _post(
+          ApiPaths.bankMatch(int.parse('${line['id']}')),
+          {
+            'journal_line_id': candidateId,
+          },
+          closeSheet: false);
     if (choice == 'exclude') {
       final reason = await _askReason('Bank line exclusion reason');
       if (reason != null)
-        await _post(ApiPaths.bankExclude(int.parse('${line['id']}')), {
-          'reason': reason,
-        }, closeSheet: false);
+        await _post(
+            ApiPaths.bankExclude(int.parse('${line['id']}')),
+            {
+              'reason': reason,
+            },
+            closeSheet: false);
     }
     if (mounted) _bankDetail(reconciliationId);
   }
@@ -1089,11 +1130,20 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         ],
       ),
     );
-    if (ok == true)
-      await _post(ApiPaths.periodClose, {
-        'date_from': from.text.trim(),
-        'date_to': to.text.trim(),
-      }, closeSheet: false);
+    if (ok == true) {
+      final guardError = TransactionGuardrails.dateRange(
+        from.text.trim(),
+        to.text.trim(),
+      );
+      if (guardError != null) throw Exception(guardError);
+      await _post(
+          ApiPaths.periodClose,
+          {
+            'date_from': from.text.trim(),
+            'date_to': to.text.trim(),
+          },
+          closeSheet: false);
+    }
     from.dispose();
     to.dispose();
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/providers.dart';
+import '../../core/transaction_guardrails.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -37,17 +38,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               children: [
                 if (app.can('sales.create'))
                   FilledButton.icon(
-                    onPressed: app.currentBranchId == null
-                        ? null
-                        : _counterSale,
+                    onPressed:
+                        app.currentBranchId == null ? null : _counterSale,
                     icon: const Icon(Icons.point_of_sale),
                     label: const Text('Counter Sale'),
                   ),
                 if (app.can('sales.create'))
                   FilledButton.tonalIcon(
-                    onPressed: app.currentBranchId == null
-                        ? null
-                        : _createCustomer,
+                    onPressed:
+                        app.currentBranchId == null ? null : _createCustomer,
                     icon: const Icon(Icons.person_add_alt_1),
                     label: const Text('New Customer'),
                   ),
@@ -359,11 +358,27 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           });
         }
         if (lines.isEmpty) throw Exception('Product quantity required.');
-        final paidAmount = double.tryParse(paid.text) ?? 0;
-        if (paidAmount > 0 && accountId == null)
-          throw Exception(
-            'Received amount ke liye Cash / Bank / UPI account select karein.',
-          );
+        var gross = 0.0;
+        for (final line in lines) {
+          final productId = int.tryParse('${line['product_id']}');
+          final product = productId == null ? null : productById[productId];
+          final rate = double.tryParse('${product?['sale_price'] ?? 0}') ?? 0;
+          if (rate <= 0) {
+            throw Exception(
+                '${product?['name'] ?? 'Product'} ka valid Sale Price available nahi hai.');
+          }
+          gross += (line['quantity'] as num).toDouble() * rate;
+        }
+        final paidAmount = double.tryParse(paid.text.trim());
+        if (paidAmount == null)
+          throw Exception('Paid Amount valid number me enter karein.');
+        final guardError = TransactionGuardrails.counterSale(
+          gross: gross,
+          paid: paidAmount,
+          customerId: customerId,
+          paymentAccountId: accountId,
+        );
+        if (guardError != null) throw Exception(guardError);
         final r = await api.post(
           ApiPaths.counterSale,
           data: {
@@ -403,7 +418,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       if (openSales.isEmpty) {
         if (mounted) {
           setState(
-            () => message = 'Customer receipt ke liye koi posted outstanding sale nahi hai.',
+            () => message =
+                'Customer receipt ke liye koi posted outstanding sale nahi hai.',
           );
         }
         return;
@@ -512,12 +528,28 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         ),
       );
       if (ok == true) {
+        final selected = openSales.firstWhere(
+          (sale) => int.tryParse('${sale['id']}') == saleId,
+        );
+        final outstanding =
+            double.tryParse('${selected['outstanding_amount']}') ?? 0;
+        final receiptAmount = double.tryParse(amount.text.trim());
+        if (receiptAmount == null) {
+          throw Exception('Receipt Amount valid number me enter karein.');
+        }
+        final guardError = TransactionGuardrails.customerReceipt(
+          saleId: saleId,
+          paymentAccountId: accountId,
+          amount: receiptAmount,
+          outstanding: outstanding,
+        );
+        if (guardError != null) throw Exception(guardError);
         await api.post(
           ApiPaths.customerReceipt,
           data: {
             'branch_id': branchId,
             'sale_id': saleId,
-            'amount': double.tryParse(amount.text) ?? 0,
+            'amount': receiptAmount,
             'payment_account_id': accountId,
             'reference': reference.text.trim(),
           },
