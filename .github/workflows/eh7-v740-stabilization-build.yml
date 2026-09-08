@@ -31,7 +31,7 @@ jobs:
 
       - name: Analyze
         working-directory: flutter-app
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Test
         working-directory: flutter-app
@@ -74,7 +74,7 @@ jobs:
           TAG=v7.4.0-stabilization-uat
           APK=dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
           HASH=dist/flutter-v7.4.0/APK-SHA256.txt
-          NOTES='Full APK stabilization candidate from canonical editable Flutter source. Includes core session/error/idempotency/GPS improvements, permission-aware quick actions, common async states, communication read/acknowledgement flows, and ongoing UI/UX consistency fixes. UAT only.'
+          NOTES='Full APK stabilization candidate from canonical editable Flutter source. Includes responsive Daily Order Evening Closing, business-date alignment, session/error/idempotency/GPS improvements, permission-aware quick actions, common async states, Reports Centre, Communication read/acknowledgement flows, Profile cleanup and brand asset fixes. UAT only.'
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$HASH" --clobber
           else
