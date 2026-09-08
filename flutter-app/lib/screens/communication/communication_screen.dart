@@ -49,12 +49,14 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                 future: api.get(ApiPaths.communicationSummary),
                 builder: (context, data) {
                   final summary = Map<String, dynamic>.from(data as Map);
-                  final announcements = ((summary['announcements'] as List?) ?? const [])
-                      .map((e) => Map<String, dynamic>.from(e as Map))
-                      .toList();
-                  final notifications = ((summary['notifications'] as List?) ?? const [])
-                      .map((e) => Map<String, dynamic>.from(e as Map))
-                      .toList();
+                  final announcements =
+                      ((summary['announcements'] as List?) ?? const [])
+                          .map((e) => Map<String, dynamic>.from(e as Map))
+                          .toList();
+                  final notifications =
+                      ((summary['notifications'] as List?) ?? const [])
+                          .map((e) => Map<String, dynamic>.from(e as Map))
+                          .toList();
                   return TabBarView(
                     children: [
                       const TasksScreen(),
@@ -72,14 +74,17 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
   }
 
   Widget _announcements(List<Map<String, dynamic>> rows) {
-    if (rows.isEmpty) return const Center(child: Text('Koi active announcement nahi hai.'));
+    if (rows.isEmpty) {
+      return const Center(child: Text('Koi active announcement nahi hai.'));
+    }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: rows.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (_, i) {
         final row = rows[i];
-        final acknowledged = '${row['acknowledged_at'] ?? ''}'.trim().isNotEmpty;
+        final acknowledged =
+            '${row['acknowledged_at'] ?? ''}'.trim().isNotEmpty;
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -88,9 +93,15 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.campaign_outlined, color: ExcelBrand.primaryDark),
+                    const Icon(Icons.campaign_outlined,
+                        color: ExcelBrand.primaryDark),
                     const SizedBox(width: 9),
-                    Expanded(child: Text('${row['title'] ?? 'Announcement'}', style: Theme.of(context).textTheme.titleMedium)),
+                    Expanded(
+                      child: Text(
+                        '${row['title'] ?? 'Announcement'}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
                     if (acknowledged)
                       const Chip(label: Text('Acknowledged')),
                   ],
@@ -101,7 +112,9 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                 ],
                 const SizedBox(height: 10),
                 Text(
-                  row['published_at'] == null ? '' : BusinessFormat.dateTime(row['published_at']),
+                  row['published_at'] == null
+                      ? ''
+                      : BusinessFormat.dateTime(row['published_at']),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 if (!acknowledged) ...[
@@ -109,7 +122,8 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: OutlinedButton.icon(
-                      onPressed: () => _acknowledge(int.parse('${row['id']}')),
+                      onPressed: () =>
+                          _acknowledge(int.parse('${row['id']}')),
                       icon: const Icon(Icons.done_rounded),
                       label: const Text('Acknowledge'),
                     ),
@@ -124,7 +138,8 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
   }
 
   Widget _notifications(List<Map<String, dynamic>> rows) {
-    final unread = rows.where((r) => '${r['read_at'] ?? ''}'.trim().isEmpty).length;
+    final unread =
+        rows.where((r) => '${r['read_at'] ?? ''}'.trim().isEmpty).length;
     return Column(
       children: [
         if (unread > 0)
@@ -132,7 +147,12 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(
               children: [
-                Expanded(child: Text('$unread unread', style: Theme.of(context).textTheme.titleSmall)),
+                Expanded(
+                  child: Text(
+                    '$unread unread',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
                 TextButton.icon(
                   onPressed: _readAll,
                   icon: const Icon(Icons.done_all_rounded),
@@ -154,12 +174,15 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                     return Card(
                       color: read ? null : ExcelBrand.primarySoft,
                       child: ListTile(
-                        leading: Icon(read ? Icons.notifications_none : Icons.notifications_active_outlined),
+                        leading: Icon(read
+                            ? Icons.notifications_none
+                            : Icons.notifications_active_outlined),
                         title: Text('${row['title'] ?? 'Notification'}'),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if ('${row['body'] ?? ''}'.trim().isNotEmpty) Text('${row['body']}'),
+                            if ('${row['body'] ?? ''}'.trim().isNotEmpty)
+                              Text('${row['body']}'),
                             const SizedBox(height: 3),
                             Text(BusinessFormat.dateTime(row['created_at'])),
                           ],
@@ -168,7 +191,8 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                             ? null
                             : IconButton(
                                 tooltip: 'Mark read',
-                                onPressed: () => _readOne(int.parse('${row['id']}')),
+                                onPressed: () =>
+                                    _readOne(int.parse('${row['id']}')),
                                 icon: const Icon(Icons.done_rounded),
                               ),
                       ),
@@ -180,14 +204,26 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
     );
   }
 
-  Future<void> _acknowledge(int id) => _post(ApiPaths.announcementAck(id), 'Announcement acknowledged.');
-  Future<void> _readOne(int id) => _post(ApiPaths.notificationRead(id), 'Notification marked read.');
-  Future<void> _readAll() => _post(ApiPaths.notificationReadAll, 'Notifications marked read.');
+  Future<void> _acknowledge(int id) => _post(
+        ApiPaths.announcementAcknowledge(id),
+        'Announcement acknowledged.',
+      );
+
+  Future<void> _readOne(int id) =>
+      _post(ApiPaths.notificationRead(id), 'Notification marked read.');
+
+  Future<void> _readAll() =>
+      _post(ApiPaths.notificationReadAll, 'Notifications marked read.');
 
   Future<void> _post(String path, String success) async {
     try {
       await ref.read(apiClientProvider).post(path, data: const {});
-      if (mounted) setState(() { message = success; refresh++; });
+      if (mounted) {
+        setState(() {
+          message = success;
+          refresh++;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
@@ -206,6 +242,9 @@ class _Message extends StatelessWidget {
           color: ExcelBrand.primarySoft,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+        child: Text(
+          text,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
       );
 }
