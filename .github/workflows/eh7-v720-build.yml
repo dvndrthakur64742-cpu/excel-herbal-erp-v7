@@ -1,12 +1,10 @@
-name: EH7 Flutter v7.2.0 Build
+name: EH7 Flutter v7.3.0 Brand Build
 
 on:
   push:
     branches: [flutter-v720-build]
     paths:
-      - 'build-input/flutter-v720.parts3/**'
-      - 'build-input/flutter-v720-missing.parts/**'
-      - 'build-input/flutter-v720-record-detail.b64'
+      - 'build-input/flutter-v730-brand.parts/**'
       - '.github/workflows/eh7-v720-build.yml'
   workflow_dispatch:
 
@@ -46,7 +44,7 @@ jobs:
           patch -p1 --forward --batch < ../ci/clean10-flutter-compile-fix-1.patch
           python3 ../ci/clean10-analyzer-cleanup-2.py
 
-      - name: Apply SHA-verified v7.2.0 Flutter overlay
+      - name: Apply v7.2.0 recovered app baseline
         shell: bash
         run: |
           set -euo pipefail
@@ -54,26 +52,28 @@ jobs:
           cat build-input/flutter-v720.parts3/part-*.b64 | base64 -d > /tmp/flutter-v720-overlay.tar.xz
           echo "8c446ef6a7c66575fb29089535eecd74d2ec9996c3effc56cebd47cd5fdb1e62  /tmp/flutter-v720-overlay.tar.xz" | sha256sum -c -
           tar -xJf /tmp/flutter-v720-overlay.tar.xz -C work
-          test -f work/flutter/excel_herbal_erp/lib/screens/tools/erp_tools_screen.dart
-          grep -q "version: 7.2.0+720" work/flutter/excel_herbal_erp/pubspec.yaml
 
-      - name: Apply recovered support files
-        shell: bash
-        run: |
-          set -euo pipefail
           test "$(find build-input/flutter-v720-missing.parts -maxdepth 1 -type f -name 'part-*.b64' | wc -l)" -eq 3
           cat build-input/flutter-v720-missing.parts/part-*.b64 | base64 -d > /tmp/flutter-v720-missing-delta.tar.xz
           echo "f2b77954d97d373b6f39d5a10ebca33ffabde05efba866723157aceb1a7d9a4c  /tmp/flutter-v720-missing-delta.tar.xz" | sha256sum -c -
           tar -xJf /tmp/flutter-v720-missing-delta.tar.xz -C work
+
           base64 -d build-input/flutter-v720-record-detail.b64 > /tmp/flutter-v720-record-detail-delta.tar.xz
           echo "7dbfe5194ee26dc799d2682bfe49c7d55809a5bf352208e8f11ae24200aa225e  /tmp/flutter-v720-record-detail-delta.tar.xz" | sha256sum -c -
           tar -xJf /tmp/flutter-v720-record-detail-delta.tar.xz -C work
-          test -f work/flutter/excel_herbal_erp/lib/core/business_format.dart
-          test -f work/flutter/excel_herbal_erp/lib/core/date_time_text.dart
-          test -f work/flutter/excel_herbal_erp/lib/core/whole_pcs.dart
-          test -f work/flutter/excel_herbal_erp/lib/core/overlay_transition.dart
-          test -f work/flutter/excel_herbal_erp/lib/screens/home/enterprise_hub_screen.dart
-          test -f work/flutter/excel_herbal_erp/lib/screens/common/record_detail_screen.dart
+
+      - name: Apply Excel Herbal v7.3.0 brand polish
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat build-input/flutter-v730-brand.parts/part-00.b64 build-input/flutter-v730-brand.parts/part-rest.b64 | base64 -d > /tmp/flutter-v730-brand-polish-delta.tar.xz
+          echo "1f6427b90dc79758a12bfbcf79d7b8e1f5805e62f84794d60a807c5afe1c4624  /tmp/flutter-v730-brand-polish-delta.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter-v730-brand-polish-delta.tar.xz -C work
+          grep -q "version: 7.3.0+730" work/flutter/excel_herbal_erp/pubspec.yaml
+          test -f work/flutter/excel_herbal_erp/assets/branding/excel-herbal-logo.png
+          test -f work/flutter/excel_herbal_erp/lib/theme/excel_brand.dart
+          test -f work/flutter/excel_herbal_erp/lib/core/ui_error.dart
+          grep -q "'source': 'duty'" work/flutter/excel_herbal_erp/lib/core/gps_tracking_service.dart
 
       - name: Bootstrap Android wrapper
         working-directory: work
@@ -91,12 +91,12 @@ jobs:
         working-directory: work/flutter/excel_herbal_erp
         run: flutter test
 
-      - name: Build UAT debug APK
+      - name: Build branded UAT APK
         working-directory: work/flutter/excel_herbal_erp
         run: >-
           flutter build apk --debug
-          --build-name=7.2.0
-          --build-number=720
+          --build-name=7.3.0
+          --build-number=730
           --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
           --dart-define=EH7_ENVIRONMENT=uat
 
@@ -106,26 +106,26 @@ jobs:
           set -euo pipefail
           APK=work/flutter/excel_herbal_erp/build/app/outputs/flutter-apk/app-debug.apk
           test -s "$APK"
-          mkdir -p dist/flutter-v7.2.0
-          cp "$APK" dist/flutter-v7.2.0/Excel-Herbal-ERP-v7.2.0-UAT.apk
-          sha256sum dist/flutter-v7.2.0/Excel-Herbal-ERP-v7.2.0-UAT.apk | tee dist/flutter-v7.2.0/APK-SHA256.txt
+          mkdir -p dist/flutter-v7.3.0
+          cp "$APK" dist/flutter-v7.3.0/Excel-Herbal-ERP-v7.3.0-Brand-UAT.apk
+          sha256sum dist/flutter-v7.3.0/Excel-Herbal-ERP-v7.3.0-Brand-UAT.apk | tee dist/flutter-v7.3.0/APK-SHA256.txt
 
-      - name: Publish UAT APK as GitHub Release
+      - name: Publish branded APK as GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG=v7.2.0-uat
-          APK=dist/flutter-v7.2.0/Excel-Herbal-ERP-v7.2.0-UAT.apk
-          HASH=dist/flutter-v7.2.0/APK-SHA256.txt
+          TAG=v7.3.0-brand-uat
+          APK=dist/flutter-v7.3.0/Excel-Herbal-ERP-v7.3.0-Brand-UAT.apk
+          HASH=dist/flutter-v7.3.0/APK-SHA256.txt
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$HASH" --clobber
           else
             gh release create "$TAG" "$APK" "$HASH" \
               --target "$GITHUB_SHA" \
-              --title "Excel Herbal ERP Flutter v7.2.0 UAT" \
-              --notes "Compiler-verified UAT build. Flutter analyze passed, Flutter tests passed, Android APK build passed. API: https://office.excelherbal.in/wp-json/excel-herbal-erp/v7"
+              --title "Excel Herbal ERP Flutter v7.3.0 Brand UAT" \
+              --notes "Excel Herbal branded professional UI build. Green/black/white design system, branded login/home/drawer, professional error states, improved Daily Order and Issue Stock UX, GPS source correction. Flutter analyze/test/APK build verified by CI."
           fi
 
       - name: Commit APK hash to build branch
@@ -134,11 +134,11 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          mkdir -p release-manifests/v7.2.0
-          cp dist/flutter-v7.2.0/APK-SHA256.txt release-manifests/v7.2.0/APK-SHA256.txt
-          git add release-manifests/v7.2.0/APK-SHA256.txt
+          mkdir -p release-manifests/v7.3.0
+          cp dist/flutter-v7.3.0/APK-SHA256.txt release-manifests/v7.3.0/APK-SHA256.txt
+          git add release-manifests/v7.3.0/APK-SHA256.txt
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m "Record Flutter v7.2.0 APK hash [skip ci]"
+          git commit -m "Record Flutter v7.3.0 brand APK hash [skip ci]"
           git push origin HEAD:flutter-v720-build
