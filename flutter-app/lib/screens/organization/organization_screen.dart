@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/commercial_integrity.dart';
 import '../../core/providers.dart';
 import '../../core/overlay_transition.dart';
 import '../../core/ui_error.dart';
@@ -130,7 +131,9 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
                       Expanded(
                         child: Text(
                           'Branch Details',
-                          style: Theme.of(context).textTheme.titleLarge
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
@@ -534,11 +537,11 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     final closed = await OverlayTransition.closeAndSettle(context);
     if (!closed || !mounted) return;
     try {
-      final rows =
-          (await ref.read(apiClientProvider).get(ApiPaths.employeeHistory(id))
-                  as List)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
+      final rows = (await ref
+              .read(apiClientProvider)
+              .get(ApiPaths.employeeHistory(id)) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -670,7 +673,8 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
         .toList();
     if (branches.isEmpty) {
       setState(
-        () => message = 'Additional authority ke liye dusri authorised branch available nahi hai.',
+        () => message =
+            'Additional authority ke liye dusri authorised branch available nahi hai.',
       );
       return;
     }
@@ -722,16 +726,14 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     );
     if (ok != true) return;
     try {
-      await ref
-          .read(apiClientProvider)
-          .post(
-            ApiPaths.branchAuthority,
-            data: {
-              'employee_id': employeeId,
-              'branch_id': branchId,
-              'active': grant,
-            },
-          );
+      await ref.read(apiClientProvider).post(
+        ApiPaths.branchAuthority,
+        data: {
+          'employee_id': employeeId,
+          'branch_id': branchId,
+          'active': grant,
+        },
+      );
       if (mounted)
         setState(
           () => message = grant
@@ -755,6 +757,19 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     final office = TextEditingController(text: '0');
     final points = TextEditingController(text: '0');
     final purchaseCost = TextEditingController(text: '0');
+    final controllers = [
+      sku,
+      name,
+      uom,
+      mrp,
+      sale,
+      ho,
+      bm,
+      salary,
+      office,
+      points,
+      purchaseCost,
+    ];
     var batchMode = 'optional';
     var expiryTracking = false;
     final ok = await showDialog<bool>(
@@ -775,9 +790,8 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: name,
-                    decoration: const InputDecoration(
-                      labelText: 'Product Name',
-                    ),
+                    decoration:
+                        const InputDecoration(labelText: 'Product Name'),
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -787,19 +801,14 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: batchMode,
-                    decoration: const InputDecoration(
-                      labelText: 'Batch Tracking',
-                    ),
+                    decoration:
+                        const InputDecoration(labelText: 'Batch Tracking'),
                     items: const [
                       DropdownMenuItem(value: 'off', child: Text('Off')),
                       DropdownMenuItem(
-                        value: 'optional',
-                        child: Text('Optional'),
-                      ),
+                          value: 'optional', child: Text('Optional')),
                       DropdownMenuItem(
-                        value: 'required',
-                        child: Text('Required'),
-                      ),
+                          value: 'required', child: Text('Required')),
                     ],
                     onChanged: (v) {
                       if (v != null) setLocal(() => batchMode = v);
@@ -819,10 +828,12 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
                   _moneyPair(salary, 'Salary Fund', office, 'Office Expense'),
                   const SizedBox(height: 10),
                   _moneyPair(
-                    points,
-                    'Points',
-                    purchaseCost,
-                    'Initial Purchase Cost',
+                      points, 'Points', purchaseCost, 'Initial Purchase Cost'),
+                  const SizedBox(height: 10),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                        'Rule: Sale Price ≤ MRP and distribution total must equal Sale Price.'),
                   ),
                 ],
               ),
@@ -844,46 +855,40 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
         ),
       ),
     );
-    final payload = {
-      'sku': sku.text.trim(),
-      'name': name.text.trim(),
-      'uom': uom.text.trim(),
-      'batch_tracking': batchMode,
-      'expiry_tracking': expiryTracking,
-      'mrp': _num(mrp),
-      'sale_price': _num(sale),
-      'ho_amount': _num(ho),
-      'bm_profit': _num(bm),
-      'salary_fund': _num(salary),
-      'office_expense': _num(office),
-      'points': _num(points),
-      'purchase_cost': _num(purchaseCost),
-    };
-    for (final c in [
-      sku,
-      name,
-      uom,
-      mrp,
-      sale,
-      ho,
-      bm,
-      salary,
-      office,
-      points,
-      purchaseCost,
-    ]) {
-      c.dispose();
+    if (ok != true) {
+      _disposeControllers(controllers);
+      return;
     }
-    if (ok != true) return;
     try {
+      final commercial = _commercialValues(
+        mrp: mrp,
+        sale: sale,
+        ho: ho,
+        bm: bm,
+        salary: salary,
+        office: office,
+        points: points,
+        purchaseCost: purchaseCost,
+      );
+      final payload = {
+        'sku': sku.text.trim(),
+        'name': name.text.trim(),
+        'uom': uom.text.trim(),
+        'batch_tracking': batchMode,
+        'expiry_tracking': expiryTracking,
+        ...commercial.toPayload(),
+      };
       await ref.read(apiClientProvider).post(ApiPaths.products, data: payload);
-      if (mounted)
+      if (mounted) {
         setState(() {
           refresh++;
           message = 'Product create ho gaya.';
         });
+      }
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      _disposeControllers(controllers);
     }
   }
 
@@ -922,11 +927,11 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     final closed = await OverlayTransition.closeAndSettle(context);
     if (!closed || !mounted) return;
     try {
-      final rows =
-          (await ref.read(apiClientProvider).get(ApiPaths.productHistory(id))
-                  as List)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
+      final rows = (await ref
+              .read(apiClientProvider)
+              .get(ApiPaths.productHistory(id)) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -953,99 +958,192 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
   Future<void> _commercialRevision(Map<String, dynamic> product) async {
     final closed = await OverlayTransition.closeAndSettle(context);
     if (!closed || !mounted) return;
-    final mrp = TextEditingController(text: '${product['mrp'] ?? 0}');
-    final sale = TextEditingController(text: '${product['sale_price'] ?? 0}');
-    final ho = TextEditingController(text: '${product['ho_amount'] ?? 0}');
-    final bm = TextEditingController(text: '${product['bm_profit'] ?? 0}');
-    final salary = TextEditingController(
-      text: '${product['salary_fund'] ?? 0}',
-    );
-    final office = TextEditingController(
-      text: '${product['office_expense'] ?? 0}',
-    );
-    final points = TextEditingController(text: '${product['points'] ?? 0}');
-    final purchaseCost = TextEditingController(text: '0');
-    final reason = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Commercial Revision · ${product['name']}'),
-        content: SizedBox(
-          width: 640,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _moneyPair(mrp, 'MRP', sale, 'Sale Price'),
-                const SizedBox(height: 10),
-                _moneyPair(ho, 'HO Amount', bm, 'BM Profit'),
-                const SizedBox(height: 10),
-                _moneyPair(salary, 'Salary Fund', office, 'Office Expense'),
-                const SizedBox(height: 10),
-                _moneyPair(points, 'Points', purchaseCost, 'Purchase Cost'),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: reason,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Change Reason'),
-                ),
-              ],
+    final app = ref.read(appStateProvider);
+    try {
+      final history = (await ref
+                  .read(apiClientProvider)
+                  .get(ApiPaths.productHistory(int.parse('${product['id']}')))
+              as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (!mounted) return;
+      final latest = history.isNotEmpty ? history.first : product;
+      final mrp = TextEditingController(
+          text: '${latest['mrp'] ?? product['mrp'] ?? 0}');
+      final sale = TextEditingController(
+          text: '${latest['sale_price'] ?? product['sale_price'] ?? 0}');
+      final ho = TextEditingController(
+          text: '${latest['ho_amount'] ?? product['ho_amount'] ?? 0}');
+      final bm = TextEditingController(
+          text: '${latest['bm_profit'] ?? product['bm_profit'] ?? 0}');
+      final salary = TextEditingController(
+          text: '${latest['salary_fund'] ?? product['salary_fund'] ?? 0}');
+      final office = TextEditingController(
+          text:
+              '${latest['office_expense'] ?? product['office_expense'] ?? 0}');
+      final points = TextEditingController(
+          text: '${latest['points'] ?? product['points'] ?? 0}');
+      final purchaseCost = TextEditingController(
+          text: '${latest['purchase_cost'] ?? product['purchase_cost'] ?? 0}');
+      final effectiveDate = TextEditingController(text: app.businessDate);
+      final reason = TextEditingController();
+      final controllers = [
+        mrp,
+        sale,
+        ho,
+        bm,
+        salary,
+        office,
+        points,
+        purchaseCost,
+        effectiveDate,
+        reason,
+      ];
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Commercial Revision · ${product['name']}'),
+          content: SizedBox(
+            width: 640,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _moneyPair(mrp, 'MRP', sale, 'Sale Price'),
+                  const SizedBox(height: 10),
+                  _moneyPair(ho, 'HO Amount', bm, 'BM Profit'),
+                  const SizedBox(height: 10),
+                  _moneyPair(salary, 'Salary Fund', office, 'Office Expense'),
+                  const SizedBox(height: 10),
+                  _moneyPair(points, 'Points', purchaseCost, 'Purchase Cost'),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: effectiveDate,
+                    decoration: const InputDecoration(
+                      labelText: 'Effective Date YYYY-MM-DD',
+                      helperText: 'Default ERP business date',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: reason,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration:
+                        const InputDecoration(labelText: 'Change Reason'),
+                  ),
+                  const SizedBox(height: 10),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                        'Rule: Sale Price ≤ MRP and HO + BM + Salary Fund + Office Expense = Sale Price.'),
+                  ),
+                ],
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                context,
+                reason.text.trim().length >= 5 &&
+                    CommercialIntegrity.validBusinessDate(effectiveDate.text),
+              ),
+              child: const Text('Save Revision'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, reason.text.trim().length >= 5),
-            child: const Text('Save Revision'),
-          ),
-        ],
-      ),
-    );
-    final payload = {
-      'mrp': _num(mrp),
-      'sale_price': _num(sale),
-      'ho_amount': _num(ho),
-      'bm_profit': _num(bm),
-      'salary_fund': _num(salary),
-      'office_expense': _num(office),
-      'points': _num(points),
-      'purchase_cost': _num(purchaseCost),
-      'reason': reason.text.trim(),
-    };
-    for (final c in [
-      mrp,
-      sale,
-      ho,
-      bm,
-      salary,
-      office,
-      points,
-      purchaseCost,
-      reason,
-    ]) {
-      c.dispose();
-    }
-    if (ok != true) return;
-    try {
-      await ref
-          .read(apiClientProvider)
-          .post(
-            ApiPaths.productRevision(int.parse('${product['id']}')),
-            data: payload,
-          );
-      if (mounted)
-        setState(() {
-          refresh++;
-          message = 'Commercial revision saved.';
-        });
+      );
+      if (ok != true) {
+        _disposeControllers(controllers);
+        return;
+      }
+      try {
+        if (!CommercialIntegrity.validBusinessDate(effectiveDate.text)) {
+          throw Exception(
+              'Effective Date valid YYYY-MM-DD format me honi chahiye.');
+        }
+        final commercial = _commercialValues(
+          mrp: mrp,
+          sale: sale,
+          ho: ho,
+          bm: bm,
+          salary: salary,
+          office: office,
+          points: points,
+          purchaseCost: purchaseCost,
+        );
+        await ref.read(apiClientProvider).post(
+          ApiPaths.productRevision(int.parse('${product['id']}')),
+          data: {
+            ...commercial.toPayload(),
+            if (effectiveDate.text.trim() != app.businessDate)
+              'effective_from': '${effectiveDate.text.trim()} 00:00:00',
+            'reason': reason.text.trim(),
+          },
+        );
+        if (mounted) {
+          setState(() {
+            refresh++;
+            message = 'Commercial revision saved.';
+          });
+        }
+      } finally {
+        _disposeControllers(controllers);
+      }
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  CommercialValues _commercialValues({
+    required TextEditingController mrp,
+    required TextEditingController sale,
+    required TextEditingController ho,
+    required TextEditingController bm,
+    required TextEditingController salary,
+    required TextEditingController office,
+    required TextEditingController points,
+    required TextEditingController purchaseCost,
+  }) {
+    final parsedMrp = CommercialIntegrity.parseRequired(mrp.text);
+    final parsedSale = CommercialIntegrity.parseRequired(sale.text);
+    final parsedHo = CommercialIntegrity.parseRequired(ho.text);
+    final parsedBm = CommercialIntegrity.parseRequired(bm.text);
+    final parsedSalary = CommercialIntegrity.parseRequired(salary.text);
+    final parsedOffice = CommercialIntegrity.parseRequired(office.text);
+    final parsedPoints = CommercialIntegrity.parseRequired(points.text);
+    final parsedPurchase = CommercialIntegrity.parseRequired(purchaseCost.text);
+    final error = CommercialIntegrity.validate(
+      mrp: parsedMrp,
+      salePrice: parsedSale,
+      hoAmount: parsedHo,
+      bmProfit: parsedBm,
+      salaryFund: parsedSalary,
+      officeExpense: parsedOffice,
+      points: parsedPoints,
+      purchaseCost: parsedPurchase,
+    );
+    if (error != null) throw Exception(error);
+    return CommercialIntegrity.values(
+      mrp: parsedMrp!,
+      salePrice: parsedSale!,
+      hoAmount: parsedHo!,
+      bmProfit: parsedBm!,
+      salaryFund: parsedSalary!,
+      officeExpense: parsedOffice!,
+      points: parsedPoints!,
+      purchaseCost: parsedPurchase!,
+    );
+  }
+
+  void _disposeControllers(Iterable<TextEditingController> controllers) {
+    for (final controller in controllers) {
+      controller.dispose();
     }
   }
 
@@ -1079,5 +1177,4 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
       },
     );
   }
-
-  double _num(TextEditingController c) => double.tryParse(c.text.trim()) ?? 0;}
+}
