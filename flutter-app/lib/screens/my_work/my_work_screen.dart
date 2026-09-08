@@ -1349,17 +1349,19 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                             color: ExcelBrand.primarySoft,
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: const Row(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.calculate_outlined,
                                 color: ExcelBrand.primaryDark,
                               ),
-                              SizedBox(width: 10),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  'Return aur Wholesale quantity enter karein. Retail Sold quantity ERP automatically calculate karega.',
+                                  wholesaleEnabled
+                                      ? 'Return, Wholesale Qty aur Wholesale Rate enter karein. Retail Sold ERP automatically calculate karega.'
+                                      : 'Sirf Return Qty enter karein. Retail Sold ERP automatically calculate karega.',
                                 ),
                               ),
                             ],
@@ -1670,66 +1672,352 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     final evening = Map<String, dynamic>.from(
       (d['evening'] as Map?) ?? const {},
     );
-    final expected = double.tryParse('${evening['expected_amount'] ?? 0}') ?? 0;
+    final lines = ((evening['lines'] as List?) ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    if (lines.isEmpty) throw Exception('Evening closing lines not found.');
+
+    final summaries = <Map<String, dynamic>>[];
+    var calculatedExpected = 0.0;
+    for (final line in lines) {
+      final issued = BusinessFormat.number(line['issued_quantity']) ?? 0;
+      final returned = BusinessFormat.number(
+            line['return_quantity'] ?? line['return_qty'],
+          ) ??
+          0;
+      final wholesaleQty =
+          BusinessFormat.number(line['wholesale_quantity']) ?? 0;
+      final soldRaw = BusinessFormat.number(
+        line['sold_quantity'] ?? line['sold_qty'],
+      );
+      final retailSold = soldRaw?.toDouble() ??
+          DailyOrderMath.retailSold(issued, returned, wholesaleQty);
+      final retailRate = BusinessFormat.number(
+            line['retail_rate'] ?? line['sale_price'] ?? line['rate'],
+          ) ??
+          0;
+      final wholesaleRate = BusinessFormat.number(line['wholesale_rate']) ?? 0;
+      final retailAmount = BusinessFormat.number(
+            line['retail_amount'] ?? line['sold_amount'],
+          )?.toDouble() ??
+          retailSold * retailRate.toDouble();
+      final wholesaleAmount =
+          BusinessFormat.number(line['wholesale_amount'])?.toDouble() ??
+              wholesaleQty.toDouble() * wholesaleRate.toDouble();
+      final lineTotal =
+          BusinessFormat.number(line['total_amount'] ?? line['amount'])
+                  ?.toDouble() ??
+              retailAmount + wholesaleAmount;
+      calculatedExpected += lineTotal;
+      summaries.add({
+        'name': '${line['product_name'] ?? 'Product'}',
+        'issued': issued,
+        'returned': returned,
+        'retail_sold': retailSold,
+        'wholesale_qty': wholesaleQty,
+        'retail_rate': retailRate,
+        'wholesale_rate': wholesaleRate,
+        'retail_amount': retailAmount,
+        'wholesale_amount': wholesaleAmount,
+        'line_total': lineTotal,
+      });
+    }
+
+    final backendExpected = BusinessFormat.number(
+      evening['expected_amount'] ?? evening['total_amount'],
+    )?.toDouble();
+    final expected = backendExpected ?? calculatedExpected;
+    final reconciliationDifference = backendExpected == null
+        ? 0.0
+        : (backendExpected - calculatedExpected).abs();
+
     final cash = TextEditingController(text: expected.toStringAsFixed(2));
     final upi = TextEditingController(text: '0');
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Final Post · ₹${expected.toStringAsFixed(2)}'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: cash,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'Cash'),
+    bool? confirmed;
+
+    try {
+      if (!mounted) return;
+      confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setLocal) {
+            final cashValue = BusinessFormat.number(cash.text)?.toDouble() ?? 0;
+            final upiValue = BusinessFormat.number(upi.text)?.toDouble() ?? 0;
+            final deposit = cashValue + upiValue;
+            final matched = DailyOrderMath.depositMatches(deposit, expected);
+
+            Widget paymentField({
+              required TextEditingController controller,
+              required String label,
+              required IconData icon,
+            }) =>
+                TextField(
+                  controller: controller,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setLocal(() {}),
+                  decoration: InputDecoration(
+                    labelText: label,
+                    prefixIcon: Icon(icon),
+                    prefixText: '₹ ',
+                  ),
+                );
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.fact_check_outlined),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('Final Post · Daily Order #$id')),
+                ],
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: upi,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+              content: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 720,
+                  maxHeight: MediaQuery.sizeOf(context).height * .72,
                 ),
-                decoration: const InputDecoration(labelText: 'UPI / Online'),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sold Products & Amounts',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...summaries.map((item) {
+                        final wholesaleQty = item['wholesale_qty'] as num;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerLow,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outlineVariant,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        BusinessFormat.displayName(
+                                          '${item['name']}',
+                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                    ),
+                                    Text(
+                                      BusinessFormat.money(item['line_total']),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w900),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Retail ${BusinessFormat.quantity(item['retail_sold'])} × ${BusinessFormat.money(item['retail_rate'])} = ${BusinessFormat.money(item['retail_amount'])}',
+                                ),
+                                if (wholesaleQty > 0) ...[
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Wholesale ${BusinessFormat.quantity(wholesaleQty)} × ${BusinessFormat.money(item['wholesale_rate'])} = ${BusinessFormat.money(item['wholesale_amount'])}',
+                                  ),
+                                ],
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Return ${BusinessFormat.quantity(item['returned'])} · Issued ${BusinessFormat.quantity(item['issued'])}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: ExcelBrand.primarySoft,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Expected Deposit',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                                Text(
+                                  BusinessFormat.money(expected),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: ExcelBrand.primaryDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (reconciliationDifference > .01) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Server total ${BusinessFormat.money(backendExpected)} · Product calculation ${BusinessFormat.money(calculatedExpected)}. Posting server expected total ke against verify hoga.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Deposit Breakdown',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                      ),
+                      const SizedBox(height: 8),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          if (constraints.maxWidth < 520) {
+                            return Column(
+                              children: [
+                                paymentField(
+                                  controller: cash,
+                                  label: 'Cash Deposit',
+                                  icon: Icons.payments_outlined,
+                                ),
+                                const SizedBox(height: 10),
+                                paymentField(
+                                  controller: upi,
+                                  label: 'Online / UPI',
+                                  icon: Icons.account_balance_outlined,
+                                ),
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: paymentField(
+                                  controller: cash,
+                                  label: 'Cash Deposit',
+                                  icon: Icons.payments_outlined,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: paymentField(
+                                  controller: upi,
+                                  label: 'Online / UPI',
+                                  icon: Icons.account_balance_outlined,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: matched
+                              ? ExcelBrand.primarySoft
+                              : const Color(0xFFFFECEC),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              matched
+                                  ? Icons.check_circle_outline
+                                  : Icons.error_outline,
+                              color: matched
+                                  ? ExcelBrand.primaryDark
+                                  : ExcelBrand.danger,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Total Cash Deposit = Cash + Online = ${BusinessFormat.money(deposit)}\nRequired ${BusinessFormat.money(expected)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: matched
+                                      ? ExcelBrand.primaryDark
+                                      : ExcelBrand.danger,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 12),
-              Text('Cash + UPI must equal ₹${expected.toStringAsFixed(2)}.'),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  onPressed:
+                      matched ? () => Navigator.pop(dialogContext, true) : null,
+                  icon: const Icon(Icons.post_add_outlined),
+                  label: const Text('Final Post'),
+                ),
+              ],
+            );
+          },
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Final Post'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      final c = double.tryParse(cash.text) ?? 0;
-      final u = double.tryParse(upi.text) ?? 0;
-      if ((c + u - expected).abs() > 0.005) {
-        throw Exception('Cash + UPI expected amount ke barabar hona chahiye.');
+      );
+
+      if (confirmed == true) {
+        final c = BusinessFormat.number(cash.text)?.toDouble() ?? 0;
+        final u = BusinessFormat.number(upi.text)?.toDouble() ?? 0;
+        if (!DailyOrderMath.depositMatches(c + u, expected)) {
+          throw Exception(
+            'Cash + Online expected amount ke barabar hona chahiye.',
+          );
+        }
+        await api.post(ApiPaths.finalPost(id), data: {'cash': c, 'upi': u});
+        if (mounted) {
+          setState(() {
+            refresh++;
+            message = 'Daily Order completed and posted.';
+          });
+        }
       }
-      await api.post(ApiPaths.finalPost(id), data: {'cash': c, 'upi': u});
-      if (mounted) {
-        setState(() {
-          refresh++;
-          message = 'Daily Order completed and posted.';
-        });
-      }
+    } finally {
+      cash.dispose();
+      upi.dispose();
     }
-    cash.dispose();
-    upi.dispose();
   }
 
   Future<void> _showDaily(int id) async {
