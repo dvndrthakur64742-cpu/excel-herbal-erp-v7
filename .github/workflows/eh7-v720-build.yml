@@ -100,7 +100,7 @@ jobs:
           --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
           --dart-define=EH7_ENVIRONMENT=uat
 
-      - name: Verify APK and package final source
+      - name: Verify APK and hash
         shell: bash
         run: |
           set -euo pipefail
@@ -109,32 +109,26 @@ jobs:
           mkdir -p dist/flutter-v7.2.0
           cp "$APK" dist/flutter-v7.2.0/Excel-Herbal-ERP-v7.2.0-UAT.apk
           sha256sum dist/flutter-v7.2.0/Excel-Herbal-ERP-v7.2.0-UAT.apk | tee dist/flutter-v7.2.0/APK-SHA256.txt
-          tar -cJf dist/flutter-v7.2.0/Excel-Herbal-ERP-Flutter-v7.2.0-source.tar.xz -C work flutter/excel_herbal_erp
-          sha256sum dist/flutter-v7.2.0/Excel-Herbal-ERP-Flutter-v7.2.0-source.tar.xz | tee dist/flutter-v7.2.0/SOURCE-SHA256.txt
 
-      - name: Publish UAT APK and source as GitHub Release
+      - name: Publish UAT APK as GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           TAG=v7.2.0-uat
-          FILES=(
-            dist/flutter-v7.2.0/Excel-Herbal-ERP-v7.2.0-UAT.apk
-            dist/flutter-v7.2.0/APK-SHA256.txt
-            dist/flutter-v7.2.0/Excel-Herbal-ERP-Flutter-v7.2.0-source.tar.xz
-            dist/flutter-v7.2.0/SOURCE-SHA256.txt
-          )
+          APK=dist/flutter-v7.2.0/Excel-Herbal-ERP-v7.2.0-UAT.apk
+          HASH=dist/flutter-v7.2.0/APK-SHA256.txt
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${FILES[@]}" --clobber
+            gh release upload "$TAG" "$APK" "$HASH" --clobber
           else
-            gh release create "$TAG" "${FILES[@]}" \
+            gh release create "$TAG" "$APK" "$HASH" \
               --target "$GITHUB_SHA" \
               --title "Excel Herbal ERP Flutter v7.2.0 UAT" \
               --notes "Compiler-verified UAT build. Flutter analyze passed, Flutter tests passed, Android APK build passed. API: https://office.excelherbal.in/wp-json/excel-herbal-erp/v7"
           fi
 
-      - name: Commit build hashes to build branch
+      - name: Commit APK hash to build branch
         shell: bash
         run: |
           set -euo pipefail
@@ -142,10 +136,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p release-manifests/v7.2.0
           cp dist/flutter-v7.2.0/APK-SHA256.txt release-manifests/v7.2.0/APK-SHA256.txt
-          cp dist/flutter-v7.2.0/SOURCE-SHA256.txt release-manifests/v7.2.0/SOURCE-SHA256.txt
-          git add release-manifests/v7.2.0
+          git add release-manifests/v7.2.0/APK-SHA256.txt
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m "Record Flutter v7.2.0 build hashes [skip ci]"
+          git commit -m "Record Flutter v7.2.0 APK hash [skip ci]"
           git push origin HEAD:flutter-v720-build
