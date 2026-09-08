@@ -4,7 +4,7 @@ on:
   push:
     branches: [flutter-v720-build]
     paths:
-      - 'build-input/flutter-v720-overlay.tar.xz.b64'
+      - 'build-input/flutter-v720.parts3/**'
       - '.github/workflows/eh7-v720-build.yml'
   workflow_dispatch:
 
@@ -44,11 +44,13 @@ jobs:
           patch -p1 --forward --batch < ../ci/clean10-flutter-compile-fix-1.patch
           python3 ../ci/clean10-analyzer-cleanup-2.py
 
-      - name: Apply v7.2.0 Flutter overlay
+      - name: Apply SHA-verified v7.2.0 Flutter overlay
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d build-input/flutter-v720-overlay.tar.xz.b64 > /tmp/flutter-v720-overlay.tar.xz
+          test "$(find build-input/flutter-v720.parts3 -maxdepth 1 -type f -name 'part-*.b64' | wc -l)" -eq 6
+          cat build-input/flutter-v720.parts3/part-*.b64 | base64 -d > /tmp/flutter-v720-overlay.tar.xz
+          echo "8c446ef6a7c66575fb29089535eecd74d2ec9996c3effc56cebd47cd5fdb1e62  /tmp/flutter-v720-overlay.tar.xz" | sha256sum -c -
           tar -xJf /tmp/flutter-v720-overlay.tar.xz -C work
           test -f work/flutter/excel_herbal_erp/lib/screens/tools/erp_tools_screen.dart
           grep -q "version: 7.2.0+720" work/flutter/excel_herbal_erp/pubspec.yaml
