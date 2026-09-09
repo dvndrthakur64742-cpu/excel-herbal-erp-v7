@@ -1,0 +1,60 @@
+name: EH7 Web UAT Release Package
+
+on:
+  push:
+    branches: [v740-web-readiness]
+    paths:
+      - '.github/workflows/eh7-web-uat-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d28cd223f3609d09a07a62608f4666925edd9031
+
+      - name: Install Flutter 3.47.2
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Build validated Web bundle
+        working-directory: flutter-app
+        run: |
+          flutter pub get
+          flutter build web --release \
+            --base-href /wp-content/uploads/eh7-flutter-web/ \
+            --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 \
+            --dart-define=EH7_ENVIRONMENT=uat
+
+      - name: Package ZIP and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s flutter-app/build/web/index.html
+          test -s flutter-app/build/web/main.dart.js
+          (cd flutter-app/build/web && zip -qr ../../../Excel-Herbal-ERP-v7.4-Web-UAT.zip .)
+          sha256sum Excel-Herbal-ERP-v7.4-Web-UAT.zip | tee WEB-UAT-SHA256.txt
+
+      - name: Publish prerelease asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v7.4.0-web-uat
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --target d28cd223f3609d09a07a62608f4666925edd9031 \
+              --title "Excel Herbal ERP v7.4 Web UAT" \
+              --notes "Validated Web UAT package for office.excelherbal.in. Source SHA: d28cd223f3609d09a07a62608f4666925edd9031. Android regression, analyzer, tests and Web build passed before packaging." \
+              --prerelease
+          fi
+          gh release upload "$TAG" Excel-Herbal-ERP-v7.4-Web-UAT.zip WEB-UAT-SHA256.txt --clobber
