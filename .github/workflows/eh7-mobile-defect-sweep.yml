@@ -14,6 +14,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Target quick action route patch precisely
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('ci/apply_mobile_defect_sweep.py')
+          text = path.read_text()
+          old = "text = replace_once(text, old, new, 'standalone My Work route')"
+          new = """count = text.count(old)\nif count != 2:\n    raise SystemExit(f'standalone My Work route: expected 2 matches, found {count}')\nidx = text.rfind(old)\ntext = text[:idx] + new + text[idx + len(old):]"""
+          if text.count(old) != 1:
+              raise SystemExit('route patch normalizer anchor missing')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Apply mobile defect sweep
         run: python3 ci/apply_mobile_defect_sweep.py
 
