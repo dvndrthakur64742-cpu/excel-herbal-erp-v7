@@ -141,39 +141,28 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  Widget _mobileReportSelector() => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+  Widget _mobileReportSelector() => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(
-              value: 'sales',
-              icon: Icon(Icons.point_of_sale_outlined),
-              label: Text('Sales'),
-            ),
-            ButtonSegment(
-              value: 'purchase',
-              icon: Icon(Icons.local_shipping_outlined),
-              label: Text('Purchase'),
-            ),
-            ButtonSegment(
-              value: 'stock',
-              icon: Icon(Icons.inventory_2_outlined),
-              label: Text('Stock'),
-            ),
-            ButtonSegment(
-              value: 'finance',
-              icon: Icon(Icons.account_balance_outlined),
-              label: Text('Finance'),
-            ),
-            ButtonSegment(
-              value: 'trial',
-              icon: Icon(Icons.balance_outlined),
-              label: Text('Trial'),
-            ),
+        child: DropdownButtonFormField<String>(
+          isExpanded: true,
+          menuMaxHeight: 360,
+          initialValue: type,
+          decoration: const InputDecoration(
+            labelText: 'Report view',
+            prefixIcon: Icon(Icons.analytics_outlined, size: 20),
+            isDense: true,
+          ),
+          items: const [
+            DropdownMenuItem(value: 'sales', child: Text('Sales Summary')),
+            DropdownMenuItem(
+                value: 'purchase', child: Text('Purchase Summary')),
+            DropdownMenuItem(value: 'stock', child: Text('Stock Position')),
+            DropdownMenuItem(value: 'finance', child: Text('Finance Movement')),
+            DropdownMenuItem(value: 'trial', child: Text('Trial Balance')),
           ],
-          selected: {type},
-          onSelectionChanged: (value) => setState(() => type = value.first),
+          onChanged: (value) {
+            if (value != null) setState(() => type = value);
+          },
         ),
       );
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/overlay_transition.dart';
@@ -258,6 +259,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setLocal) => AlertDialog(
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
             title: const Text('New Stock Transfer'),
             content: SizedBox(
               width: 560,
@@ -286,6 +289,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<int>(
+                      isExpanded: true,
+                      menuMaxHeight: 360,
                       initialValue: lineId,
                       decoration: const InputDecoration(
                         labelText: 'Stock Item',
@@ -295,7 +300,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         (i) => DropdownMenuItem(
                           value: i,
                           child: Text(
-                            '${stock[i]['product_name']} · Batch ${stock[i]['batch_no'] ?? '-'} · Qty ${stock[i]['quantity']}',
+                            '${stock[i]['product_name']} · Batch ${stock[i]['batch_no'] ?? '-'} · ${BusinessFormat.quantity(stock[i]['quantity'])} PCS',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
@@ -384,6 +391,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setLocal) => AlertDialog(
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
             title: const Text('Stock Adjustment Request'),
             content: SizedBox(
               width: 540,
@@ -391,6 +400,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<int>(
+                    isExpanded: true,
+                    menuMaxHeight: 360,
                     initialValue: lineId,
                     decoration: const InputDecoration(labelText: 'Stock Item'),
                     items: List.generate(
@@ -398,7 +409,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       (i) => DropdownMenuItem(
                         value: i,
                         child: Text(
-                          '${stock[i]['product_name']} · Batch ${stock[i]['batch_no'] ?? '-'} · Qty ${stock[i]['quantity']}',
+                          '${stock[i]['product_name']} · Batch ${stock[i]['batch_no'] ?? '-'} · ${BusinessFormat.quantity(stock[i]['quantity'])} PCS',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),

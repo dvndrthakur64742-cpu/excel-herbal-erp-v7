@@ -710,8 +710,11 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           Expanded(
             child: Text(
               text,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: fg,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
                 height: 1.3,
               ),
@@ -819,6 +822,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         builder: (context) => StatefulBuilder(
           builder: (context, setLocalState) => AlertDialog(
             title: const Text('Create Daily Order'),
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
             content: SizedBox(
               width: 620,
               child: SingleChildScrollView(
@@ -827,6 +832,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                   children: [
                     if (employees.isNotEmpty) ...[
                       DropdownButtonFormField<int>(
+                        isExpanded: true,
+                        menuMaxHeight: 360,
                         initialValue: selectedEmployee,
                         decoration: const InputDecoration(
                           labelText: 'Employee',
@@ -850,19 +857,77 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                     ],
                     ...products.map((p) {
                       final id = int.parse('${p['id']}');
-                      final price = p['sale_price'] == null
-                          ? ''
-                          : ' · ₹${p['sale_price']}';
+                      final price =
+                          p['sale_price'] == null ? '' : '₹${p['sale_price']}';
                       final points =
-                          p['points'] == null ? '' : ' · ${p['points']} pts';
+                          p['points'] == null ? '' : '${p['points']} pts';
+                      final meta = [price, points]
+                          .where((value) => value.isNotEmpty)
+                          .join(' · ');
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: TextField(
-                          controller: qty[id],
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [WholePcs.positiveFormatter],
-                          decoration: InputDecoration(
-                            labelText: '${p['name']}$price$points',
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(10, 7, 8, 7),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color:
+                                  Theme.of(context).colorScheme.outlineVariant,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${p['name']}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w700),
+                                    ),
+                                    if (meta.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        meta,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 92,
+                                child: TextField(
+                                  controller: qty[id],
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [WholePcs.positiveFormatter],
+                                  textAlign: TextAlign.right,
+                                  decoration: const InputDecoration(
+                                    hintText: '0',
+                                    suffixText: 'PCS',
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -881,14 +946,14 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                   mode = 'draft';
                   Navigator.pop(context);
                 },
-                child: const Text('Save Draft'),
+                child: const Text('Draft'),
               ),
               FilledButton(
                 onPressed: () {
                   mode = 'submit';
                   Navigator.pop(context);
                 },
-                child: const Text('Create & Submit'),
+                child: const Text('Submit'),
               ),
             ],
           ),

@@ -756,7 +756,15 @@ class _AppShellState extends ConsumerState<AppShell> {
         break;
     }
     if (screen != null) {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen!));
+      final routedScreen = screen is MyWorkScreen
+          ? Scaffold(
+              appBar: AppBar(title: const Text('My Work')),
+              body: SafeArea(child: screen),
+            )
+          : screen;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => routedScreen),
+      );
     }
   }
 
