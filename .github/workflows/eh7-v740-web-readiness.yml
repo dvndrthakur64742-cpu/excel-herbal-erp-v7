@@ -29,6 +29,21 @@ jobs:
         working-directory: flutter-app
         run: flutter pub get
 
+      - name: Verify Web Runtime Guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "Excel Herbal ERP Web" flutter-app/lib/core/api_client.dart
+          grep -q "uploadBytes" flutter-app/lib/core/api_client.dart
+          grep -q "withData: kIsWeb" flutter-app/lib/screens/tools/erp_tools_screen.dart
+          grep -q "api.uploadBytes" flutter-app/lib/screens/tools/erp_tools_screen.dart
+          grep -q "constraints.maxWidth >= 960" flutter-app/lib/shell/app_shell.dart
+          grep -q "locationSettings: const LocationSettings" flutter-app/lib/screens/my_work/my_work_screen.dart
+          grep -q "locationSettings: settings" flutter-app/lib/core/gps_tracking_service.dart
+          test ! -e scripts/patch_web_runtime.py
+          test ! -e .github/workflows/eh7-apply-web-runtime-patch.yml
+          test ! -e .github/workflows/eh7-web-runtime-patch.yml
+
       - name: Analyze
         working-directory: flutter-app
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
