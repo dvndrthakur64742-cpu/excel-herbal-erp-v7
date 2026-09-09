@@ -45,8 +45,12 @@ class GpsTrackingService extends ChangeNotifier {
     _sending = true;
     notifyListeners();
     try {
+      const settings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 20),
+      );
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: settings,
       );
       await api.post(
         ApiPaths.gpsPoints,
@@ -54,7 +58,7 @@ class GpsTrackingService extends ChangeNotifier {
           'lat': position.latitude,
           'lng': position.longitude,
           'accuracy': position.accuracy,
-          'source': 'duty',
+          'source': kIsWeb ? 'duty_web' : 'duty',
           'recorded_at': DateTime.now().toUtc().toIso8601String(),
         },
       );
