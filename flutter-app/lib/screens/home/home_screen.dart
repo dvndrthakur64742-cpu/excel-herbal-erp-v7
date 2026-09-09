@@ -11,7 +11,9 @@ import '../../widgets/branch_selector.dart';
 import '../my_work/my_work_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.openMyWork});
+
+  final VoidCallback? openMyWork;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -334,13 +336,15 @@ class HomeScreen extends ConsumerWidget {
                       ),
                     ),
                     FilledButton.tonalIcon(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const Scaffold(
-                            body: SafeArea(child: MyWorkScreen()),
+                      onPressed:
+                          openMyWork ??
+                          () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const Scaffold(
+                                body: SafeArea(child: MyWorkScreen()),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
                       icon: const Icon(Icons.arrow_forward, size: 18),
                       label: const Text('Open My Work'),
                     ),

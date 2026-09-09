@@ -12,7 +12,15 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
-  const InventoryScreen({super.key});
+  const InventoryScreen({
+    super.key,
+    this.initialSection = 'stock',
+    this.initialAction,
+  });
+
+  final String initialSection;
+  final String? initialAction;
+
   @override
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
@@ -20,6 +28,25 @@ class InventoryScreen extends ConsumerStatefulWidget {
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   int refresh = 0;
   String? message;
+  bool _handledInitialAction = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_handledInitialAction || widget.initialAction == null || !mounted)
+        return;
+      _handledInitialAction = true;
+      switch (widget.initialAction) {
+        case 'new_transfer':
+          await _createTransfer();
+          break;
+        case 'adjustment':
+          await _createAdjustment();
+          break;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,8 +140,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       return const Scaffold(
         body: Center(child: Text('No authorised inventory functions.')),
       );
+    final preferredLabel = switch (widget.initialSection) {
+      'transfers' => 'Transfers',
+      'adjustments' => 'Adjustments',
+      'quarantine' => 'Quarantine',
+      _ => 'Stock',
+    };
+    final requestedIndex = tabs.indexWhere((tab) => tab.$1 == preferredLabel);
+    final initialIndex = requestedIndex < 0 ? 0 : requestedIndex;
     return DefaultTabController(
       length: tabs.length,
+      initialIndex: initialIndex,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Inventory'),

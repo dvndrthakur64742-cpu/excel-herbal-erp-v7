@@ -12,7 +12,10 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
-  const SalesScreen({super.key});
+  const SalesScreen({super.key, this.initialAction});
+
+  final String? initialAction;
+
   @override
   ConsumerState<SalesScreen> createState() => _SalesScreenState();
 }
@@ -20,6 +23,28 @@ class SalesScreen extends ConsumerStatefulWidget {
 class _SalesScreenState extends ConsumerState<SalesScreen> {
   int refresh = 0;
   String? message;
+  bool _handledInitialAction = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_handledInitialAction || widget.initialAction == null || !mounted)
+        return;
+      _handledInitialAction = true;
+      switch (widget.initialAction) {
+        case 'counter_sale':
+          await _counterSale();
+          break;
+        case 'new_customer':
+          await _createCustomer();
+          break;
+        case 'receipt':
+          await _receipt();
+          break;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,15 +63,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               children: [
                 if (app.can('sales.create'))
                   FilledButton.icon(
-                    onPressed:
-                        app.currentBranchId == null ? null : _counterSale,
+                    onPressed: app.currentBranchId == null
+                        ? null
+                        : _counterSale,
                     icon: const Icon(Icons.point_of_sale),
                     label: const Text('Counter Sale'),
                   ),
                 if (app.can('sales.create'))
                   FilledButton.tonalIcon(
-                    onPressed:
-                        app.currentBranchId == null ? null : _createCustomer,
+                    onPressed: app.currentBranchId == null
+                        ? null
+                        : _createCustomer,
                     icon: const Icon(Icons.person_add_alt_1),
                     label: const Text('New Customer'),
                   ),
@@ -365,7 +392,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           final rate = double.tryParse('${product?['sale_price'] ?? 0}') ?? 0;
           if (rate <= 0) {
             throw Exception(
-                '${product?['name'] ?? 'Product'} ka valid Sale Price available nahi hai.');
+              '${product?['name'] ?? 'Product'} ka valid Sale Price available nahi hai.',
+            );
           }
           gross += (line['quantity'] as num).toDouble() * rate;
         }
@@ -418,8 +446,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       if (openSales.isEmpty) {
         if (mounted) {
           setState(
-            () => message =
-                'Customer receipt ke liye koi posted outstanding sale nahi hai.',
+            () => message = 'Customer receipt ke liye koi posted outstanding sale nahi hai.',
           );
         }
         return;

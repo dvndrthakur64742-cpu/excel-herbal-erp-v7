@@ -12,7 +12,15 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 
 class FinanceScreen extends ConsumerStatefulWidget {
-  const FinanceScreen({super.key});
+  const FinanceScreen({
+    super.key,
+    this.initialSection = 'books',
+    this.initialAction,
+  });
+
+  final String initialSection;
+  final String? initialAction;
+
   @override
   ConsumerState<FinanceScreen> createState() => _FinanceScreenState();
 }
@@ -20,6 +28,18 @@ class FinanceScreen extends ConsumerStatefulWidget {
 class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   int refresh = 0;
   String? message;
+  bool _handledInitialAction = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_handledInitialAction || widget.initialAction == null || !mounted)
+        return;
+      _handledInitialAction = true;
+      if (widget.initialAction == 'expense') await _expense();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,12 +50,14 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       'finance.view',
       'finance.accounting.view',
       'finance.account.manage',
-    ])) tabs.add(('Books', _books(app, api)));
+    ]))
+      tabs.add(('Books', _books(app, api)));
     if (app.canAny(const [
       'finance.view',
       'finance.expense.create',
       'finance.expense.approve',
-    ])) tabs.add(('Expenses', _expenses(app, api)));
+    ]))
+      tabs.add(('Expenses', _expenses(app, api)));
     if (app.canAny(const ['finance.branch_close', 'finance.branch_reopen']))
       tabs.add(('Closing', _closing(app, api)));
     if (app.can('finance.bank_reconcile')) tabs.add(('Bank', _bank(app, api)));
@@ -45,8 +67,18 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       return const Scaffold(
         body: Center(child: Text('No authorised finance functions.')),
       );
+    final preferredLabel = switch (widget.initialSection) {
+      'expenses' => 'Expenses',
+      'closing' => 'Closing',
+      'bank' => 'Bank',
+      'periods' => 'Periods',
+      _ => 'Books',
+    };
+    final requestedIndex = tabs.indexWhere((tab) => tab.$1 == preferredLabel);
+    final initialIndex = requestedIndex < 0 ? 0 : requestedIndex;
     return DefaultTabController(
       length: tabs.length,
+      initialIndex: initialIndex,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Finance & Accounts'),
@@ -73,47 +105,46 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   }
 
   Widget _books(AppState app, dynamic api) => Column(
-        children: [
-          if (app.can('finance.account.manage'))
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton.tonalIcon(
-                      onPressed: _newLedger,
-                      icon: const Icon(Icons.account_balance_wallet_outlined),
-                      label: const Text('New Ledger'),
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: _newExpenseHead,
-                      icon: const Icon(Icons.category_outlined),
-                      label: const Text('New Expense Head'),
-                    ),
-                  ],
+    children: [
+      if (app.can('finance.account.manage'))
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _newLedger,
+                  icon: const Icon(Icons.account_balance_wallet_outlined),
+                  label: const Text('New Ledger'),
                 ),
-              ),
-            ),
-          Expanded(
-            child: AsyncPanel(
-              key: ValueKey('tb-${app.currentBranchId}-$refresh'),
-              future: api.get(
-                ApiPaths.trialBalance,
-                query: {
-                  'to': app.businessDate,
-                  if (app.currentBranchId != null)
-                    'branch_id': app.currentBranchId,
-                },
-              ),
-              builder: (context, data) =>
-                  RecordsList(recordType: 'trial_balance', rows: _rows(data)),
+                FilledButton.tonalIcon(
+                  onPressed: _newExpenseHead,
+                  icon: const Icon(Icons.category_outlined),
+                  label: const Text('New Expense Head'),
+                ),
+              ],
             ),
           ),
-        ],
-      );
+        ),
+      Expanded(
+        child: AsyncPanel(
+          key: ValueKey('tb-${app.currentBranchId}-$refresh'),
+          future: api.get(
+            ApiPaths.trialBalance,
+            query: {
+              'to': app.businessDate,
+              if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+            },
+          ),
+          builder: (context, data) =>
+              RecordsList(recordType: 'trial_balance', rows: _rows(data)),
+        ),
+      ),
+    ],
+  );
 
   Widget _expenses(AppState app, dynamic api) {
     if (app.currentBranchId == null)
@@ -299,20 +330,21 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                 DropdownButtonFormField<String>(
                   initialValue: type,
                   decoration: const InputDecoration(labelText: 'Account Type'),
-                  items: const [
-                    'asset',
-                    'liability',
-                    'equity',
-                    'income',
-                    'expense',
-                  ]
-                      .map(
-                        (v) => DropdownMenuItem(
-                          value: v,
-                          child: Text(v.toUpperCase()),
-                        ),
-                      )
-                      .toList(),
+                  items:
+                      const [
+                            'asset',
+                            'liability',
+                            'equity',
+                            'income',
+                            'expense',
+                          ]
+                          .map(
+                            (v) => DropdownMenuItem(
+                              value: v,
+                              child: Text(v.toUpperCase()),
+                            ),
+                          )
+                          .toList(),
                   onChanged: (v) => setLocal(() {
                     type = v ?? 'asset';
                     if (type != 'asset' &&
@@ -326,24 +358,25 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Subtype (optional)',
                   ),
-                  items: const [
-                    'cash',
-                    'bank',
-                    'upi',
-                    'receivable',
-                    'inventory',
-                    'payable',
-                    'payroll_payable',
-                    'sales',
-                    'cogs',
-                    'stock_variance',
-                    'payroll',
-                    'office',
-                  ]
-                      .map(
-                        (v) => DropdownMenuItem(value: v, child: Text(v)),
-                      )
-                      .toList(),
+                  items:
+                      const [
+                            'cash',
+                            'bank',
+                            'upi',
+                            'receivable',
+                            'inventory',
+                            'payable',
+                            'payroll_payable',
+                            'sales',
+                            'cogs',
+                            'stock_variance',
+                            'payroll',
+                            'office',
+                          ]
+                          .map(
+                            (v) => DropdownMenuItem(value: v, child: Text(v)),
+                          )
+                          .toList(),
                   onChanged: (v) => setLocal(() => subtype = v ?? ''),
                 ),
               ],
@@ -363,15 +396,12 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       ),
     );
     if (ok == true)
-      await _post(
-          ApiPaths.financeAccounts,
-          {
-            'code': code.text.trim(),
-            'name': name.text.trim(),
-            'type': type,
-            'subtype': subtype,
-          },
-          closeSheet: false);
+      await _post(ApiPaths.financeAccounts, {
+        'code': code.text.trim(),
+        'name': name.text.trim(),
+        'type': type,
+        'subtype': subtype,
+      }, closeSheet: false);
     code.dispose();
     name.dispose();
   }
@@ -441,14 +471,11 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         ),
       );
       if (ok == true && accountId != null)
-        await _post(
-            ApiPaths.expenseHeads,
-            {
-              'code': code.text.trim(),
-              'name': name.text.trim(),
-              'expense_account_id': accountId,
-            },
-            closeSheet: false);
+        await _post(ApiPaths.expenseHeads, {
+          'code': code.text.trim(),
+          'name': name.text.trim(),
+          'expense_account_id': accountId,
+        }, closeSheet: false);
       code.dispose();
       name.dispose();
     } catch (e) {
@@ -620,13 +647,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   Future<void> _preflight() async {
     final app = ref.read(appStateProvider);
     try {
-      final r = await ref.read(apiClientProvider).get(
-        ApiPaths.closingPreflight,
-        query: {
-          'branch_id': app.currentBranchId,
-          'business_date': app.businessDate,
-        },
-      );
+      final r = await ref
+          .read(apiClientProvider)
+          .get(
+            ApiPaths.closingPreflight,
+            query: {
+              'branch_id': app.currentBranchId,
+              'business_date': app.businessDate,
+            },
+          );
       if (mounted) setState(() => message = 'Preflight: $r');
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
@@ -636,13 +665,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   Future<void> _closingDraft() async {
     final app = ref.read(appStateProvider);
     try {
-      final r = await ref.read(apiClientProvider).post(
-        ApiPaths.branchClosing,
-        data: {
-          'branch_id': app.currentBranchId,
-          'business_date': app.businessDate
-        },
-      );
+      final r = await ref
+          .read(apiClientProvider)
+          .post(
+            ApiPaths.branchClosing,
+            data: {
+              'branch_id': app.currentBranchId,
+              'business_date': app.businessDate,
+            },
+          );
       if (mounted)
         setState(() {
           message = 'Closing draft #${(r as Map)['id']} created.';
@@ -785,7 +816,8 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         final closingValue = double.tryParse(closing.text.trim());
         if (openingValue == null || closingValue == null) {
           throw Exception(
-              'Opening aur Closing Balance valid number me enter karein.');
+            'Opening aur Closing Balance valid number me enter karein.',
+          );
         }
         final r = await api.post(
           ApiPaths.bankReconciliations,
@@ -874,7 +906,8 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                           ? 'Dr ${line['debit']}'
                           : 'Cr ${line['credit']}',
                     ),
-                    onTap: '${r['status']}' == 'draft' &&
+                    onTap:
+                        '${r['status']}' == 'draft' &&
                             '${line['status']}' == 'unmatched'
                         ? () async {
                             final closed =
@@ -987,20 +1020,17 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         credit: creditValue,
       );
       if (guardError != null) throw Exception(guardError);
-      await _post(
-          ApiPaths.bankImport(id),
+      await _post(ApiPaths.bankImport(id), {
+        'lines': [
           {
-            'lines': [
-              {
-                'txn_date': date.text.trim(),
-                'description': description.text.trim(),
-                'reference': reference.text.trim(),
-                'debit': debitValue,
-                'credit': creditValue,
-              },
-            ],
+            'txn_date': date.text.trim(),
+            'description': description.text.trim(),
+            'reference': reference.text.trim(),
+            'debit': debitValue,
+            'credit': creditValue,
           },
-          closeSheet: false);
+        ],
+      }, closeSheet: false);
     }
     date.dispose();
     description.dispose();
@@ -1014,10 +1044,12 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     Map<String, dynamic> line,
     List<Map<String, dynamic>> candidates,
   ) async {
-    final statementNet = (double.tryParse('${line['credit']}') ?? 0) -
+    final statementNet =
+        (double.tryParse('${line['credit']}') ?? 0) -
         (double.tryParse('${line['debit']}') ?? 0);
     final matching = candidates.where((c) {
-      final journalNet = (double.tryParse('${c['debit']}') ?? 0) -
+      final journalNet =
+          (double.tryParse('${c['debit']}') ?? 0) -
           (double.tryParse('${c['credit']}') ?? 0);
       return (statementNet - journalNet).abs() < .005;
     }).toList();
@@ -1074,21 +1106,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       ),
     );
     if (choice == 'match' && candidateId != null)
-      await _post(
-          ApiPaths.bankMatch(int.parse('${line['id']}')),
-          {
-            'journal_line_id': candidateId,
-          },
-          closeSheet: false);
+      await _post(ApiPaths.bankMatch(int.parse('${line['id']}')), {
+        'journal_line_id': candidateId,
+      }, closeSheet: false);
     if (choice == 'exclude') {
       final reason = await _askReason('Bank line exclusion reason');
       if (reason != null)
-        await _post(
-            ApiPaths.bankExclude(int.parse('${line['id']}')),
-            {
-              'reason': reason,
-            },
-            closeSheet: false);
+        await _post(ApiPaths.bankExclude(int.parse('${line['id']}')), {
+          'reason': reason,
+        }, closeSheet: false);
     }
     if (mounted) _bankDetail(reconciliationId);
   }
@@ -1136,13 +1162,10 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         to.text.trim(),
       );
       if (guardError != null) throw Exception(guardError);
-      await _post(
-          ApiPaths.periodClose,
-          {
-            'date_from': from.text.trim(),
-            'date_to': to.text.trim(),
-          },
-          closeSheet: false);
+      await _post(ApiPaths.periodClose, {
+        'date_from': from.text.trim(),
+        'date_to': to.text.trim(),
+      }, closeSheet: false);
     }
     from.dispose();
     to.dispose();

@@ -285,7 +285,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget _desktopContent(AppState app) {
     if (!_routeAllowed(app, desktopRoute)) desktopRoute = 'home';
     final child = switch (desktopRoute) {
-      'home' => const HomeScreen(),
+      'home' => HomeScreen(
+        openMyWork: () => setState(() => desktopRoute = 'my_work'),
+      ),
       'my_work' => const MyWorkScreen(),
       'quick_actions' => ActionsScreen(
         openMyWork: () {
@@ -450,34 +452,6 @@ class _AppShellState extends ConsumerState<AppShell> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(12, 14, 12, 18),
                 children: [
-                  _drawerSectionLabel('WORKSPACE'),
-                  _drawerTile(
-                    app: app,
-                    id: 'home',
-                    label: 'Home',
-                    icon: Icons.home_outlined,
-                  ),
-                  if (app.sectionVisible('my_work'))
-                    _drawerTile(
-                      app: app,
-                      id: 'my_work',
-                      label: 'My Work',
-                      icon: Icons.work_outline_rounded,
-                    ),
-                  if (_quickActionsVisible(app))
-                    _drawerTile(
-                      app: app,
-                      id: 'actions',
-                      label: 'Quick Actions',
-                      icon: Icons.bolt_outlined,
-                    ),
-                  if (app.can('communication.view'))
-                    _drawerTile(
-                      app: app,
-                      id: 'tasks',
-                      label: 'Tasks',
-                      icon: Icons.task_alt_outlined,
-                    ),
                   if (moduleSections.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _drawerSectionLabel('BUSINESS MODULES'),
@@ -617,7 +591,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _mobilePage(AppState app, String id) => switch (id) {
-    'home' => const HomeScreen(),
+    'home' => HomeScreen(openMyWork: () => _selectMobileRoute(app, 'my_work')),
     'my_work' => const MyWorkScreen(),
     'actions' => ActionsScreen(
       openMyWork: () => _selectMobileRoute(app, 'my_work'),
@@ -630,6 +604,154 @@ class _AppShellState extends ConsumerState<AppShell> {
     'profile' => const ProfileScreen(),
     _ => const HomeScreen(),
   };
+
+  Future<void> _showQuickActions(AppState app) async {
+    final actions = <({String id, String label, IconData icon})>[];
+    if (app.can('workforce.attendance.self')) {
+      actions.add((
+        id: 'attendance',
+        label: 'Check-In / Out',
+        icon: Icons.location_on_outlined,
+      ));
+    }
+    if (app.canAny(const ['daily_order.self', 'daily_order.others'])) {
+      actions.add((
+        id: 'daily_create',
+        label: 'Create Daily Order',
+        icon: Icons.shopping_cart_checkout,
+      ));
+      actions.add((
+        id: 'evening',
+        label: 'Evening Closing',
+        icon: Icons.nightlight_outlined,
+      ));
+    }
+    if (app.can('workforce.field_visit.self')) {
+      actions.add((
+        id: 'field_visit',
+        label: 'Field Visit',
+        icon: Icons.route_outlined,
+      ));
+    }
+    if (app.can('workforce.leave.self')) {
+      actions.add((
+        id: 'leave',
+        label: 'Apply Leave',
+        icon: Icons.event_available_outlined,
+      ));
+    }
+    if (app.can('sales.create')) {
+      actions.add((
+        id: 'counter_sale',
+        label: 'Counter Sale',
+        icon: Icons.point_of_sale,
+      ));
+    }
+    if (app.can('inventory.transfer.create')) {
+      actions.add((
+        id: 'stock_transfer',
+        label: 'Stock Transfer',
+        icon: Icons.swap_horiz,
+      ));
+    }
+    if (app.can('purchase.create')) {
+      actions.add((
+        id: 'purchase_entry',
+        label: 'Purchase Entry',
+        icon: Icons.local_shipping_outlined,
+      ));
+    }
+    if (app.can('finance.expense.create')) {
+      actions.add((
+        id: 'expense_entry',
+        label: 'Expense Entry',
+        icon: Icons.receipt_long_outlined,
+      ));
+    }
+    if (actions.isEmpty || !mounted) return;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) => ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+            child: Text(
+              'Quick Actions',
+              style: Theme.of(sheetContext).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ),
+          for (final action in actions)
+            ListTile(
+              leading: Icon(action.icon),
+              title: Text(action.label),
+              trailing: const Icon(Icons.arrow_forward_rounded, size: 18),
+              onTap: () => Navigator.pop(sheetContext, action.id),
+            ),
+        ],
+      ),
+    );
+    if (selected == null || !mounted) return;
+    _openConnectedAction(selected);
+  }
+
+  void _openConnectedAction(String id) {
+    Widget? screen;
+    switch (id) {
+      case 'attendance':
+        screen = const MyWorkScreen(initialSection: 'attendance');
+        break;
+      case 'daily_create':
+        screen = const MyWorkScreen(
+          initialSection: 'daily',
+          initialAction: 'new_order',
+        );
+        break;
+      case 'evening':
+        screen = const MyWorkScreen(
+          initialSection: 'daily',
+          initialAction: 'evening',
+        );
+        break;
+      case 'field_visit':
+        screen = const MyWorkScreen(
+          initialSection: 'leave_visit',
+          initialAction: 'field_visit',
+        );
+        break;
+      case 'leave':
+        screen = const MyWorkScreen(
+          initialSection: 'leave_visit',
+          initialAction: 'leave',
+        );
+        break;
+      case 'counter_sale':
+        screen = const SalesScreen(initialAction: 'counter_sale');
+        break;
+      case 'stock_transfer':
+        screen = const InventoryScreen(
+          initialSection: 'transfers',
+          initialAction: 'new_transfer',
+        );
+        break;
+      case 'purchase_entry':
+        screen = const PurchaseScreen(initialAction: 'new_bill');
+        break;
+      case 'expense_entry':
+        screen = const FinanceScreen(
+          initialSection: 'expenses',
+          initialAction: 'expense',
+        );
+        break;
+    }
+    if (screen != null) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen!));
+    }
+  }
 
   Widget _bottomNav(
     AppState app,
@@ -651,7 +773,14 @@ class _AppShellState extends ConsumerState<AppShell> {
       top: false,
       child: NavigationBar(
         selectedIndex: safeIndex,
-        onDestinationSelected: (v) => setState(() => mobileIndex = v),
+        onDestinationSelected: (v) {
+          final id = '${items[v]['id']}';
+          if (id == 'actions') {
+            _showQuickActions(app);
+            return;
+          }
+          setState(() => mobileIndex = v);
+        },
         destinations: items
             .map(
               (item) => NavigationDestination(

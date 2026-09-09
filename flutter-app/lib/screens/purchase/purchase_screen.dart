@@ -12,7 +12,10 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 
 class PurchaseScreen extends ConsumerStatefulWidget {
-  const PurchaseScreen({super.key});
+  const PurchaseScreen({super.key, this.initialAction});
+
+  final String? initialAction;
+
   @override
   ConsumerState<PurchaseScreen> createState() => _PurchaseScreenState();
 }
@@ -20,6 +23,29 @@ class PurchaseScreen extends ConsumerStatefulWidget {
 class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
   int refresh = 0;
   String? message;
+  bool _handledInitialAction = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_handledInitialAction || widget.initialAction == null || !mounted)
+        return;
+      _handledInitialAction = true;
+      switch (widget.initialAction) {
+        case 'new_bill':
+          await _newBill();
+          break;
+        case 'supplier_payment':
+          await _payBill();
+          break;
+        case 'new_supplier':
+          await _createSupplier();
+          break;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
@@ -234,8 +260,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                                       controller: cost[id],
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
+                                            decimal: true,
+                                          ),
                                       decoration: const InputDecoration(
                                         labelText: 'Unit Cost',
                                       ),
@@ -247,8 +273,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                               TextField(
                                 controller: batchNo[id],
                                 decoration: const InputDecoration(
-                                  labelText:
-                                      'Batch No. (optional / required by product)',
+                                  labelText: 'Batch No. (optional / required by product)',
                                 ),
                               ),
                             ],
@@ -286,7 +311,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
           final unitCost = double.tryParse(rawCost);
           if (unitCost == null) {
             throw Exception(
-                '${p['name']} ka Unit Cost valid number me enter karein. Zero-cost item ke liye 0 explicitly enter karein.');
+              '${p['name']} ka Unit Cost valid number me enter karein. Zero-cost item ke liye 0 explicitly enter karein.',
+            );
           }
           final batch = batchNo[id]!.text.trim();
           final guardError = TransactionGuardrails.purchaseLine(
@@ -334,9 +360,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
       final bills = (await api.get(
         ApiPaths.openBills,
         query: {'branch_id': app.currentBranchId},
-      ) as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       final finance = Map<String, dynamic>.from(
         await api.get(ApiPaths.financeBootstrap) as Map,
       );
@@ -440,7 +464,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
         final paymentAmount = double.tryParse(amount.text.trim());
         if (paymentAmount == null) {
           throw Exception(
-              'Supplier Payment amount valid number me enter karein.');
+            'Supplier Payment amount valid number me enter karein.',
+          );
         }
         final guardError = TransactionGuardrails.supplierPayment(
           billId: billId,
