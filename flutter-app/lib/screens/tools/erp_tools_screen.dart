@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -874,10 +875,15 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       allowMultiple: false,
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
-      withData: false,
+      withData: kIsWeb,
     );
     final file = picked?.files.single;
-    if (file == null || file.path == null) return;
+    if (file == null) return;
+    if (!kIsWeb && file.path == null) return;
+    if (kIsWeb && file.bytes == null) {
+      _msg('Browser could not read the selected file. Please select it again.');
+      return;
+    }
     final type = TextEditingController(text: 'employee_document');
     final title = TextEditingController(text: file.name);
     final ok = await showDialog<bool>(
@@ -912,17 +918,28 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     );
     if (ok == true) {
       try {
-        await ref.read(apiClientProvider).uploadFile(
-          ApiPaths.employeeDocumentUpload(employeeId),
-          filePath: file.path!,
-          filename: file.name,
-          fields: {
-            'document_type': type.text.trim(),
-            'title': title.text.trim(),
-          },
-        );
+        final api = ref.read(apiClientProvider);
+        final fields = {
+          'document_type': type.text.trim(),
+          'title': title.text.trim(),
+        };
+        if (kIsWeb) {
+          await api.uploadBytes(
+            ApiPaths.employeeDocumentUpload(employeeId),
+            bytes: file.bytes!,
+            filename: file.name,
+            fields: fields,
+          );
+        } else {
+          await api.uploadFile(
+            ApiPaths.employeeDocumentUpload(employeeId),
+            filePath: file.path!,
+            filename: file.name,
+            fields: fields,
+          );
+        }
         _msg('Document uploaded.');
-        setState(() => refresh++);
+        if (mounted) setState(() => refresh++);
       } catch (e) {
         _msg(UiError.message(e));
       }

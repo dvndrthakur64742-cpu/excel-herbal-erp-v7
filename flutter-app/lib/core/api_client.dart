@@ -39,15 +39,15 @@ class _MutationKey {
 
 class ApiClient {
   ApiClient(this.session)
-    : dio = Dio(
-        BaseOptions(
-          baseUrl: AppConfig.apiBaseUrl,
-          connectTimeout: const Duration(seconds: 15),
-          sendTimeout: const Duration(seconds: 45),
-          receiveTimeout: const Duration(seconds: 45),
-          headers: const {'Accept': 'application/json'},
-        ),
-      );
+      : dio = Dio(
+          BaseOptions(
+            baseUrl: AppConfig.apiBaseUrl,
+            connectTimeout: const Duration(seconds: 15),
+            sendTimeout: const Duration(seconds: 45),
+            receiveTimeout: const Duration(seconds: 45),
+            headers: const {'Accept': 'application/json'},
+          ),
+        );
 
   final SecureSession session;
   final Dio dio;
@@ -63,44 +63,49 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? query,
     bool authenticated = true,
-  }) => _request('GET', path, query: query, authenticated: authenticated);
+  }) =>
+      _request('GET', path, query: query, authenticated: authenticated);
 
   Future<dynamic> post(
     String path, {
     Map<String, dynamic>? data,
     bool idempotent = true,
     bool authenticated = true,
-  }) => _request(
-    'POST',
-    path,
-    data: data,
-    idempotent: idempotent,
-    authenticated: authenticated,
-  );
+  }) =>
+      _request(
+        'POST',
+        path,
+        data: data,
+        idempotent: idempotent,
+        authenticated: authenticated,
+      );
 
   Future<dynamic> uploadFile(
     String path, {
     required String filePath,
     required String filename,
     required Map<String, dynamic> fields,
-  }) => _uploadMultipart(
-    path,
-    filename: filename,
-    fields: fields,
-    fileFactory: () => MultipartFile.fromFile(filePath, filename: filename),
-  );
+  }) =>
+      _uploadMultipart(
+        path,
+        filename: filename,
+        fields: fields,
+        fileFactory: () => MultipartFile.fromFile(filePath, filename: filename),
+      );
 
   Future<dynamic> uploadBytes(
     String path, {
     required Uint8List bytes,
     required String filename,
     required Map<String, dynamic> fields,
-  }) => _uploadMultipart(
-    path,
-    filename: filename,
-    fields: fields,
-    fileFactory: () async => MultipartFile.fromBytes(bytes, filename: filename),
-  );
+  }) =>
+      _uploadMultipart(
+        path,
+        filename: filename,
+        fields: fields,
+        fileFactory: () async =>
+            MultipartFile.fromBytes(bytes, filename: filename),
+      );
 
   Future<dynamic> _uploadMultipart(
     String path, {

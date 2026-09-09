@@ -735,7 +735,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       throw Exception('Location permission required.');
     }
     return Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 20),
+      ),
     );
   }
 

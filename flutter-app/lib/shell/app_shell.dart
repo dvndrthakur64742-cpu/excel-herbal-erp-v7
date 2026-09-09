@@ -38,7 +38,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final app = ref.watch(appStateProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final desktop = constraints.maxWidth >= 1100;
+        final desktop = constraints.maxWidth >= 960;
         if (desktop) {
           return Scaffold(
             body: SafeArea(
