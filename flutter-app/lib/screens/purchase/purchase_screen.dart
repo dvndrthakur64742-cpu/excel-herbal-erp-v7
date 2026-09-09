@@ -10,6 +10,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/module_workspace.dart';
 
 class PurchaseScreen extends ConsumerStatefulWidget {
   const PurchaseScreen({super.key, this.initialAction});
@@ -50,86 +51,145 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     final api = ref.watch(apiClientProvider);
+    final actions = <Widget>[
+      if (app.can('purchase.create'))
+        FilledButton.icon(
+          onPressed: app.currentBranchId == null ? null : _newBill,
+          icon: const Icon(Icons.receipt_long_outlined, size: 18),
+          label: const Text('Purchase Entry'),
+        ),
+      if (app.can('finance.supplier_payment.create'))
+        OutlinedButton.icon(
+          onPressed: app.currentBranchId == null ? null : _payBill,
+          icon: const Icon(Icons.payments_outlined, size: 18),
+          label: const Text('Supplier Payment'),
+        ),
+      if (app.can('purchase.create'))
+        OutlinedButton.icon(
+          onPressed: _createSupplier,
+          icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+          label: const Text('New Supplier'),
+        ),
+    ];
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Purchase & Suppliers'),
+          title: const Text('Purchase'),
           bottom: const TabBar(
             tabs: [
-              Tab(text: 'Outstanding Bills'),
+              Tab(text: 'Outstanding'),
               Tab(text: 'Suppliers'),
             ],
           ),
         ),
-        body: Column(
-          children: [
-            const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (app.can('purchase.create'))
-                    FilledButton.icon(
-                      onPressed: app.currentBranchId == null ? null : _newBill,
-                      icon: const Icon(Icons.receipt_long_outlined),
-                      label: const Text('Purchase Entry'),
-                    ),
-                  if (app.can('finance.supplier_payment.create'))
-                    FilledButton.tonalIcon(
-                      onPressed: app.currentBranchId == null ? null : _payBill,
-                      icon: const Icon(Icons.payments_outlined),
-                      label: const Text('Supplier Payment'),
-                    ),
-                  if (app.can('purchase.create'))
-                    FilledButton.tonalIcon(
-                      onPressed: _createSupplier,
-                      icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('New Supplier'),
-                    ),
-                ],
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: ModuleWorkspaceHeader(
+                  title: 'Procurement Desk',
+                  subtitle:
+                      'Supplier bills, liabilities, payments and master data.',
+                  icon: Icons.local_shipping_outlined,
+                  contextLabel: 'Business date · ${app.businessDate}',
+                ),
               ),
-            ),
-            if (message != null)
-              Padding(padding: const EdgeInsets.all(8), child: Text(message!)),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  app.currentBranchId == null
-                      ? const Center(child: Text('Branch select karein.'))
-                      : AsyncPanel(
-                          key: ValueKey(
-                            'bills-${app.currentBranchId}-$refresh',
-                          ),
-                          future: api.get(
-                            ApiPaths.openBills,
-                            query: {'branch_id': app.currentBranchId},
-                          ),
-                          emptyMessage: 'Supplier outstanding bill nahi hai.',
-                          builder: (context, data) => RecordsList(
-                            recordType: 'purchase',
-                            rows: (data as List)
-                                .map((e) => Map<String, dynamic>.from(e as Map))
-                                .toList(),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: BranchSelector(),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: ModuleActionPanel(
+                  title: 'Procurement Actions',
+                  subtitle:
+                      'Post a supplier bill, settle liability or maintain supplier master.',
+                  actions: actions,
+                ),
+              ),
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: ModuleMessageBanner(message: message!),
+                ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    Column(
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+                          child: ModuleSectionHeader(
+                            title: 'Outstanding Supplier Bills',
+                            subtitle:
+                                'Open supplier liabilities for the selected branch.',
                           ),
                         ),
-                  AsyncPanel(
-                    key: ValueKey('suppliers-$refresh'),
-                    future: api.get(ApiPaths.suppliers),
-                    emptyMessage: 'Supplier master empty hai.',
-                    builder: (context, data) => RecordsList(
-                      recordType: 'supplier',
-                      rows: (data as List)
-                          .map((e) => Map<String, dynamic>.from(e as Map))
-                          .toList(),
+                        Expanded(
+                          child: app.currentBranchId == null
+                              ? const Center(
+                                  child: Text('Select an authorised branch.'),
+                                )
+                              : AsyncPanel(
+                                  key: ValueKey(
+                                    'bills-${app.currentBranchId}-$refresh',
+                                  ),
+                                  future: api.get(
+                                    ApiPaths.openBills,
+                                    query: {
+                                      'branch_id': app.currentBranchId,
+                                    },
+                                  ),
+                                  emptyMessage:
+                                      'No supplier bills are outstanding.',
+                                  builder: (context, data) => RecordsList(
+                                    recordType: 'purchase',
+                                    rows: (data as List)
+                                        .map(
+                                          (e) => Map<String, dynamic>.from(
+                                            e as Map,
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    Column(
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+                          child: ModuleSectionHeader(
+                            title: 'Supplier Master',
+                            subtitle:
+                                'Registered suppliers available for procurement.',
+                          ),
+                        ),
+                        Expanded(
+                          child: AsyncPanel(
+                            key: ValueKey('suppliers-$refresh'),
+                            future: api.get(ApiPaths.suppliers),
+                            emptyMessage: 'No suppliers are registered.',
+                            builder: (context, data) => RecordsList(
+                              recordType: 'supplier',
+                              rows: (data as List)
+                                  .map(
+                                    (e) => Map<String, dynamic>.from(e as Map),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -288,8 +348,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                                       controller: cost[id],
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
+                                        decimal: true,
+                                      ),
                                       decoration: const InputDecoration(
                                         labelText: 'Unit Cost',
                                       ),
@@ -301,7 +361,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                               TextField(
                                 controller: batchNo[id],
                                 decoration: const InputDecoration(
-                                  labelText: 'Batch No. (optional / required by product)',
+                                  labelText:
+                                      'Batch No. (optional / required by product)',
                                 ),
                               ),
                             ],
@@ -388,7 +449,9 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
       final bills = (await api.get(
         ApiPaths.openBills,
         query: {'branch_id': app.currentBranchId},
-      ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      ) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
       final finance = Map<String, dynamic>.from(
         await api.get(ApiPaths.financeBootstrap) as Map,
       );

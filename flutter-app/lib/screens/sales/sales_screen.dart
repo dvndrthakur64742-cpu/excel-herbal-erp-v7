@@ -10,6 +10,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/module_workspace.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key, this.initialAction});
@@ -50,63 +51,85 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     final api = ref.watch(apiClientProvider);
+    final actions = <Widget>[
+      if (app.can('sales.create'))
+        FilledButton.icon(
+          onPressed: app.currentBranchId == null ? null : _counterSale,
+          icon: const Icon(Icons.point_of_sale_outlined, size: 18),
+          label: const Text('Counter Sale'),
+        ),
+      if (app.can('sales.create'))
+        OutlinedButton.icon(
+          onPressed: app.currentBranchId == null ? null : _createCustomer,
+          icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+          label: const Text('New Customer'),
+        ),
+      if (app.can('sales.receipt.create'))
+        OutlinedButton.icon(
+          onPressed: app.currentBranchId == null ? null : _receipt,
+          icon: const Icon(Icons.payments_outlined, size: 18),
+          label: const Text('Receipt'),
+        ),
+    ];
     return Scaffold(
-      appBar: AppBar(title: const Text('Sales & Collections')),
-      body: Column(
-        children: [
-          const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (app.can('sales.create'))
-                  FilledButton.icon(
-                    onPressed: app.currentBranchId == null
-                        ? null
-                        : _counterSale,
-                    icon: const Icon(Icons.point_of_sale),
-                    label: const Text('Counter Sale'),
-                  ),
-                if (app.can('sales.create'))
-                  FilledButton.tonalIcon(
-                    onPressed: app.currentBranchId == null
-                        ? null
-                        : _createCustomer,
-                    icon: const Icon(Icons.person_add_alt_1),
-                    label: const Text('New Customer'),
-                  ),
-                if (app.can('sales.receipt.create'))
-                  FilledButton.tonalIcon(
-                    onPressed: app.currentBranchId == null ? null : _receipt,
-                    icon: const Icon(Icons.payments_outlined),
-                    label: const Text('Customer Receipt'),
-                  ),
-              ],
+      appBar: AppBar(title: const Text('Sales')),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+              child: ModuleWorkspaceHeader(
+                title: 'Sales Desk',
+                subtitle: 'Counter billing, customer accounts and collections.',
+                icon: Icons.point_of_sale_outlined,
+                contextLabel: 'Business date · ${app.businessDate}',
+              ),
             ),
-          ),
-          if (message != null)
-            Padding(padding: const EdgeInsets.all(12), child: Text(message!)),
-          Expanded(
-            child: app.currentBranchId == null
-                ? const Center(child: Text('Branch select karein.'))
-                : AsyncPanel(
-                    key: ValueKey('${app.currentBranchId}-$refresh'),
-                    future: api.get(
-                      ApiPaths.customers,
-                      query: {'branch_id': app.currentBranchId},
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: BranchSelector(),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: ModuleActionPanel(
+                title: 'Transactions',
+                subtitle:
+                    'Start billing, maintain customers or post a collection.',
+                actions: actions,
+              ),
+            ),
+            if (message != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: ModuleMessageBanner(message: message!),
+              ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+              child: ModuleSectionHeader(
+                title: 'Customer Accounts',
+                subtitle: 'Registered customer master for the selected branch.',
+              ),
+            ),
+            Expanded(
+              child: app.currentBranchId == null
+                  ? const Center(child: Text('Select an authorised branch.'))
+                  : AsyncPanel(
+                      key: ValueKey('${app.currentBranchId}-$refresh'),
+                      future: api.get(
+                        ApiPaths.customers,
+                        query: {'branch_id': app.currentBranchId},
+                      ),
+                      emptyMessage: 'No customer accounts are available.',
+                      builder: (context, data) => RecordsList(
+                        recordType: 'customer',
+                        rows: (data as List)
+                            .map((e) => Map<String, dynamic>.from(e as Map))
+                            .toList(),
+                      ),
                     ),
-                    emptyMessage: 'Customer master empty hai.',
-                    builder: (context, data) => RecordsList(
-                      recordType: 'customer',
-                      rows: (data as List)
-                          .map((e) => Map<String, dynamic>.from(e as Map))
-                          .toList(),
-                    ),
-                  ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -446,7 +469,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       if (openSales.isEmpty) {
         if (mounted) {
           setState(
-            () => message = 'Customer receipt ke liye koi posted outstanding sale nahi hai.',
+            () => message =
+                'Customer receipt ke liye koi posted outstanding sale nahi hai.',
           );
         }
         return;

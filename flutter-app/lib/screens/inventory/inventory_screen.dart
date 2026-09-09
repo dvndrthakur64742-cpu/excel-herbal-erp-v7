@@ -10,6 +10,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/module_workspace.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({
@@ -148,6 +149,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     };
     final requestedIndex = tabs.indexWhere((tab) => tab.$1 == preferredLabel);
     final initialIndex = requestedIndex < 0 ? 0 : requestedIndex;
+    final actions = <Widget>[
+      if (app.can('inventory.transfer.create'))
+        FilledButton.icon(
+          onPressed: app.currentBranchId == null ? null : _createTransfer,
+          icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+          label: const Text('New Transfer'),
+        ),
+      if (app.can('inventory.adjustment.create'))
+        OutlinedButton.icon(
+          onPressed: app.currentBranchId == null ? null : _createAdjustment,
+          icon: const Icon(Icons.tune_rounded, size: 18),
+          label: const Text('Adjustment'),
+        ),
+    ];
     return DefaultTabController(
       length: tabs.length,
       initialIndex: initialIndex,
@@ -159,42 +174,52 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
           ),
         ),
-        body: Column(
-          children: [
-            const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (app.can('inventory.transfer.create'))
-                    FilledButton.icon(
-                      onPressed: app.currentBranchId == null
-                          ? null
-                          : _createTransfer,
-                      icon: const Icon(Icons.swap_horiz),
-                      label: const Text('New Transfer'),
-                    ),
-                  if (app.can('inventory.adjustment.create'))
-                    FilledButton.tonalIcon(
-                      onPressed: app.currentBranchId == null
-                          ? null
-                          : _createAdjustment,
-                      icon: const Icon(Icons.tune),
-                      label: const Text('Stock Adjustment'),
-                    ),
-                ],
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: ModuleWorkspaceHeader(
+                  title: 'Inventory Control',
+                  subtitle:
+                      'Branch stock, transfers, adjustments and quarantine control.',
+                  icon: Icons.inventory_2_outlined,
+                  contextLabel: 'Business date · ${app.businessDate}',
+                ),
               ),
-            ),
-            if (message != null)
-              Padding(padding: const EdgeInsets.all(8), child: Text(message!)),
-            Expanded(
-              child: app.currentBranchId == null
-                  ? const Center(child: Text('Branch select karein.'))
-                  : TabBarView(children: [for (final tab in tabs) tab.$2]),
-            ),
-          ],
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: BranchSelector(),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: ModuleActionPanel(
+                  title: 'Stock Actions',
+                  subtitle:
+                      'Move authorised stock or record a controlled adjustment.',
+                  actions: actions,
+                ),
+              ),
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: ModuleMessageBanner(message: message!),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: ModuleSectionHeader(
+                  title: 'Inventory Workspace',
+                  subtitle:
+                      'Use the tabs to review stock and controlled inventory movements.',
+                ),
+              ),
+              Expanded(
+                child: app.currentBranchId == null
+                    ? const Center(child: Text('Select an authorised branch.'))
+                    : TabBarView(children: [for (final tab in tabs) tab.$2]),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -205,13 +230,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   Future<List<Map<String, dynamic>>> _branchStock() async {
     final app = ref.read(appStateProvider);
-    return (await ref
-                .read(apiClientProvider)
-                .get(
-                  ApiPaths.inventoryStock,
-                  query: {'branch_id': app.currentBranchId},
-                )
-            as List)
+    return (await ref.read(apiClientProvider).get(
+      ApiPaths.inventoryStock,
+      query: {'branch_id': app.currentBranchId},
+    ) as List)
         .map((e) => Map<String, dynamic>.from(e as Map))
         .where(
           (e) =>
@@ -623,8 +645,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   void _adjustmentActions(Map<String, dynamic> r) {
     final app = ref.read(appStateProvider);
     if ('${r['status']}' != 'pending' ||
-        !app.can('inventory.adjustment.approve'))
-      return;
+        !app.can('inventory.adjustment.approve')) return;
     final id = int.parse('${r['id']}');
     showModalBottomSheet<void>(
       context: context,
@@ -747,9 +768,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       if (!closed || !mounted) return;
     }
     try {
-      final result = await ref
-          .read(apiClientProvider)
-          .post(path, data: data ?? const {});
+      final result =
+          await ref.read(apiClientProvider).post(path, data: data ?? const {});
       if (mounted)
         setState(() {
           refresh++;

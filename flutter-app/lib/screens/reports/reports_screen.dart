@@ -9,6 +9,7 @@ import '../../theme/excel_brand.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/module_workspace.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -32,131 +33,207 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       if (type != 'stock' && type != 'trial') 'from': app.businessMonthStart,
       if (type != 'stock') 'to': app.businessDate,
     };
+    final scopeLabel = type == 'stock'
+        ? 'Live stock'
+        : type == 'trial'
+            ? BusinessFormat.date(app.businessDate)
+            : '${BusinessFormat.date(app.businessMonthStart)} – ${BusinessFormat.date(app.businessDate)}';
+    final reportView = needsBranch && app.currentBranchId == null
+        ? const _BranchRequired()
+        : AsyncPanel(
+            key: ValueKey(
+              '$type-${app.currentBranchId}-${app.businessDate}',
+            ),
+            future: api.get(config.path, query: query),
+            emptyMessage: config.emptyMessage,
+            builder: (context, data) => RecordsList(
+              recordType: config.recordType,
+              rows: ((data as List?) ?? const [])
+                  .map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList(),
+            ),
+          );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reports Centre')),
-      body: Column(
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
-            child: BranchSelector(),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    config.subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: ExcelBrand.primarySoft,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    type == 'stock'
-                        ? 'Live stock'
-                        : type == 'trial'
-                            ? BusinessFormat.date(app.businessDate)
-                            : '${BusinessFormat.date(app.businessMonthStart)} – ${BusinessFormat.date(app.businessDate)}',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: ExcelBrand.primaryDark,
-                          fontWeight: FontWeight.w700,
+      appBar: AppBar(title: const Text('Reports')),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+              child: ModuleWorkspaceHeader(
+                title: 'Reports Centre',
+                subtitle:
+                    'Operational, inventory and financial reporting workspace.',
+                icon: Icons.analytics_outlined,
+                contextLabel: scopeLabel,
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: BranchSelector(),
+            ),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final content = Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 7),
+                        child: ModuleSectionHeader(
+                          title: config.title,
+                          subtitle: config.subtitle,
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHigh,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              scopeLabel,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
                         ),
-                  ),
-                ),
-              ],
+                      ),
+                      Expanded(child: reportView),
+                    ],
+                  );
+                  if (constraints.maxWidth >= 900) {
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Card(
+                            child: SizedBox(
+                              width: 220,
+                              child: _reportRail(),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(child: content),
+                        ],
+                      ),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      _mobileReportSelector(),
+                      Expanded(child: content),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'sales',
-                  icon: Icon(Icons.point_of_sale_outlined),
-                  label: Text('Sales'),
-                ),
-                ButtonSegment(
-                  value: 'purchase',
-                  icon: Icon(Icons.local_shipping_outlined),
-                  label: Text('Purchase'),
-                ),
-                ButtonSegment(
-                  value: 'stock',
-                  icon: Icon(Icons.inventory_2_outlined),
-                  label: Text('Stock'),
-                ),
-                ButtonSegment(
-                  value: 'finance',
-                  icon: Icon(Icons.account_balance_outlined),
-                  label: Text('Finance'),
-                ),
-                ButtonSegment(
-                  value: 'trial',
-                  icon: Icon(Icons.balance_outlined),
-                  label: Text('Trial Balance'),
-                ),
-              ],
-              selected: {type},
-              onSelectionChanged: (value) => setState(() => type = value.first),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: needsBranch && app.currentBranchId == null
-                ? const _BranchRequired()
-                : AsyncPanel(
-                    key: ValueKey(
-                      '$type-${app.currentBranchId}-${app.businessDate}',
-                    ),
-                    future: api.get(config.path, query: query),
-                    emptyMessage: config.emptyMessage,
-                    builder: (context, data) => RecordsList(
-                      recordType: config.recordType,
-                      rows: ((data as List?) ?? const [])
-                          .map((e) => Map<String, dynamic>.from(e as Map))
-                          .toList(),
-                    ),
-                  ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _mobileReportSelector() => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(
+              value: 'sales',
+              icon: Icon(Icons.point_of_sale_outlined),
+              label: Text('Sales'),
+            ),
+            ButtonSegment(
+              value: 'purchase',
+              icon: Icon(Icons.local_shipping_outlined),
+              label: Text('Purchase'),
+            ),
+            ButtonSegment(
+              value: 'stock',
+              icon: Icon(Icons.inventory_2_outlined),
+              label: Text('Stock'),
+            ),
+            ButtonSegment(
+              value: 'finance',
+              icon: Icon(Icons.account_balance_outlined),
+              label: Text('Finance'),
+            ),
+            ButtonSegment(
+              value: 'trial',
+              icon: Icon(Icons.balance_outlined),
+              label: Text('Trial'),
+            ),
+          ],
+          selected: {type},
+          onSelectionChanged: (value) => setState(() => type = value.first),
+        ),
+      );
+
+  Widget _reportRail() {
+    const values = ['sales', 'purchase', 'stock', 'finance', 'trial'];
+    return NavigationRail(
+      selectedIndex: values.indexOf(type),
+      extended: true,
+      minExtendedWidth: 220,
+      backgroundColor: Colors.transparent,
+      onDestinationSelected: (index) => setState(() => type = values[index]),
+      destinations: const [
+        NavigationRailDestination(
+          icon: Icon(Icons.point_of_sale_outlined),
+          label: Text('Sales'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.local_shipping_outlined),
+          label: Text('Purchase'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.inventory_2_outlined),
+          label: Text('Stock'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.account_balance_outlined),
+          label: Text('Finance'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.balance_outlined),
+          label: Text('Trial Balance'),
+        ),
+      ],
     );
   }
 
   _ReportConfig _config(String value) => switch (value) {
         'purchase' => const _ReportConfig(
+            title: 'Purchase Summary',
             path: ApiPaths.reportsPurchase,
             recordType: 'purchase',
             subtitle: 'Supplier billing, payments and outstanding summary.',
             emptyMessage: 'No purchase activity for the selected period.',
           ),
         'stock' => const _ReportConfig(
+            title: 'Stock Position',
             path: ApiPaths.reportsStock,
             recordType: 'stock',
             subtitle: 'Current stock position for the selected branch.',
             emptyMessage: 'No stock records for the selected branch.',
           ),
         'finance' => const _ReportConfig(
+            title: 'Finance Movement',
             path: ApiPaths.reportsFinance,
             recordType: 'finance',
             subtitle: 'Posted journals and accounting movement summary.',
             emptyMessage: 'No finance activity for the selected period.',
           ),
         'trial' => const _ReportConfig(
+            title: 'Trial Balance',
             path: ApiPaths.trialBalance,
             recordType: 'trial_balance',
             subtitle:
@@ -164,6 +241,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             emptyMessage: 'No Trial Balance data is available.',
           ),
         _ => const _ReportConfig(
+            title: 'Sales Summary',
             path: ApiPaths.reportsSales,
             recordType: 'sales',
             subtitle:
@@ -175,12 +253,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
 class _ReportConfig {
   const _ReportConfig({
+    required this.title,
     required this.path,
     required this.recordType,
     required this.subtitle,
     required this.emptyMessage,
   });
 
+  final String title;
   final String path;
   final String recordType;
   final String subtitle;
