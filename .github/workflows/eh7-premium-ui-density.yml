@@ -21,9 +21,11 @@ jobs:
           from pathlib import Path
           p = Path('ci/apply_premium_ui_density.py')
           t = p.read_text()
-          t = t.replace("    'shape: RoundedRectangleBorder(\\n            borderRadius: BorderRadius.circular(14),\\n          ),': 'shape: RoundedRectangleBorder(\\n            borderRadius: BorderRadius.circular(10),\\n          ),',\\n", '')
-          t = t.replace("    'shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),': 'shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),',\\n", '')
-          p.write_text(t)
+          old = "    if old not in text:\n        raise SystemExit(f'Theme expectation missing: {old}')\n    text = text.replace(old, new)"
+          new = "    if old not in text:\n        if 'shape: RoundedRectangleBorder' in old and 'circular(14)' in old:\n            continue\n        raise SystemExit(f'Theme expectation missing: {old}')\n    text = text.replace(old, new)"
+          if old not in t:
+              raise SystemExit('Theme loop normalization marker missing')
+          p.write_text(t.replace(old, new, 1))
           PY
 
       - name: Apply premium UI density patch
