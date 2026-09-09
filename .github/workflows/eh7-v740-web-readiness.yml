@@ -1,0 +1,68 @@
+name: EH7 Flutter v7.4 Web Readiness
+
+on:
+  push:
+    branches: [v740-web-readiness]
+    paths:
+      - 'flutter-app/**'
+      - '.github/workflows/eh7-v740-web-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter 3.47.2
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: flutter-app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test
+        working-directory: flutter-app
+        run: flutter test
+
+      - name: Build Web
+        working-directory: flutter-app
+        run: >-
+          flutter build web --release
+          --base-href /wp-content/uploads/eh7-flutter-web/
+          --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          --dart-define=EH7_ENVIRONMENT=uat
+
+      - name: Verify Web Bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s flutter-app/build/web/index.html
+          test -s flutter-app/build/web/main.dart.js
+          test -s flutter-app/build/web/flutter_bootstrap.js
+          grep -q '/wp-content/uploads/eh7-flutter-web/' flutter-app/build/web/index.html
+          mkdir -p dist/web
+          cp -a flutter-app/build/web/. dist/web/
+          tar -C dist -czf Excel-Herbal-ERP-v7.4-Web-UAT.tar.gz web
+          sha256sum Excel-Herbal-ERP-v7.4-Web-UAT.tar.gz | tee WEB-SHA256.txt
+
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Excel-Herbal-ERP-v7.4-Web-UAT
+          path: |
+            Excel-Herbal-ERP-v7.4-Web-UAT.tar.gz
+            WEB-SHA256.txt
+          if-no-files-found: error
