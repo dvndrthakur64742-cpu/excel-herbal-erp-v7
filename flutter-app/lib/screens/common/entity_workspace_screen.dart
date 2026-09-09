@@ -1,56 +1,4 @@
-from pathlib import Path
-
-ROOT = Path('flutter-app')
-
-relations = r'''abstract final class EntityRelations {
-  static int? normalizeId(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse('$value'.trim());
-  }
-
-  static bool sameId(dynamic left, dynamic right) {
-    final a = normalizeId(left);
-    final b = normalizeId(right);
-    return a != null && b != null && a == b;
-  }
-
-  static List<Map<String, dynamic>> byForeignKey(
-    Iterable<Map<String, dynamic>> rows,
-    String key,
-    dynamic id,
-  ) {
-    return rows.where((row) => sameId(row[key], id)).toList();
-  }
-
-  static Map<String, dynamic>? firstById(
-    Iterable<Map<String, dynamic>> rows,
-    dynamic id, {
-    String key = 'id',
-  }) {
-    for (final row in rows) {
-      if (sameId(row[key], id)) return row;
-    }
-    return null;
-  }
-
-  static double sum(Iterable<Map<String, dynamic>> rows, String key) {
-    var total = 0.0;
-    for (final row in rows) {
-      final value = row[key];
-      if (value is num) {
-        total += value.toDouble();
-      } else {
-        total += double.tryParse('${value ?? ''}'.replaceAll(',', '')) ?? 0;
-      }
-    }
-    return total;
-  }
-}
-'''
-
-workspace = r'''import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
@@ -125,11 +73,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     final branchId = _branchId(app);
     if (id == null || branchId == null) return const {};
 
-    final openSales = app.canAny(const [
-      'sales.view',
-      'sales.create',
-      'sales.receipt.create',
-    ])
+    final openSales =
+        app.canAny(const ['sales.view', 'sales.create', 'sales.receipt.create'])
         ? await _safeList(ApiPaths.openSales, {'branch_id': branchId})
         : <Map<String, dynamic>>[];
     final monthSales = app.can('reports.view')
@@ -226,10 +171,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     var product = widget.recordType == 'product'
         ? widget.row
         : <String, dynamic>{};
-    if (product.isEmpty && app.canAny(const [
-      'catalog.product.view',
-      'catalog.product.manage',
-    ])) {
+    if (product.isEmpty &&
+        app.canAny(const ['catalog.product.view', 'catalog.product.manage'])) {
       final products = await _safeList(ApiPaths.products);
       product = EntityRelations.firstById(products, productId) ?? const {};
     }
@@ -237,10 +180,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     final stock = branchId != null && app.can('inventory.view')
         ? await _safeList(ApiPaths.inventoryStock, {'branch_id': branchId})
         : <Map<String, dynamic>>[];
-    final history = app.canAny(const [
-      'catalog.product.view',
-      'catalog.product.manage',
-    ])
+    final history =
+        app.canAny(const ['catalog.product.view', 'catalog.product.manage'])
         ? await _safeList(ApiPaths.productHistory(productId))
         : <Map<String, dynamic>>[];
 
@@ -256,26 +197,30 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     final branchId = _branchId(app);
     if (employeeId == null) return const {};
 
-    final history = app.canAny(const [
-      'organization.employee.view',
-      'organization.employee.manage',
-    ])
+    final history =
+        app.canAny(const [
+          'organization.employee.view',
+          'organization.employee.manage',
+        ])
         ? await _safeList(ApiPaths.employeeHistory(employeeId))
         : <Map<String, dynamic>>[];
-    final documents = app.canAny(const [
-      'organization.employee.view',
-      'organization.employee.manage',
-    ])
+    final documents =
+        app.canAny(const [
+          'organization.employee.view',
+          'organization.employee.manage',
+        ])
         ? await _safeList(ApiPaths.employeeDocuments(employeeId))
         : <Map<String, dynamic>>[];
-    final attendance = branchId != null && app.can('workforce.attendance.manage')
+    final attendance =
+        branchId != null && app.can('workforce.attendance.manage')
         ? await _safeList(ApiPaths.attendanceReport, {
             'branch_id': branchId,
             'from': app.businessMonthStart,
             'to': app.businessDate,
           })
         : <Map<String, dynamic>>[];
-    final daily = branchId != null &&
+    final daily =
+        branchId != null &&
             app.canAny(const [
               'daily_order.others',
               'daily_order.approve',
@@ -304,7 +249,9 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
   Future<Map<String, dynamic>> _loadDailyOrder() async {
     final id = EntityRelations.normalizeId(widget.row['id']);
     if (id == null) return const {};
-    final detail = await ref.read(apiClientProvider).get(ApiPaths.dailyDetail(id));
+    final detail = await ref
+        .read(apiClientProvider)
+        .get(ApiPaths.dailyDetail(id));
     return {'detail': Map<String, dynamic>.from(detail as Map)};
   }
 
@@ -454,16 +401,15 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
                 children: [
                   Text(
                     widget.title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                    style: Theme.of(context).textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -502,9 +448,17 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     final receivables = _maps(data['receivables']);
     return [
       _metrics(context, [
-        _Metric('Outstanding', BusinessFormat.money(EntityRelations.sum(open, 'outstanding_amount')), Icons.account_balance_wallet_outlined),
+        _Metric(
+          'Outstanding',
+          BusinessFormat.money(EntityRelations.sum(open, 'outstanding_amount')),
+          Icons.account_balance_wallet_outlined,
+        ),
         _Metric('Open Sales', '${open.length}', Icons.receipt_long_outlined),
-        _Metric('Month Sales', BusinessFormat.money(EntityRelations.sum(month, 'gross_amount')), Icons.trending_up_rounded),
+        _Metric(
+          'Month Sales',
+          BusinessFormat.money(EntityRelations.sum(month, 'gross_amount')),
+          Icons.trending_up_rounded,
+        ),
       ]),
       const SizedBox(height: 16),
       _overviewSection(context, widget.row, title: 'Customer Profile'),
@@ -513,7 +467,12 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         context,
         'Outstanding Sales',
         'Current branch ke posted outstanding sales.',
-        _relatedList(context, open, recordType: null, empty: 'No outstanding sale.'),
+        _relatedList(
+          context,
+          open,
+          recordType: null,
+          empty: 'No outstanding sale.',
+        ),
       ),
       if (receivables.isNotEmpty) ...[
         const SizedBox(height: 16),
@@ -545,9 +504,19 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     final payables = _maps(data['payables']);
     return [
       _metrics(context, [
-        _Metric('Outstanding', BusinessFormat.money(EntityRelations.sum(bills, 'outstanding_amount')), Icons.account_balance_wallet_outlined),
+        _Metric(
+          'Outstanding',
+          BusinessFormat.money(
+            EntityRelations.sum(bills, 'outstanding_amount'),
+          ),
+          Icons.account_balance_wallet_outlined,
+        ),
         _Metric('Open Bills', '${bills.length}', Icons.receipt_long_outlined),
-        _Metric('Month Purchase', BusinessFormat.money(EntityRelations.sum(month, 'total_amount')), Icons.local_shipping_outlined),
+        _Metric(
+          'Month Purchase',
+          BusinessFormat.money(EntityRelations.sum(month, 'total_amount')),
+          Icons.local_shipping_outlined,
+        ),
       ]),
       const SizedBox(height: 16),
       _overviewSection(context, widget.row, title: 'Supplier Profile'),
@@ -601,9 +570,21 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         : <String, dynamic>{};
     return [
       _metrics(context, [
-        _Metric('Bill Total', BusinessFormat.money(widget.row['total_amount']), Icons.receipt_long_outlined),
-        _Metric('Paid', BusinessFormat.money(widget.row['paid_amount']), Icons.payments_outlined),
-        _Metric('Outstanding', BusinessFormat.money(widget.row['outstanding_amount']), Icons.account_balance_wallet_outlined),
+        _Metric(
+          'Bill Total',
+          BusinessFormat.money(widget.row['total_amount']),
+          Icons.receipt_long_outlined,
+        ),
+        _Metric(
+          'Paid',
+          BusinessFormat.money(widget.row['paid_amount']),
+          Icons.payments_outlined,
+        ),
+        _Metric(
+          'Outstanding',
+          BusinessFormat.money(widget.row['outstanding_amount']),
+          Icons.account_balance_wallet_outlined,
+        ),
       ]),
       const SizedBox(height: 16),
       _overviewSection(context, widget.row, title: 'Bill Summary'),
@@ -640,9 +621,21 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     final quantity = EntityRelations.sum(stock, 'quantity');
     return [
       _metrics(context, [
-        _Metric('Available Stock', BusinessFormat.quantity(quantity), Icons.inventory_2_outlined),
-        _Metric('Sale Price', BusinessFormat.money(product['sale_price']), Icons.sell_outlined),
-        _Metric('Points', BusinessFormat.quantity(product['points']), Icons.stars_outlined),
+        _Metric(
+          'Available Stock',
+          BusinessFormat.quantity(quantity),
+          Icons.inventory_2_outlined,
+        ),
+        _Metric(
+          'Sale Price',
+          BusinessFormat.money(product['sale_price']),
+          Icons.sell_outlined,
+        ),
+        _Metric(
+          'Points',
+          BusinessFormat.quantity(product['points']),
+          Icons.stars_outlined,
+        ),
       ]),
       const SizedBox(height: 16),
       _overviewSection(context, product, title: 'Product Master'),
@@ -651,14 +644,22 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         context,
         'Current Stock & Batches',
         'Selected branch ke stock rows; batch/custodian detail backend ke according.',
-        _relatedList(context, stock, empty: 'Current branch me stock nahi hai.'),
+        _relatedList(
+          context,
+          stock,
+          empty: 'Current branch me stock nahi hai.',
+        ),
       ),
       const SizedBox(height: 16),
       _section(
         context,
         'Commercial History',
         'Effective commercial revisions; current values ko overwrite karke history hide nahi hoti.',
-        _relatedList(context, history, empty: 'Commercial history unavailable.'),
+        _relatedList(
+          context,
+          history,
+          empty: 'Commercial history unavailable.',
+        ),
       ),
     ];
   }
@@ -673,8 +674,16 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     final docs = _maps(data['documents']);
     return [
       _metrics(context, [
-        _Metric('Attendance Days', '${attendance.length}', Icons.how_to_reg_outlined),
-        _Metric('Daily Orders', '${daily.length}', Icons.shopping_cart_checkout_outlined),
+        _Metric(
+          'Attendance Days',
+          '${attendance.length}',
+          Icons.how_to_reg_outlined,
+        ),
+        _Metric(
+          'Daily Orders',
+          '${daily.length}',
+          Icons.shopping_cart_checkout_outlined,
+        ),
         _Metric('Documents', '${docs.length}', Icons.folder_copy_outlined),
       ]),
       const SizedBox(height: 16),
@@ -719,10 +728,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     ];
   }
 
-  List<Widget> _dailySections(
-    BuildContext context,
-    Map<String, dynamic> data,
-  ) {
+  List<Widget> _dailySections(BuildContext context, Map<String, dynamic> data) {
     final detail = data['detail'] is Map
         ? Map<String, dynamic>.from(data['detail'] as Map)
         : <String, dynamic>{};
@@ -743,8 +749,16 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     return [
       _metrics(context, [
         _Metric('Requests', '${requests.length}', Icons.approval_outlined),
-        _Metric('Issued Qty', BusinessFormat.quantity(EntityRelations.sum(issuedLines, 'quantity')), Icons.inventory_2_outlined),
-        _Metric('Expected Deposit', BusinessFormat.money(evening['expected_amount']), Icons.account_balance_wallet_outlined),
+        _Metric(
+          'Issued Qty',
+          BusinessFormat.quantity(EntityRelations.sum(issuedLines, 'quantity')),
+          Icons.inventory_2_outlined,
+        ),
+        _Metric(
+          'Expected Deposit',
+          BusinessFormat.money(evening['expected_amount']),
+          Icons.account_balance_wallet_outlined,
+        ),
       ]),
       const SizedBox(height: 16),
       _overviewSection(context, cycle, title: 'Cycle Summary'),
@@ -819,9 +833,21 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     );
     return [
       _metrics(context, [
-        _Metric('Sent Qty', BusinessFormat.quantity(sent), Icons.outbox_outlined),
-        _Metric('Received Qty', BusinessFormat.quantity(received), Icons.move_to_inbox_outlined),
-        _Metric('Difference', BusinessFormat.quantity(difference), Icons.compare_arrows_rounded),
+        _Metric(
+          'Sent Qty',
+          BusinessFormat.quantity(sent),
+          Icons.outbox_outlined,
+        ),
+        _Metric(
+          'Received Qty',
+          BusinessFormat.quantity(received),
+          Icons.move_to_inbox_outlined,
+        ),
+        _Metric(
+          'Difference',
+          BusinessFormat.quantity(difference),
+          Icons.compare_arrows_rounded,
+        ),
       ]),
       const SizedBox(height: 16),
       _section(
@@ -832,7 +858,9 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
           child: ListTile(
             leading: const Icon(Icons.route_outlined),
             title: Text(source.isEmpty ? 'Source Branch' : source),
-            subtitle: Text(destination.isEmpty ? 'Destination Branch' : destination),
+            subtitle: Text(
+              destination.isEmpty ? 'Destination Branch' : destination,
+            ),
             trailing: const Icon(Icons.arrow_forward_rounded),
           ),
         ),
@@ -863,8 +891,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         final itemWidth = width >= 900
             ? (width - 24) / 3
             : width >= 560
-                ? (width - 12) / 2
-                : width;
+            ? (width - 12) / 2
+            : width;
         return Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -895,9 +923,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
                                 metric.value,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800),
                               ),
                             ],
                           ),
@@ -953,8 +980,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
                     child: Text(
                       BusinessFormat.label(fields[i].key),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -963,9 +990,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
                     child: Text(
                       BusinessFormat.value(fields[i].key, fields[i].value),
                       textAlign: TextAlign.right,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -989,16 +1015,14 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+          style: Theme.of(context).textTheme.titleLarge
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 9),
         child,
@@ -1027,14 +1051,14 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
                     : null,
                 onTap: EntityWorkspaceScreen.supports(recordType)
                     ? () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => EntityWorkspaceScreen(
-                              row: row,
-                              title: _rowTitle(row),
-                              recordType: recordType!,
-                            ),
+                        MaterialPageRoute(
+                          builder: (_) => EntityWorkspaceScreen(
+                            row: row,
+                            title: _rowTitle(row),
+                            recordType: recordType!,
                           ),
-                        )
+                        ),
+                      )
                     : null,
               ),
             ),
@@ -1071,7 +1095,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     BuildContext context,
     List<Map<String, dynamic>> requests,
   ) {
-    if (requests.isEmpty) return const _EmptyBox(message: 'No request history.');
+    if (requests.isEmpty)
+      return const _EmptyBox(message: 'No request history.');
     return Column(
       children: [
         for (final request in requests)
@@ -1088,9 +1113,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
                         Expanded(
                           child: Text(
                             '${BusinessFormat.value('type', request['type'])} Request',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                         ),
                         _StatusChip(
@@ -1099,11 +1123,17 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text('Created: ${BusinessFormat.dateTime(request['created_at'])}'),
+                    Text(
+                      'Created: ${BusinessFormat.dateTime(request['created_at'])}',
+                    ),
                     if (!BusinessFormat.isBlank(request['approved_at']))
-                      Text('Approved: ${BusinessFormat.dateTime(request['approved_at'])}'),
+                      Text(
+                        'Approved: ${BusinessFormat.dateTime(request['approved_at'])}',
+                      ),
                     if (!BusinessFormat.isBlank(request['issued_at']))
-                      Text('Issued: ${BusinessFormat.dateTime(request['issued_at'])}'),
+                      Text(
+                        'Issued: ${BusinessFormat.dateTime(request['issued_at'])}',
+                      ),
                   ],
                 ),
               ),
@@ -1123,16 +1153,14 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
       MapEntry('Received', transfer['received_at']),
       MapEntry('Cancelled', transfer['cancelled_at']),
     ].where((entry) => !BusinessFormat.isBlank(entry.value)).toList();
-    if (steps.isEmpty) return const _EmptyBox(message: 'No lifecycle timestamps.');
+    if (steps.isEmpty)
+      return const _EmptyBox(message: 'No lifecycle timestamps.');
     return Card(
       child: Column(
         children: [
           for (var i = 0; i < steps.length; i++) ...[
             ListTile(
-              leading: CircleAvatar(
-                radius: 15,
-                child: Text('${i + 1}'),
-              ),
+              leading: CircleAvatar(radius: 15, child: Text('${i + 1}')),
               title: Text(steps[i].key),
               subtitle: Text(BusinessFormat.dateTime(steps[i].value)),
             ),
@@ -1219,18 +1247,17 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(
+      label,
+      style: Theme.of(context).textTheme.labelMedium
+          ?.copyWith(fontWeight: FontWeight.w700),
+    ),
+  );
 }
 
 class _EmptyBox extends StatelessWidget {
@@ -1239,19 +1266,18 @@ class _EmptyBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          message,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-        ),
-      );
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Text(
+      message,
+      style: Theme.of(context).textTheme.bodyMedium
+          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+    ),
+  );
 }
 
 class _WorkspaceError extends StatelessWidget {
@@ -1261,206 +1287,31 @@ class _WorkspaceError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline_rounded, size: 42),
-              const SizedBox(height: 12),
-              Text(
-                'Workspace data load nahi ho paya.',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 14),
-              FilledButton.tonalIcon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 42),
+          const SizedBox(height: 12),
+          Text(
+            'Workspace data load nahi ho paya.',
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-        ),
-      );
-}
-'''
-
-tests = r'''import 'package:flutter_test/flutter_test.dart';
-import 'package:excel_herbal_erp/core/entity_relations.dart';
-
-void main() {
-  test('sameId normalizes numeric strings and numbers', () {
-    expect(EntityRelations.sameId('12', 12), isTrue);
-    expect(EntityRelations.sameId(12.0, '12'), isTrue);
-    expect(EntityRelations.sameId('12', 13), isFalse);
-  });
-
-  test('byForeignKey returns only related rows', () {
-    final rows = <Map<String, dynamic>>[
-      {'id': '1', 'customer_id': '7'},
-      {'id': '2', 'customer_id': 8},
-      {'id': '3', 'customer_id': 7},
-    ];
-    final related = EntityRelations.byForeignKey(rows, 'customer_id', '7');
-    expect(related.map((e) => e['id']).toList(), ['1', '3']);
-  });
-
-  test('sum parses decimal strings without losing values', () {
-    final rows = <Map<String, dynamic>>[
-      {'amount': '10.50'},
-      {'amount': 20},
-      {'amount': '1,000.25'},
-      {'amount': null},
-    ];
-    expect(EntityRelations.sum(rows, 'amount'), closeTo(1030.75, 0.0001));
-  });
-
-  test('firstById uses normalized identifiers', () {
-    final rows = <Map<String, dynamic>>[
-      {'id': '4', 'name': 'A'},
-      {'id': '5', 'name': 'B'},
-    ];
-    expect(EntityRelations.firstById(rows, 5)?['name'], 'B');
-    expect(EntityRelations.firstById(rows, 9), isNull);
-  });
-}
-'''
-
-purchase_build = r'''  @override
-  Widget build(BuildContext context) {
-    final app = ref.watch(appStateProvider);
-    final api = ref.watch(apiClientProvider);
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Purchase & Suppliers'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Outstanding Bills'),
-              Tab(text: 'Suppliers'),
-            ],
+          const SizedBox(height: 6),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
           ),
-        ),
-        body: Column(
-          children: [
-            const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (app.can('purchase.create'))
-                    FilledButton.icon(
-                      onPressed: app.currentBranchId == null ? null : _newBill,
-                      icon: const Icon(Icons.receipt_long_outlined),
-                      label: const Text('Purchase Entry'),
-                    ),
-                  if (app.can('finance.supplier_payment.create'))
-                    FilledButton.tonalIcon(
-                      onPressed: app.currentBranchId == null ? null : _payBill,
-                      icon: const Icon(Icons.payments_outlined),
-                      label: const Text('Supplier Payment'),
-                    ),
-                  if (app.can('purchase.create'))
-                    FilledButton.tonalIcon(
-                      onPressed: _createSupplier,
-                      icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('New Supplier'),
-                    ),
-                ],
-              ),
-            ),
-            if (message != null)
-              Padding(padding: const EdgeInsets.all(8), child: Text(message!)),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  app.currentBranchId == null
-                      ? const Center(child: Text('Branch select karein.'))
-                      : AsyncPanel(
-                          key: ValueKey('bills-${app.currentBranchId}-$refresh'),
-                          future: api.get(
-                            ApiPaths.openBills,
-                            query: {'branch_id': app.currentBranchId},
-                          ),
-                          emptyMessage: 'Supplier outstanding bill nahi hai.',
-                          builder: (context, data) => RecordsList(
-                            recordType: 'purchase',
-                            rows: (data as List)
-                                .map(
-                                  (e) => Map<String, dynamic>.from(e as Map),
-                                )
-                                .toList(),
-                          ),
-                        ),
-                  AsyncPanel(
-                    key: ValueKey('suppliers-$refresh'),
-                    future: api.get(ApiPaths.suppliers),
-                    emptyMessage: 'Supplier master empty hai.',
-                    builder: (context, data) => RecordsList(
-                      recordType: 'supplier',
-                      rows: (data as List)
-                          .map((e) => Map<String, dynamic>.from(e as Map))
-                          .toList(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          const SizedBox(height: 14),
+          FilledButton.tonalIcon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
+          ),
+        ],
       ),
-    );
-  }
-'''
-
-(ROOT / 'lib/core/entity_relations.dart').write_text(relations)
-(ROOT / 'lib/screens/common/entity_workspace_screen.dart').write_text(workspace)
-(ROOT / 'test/entity_relations_test.dart').write_text(tests)
-
-record_path = ROOT / 'lib/screens/common/record_detail_screen.dart'
-record = record_path.read_text()
-needle = "import '../../core/business_format.dart';\n"
-assert needle in record
-record = record.replace(
-    needle,
-    needle + "import 'entity_workspace_screen.dart';\n",
-    1,
-)
-old_build = """  @override\n  Widget build(BuildContext context) => Scaffold(\n    appBar: AppBar(title: Text(_pageTitle())),\n    body: BusinessRecordDetailView(\n      row: row,\n      title: title,\n      recordType: recordType,\n    ),\n  );\n"""
-new_build = """  @override\n  Widget build(BuildContext context) {\n    if (usesEntityWorkspace(recordType)) {\n      return EntityWorkspaceScreen(\n        row: row,\n        title: title,\n        recordType: recordType!,\n      );\n    }\n    return Scaffold(\n      appBar: AppBar(title: Text(_pageTitle())),\n      body: BusinessRecordDetailView(\n        row: row,\n        title: title,\n        recordType: recordType,\n      ),\n    );\n  }\n"""
-assert old_build in record
-record = record.replace(old_build, new_build, 1)
-insert_before = "\nclass BusinessRecordDetailView extends StatelessWidget {"
-assert insert_before in record
-record = record.replace(
-    insert_before,
-    "\nbool usesEntityWorkspace(String? recordType) =>\n    EntityWorkspaceScreen.supports(recordType);\n" + insert_before,
-    1,
-)
-record_path.write_text(record)
-
-records_path = ROOT / 'lib/widgets/records_list.dart'
-records = records_path.read_text()
-needle = """      final title = _title(row, 0);\n      if (MediaQuery.sizeOf(context).width >= 820) {\n"""
-replacement = """      final title = _title(row, 0);\n      if (usesEntityWorkspace(widget.recordType)) {\n        await Navigator.of(context).push(\n          MaterialPageRoute(\n            builder: (_) => RecordDetailScreen(\n              row: row,\n              title: title,\n              recordType: widget.recordType,\n            ),\n          ),\n        );\n        return;\n      }\n      if (MediaQuery.sizeOf(context).width >= 820) {\n"""
-assert needle in records
-records = records.replace(needle, replacement, 1)
-records_path.write_text(records)
-
-purchase_path = ROOT / 'lib/screens/purchase/purchase_screen.dart'
-purchase = purchase_path.read_text()
-start = purchase.index("  @override\n  Widget build(BuildContext context) {")
-end = purchase.index("\n  Future<void> _createSupplier()", start)
-purchase = purchase[:start] + purchase_build + purchase[end:]
-purchase_path.write_text(purchase)
-
-print('Entity workspace patch applied to 6 source/test files.')
+    ),
+  );
+}

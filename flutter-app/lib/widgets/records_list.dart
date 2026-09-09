@@ -183,6 +183,18 @@ class _RecordsListState extends State<RecordsList> {
     _opening = true;
     try {
       final title = _title(row, 0);
+      if (usesEntityWorkspace(widget.recordType)) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RecordDetailScreen(
+              row: row,
+              title: title,
+              recordType: widget.recordType,
+            ),
+          ),
+        );
+        return;
+      }
       if (MediaQuery.sizeOf(context).width >= 820) {
         await showDialog<void>(
           context: context,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/business_format.dart';
+import 'entity_workspace_screen.dart';
 
 class RecordDetailScreen extends StatelessWidget {
   const RecordDetailScreen({
@@ -15,14 +16,23 @@ class RecordDetailScreen extends StatelessWidget {
   final String? recordType;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(_pageTitle())),
-    body: BusinessRecordDetailView(
-      row: row,
-      title: title,
-      recordType: recordType,
-    ),
-  );
+  Widget build(BuildContext context) {
+    if (usesEntityWorkspace(recordType)) {
+      return EntityWorkspaceScreen(
+        row: row,
+        title: title,
+        recordType: recordType!,
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(title: Text(_pageTitle())),
+      body: BusinessRecordDetailView(
+        row: row,
+        title: title,
+        recordType: recordType,
+      ),
+    );
+  }
 
   String _pageTitle() {
     final ref = _reference(row);
@@ -33,6 +43,9 @@ class RecordDetailScreen extends StatelessWidget {
     return 'Record Details';
   }
 }
+
+bool usesEntityWorkspace(String? recordType) =>
+    EntityWorkspaceScreen.supports(recordType);
 
 class BusinessRecordDetailView extends StatelessWidget {
   const BusinessRecordDetailView({
