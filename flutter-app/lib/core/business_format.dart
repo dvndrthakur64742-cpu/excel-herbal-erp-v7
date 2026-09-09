@@ -280,9 +280,12 @@ class BusinessFormat {
 
   static String dateTime(dynamic value) {
     final raw = '$value'.trim();
-    final d = DateTime.tryParse(raw);
+    if (raw.isEmpty || raw.toLowerCase() == 'null') return '—';
+    var text = raw.replaceFirst(' ', 'T');
+    final hasZone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(text);
+    final d = DateTime.tryParse(hasZone ? text : '${text}Z');
     if (d == null) return raw;
-    final local = d.isUtc ? d.toLocal() : d;
+    final local = d.toLocal();
     final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
     final m = local.minute.toString().padLeft(2, '0');
     final ap = local.hour >= 12 ? 'PM' : 'AM';
