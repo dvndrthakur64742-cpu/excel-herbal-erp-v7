@@ -63,8 +63,23 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? query,
     bool authenticated = true,
-  }) =>
-      _request('GET', path, query: query, authenticated: authenticated);
+  }) async {
+    final data = await _request(
+      'GET',
+      path,
+      query: query,
+      authenticated: authenticated,
+    );
+    if (path == ApiPaths.availableStock && data is List) {
+      return data.map((row) {
+        if (row is! Map) return row;
+        final normalized = Map<String, dynamic>.from(row);
+        normalized.putIfAbsent('custodian_key', () => 0);
+        return normalized;
+      }).toList(growable: false);
+    }
+    return data;
+  }
 
   Future<dynamic> post(
     String path, {
