@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'api_paths.dart';
 import 'app_config.dart';
@@ -54,6 +56,9 @@ class ApiClient {
 
   static const _uncertainMutationTtl = Duration(minutes: 30);
 
+  static String get deviceLabel =>
+      kIsWeb ? 'Excel Herbal ERP Web' : 'Excel Herbal ERP Android';
+
   Future<dynamic> get(
     String path, {
     Map<String, dynamic>? query,
@@ -78,6 +83,30 @@ class ApiClient {
     required String filePath,
     required String filename,
     required Map<String, dynamic> fields,
+  }) => _uploadMultipart(
+    path,
+    filename: filename,
+    fields: fields,
+    fileFactory: () => MultipartFile.fromFile(filePath, filename: filename),
+  );
+
+  Future<dynamic> uploadBytes(
+    String path, {
+    required Uint8List bytes,
+    required String filename,
+    required Map<String, dynamic> fields,
+  }) => _uploadMultipart(
+    path,
+    filename: filename,
+    fields: fields,
+    fileFactory: () async => MultipartFile.fromBytes(bytes, filename: filename),
+  );
+
+  Future<dynamic> _uploadMultipart(
+    String path, {
+    required String filename,
+    required Map<String, dynamic> fields,
+    required Future<MultipartFile> Function() fileFactory,
   }) async {
     final headers = <String, dynamic>{};
     final token = await session.accessToken();
@@ -89,7 +118,7 @@ class ApiClient {
     Future<Response<dynamic>> send() async {
       final form = FormData.fromMap({
         ...fields,
-        'file': await MultipartFile.fromFile(filePath, filename: filename),
+        'file': await fileFactory(),
       });
       return dio.post<dynamic>(
         path,
@@ -124,7 +153,7 @@ class ApiClient {
       data: {
         'mobile': mobile.replaceAll(RegExp(r'\s+'), ''),
         'password': password,
-        'device': 'Excel Herbal ERP Android',
+        'device': deviceLabel,
       },
       idempotent: false,
       authenticated: false,
@@ -261,7 +290,7 @@ class ApiClient {
     try {
       final response = await dio.post<dynamic>(
         ApiPaths.refresh,
-        data: {'refresh_token': refresh, 'device': 'Excel Herbal ERP Android'},
+        data: {'refresh_token': refresh, 'device': deviceLabel},
       );
       final data = _unwrap(response.data, response.statusCode);
       final map = Map<String, dynamic>.from(data as Map);
