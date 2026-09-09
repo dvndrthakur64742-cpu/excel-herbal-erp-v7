@@ -2,7 +2,7 @@ name: EH7 Flutter v7.4 Web Readiness
 
 on:
   push:
-    branches: [v740-web-readiness]
+    branches: [v740-web-readiness, flutter-v720-build]
     paths:
       - 'flutter-app/**'
       - '.github/workflows/eh7-v740-web-readiness.yml'
