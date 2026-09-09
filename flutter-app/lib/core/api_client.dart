@@ -168,12 +168,14 @@ class ApiClient {
   }
 
   Future<dynamic> login(String mobile, String password) async {
+    final deviceId = await session.deviceId();
     final data = await post(
       ApiPaths.login,
       data: {
         'mobile': mobile.replaceAll(RegExp(r'\s+'), ''),
         'password': password,
         'device': deviceLabel,
+        'device_id': deviceId,
       },
       idempotent: false,
       authenticated: false,
@@ -308,9 +310,14 @@ class ApiClient {
     final refresh = await session.refreshToken();
     if (refresh == null || refresh.isEmpty) return false;
     try {
+      final deviceId = await session.deviceId();
       final response = await dio.post<dynamic>(
         ApiPaths.refresh,
-        data: {'refresh_token': refresh, 'device': deviceLabel},
+        data: {
+          'refresh_token': refresh,
+          'device': deviceLabel,
+          'device_id': deviceId,
+        },
       );
       final data = _unwrap(response.data, response.statusCode);
       final map = Map<String, dynamic>.from(data as Map);
