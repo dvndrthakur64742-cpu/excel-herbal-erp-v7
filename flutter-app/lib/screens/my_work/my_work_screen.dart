@@ -58,7 +58,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       child: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 0),
             child: BranchSelector(),
           ),
           TabBar(
@@ -76,7 +76,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   Widget _attendance() {
     final api = ref.watch(apiClientProvider);
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
       children: [
         AsyncPanel(
           key: ValueKey('att-$refresh'),
@@ -101,10 +101,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           const SizedBox(height: 8),
           _feedbackBanner(message!),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             FilledButton.icon(
               onPressed: () => _attendanceAction(true),

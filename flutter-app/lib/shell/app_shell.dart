@@ -48,9 +48,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                   const VerticalDivider(width: 1),
                   Expanded(
                     child: ColoredBox(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerLowest,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerLowest,
                       child: _desktopContent(app),
                     ),
                   ),
@@ -148,7 +147,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                     children: [
                       Text(
                         'Excel Herbal ERP',
-                        style: Theme.of(context).textTheme.titleMedium
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 2),
@@ -255,16 +256,16 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _sectionLabel(BuildContext context, String text) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 7, 12, 6),
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-        letterSpacing: .9,
-        fontWeight: FontWeight.w700,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-    ),
-  );
+        padding: const EdgeInsets.fromLTRB(12, 7, 12, 6),
+        child: Text(
+          text,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                letterSpacing: .9,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+      );
 
   Widget _desktopTile(String id, String label, IconData icon) {
     final selected = desktopRoute == id;
@@ -288,14 +289,14 @@ class _AppShellState extends ConsumerState<AppShell> {
       'home' => const HomeScreen(),
       'my_work' => const MyWorkScreen(),
       'quick_actions' => ActionsScreen(
-        openMyWork: () {
-          if (app.sectionVisible('my_work'))
-            setState(() => desktopRoute = 'my_work');
-        },
-        openModule: (id) {
-          if (_routeAllowed(app, id)) setState(() => desktopRoute = id);
-        },
-      ),
+          openMyWork: () {
+            if (app.sectionVisible('my_work'))
+              setState(() => desktopRoute = 'my_work');
+          },
+          openModule: (id) {
+            if (_routeAllowed(app, id)) setState(() => desktopRoute = id);
+          },
+        ),
       'tasks' => const TasksScreen(),
       'erp_tools' => const ErpToolsScreen(),
       'approvals' => const EnterpriseHubScreen(initialTab: 0),
@@ -330,7 +331,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final employee = Map<String, dynamic>.from(
       (app.me['employee'] as Map?) ?? const {},
     );
-    final width = (MediaQuery.sizeOf(context).width * .9).clamp(300.0, 390.0);
+    final width = (MediaQuery.sizeOf(context).width * .86).clamp(292.0, 360.0);
     final branch = _currentBranchLabel(app);
     final designation =
         '${employee['designation_name'] ?? employee['designation_code'] ?? ''}'
@@ -343,18 +344,18 @@ class _AppShellState extends ConsumerState<AppShell> {
       width: width,
       backgroundColor: ExcelBrand.canvas,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(right: Radius.circular(26)),
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
       ),
       child: SafeArea(
         child: Column(
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(18, 16, 12, 18),
+              padding: const EdgeInsets.fromLTRB(16, 12, 10, 14),
               decoration: const BoxDecoration(
                 color: ExcelBrand.primaryDark,
                 borderRadius: BorderRadius.only(
-                  bottomRight: Radius.circular(26),
+                  bottomRight: Radius.circular(20),
                 ),
               ),
               child: Column(
@@ -363,12 +364,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                   Row(
                     children: [
                       Container(
-                        width: 142,
-                        height: 54,
+                        width: 118,
+                        height: 42,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Image.asset(
                           'assets/branding/excel-herbal-logo.webp',
@@ -386,13 +387,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Container(
-                        width: 48,
-                        height: 48,
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(.16),
                           border: Border.all(
@@ -419,7 +420,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                               '${employee['full_name'] ?? 'Employee'}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
                                   ?.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -433,7 +436,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                               ].where((e) => e.trim().isNotEmpty).join(' · '),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
                                   ?.copyWith(
                                     color: Colors.white.withOpacity(.78),
                                   ),
@@ -450,37 +455,9 @@ class _AppShellState extends ConsumerState<AppShell> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(12, 14, 12, 18),
                 children: [
-                  _drawerSectionLabel('WORKSPACE'),
-                  _drawerTile(
-                    app: app,
-                    id: 'home',
-                    label: 'Home',
-                    icon: Icons.home_outlined,
-                  ),
-                  if (app.sectionVisible('my_work'))
-                    _drawerTile(
-                      app: app,
-                      id: 'my_work',
-                      label: 'My Work',
-                      icon: Icons.work_outline_rounded,
-                    ),
-                  if (_quickActionsVisible(app))
-                    _drawerTile(
-                      app: app,
-                      id: 'actions',
-                      label: 'Quick Actions',
-                      icon: Icons.bolt_outlined,
-                    ),
-                  if (app.can('communication.view'))
-                    _drawerTile(
-                      app: app,
-                      id: 'tasks',
-                      label: 'Tasks',
-                      icon: Icons.task_alt_outlined,
-                    ),
                   if (moduleSections.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    _drawerSectionLabel('BUSINESS MODULES'),
+                    _drawerSectionLabel('MODULES'),
                     for (final section in moduleSections)
                       _drawerTile(
                         app: app,
@@ -545,16 +522,16 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _drawerSectionLabel(String label) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 7, 12, 6),
-    child: Text(
-      label,
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-        fontWeight: FontWeight.w800,
-        letterSpacing: .85,
-      ),
-    ),
-  );
+        padding: const EdgeInsets.fromLTRB(12, 7, 12, 6),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .85,
+              ),
+        ),
+      );
 
   Widget _drawerTile({
     required AppState app,
@@ -563,9 +540,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     required IconData icon,
   }) {
     final items = app.bottomNav;
-    final safeIndex = items.isEmpty
-        ? -1
-        : mobileIndex.clamp(0, items.length - 1);
+    final safeIndex =
+        items.isEmpty ? -1 : mobileIndex.clamp(0, items.length - 1);
     final current = safeIndex >= 0 ? '${items[safeIndex]['id']}' : 'home';
     final selected = current == id;
     final scheme = Theme.of(context).colorScheme;
@@ -617,65 +593,66 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _mobilePage(AppState app, String id) => switch (id) {
-    'home' => const HomeScreen(),
-    'my_work' => const MyWorkScreen(),
-    'actions' => ActionsScreen(
-      openMyWork: () => _selectMobileRoute(app, 'my_work'),
-      openModule: _openModule,
-    ),
-    'tasks' => const TasksScreen(),
-    'erp_tools' => const ErpToolsScreen(),
-    'approvals' => const EnterpriseHubScreen(initialTab: 0),
-    'global_search' => const EnterpriseHubScreen(initialTab: 1),
-    'profile' => const ProfileScreen(),
-    _ => const HomeScreen(),
-  };
+        'home' => const HomeScreen(),
+        'my_work' => const MyWorkScreen(),
+        'actions' => ActionsScreen(
+            openMyWork: () => _selectMobileRoute(app, 'my_work'),
+            openModule: _openModule,
+          ),
+        'tasks' => const TasksScreen(),
+        'erp_tools' => const ErpToolsScreen(),
+        'approvals' => const EnterpriseHubScreen(initialTab: 0),
+        'global_search' => const EnterpriseHubScreen(initialTab: 1),
+        'profile' => const ProfileScreen(),
+        _ => const HomeScreen(),
+      };
 
   Widget _bottomNav(
     AppState app,
     List<Map<String, dynamic>> items,
     int safeIndex,
-  ) => DecoratedBox(
-    decoration: const BoxDecoration(
-      color: ExcelBrand.surface,
-      border: Border(top: BorderSide(color: ExcelBrand.border)),
-      boxShadow: [
-        BoxShadow(
-          color: Color(0x0D000000),
-          blurRadius: 18,
-          offset: Offset(0, -4),
+  ) =>
+      DecoratedBox(
+        decoration: const BoxDecoration(
+          color: ExcelBrand.surface,
+          border: Border(top: BorderSide(color: ExcelBrand.border)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x0D000000),
+              blurRadius: 18,
+              offset: Offset(0, -4),
+            ),
+          ],
         ),
-      ],
-    ),
-    child: SafeArea(
-      top: false,
-      child: NavigationBar(
-        selectedIndex: safeIndex,
-        onDestinationSelected: (v) => setState(() => mobileIndex = v),
-        destinations: items
-            .map(
-              (item) => NavigationDestination(
-                icon: Icon(_bottomIcon('${item['id']}', false)),
-                selectedIcon: Icon(_bottomIcon('${item['id']}', true)),
-                label: '${item['label']}',
-              ),
-            )
-            .toList(),
-      ),
-    ),
-  );
+        child: SafeArea(
+          top: false,
+          child: NavigationBar(
+            selectedIndex: safeIndex,
+            onDestinationSelected: (v) => setState(() => mobileIndex = v),
+            destinations: items
+                .map(
+                  (item) => NavigationDestination(
+                    icon: Icon(_bottomIcon('${item['id']}', false)),
+                    selectedIcon: Icon(_bottomIcon('${item['id']}', true)),
+                    label: '${item['label']}',
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      );
 
   IconData _bottomIcon(String id, bool selected) => switch (id) {
-    'home' => selected ? Icons.home : Icons.home_outlined,
-    'my_work' => selected ? Icons.work : Icons.work_outline,
-    'actions' => selected ? Icons.add_circle : Icons.add_circle_outline,
-    'tasks' => selected ? Icons.task_alt : Icons.task_alt_outlined,
-    'profile' => selected ? Icons.person : Icons.person_outline,
-    'approvals' => selected ? Icons.approval : Icons.approval_outlined,
-    'global_search' => Icons.manage_search_outlined,
-    'erp_tools' => Icons.construction_outlined,
-    _ => Icons.circle_outlined,
-  };
+        'home' => selected ? Icons.home : Icons.home_outlined,
+        'my_work' => selected ? Icons.work : Icons.work_outline,
+        'actions' => selected ? Icons.add_circle : Icons.add_circle_outline,
+        'tasks' => selected ? Icons.task_alt : Icons.task_alt_outlined,
+        'profile' => selected ? Icons.person : Icons.person_outline,
+        'approvals' => selected ? Icons.approval : Icons.approval_outlined,
+        'global_search' => Icons.manage_search_outlined,
+        'erp_tools' => Icons.construction_outlined,
+        _ => Icons.circle_outlined,
+      };
 
   void _selectMobileRoute(AppState app, String id) {
     final items = app.bottomNav;
@@ -684,23 +661,23 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   IconData _icon(String id) => switch (id) {
-    'home' => Icons.home_outlined,
-    'my_work' => Icons.work_outline,
-    'team' => Icons.groups_outlined,
-    'sales' => Icons.point_of_sale_outlined,
-    'inventory' => Icons.inventory_2_outlined,
-    'purchase' => Icons.local_shipping_outlined,
-    'finance' => Icons.account_balance_outlined,
-    'payroll_performance' => Icons.insights_outlined,
-    'reports' => Icons.analytics_outlined,
-    'organization' => Icons.apartment_outlined,
-    'communication' => Icons.notifications_outlined,
-    'administration' => Icons.admin_panel_settings_outlined,
-    'approvals' => Icons.approval_outlined,
-    'global_search' => Icons.manage_search_outlined,
-    'erp_tools' => Icons.construction_outlined,
-    _ => Icons.circle_outlined,
-  };
+        'home' => Icons.home_outlined,
+        'my_work' => Icons.work_outline,
+        'team' => Icons.groups_outlined,
+        'sales' => Icons.point_of_sale_outlined,
+        'inventory' => Icons.inventory_2_outlined,
+        'purchase' => Icons.local_shipping_outlined,
+        'finance' => Icons.account_balance_outlined,
+        'payroll_performance' => Icons.insights_outlined,
+        'reports' => Icons.analytics_outlined,
+        'organization' => Icons.apartment_outlined,
+        'communication' => Icons.notifications_outlined,
+        'administration' => Icons.admin_panel_settings_outlined,
+        'approvals' => Icons.approval_outlined,
+        'global_search' => Icons.manage_search_outlined,
+        'erp_tools' => Icons.construction_outlined,
+        _ => Icons.circle_outlined,
+      };
 
   void _openModule(String id) {
     final app = ref.read(appStateProvider);
@@ -761,17 +738,17 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   bool _quickActionsVisible(AppState app) => app.canAny(const [
-    'workforce.attendance.self',
-    'workforce.field_visit.self',
-    'workforce.leave.self',
-    'daily_order.self',
-    'daily_order.others',
-    'sales.create',
-    'inventory.transfer.create',
-    'inventory.adjustment.create',
-    'purchase.create',
-    'finance.expense.create',
-  ]);
+        'workforce.attendance.self',
+        'workforce.field_visit.self',
+        'workforce.leave.self',
+        'daily_order.self',
+        'daily_order.others',
+        'sales.create',
+        'inventory.transfer.create',
+        'inventory.adjustment.create',
+        'purchase.create',
+        'finance.expense.create',
+      ]);
 
   bool _routeAllowed(AppState app, String id) {
     if (const {'home', 'profile', 'erp_tools'}.contains(id)) return true;
@@ -784,22 +761,19 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   bool _approvalVisible(AppState app) => app.canAny(const [
-    'daily_order.approve',
-    'daily_order.issue',
-    'finance.expense.approve',
-    'inventory.adjustment.approve',
-    'workforce.leave.manage',
-    'performance.manage',
-    'payroll.approve',
-    'finance.reversal.approve',
-  ]);
+        'daily_order.approve',
+        'daily_order.issue',
+        'finance.expense.approve',
+        'inventory.adjustment.approve',
+        'workforce.leave.manage',
+        'performance.manage',
+        'payroll.approve',
+        'finance.reversal.approve',
+      ]);
 
   String _initials(String name) {
-    final parts = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((e) => e.isNotEmpty)
-        .toList();
+    final parts =
+        name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
     if (parts.isEmpty) return 'U';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();

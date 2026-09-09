@@ -29,9 +29,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       appBar: AppBar(title: const Text('Sales & Collections')),
       body: Column(
         children: [
-          const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 8),
+            child: BranchSelector(),
+          ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,

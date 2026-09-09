@@ -125,18 +125,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ),
         body: Column(
           children: [
-            const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 10, 12, 8),
+              child: BranchSelector(),
+            ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
                   if (app.can('inventory.transfer.create'))
                     FilledButton.icon(
-                      onPressed: app.currentBranchId == null
-                          ? null
-                          : _createTransfer,
+                      onPressed:
+                          app.currentBranchId == null ? null : _createTransfer,
                       icon: const Icon(Icons.swap_horiz),
                       label: const Text('New Transfer'),
                     ),
@@ -169,13 +171,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   Future<List<Map<String, dynamic>>> _branchStock() async {
     final app = ref.read(appStateProvider);
-    return (await ref
-                .read(apiClientProvider)
-                .get(
-                  ApiPaths.inventoryStock,
-                  query: {'branch_id': app.currentBranchId},
-                )
-            as List)
+    return (await ref.read(apiClientProvider).get(
+      ApiPaths.inventoryStock,
+      query: {'branch_id': app.currentBranchId},
+    ) as List)
         .map((e) => Map<String, dynamic>.from(e as Map))
         .where(
           (e) =>
@@ -587,8 +586,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   void _adjustmentActions(Map<String, dynamic> r) {
     final app = ref.read(appStateProvider);
     if ('${r['status']}' != 'pending' ||
-        !app.can('inventory.adjustment.approve'))
-      return;
+        !app.can('inventory.adjustment.approve')) return;
     final id = int.parse('${r['id']}');
     showModalBottomSheet<void>(
       context: context,
@@ -711,9 +709,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       if (!closed || !mounted) return;
     }
     try {
-      final result = await ref
-          .read(apiClientProvider)
-          .post(path, data: data ?? const {});
+      final result =
+          await ref.read(apiClientProvider).post(path, data: data ?? const {});
       if (mounted)
         setState(() {
           refresh++;

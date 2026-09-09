@@ -82,13 +82,15 @@ class ActionsScreen extends ConsumerWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       children: [
         Text('Quick Actions', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 5),
         Text(
-          'Sirf aapke role aur permission ke authorised actions yahan dikhte hain.',
-          style: Theme.of(context).textTheme.bodyMedium
+          'Role-based shortcuts for the actions you can perform now.',
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
               ?.copyWith(color: ExcelBrand.muted),
         ),
         const SizedBox(height: 16),
@@ -106,40 +108,50 @@ class ActionsScreen extends ConsumerWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 240,
-              mainAxisExtent: 116,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
+              maxCrossAxisExtent: 320,
+              mainAxisExtent: 72,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
             ),
             itemCount: actions.length,
             itemBuilder: (_, i) {
               final action = actions[i];
               return Card(
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(12),
                   onTap: action.run,
                   child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    child: Row(
                       children: [
                         Container(
-                          width: 38,
-                          height: 38,
-                          decoration: const BoxDecoration(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
                             color: ExcelBrand.primarySoft,
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(9),
                           ),
+                          alignment: Alignment.center,
                           child: Icon(
                             action.icon,
-                            size: 20,
+                            size: 18,
                             color: ExcelBrand.primaryDark,
                           ),
                         ),
-                        const Spacer(),
-                        Text(
-                          action.label,
-                          style: Theme.of(context).textTheme.titleSmall,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            action.label,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 18,
+                          color: ExcelBrand.muted,
                         ),
                       ],
                     ),
