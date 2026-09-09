@@ -1,0 +1,124 @@
+name: EH7 Module Professionalisation Validation
+
+on:
+  push:
+    branches: [v740-module-professionalisation]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply module professionalisation patch
+        run: python3 ci/apply_module_professionalisation.py
+
+      - name: Assert intended module architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f flutter-app/lib/widgets/module_workspace.dart
+          grep -q "Sales Desk" flutter-app/lib/screens/sales/sales_screen.dart
+          grep -q "Procurement Desk" flutter-app/lib/screens/purchase/purchase_screen.dart
+          grep -q "Inventory Control" flutter-app/lib/screens/inventory/inventory_screen.dart
+          grep -q "Finance Control Centre" flutter-app/lib/screens/finance/finance_screen.dart
+          grep -q "NavigationRail" flutter-app/lib/screens/reports/reports_screen.dart
+          grep -q "module workspace remains usable at 320px width" flutter-app/test/module_workspace_test.dart
+
+      - name: Install Flutter 3.47.2
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: flutter pub get
+
+      - name: Format intended Dart files
+        working-directory: flutter-app
+        run: >-
+          dart format
+          lib/widgets/module_workspace.dart
+          lib/screens/sales/sales_screen.dart
+          lib/screens/purchase/purchase_screen.dart
+          lib/screens/inventory/inventory_screen.dart
+          lib/screens/finance/finance_screen.dart
+          lib/screens/reports/reports_screen.dart
+          test/module_workspace_test.dart
+
+      - name: Analyze
+        working-directory: flutter-app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test
+        working-directory: flutter-app
+        run: flutter test
+
+      - name: Build APK validation
+        working-directory: flutter-app
+        run: >-
+          flutter build apk --debug
+          --build-name=7.4.0
+          --build-number=740
+          --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          --dart-define=EH7_ENVIRONMENT=uat
+
+      - name: Restore generated tracked files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore -- flutter-app/android flutter-app/pubspec.lock || true
+
+      - name: Remove one-shot validation machinery
+        shell: bash
+        run: |
+          rm -f ci/apply_module_professionalisation.py
+          rm -f .github/workflows/eh7-module-professionalisation.yml
+
+      - name: Commit validated source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            flutter-app/lib/widgets/module_workspace.dart \
+            flutter-app/lib/screens/sales/sales_screen.dart \
+            flutter-app/lib/screens/purchase/purchase_screen.dart \
+            flutter-app/lib/screens/inventory/inventory_screen.dart \
+            flutter-app/lib/screens/finance/finance_screen.dart \
+            flutter-app/lib/screens/reports/reports_screen.dart \
+            flutter-app/test/module_workspace_test.dart
+          git add -u -- \
+            ci/apply_module_professionalisation.py \
+            .github/workflows/eh7-module-professionalisation.yml
+          python3 - <<'PY'
+          import subprocess
+          allowed = {
+              'flutter-app/lib/widgets/module_workspace.dart',
+              'flutter-app/lib/screens/sales/sales_screen.dart',
+              'flutter-app/lib/screens/purchase/purchase_screen.dart',
+              'flutter-app/lib/screens/inventory/inventory_screen.dart',
+              'flutter-app/lib/screens/finance/finance_screen.dart',
+              'flutter-app/lib/screens/reports/reports_screen.dart',
+              'flutter-app/test/module_workspace_test.dart',
+              'ci/apply_module_professionalisation.py',
+              '.github/workflows/eh7-module-professionalisation.yml',
+          }
+          changed = set(subprocess.check_output(
+              ['git', 'diff', '--cached', '--name-only'], text=True
+          ).splitlines())
+          unexpected = sorted(changed - allowed)
+          if unexpected:
+              raise SystemExit(f'Unexpected staged paths: {unexpected}')
+          print('Validated staged paths:', sorted(changed))
+          PY
+          git diff --cached --check -- flutter-app/lib flutter-app/test
+          git commit -m 'Professionalise core ERP module workspaces'
+          git push origin HEAD:v740-module-professionalisation
