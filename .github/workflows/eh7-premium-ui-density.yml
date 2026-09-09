@@ -31,12 +31,30 @@ jobs:
       - name: Apply premium UI density patch
         run: python3 ci/apply_premium_ui_density.py
 
+      - name: Remove obsolete home hero helper
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('flutter-app/lib/screens/home/home_screen.dart')
+          t = p.read_text()
+          start = t.find('class _HeroMetric extends StatelessWidget {')
+          end = t.find('class _StatusPill extends StatelessWidget {', start)
+          if start < 0 or end < 0:
+              raise SystemExit('Obsolete Home hero helper boundary missing')
+          t = t[:start] + t[end:]
+          t = t.replace('.withOpacity(', '.withValues(alpha: ')
+          p.write_text(t)
+          PY
+
       - name: Assert intended UI architecture
         shell: bash
         run: |
           set -euo pipefail
           grep -q "return ordered.take(3).toList" flutter-app/lib/widgets/records_list.dart
           grep -q "class _CompactContext" flutter-app/lib/screens/home/home_screen.dart
+          ! grep -q "class _HeroMetric" flutter-app/lib/screens/home/home_screen.dart
+          ! grep -q "withOpacity" flutter-app/lib/screens/home/home_screen.dart
           grep -q "labelText: 'Branch'" flutter-app/lib/widgets/branch_selector.dart
           grep -q "Supplier billing, payments and outstanding summary" flutter-app/lib/screens/reports/reports_screen.dart
           grep -q "toolbarHeight: 58" flutter-app/lib/theme/excel_brand.dart
@@ -91,7 +109,6 @@ jobs:
         shell: bash
         run: |
           rm -f ci/apply_premium_ui_density.py
-          rm -f ci/premium-ui-density-trigger.txt
           rm -f .github/workflows/eh7-premium-ui-density.yml
 
       - name: Commit validated source only
@@ -110,7 +127,6 @@ jobs:
             flutter-app/lib/screens/my_work/my_work_screen.dart
           git add -u -- \
             ci/apply_premium_ui_density.py \
-            ci/premium-ui-density-trigger.txt \
             .github/workflows/eh7-premium-ui-density.yml
           python3 - <<'PY'
           import subprocess
@@ -123,7 +139,6 @@ jobs:
               'flutter-app/lib/screens/reports/reports_screen.dart',
               'flutter-app/lib/screens/my_work/my_work_screen.dart',
               'ci/apply_premium_ui_density.py',
-              'ci/premium-ui-density-trigger.txt',
               '.github/workflows/eh7-premium-ui-density.yml',
           }
           changed = set(subprocess.check_output(
