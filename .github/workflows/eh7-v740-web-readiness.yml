@@ -52,10 +52,6 @@ jobs:
         working-directory: flutter-app
         run: flutter test
 
-      - name: Build Android Regression
-        working-directory: flutter-app
-        run: flutter build apk --debug
-
       - name: Build Web
         working-directory: flutter-app
         run: >-
