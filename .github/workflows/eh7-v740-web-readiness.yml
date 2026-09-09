@@ -59,6 +59,7 @@ jobs:
           sha256sum Excel-Herbal-ERP-v7.4-Web-UAT.tar.gz | tee WEB-SHA256.txt
 
       - name: Upload Web Artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: Excel-Herbal-ERP-v7.4-Web-UAT
