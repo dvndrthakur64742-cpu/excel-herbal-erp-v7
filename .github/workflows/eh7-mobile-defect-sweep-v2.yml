@@ -1,0 +1,114 @@
+name: EH7 Mobile Defect Sweep v2
+
+on:
+  push:
+    branches: [v740-mobile-defect-sweep-v2]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply mobile defect patch
+        run: python3 ci/apply_mobile_defect_sweep_v2.py
+
+      - name: Assert targeted fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "branches.any((branch) => branch.id == app.currentBranchId)" flutter-app/lib/widgets/branch_selector.dart
+          grep -q "screen is MyWorkScreen" flutter-app/lib/shell/app_shell.dart
+          grep -q "fontSize: 13" flutter-app/lib/screens/my_work/my_work_screen.dart
+          grep -q "suffixText: 'PCS'" flutter-app/lib/screens/my_work/my_work_screen.dart
+          test "$(grep -c "menuMaxHeight: 360" flutter-app/lib/screens/inventory/inventory_screen.dart)" -ge 2
+          grep -q "BusinessFormat.quantity(stock\[i\]\['quantity'\])" flutter-app/lib/screens/inventory/inventory_screen.dart
+          grep -q "Report view" flutter-app/lib/screens/reports/reports_screen.dart
+
+      - name: Install Flutter 3.47.2
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: flutter pub get
+
+      - name: Format intended Dart files
+        working-directory: flutter-app
+        run: >-
+          dart format
+          lib/widgets/branch_selector.dart
+          lib/shell/app_shell.dart
+          lib/screens/my_work/my_work_screen.dart
+          lib/screens/inventory/inventory_screen.dart
+          lib/screens/reports/reports_screen.dart
+
+      - name: Analyze
+        working-directory: flutter-app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test
+        working-directory: flutter-app
+        run: flutter test
+
+      - name: Build APK validation
+        working-directory: flutter-app
+        run: >-
+          flutter build apk --debug
+          --build-name=7.4.0
+          --build-number=740
+          --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          --dart-define=EH7_ENVIRONMENT=uat
+
+      - name: Restore generated tracked files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore -- flutter-app/android flutter-app/pubspec.lock || true
+
+      - name: Remove one-shot validation machinery
+        shell: bash
+        run: |
+          rm -f ci/apply_mobile_defect_sweep_v2.py
+          rm -f .github/workflows/eh7-mobile-defect-sweep-v2.yml
+
+      - name: Commit validated source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            flutter-app/lib/widgets/branch_selector.dart \
+            flutter-app/lib/shell/app_shell.dart \
+            flutter-app/lib/screens/my_work/my_work_screen.dart \
+            flutter-app/lib/screens/inventory/inventory_screen.dart \
+            flutter-app/lib/screens/reports/reports_screen.dart
+          git add -u -- ci/apply_mobile_defect_sweep_v2.py .github/workflows/eh7-mobile-defect-sweep-v2.yml
+          python3 - <<'PY'
+          import subprocess
+          allowed = {
+              'flutter-app/lib/widgets/branch_selector.dart',
+              'flutter-app/lib/shell/app_shell.dart',
+              'flutter-app/lib/screens/my_work/my_work_screen.dart',
+              'flutter-app/lib/screens/inventory/inventory_screen.dart',
+              'flutter-app/lib/screens/reports/reports_screen.dart',
+              'ci/apply_mobile_defect_sweep_v2.py',
+              '.github/workflows/eh7-mobile-defect-sweep-v2.yml',
+          }
+          changed = set(subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines())
+          unexpected = sorted(changed - allowed)
+          if unexpected:
+              raise SystemExit(f'Unexpected staged paths: {unexpected}')
+          print('Validated staged paths:', sorted(changed))
+          PY
+          git diff --cached --check -- flutter-app/lib
+          git commit -m 'Fix mobile UAT overflow and routing defects'
+          git push origin HEAD:v740-mobile-defect-sweep-v2
