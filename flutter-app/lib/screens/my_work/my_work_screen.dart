@@ -62,26 +62,26 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           final app = ref.read(appStateProvider);
           final api = ref.read(apiClientProvider);
           final rows = await _dailyRows(app, api);
-          final candidates =
-              rows
-                  .where(
-                    (row) =>
-                        '${row['business_date'] ?? ''}' == app.businessDate &&
-                        const {
-                          'issued',
-                          'evening_draft',
-                        }.contains('${row['status']}'),
-                  )
-                  .toList()
-                ..sort(
-                  (a, b) => (int.tryParse('${b['id']}') ?? 0).compareTo(
-                    int.tryParse('${a['id']}') ?? 0,
-                  ),
-                );
+          final candidates = rows
+              .where(
+                (row) =>
+                    '${row['business_date'] ?? ''}' == app.businessDate &&
+                    const {
+                      'issued',
+                      'evening_draft',
+                    }.contains('${row['status']}'),
+              )
+              .toList()
+            ..sort(
+              (a, b) => (int.tryParse('${b['id']}') ?? 0).compareTo(
+                int.tryParse('${a['id']}') ?? 0,
+              ),
+            );
           if (candidates.isEmpty) {
             if (mounted) {
               setState(
-                () => message = 'Aaj Evening Closing ke liye koi issued order available nahi hai.',
+                () => message =
+                    'Aaj Evening Closing ke liye koi issued order available nahi hai.',
               );
             }
             return;
@@ -137,7 +137,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       child: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: BranchSelector(),
           ),
           TabBar(
@@ -155,7 +155,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   Widget _attendance() {
     final api = ref.watch(apiClientProvider);
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
       children: [
         AsyncPanel(
           key: ValueKey('att-$refresh'),
@@ -180,10 +180,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           const SizedBox(height: 8),
           _feedbackBanner(message!),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             FilledButton.icon(
               onPressed: () => _attendanceAction(true),
@@ -218,9 +218,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               ),
               if (app.can('daily_order.self') || app.can('daily_order.others'))
                 FilledButton.icon(
-                  onPressed: app.currentBranchId == null
-                      ? null
-                      : _newDailyOrder,
+                  onPressed:
+                      app.currentBranchId == null ? null : _newDailyOrder,
                   icon: const Icon(Icons.add),
                   label: const Text('New Order'),
                 ),
@@ -388,7 +387,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       query: {
         if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
       },
-    ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    ) as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
 
     final branchNames = <int, String>{
       for (final b in app.branches)
@@ -402,7 +403,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         query: {
           if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
         },
-      ) as List).map((e) => Map<String, dynamic>.from(e as Map));
+      ) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map));
       for (final e in employees) {
         final id = int.tryParse('${e['id']}');
         if (id != null) employeeNames[id] = e;
@@ -591,7 +593,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                         isThreeLine: true,
                         trailing: Text(
                           BusinessFormat.status(row['status']),
-                          style: Theme.of(context).textTheme.labelMedium
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelMedium
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
@@ -630,7 +634,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                           Expanded(
                             child: Text(
                               'Visit #$id Running',
-                              style: Theme.of(context).textTheme.titleMedium
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
                                   ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
@@ -675,8 +681,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
 
   Widget _feedbackBanner(String text) {
     final lower = text.toLowerCase();
-    final isError =
-        lower.contains('required') ||
+    final isError = lower.contains('required') ||
         lower.contains('invalid') ||
         lower.contains('failed') ||
         lower.contains('error') ||
@@ -739,16 +744,14 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     }
     try {
       final p = await _position();
-      await ref
-          .read(apiClientProvider)
-          .post(
-            checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
-            data: {
-              if (checkIn) 'branch_id': app.currentBranchId,
-              'lat': p.latitude,
-              'lng': p.longitude,
-            },
-          );
+      await ref.read(apiClientProvider).post(
+        checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
+        data: {
+          if (checkIn) 'branch_id': app.currentBranchId,
+          'lat': p.latitude,
+          'lng': p.longitude,
+        },
+      );
       var gpsStarted = !checkIn;
       if (checkIn) {
         try {
@@ -767,8 +770,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           refresh++;
           message = checkIn
               ? (gpsStarted
-                    ? 'Check-In successful. GPS tracking started.'
-                    : 'Check-In successful. GPS tracking could not start; ERP Tools se retry karein.')
+                  ? 'Check-In successful. GPS tracking started.'
+                  : 'Check-In successful. GPS tracking could not start; ERP Tools se retry karein.')
               : 'Check-Out successful. GPS tracking stopped.';
         });
       }
@@ -796,7 +799,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         employees = (await api.get(
           ApiPaths.employees,
           query: {'branch_id': app.currentBranchId},
-        ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        ) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
         if (employees.any((e) => int.parse('${e['id']}') == selectedEmployee) ==
                 false &&
             employees.isNotEmpty) {
@@ -848,9 +853,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       final price = p['sale_price'] == null
                           ? ''
                           : ' · ₹${p['sale_price']}';
-                      final points = p['points'] == null
-                          ? ''
-                          : ' · ${p['points']} pts';
+                      final points =
+                          p['points'] == null ? '' : ' · ${p['points']} pts';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: TextField(
@@ -1100,7 +1104,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                             BusinessFormat.displayName('${product['name']}'),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
                                 ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                         ),
@@ -1197,7 +1203,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     final stock = (await api.get(
       ApiPaths.inventoryStock,
       query: {'branch_id': branchId},
-    ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    ) as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
     final allocations = StockAllocation.fefo(requestLines: lines, stock: stock);
 
     final ok = await showModalBottomSheet<bool>(
@@ -1276,7 +1284,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                             Expanded(
                               child: Text(
                                 name,
-                                style: Theme.of(context).textTheme.titleMedium
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               ),
                             ),
@@ -1401,8 +1411,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       text: '${evening['wholesale_customer_name'] ?? ''}',
     );
     final note = TextEditingController(text: '${evening['notes'] ?? ''}');
-    var wholesaleEnabled =
-        customer.text.trim().isNotEmpty ||
+    var wholesaleEnabled = customer.text.trim().isNotEmpty ||
         lines.any(
           (line) =>
               (num.tryParse('${line['wholesale_quantity'] ?? 0}') ?? 0) > 0,
@@ -1491,7 +1500,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                             children: [
                               Text(
                                 'Wholesale sale?',
-                                style: Theme.of(context).textTheme.titleSmall
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               ),
                               const SizedBox(height: 8),
@@ -1708,16 +1719,16 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                               );
 
                           Widget returnField(double width) => SizedBox(
-                            width: width,
-                            child: TextField(
-                              controller: returns[key],
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [WholePcs.positiveFormatter],
-                              textAlign: TextAlign.center,
-                              onChanged: (_) => setLocal(() {}),
-                              decoration: qtyDecoration('0'),
-                            ),
-                          );
+                                width: width,
+                                child: TextField(
+                                  controller: returns[key],
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [WholePcs.positiveFormatter],
+                                  textAlign: TextAlign.center,
+                                  onChanged: (_) => setLocal(() {}),
+                                  decoration: qtyDecoration('0'),
+                                ),
+                              );
 
                           if (!wholesaleEnabled) {
                             return Container(
@@ -1729,9 +1740,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                               decoration: BoxDecoration(
                                 color: over
                                     ? Theme.of(context)
-                                          .colorScheme
-                                          .errorContainer
-                                          .withValues(alpha: .45)
+                                        .colorScheme
+                                        .errorContainer
+                                        .withValues(alpha: .45)
                                     : null,
                                 border: const Border(
                                   bottom: BorderSide(color: ExcelBrand.border),
@@ -1793,9 +1804,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                 decoration: BoxDecoration(
                                   color: over
                                       ? Theme.of(context)
-                                            .colorScheme
-                                            .errorContainer
-                                            .withValues(alpha: .45)
+                                          .colorScheme
+                                          .errorContainer
+                                          .withValues(alpha: .45)
                                       : null,
                                   border: const Border(
                                     bottom: BorderSide(
@@ -1859,10 +1870,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                       child: TextField(
                                         controller: wholesaleRate[key],
                                         enabled: wh > 0,
-                                        keyboardType:
-                                            const TextInputType.numberWithOptions(
-                                              decimal: true,
-                                            ),
+                                        keyboardType: const TextInputType
+                                            .numberWithOptions(
+                                          decimal: true,
+                                        ),
                                         textAlign: TextAlign.center,
                                         decoration: qtyDecoration(
                                           wh > 0 ? '₹ rate' : '—',
@@ -1960,9 +1971,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       for (final l in lines) {
         final key = int.parse('${l['issue_line_id']}');
         final ret = WholePcs.parseOrZero(returns[key]!.text);
-        final wh = wholesaleEnabled
-            ? WholePcs.parseOrZero(wholesale[key]!.text)
-            : 0;
+        final wh =
+            wholesaleEnabled ? WholePcs.parseOrZero(wholesale[key]!.text) : 0;
         final issued = double.tryParse('${l['issued_quantity']}') ?? 0;
         final retailRate = double.tryParse('${l['retail_rate']}') ?? 0;
         final whRate = wholesaleEnabled
@@ -2003,9 +2013,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
         data: {
           'lines': payload,
           'wholesale_details': {
-            'wholesale_customer_name': wholesaleEnabled
-                ? customer.text.trim()
-                : '',
+            'wholesale_customer_name':
+                wholesaleEnabled ? customer.text.trim() : '',
           },
           'price_reason': note.text.trim(),
         },
@@ -2045,8 +2054,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     var calculatedExpected = 0.0;
     for (final line in lines) {
       final issued = BusinessFormat.number(line['issued_quantity']) ?? 0;
-      final returned =
-          BusinessFormat.number(
+      final returned = BusinessFormat.number(
             line['return_quantity'] ?? line['return_qty'],
           ) ??
           0;
@@ -2055,26 +2063,24 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       final soldRaw = BusinessFormat.number(
         line['sold_quantity'] ?? line['sold_qty'],
       );
-      final retailSold =
-          soldRaw?.toDouble() ??
+      final retailSold = soldRaw?.toDouble() ??
           DailyOrderMath.retailSold(issued, returned, wholesaleQty);
-      final retailRate =
-          BusinessFormat.number(
+      final retailRate = BusinessFormat.number(
             line['retail_rate'] ?? line['sale_price'] ?? line['rate'],
           ) ??
           0;
       final wholesaleRate = BusinessFormat.number(line['wholesale_rate']) ?? 0;
       final retailAmount =
           BusinessFormat.number(line['retail_amount'] ?? line['sold_amount'])
-              ?.toDouble() ??
-          retailSold * retailRate.toDouble();
+                  ?.toDouble() ??
+              retailSold * retailRate.toDouble();
       final wholesaleAmount =
           BusinessFormat.number(line['wholesale_amount'])?.toDouble() ??
-          wholesaleQty.toDouble() * wholesaleRate.toDouble();
+              wholesaleQty.toDouble() * wholesaleRate.toDouble();
       final lineTotal =
           BusinessFormat.number(line['total_amount'] ?? line['amount'])
-              ?.toDouble() ??
-          retailAmount + wholesaleAmount;
+                  ?.toDouble() ??
+              retailAmount + wholesaleAmount;
       calculatedExpected += lineTotal;
       summaries.add({
         'name': '${line['product_name'] ?? 'Product'}',
@@ -2097,8 +2103,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     final reconciliationDifference = backendExpected == null
         ? 0.0
         : (backendExpected - calculatedExpected).abs();
-    final reconciliationOk =
-        backendExpected == null ||
+    final reconciliationOk = backendExpected == null ||
         DailyOrderMath.reconciliationMatches(
           backendExpected,
           calculatedExpected,
@@ -2119,25 +2124,26 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
             final deposit = cashValue + upiValue;
             final matched =
                 DailyOrderMath.paymentComponentsValid(cashValue, upiValue) &&
-                reconciliationOk &&
-                DailyOrderMath.depositMatches(deposit, expected);
+                    reconciliationOk &&
+                    DailyOrderMath.depositMatches(deposit, expected);
 
             Widget paymentField({
               required TextEditingController controller,
               required String label,
               required IconData icon,
-            }) => TextField(
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: (_) => setLocal(() {}),
-              decoration: InputDecoration(
-                labelText: label,
-                prefixIcon: Icon(icon),
-                prefixText: '₹ ',
-              ),
-            );
+            }) =>
+                TextField(
+                  controller: controller,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: (_) => setLocal(() {}),
+                  decoration: InputDecoration(
+                    labelText: label,
+                    prefixIcon: Icon(icon),
+                    prefixText: '₹ ',
+                  ),
+                );
 
             return AlertDialog(
               title: Row(
@@ -2159,7 +2165,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                     children: [
                       Text(
                         'Sold Products & Amounts',
-                        style: Theme.of(context).textTheme.titleMedium
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 8),
@@ -2272,7 +2280,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       const SizedBox(height: 14),
                       Text(
                         'Deposit Breakdown',
-                        style: Theme.of(context).textTheme.titleMedium
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 8),
@@ -2361,9 +2371,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                   child: const Text('Cancel'),
                 ),
                 FilledButton.icon(
-                  onPressed: matched
-                      ? () => Navigator.pop(dialogContext, true)
-                      : null,
+                  onPressed:
+                      matched ? () => Navigator.pop(dialogContext, true) : null,
                   icon: const Icon(Icons.post_add_outlined),
                   label: const Text('Final Post'),
                 ),
@@ -2427,17 +2436,13 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       var employeeCode = '${cycle['employee_code'] ?? ''}'.trim();
       if (employeeName.isEmpty && employeeId != null) {
         try {
-          final employees =
-              (await ref
-                          .read(apiClientProvider)
-                          .get(
-                            ApiPaths.employees,
-                            query: {
-                              if (branchId != null) 'branch_id': branchId,
-                            },
-                          )
-                      as List)
-                  .map((e) => Map<String, dynamic>.from(e as Map));
+          final employees = (await ref.read(apiClientProvider).get(
+            ApiPaths.employees,
+            query: {
+              if (branchId != null) 'branch_id': branchId,
+            },
+          ) as List)
+              .map((e) => Map<String, dynamic>.from(e as Map));
           for (final e in employees) {
             if (int.tryParse('${e['id']}') == employeeId) {
               employeeName = '${e['full_name'] ?? e['name'] ?? ''}'.trim();
@@ -2482,18 +2487,20 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       children: [
                         Text(
                           'Daily Order #$id',
-                          style: Theme.of(context).textTheme.headlineSmall
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           BusinessFormat.date(cycle['business_date']),
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
                         ),
                       ],
                     ),
@@ -2529,7 +2536,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               const SizedBox(height: 18),
               Text(
                 'Order Requests',
-                style: Theme.of(context).textTheme.titleMedium
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
@@ -2550,13 +2559,17 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                               Expanded(
                                 child: Text(
                                   _requestTypeText('${r['type']}'),
-                                  style: Theme.of(context).textTheme.titleMedium
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                               ),
                               Text(
                                 BusinessFormat.status(r['status']),
-                                style: Theme.of(context).textTheme.labelMedium
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelMedium
                                     ?.copyWith(
                                       color: Theme.of(context)
                                           .colorScheme
@@ -2576,9 +2589,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                       BusinessFormat.displayName(
                                         '${lines[i]['product_name'] ?? 'Product'}',
                                       ),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyLarge,
+                                      style:
+                                          Theme.of(context).textTheme.bodyLarge,
                                     ),
                                   ),
                                   Text(
@@ -2588,7 +2600,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                           ) ??
                                           0,
                                     ),
-                                    style: Theme.of(context).textTheme.bodyLarge
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
                                         ?.copyWith(fontWeight: FontWeight.w700),
                                   ),
                                 ],
@@ -2606,7 +2620,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Evening Closing',
-                  style: Theme.of(context).textTheme.titleMedium
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
@@ -2618,20 +2634,21 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                       children: [
                         Text(
                           BusinessFormat.status(evening['status']),
-                          style: Theme.of(context).textTheme.titleSmall
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
                         ...(((evening['lines'] as List?) ?? const []).map((e) {
                           final l = Map<String, dynamic>.from(e as Map);
-                          final returned =
-                              num.tryParse(
+                          final returned = num.tryParse(
                                 '${l['return_quantity'] ?? l['return_qty'] ?? 0}',
                               ) ??
                               0;
                           final wholesaleSold =
                               num.tryParse('${l['wholesale_quantity'] ?? 0}') ??
-                              0;
+                                  0;
                           final issued =
                               num.tryParse('${l['issued_quantity'] ?? 0}') ?? 0;
                           final soldRaw = l['sold_quantity'] ?? l['sold_qty'];
@@ -2642,11 +2659,11 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                   wholesaleSold,
                                 )
                               : (num.tryParse('$soldRaw') ??
-                                    DailyOrderMath.retailSold(
-                                      issued,
-                                      returned,
-                                      wholesaleSold,
-                                    ));
+                                  DailyOrderMath.retailSold(
+                                    issued,
+                                    returned,
+                                    wholesaleSold,
+                                  ));
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             child: Row(
@@ -2684,38 +2701,41 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     IconData icon,
     String label,
     String value,
-  ) => Row(
-    children: [
-      Icon(icon, size: 21),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+  ) =>
+      Row(
+        children: [
+          Icon(icon, size: 21),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.bodyLarge
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
+          ),
+        ],
+      );
 
   String _requestTypeText(String type) => switch (type) {
-    'initial' => 'Morning Order',
-    'additional' => 'Additional Order',
-    'replacement' => 'Replacement Order',
-    _ => BusinessFormat.displayName(type.replaceAll('_', ' ')),
-  };
+        'initial' => 'Morning Order',
+        'additional' => 'Additional Order',
+        'replacement' => 'Replacement Order',
+        _ => BusinessFormat.displayName(type.replaceAll('_', ' ')),
+      };
 
   Future<void> _applyLeave() async {
     final app = ref.read(appStateProvider);
@@ -2770,17 +2790,15 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     );
     if (ok == true) {
       try {
-        await ref
-            .read(apiClientProvider)
-            .post(
-              ApiPaths.leave,
-              data: {
-                'leave_type': type.text.trim(),
-                'date_from': from.text.trim(),
-                'date_to': to.text.trim(),
-                'reason': reason.text.trim(),
-              },
-            );
+        await ref.read(apiClientProvider).post(
+          ApiPaths.leave,
+          data: {
+            'leave_type': type.text.trim(),
+            'date_from': from.text.trim(),
+            'date_to': to.text.trim(),
+            'reason': reason.text.trim(),
+          },
+        );
         if (mounted)
           setState(() {
             refresh++;
@@ -2799,12 +2817,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   Future<void> _completeVisit(int id) async {
     try {
       final p = await _position();
-      await ref
-          .read(apiClientProvider)
-          .post(
-            ApiPaths.visitComplete(id),
-            data: {'lat': p.latitude, 'lng': p.longitude},
-          );
+      await ref.read(apiClientProvider).post(
+        ApiPaths.visitComplete(id),
+        data: {'lat': p.latitude, 'lng': p.longitude},
+      );
       if (mounted) {
         setState(() {
           refresh++;
@@ -2850,18 +2866,15 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       try {
         final p = await _position();
         final r = Map<String, dynamic>.from(
-          await ref
-                  .read(apiClientProvider)
-                  .post(
-                    ApiPaths.fieldVisitStart,
-                    data: {
-                      'branch_id': app.currentBranchId,
-                      'purpose': purpose.text.trim(),
-                      'lat': p.latitude,
-                      'lng': p.longitude,
-                    },
-                  )
-              as Map,
+          await ref.read(apiClientProvider).post(
+            ApiPaths.fieldVisitStart,
+            data: {
+              'branch_id': app.currentBranchId,
+              'purpose': purpose.text.trim(),
+              'lat': p.latitude,
+              'lng': p.longitude,
+            },
+          ) as Map,
         );
         if (mounted)
           setState(() {

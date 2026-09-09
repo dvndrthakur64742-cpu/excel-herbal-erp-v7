@@ -10,10 +10,13 @@ class BranchSelector extends ConsumerWidget {
     final app = ref.watch(appStateProvider);
     if (!app.branchSelectorVisible) return const SizedBox.shrink();
     return DropdownButtonFormField<int>(
+      isExpanded: true,
       initialValue: app.currentBranchId,
       decoration: const InputDecoration(
-        labelText: 'Authorised Branch',
-        prefixIcon: Icon(Icons.store_outlined),
+        labelText: 'Branch',
+        prefixIcon: Icon(Icons.store_outlined, size: 20),
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
       items: app.branches
           .map(

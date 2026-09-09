@@ -9,7 +9,7 @@ class ExcelBrand {
   static const primarySoftStrong = Color(0xFFD8EFE1);
   static const ink = Color(0xFF171A18);
   static const muted = Color(0xFF657069);
-  static const canvas = Color(0xFFF5F8F6);
+  static const canvas = Color(0xFFF7F8F7);
   static const surface = Color(0xFFFFFFFF);
   static const border = Color(0xFFDDE5E0);
   static const warning = Color(0xFFF2A33A);
@@ -94,13 +94,13 @@ class ExcelBrand {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        toolbarHeight: 64,
+        toolbarHeight: 58,
         backgroundColor: surface,
         foregroundColor: ink,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
           color: ink,
-          fontSize: 22,
+          fontSize: 20,
           fontWeight: FontWeight.w800,
           letterSpacing: -0.35,
         ),
@@ -112,7 +112,7 @@ class ExcelBrand {
         surfaceTintColor: Colors.transparent,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(12),
           side: const BorderSide(color: border),
         ),
       ),
@@ -121,37 +121,37 @@ class ExcelBrand {
         filled: true,
         fillColor: surface,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 15,
+          horizontal: 13,
+          vertical: 12,
         ),
         labelStyle: const TextStyle(color: muted),
         hintStyle: const TextStyle(color: Color(0xFF8A938E)),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: primary, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: danger),
         ),
       ),
       listTileTheme: ListTileThemeData(
-        minTileHeight: 54,
+        minTileHeight: 48,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         iconColor: muted,
         textColor: ink,
       ),
       navigationBarTheme: NavigationBarThemeData(
-        height: 72,
+        height: 64,
         elevation: 0,
         backgroundColor: surface,
         indicatorColor: primarySoft,
@@ -159,12 +159,12 @@ class ExcelBrand {
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
             color: states.contains(WidgetState.selected) ? primary : muted,
-            size: 26,
+            size: 23,
           ),
         ),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w800
                 : FontWeight.w600,
@@ -186,23 +186,23 @@ class ExcelBrand {
           foregroundColor: Colors.white,
           disabledBackgroundColor: const Color(0xFFDCE4DF),
           disabledForegroundColor: const Color(0xFF8A938E),
-          minimumSize: const Size(48, 50),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          minimumSize: const Size(44, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: primaryDark,
-          minimumSize: const Size(48, 50),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          minimumSize: const Size(44, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
           side: const BorderSide(color: Color(0xFF9AB8A7)),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
       ),
@@ -213,19 +213,19 @@ class ExcelBrand {
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        backgroundColor: primarySoft,
-        selectedColor: primarySoftStrong,
+        backgroundColor: const Color(0xFFF1F4F2),
+        selectedColor: primarySoft,
         side: BorderSide.none,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         labelStyle: const TextStyle(
-          color: primaryDark,
+          color: ink,
           fontWeight: FontWeight.w700,
         ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: surface,
@@ -238,7 +238,7 @@ class ExcelBrand {
         behavior: SnackBarBehavior.floating,
         backgroundColor: ink,
         contentTextStyle: const TextStyle(color: Colors.white),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: primary),
     );

@@ -38,11 +38,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       body: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
             child: BranchSelector(),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
                 Expanded(
@@ -67,21 +67,21 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     type == 'stock'
                         ? 'Live stock'
                         : type == 'trial'
-                        ? BusinessFormat.date(app.businessDate)
-                        : '${BusinessFormat.date(app.businessMonthStart)} – ${BusinessFormat.date(app.businessDate)}',
+                            ? BusinessFormat.date(app.businessDate)
+                            : '${BusinessFormat.date(app.businessMonthStart)} – ${BusinessFormat.date(app.businessDate)}',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: ExcelBrand.primaryDark,
-                      fontWeight: FontWeight.w700,
-                    ),
+                          color: ExcelBrand.primaryDark,
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: SegmentedButton<String>(
               segments: const [
                 ButtonSegment(
@@ -138,37 +138,39 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   _ReportConfig _config(String value) => switch (value) {
-    'purchase' => const _ReportConfig(
-      path: ApiPaths.reportsPurchase,
-      recordType: 'purchase',
-      subtitle: 'Supplier bills, paid amount aur outstanding ka summary.',
-      emptyMessage: 'Is period me koi purchase record nahi hai.',
-    ),
-    'stock' => const _ReportConfig(
-      path: ApiPaths.reportsStock,
-      recordType: 'stock',
-      subtitle: 'Selected branch ka current available stock.',
-      emptyMessage: 'Selected branch me stock record nahi mila.',
-    ),
-    'finance' => const _ReportConfig(
-      path: ApiPaths.reportsFinance,
-      recordType: 'finance',
-      subtitle: 'Posted journals aur accounting movement.',
-      emptyMessage: 'Is period me finance record nahi hai.',
-    ),
-    'trial' => const _ReportConfig(
-      path: ApiPaths.trialBalance,
-      recordType: 'trial_balance',
-      subtitle: 'Business date tak ledger debit-credit balance.',
-      emptyMessage: 'Trial Balance empty hai.',
-    ),
-    _ => const _ReportConfig(
-      path: ApiPaths.reportsSales,
-      recordType: 'sales',
-      subtitle: 'Sales, collection aur outstanding ka current month view.',
-      emptyMessage: 'Is period me koi sales record nahi hai.',
-    ),
-  };
+        'purchase' => const _ReportConfig(
+            path: ApiPaths.reportsPurchase,
+            recordType: 'purchase',
+            subtitle: 'Supplier billing, payments and outstanding summary.',
+            emptyMessage: 'No purchase activity for the selected period.',
+          ),
+        'stock' => const _ReportConfig(
+            path: ApiPaths.reportsStock,
+            recordType: 'stock',
+            subtitle: 'Current stock position for the selected branch.',
+            emptyMessage: 'No stock records for the selected branch.',
+          ),
+        'finance' => const _ReportConfig(
+            path: ApiPaths.reportsFinance,
+            recordType: 'finance',
+            subtitle: 'Posted journals and accounting movement summary.',
+            emptyMessage: 'No finance activity for the selected period.',
+          ),
+        'trial' => const _ReportConfig(
+            path: ApiPaths.trialBalance,
+            recordType: 'trial_balance',
+            subtitle:
+                'Ledger debit and credit balances as of the business date.',
+            emptyMessage: 'No Trial Balance data is available.',
+          ),
+        _ => const _ReportConfig(
+            path: ApiPaths.reportsSales,
+            recordType: 'sales',
+            subtitle:
+                'Current-month sales, collections and outstanding summary.',
+            emptyMessage: 'No sales activity for the selected period.',
+          ),
+      };
 }
 
 class _ReportConfig {
@@ -190,37 +192,37 @@ class _BranchRequired extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: ExcelBrand.primarySoft,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.store_outlined,
-              color: ExcelBrand.primaryDark,
-              size: 30,
-            ),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: ExcelBrand.primarySoft,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.store_outlined,
+                  color: ExcelBrand.primaryDark,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Select an authorised branch',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Reports are scoped to the selected authorised branch.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            'Authorised Branch select karein',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'Report sirf selected authorised branch ka data dikhayega.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }

@@ -49,7 +49,9 @@ class HomeScreen extends ConsumerWidget {
                           const SizedBox(height: 4),
                           Text(
                             'Your authorised ERP workspace and today’s activity.',
-                            style: Theme.of(context).textTheme.bodyMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
                                 ?.copyWith(
                                   color: Theme.of(context)
                                       .colorScheme
@@ -88,15 +90,18 @@ class HomeScreen extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         'Management Overview',
-                        style: Theme.of(context).textTheme.titleLarge
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                     Text(
                       'This month',
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
                   ],
                 ),
@@ -106,7 +111,9 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               Text(
                 'Today',
-                style: Theme.of(context).textTheme.titleLarge
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
@@ -142,98 +149,90 @@ class HomeScreen extends ConsumerWidget {
   ) {
     final designation = _designation(app);
     final name = '${employee['full_name'] ?? 'Employee'}'.trim();
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF08773C), Color(0xFF0B944A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(
+                    Icons.business_center_outlined,
+                    color: scheme.onPrimaryContainer,
+                    size: 19,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Good ${_dayPart()}',
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${app.branches.length} branches',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _CompactContext(
+                    label: 'Branch',
+                    value: _branchName(app),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _CompactContext(
+                    label: 'Role',
+                    value: designation,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A0B8F48),
-            blurRadius: 22,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.16),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.eco_outlined,
-                  color: Colors.white,
-                  size: 27,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Good ${_dayPart()}',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withOpacity(.78),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _HeroMetric(
-                  icon: Icons.store_outlined,
-                  label: 'Branch',
-                  value: _branchName(app),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _HeroMetric(
-                  icon: Icons.badge_outlined,
-                  label: 'Role',
-                  value: designation,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _HeroMetric(
-                  icon: Icons.security_outlined,
-                  label: 'Access',
-                  value: '${app.branches.length} branches',
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
@@ -331,20 +330,21 @@ class HomeScreen extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         'Today & Next Action',
-                        style: Theme.of(context).textTheme.titleMedium
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                     ),
                     FilledButton.tonalIcon(
-                      onPressed:
-                          openMyWork ??
+                      onPressed: openMyWork ??
                           () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const Scaffold(
-                                body: SafeArea(child: MyWorkScreen()),
+                                MaterialPageRoute(
+                                  builder: (_) => const Scaffold(
+                                    body: SafeArea(child: MyWorkScreen()),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
                       icon: const Icon(Icons.arrow_forward, size: 18),
                       label: const Text('Open My Work'),
                     ),
@@ -367,9 +367,8 @@ class HomeScreen extends ConsumerWidget {
                     _StatusPill(
                       icon: Icons.inventory_2_outlined,
                       label: 'Daily Order',
-                      value: status.isEmpty
-                          ? 'Not Started'
-                          : _homeStatus(status),
+                      value:
+                          status.isEmpty ? 'Not Started' : _homeStatus(status),
                     ),
                     _StatusPill(
                       icon: Icons.task_alt_outlined,
@@ -394,7 +393,9 @@ class HomeScreen extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         next,
-                        style: Theme.of(context).textTheme.bodyLarge
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyLarge
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -475,15 +476,15 @@ class HomeScreen extends ConsumerWidget {
   }
 
   String _homeStatus(String status) => switch (status) {
-    'morning_draft' => 'Draft',
-    'stock_requested' => 'Approval Pending',
-    'approved' => 'Issue Pending',
-    'issued' => 'Evening Pending',
-    'evening_draft' => 'Evening Draft',
-    'evening_submitted' => 'Final Post Pending',
-    'completed' => 'Completed',
-    _ => BusinessFormat.status(status),
-  };
+        'morning_draft' => 'Draft',
+        'stock_requested' => 'Approval Pending',
+        'approved' => 'Issue Pending',
+        'issued' => 'Evening Pending',
+        'evening_draft' => 'Evening Draft',
+        'evening_submitted' => 'Final Post Pending',
+        'completed' => 'Completed',
+        _ => BusinessFormat.status(status),
+      };
 
   Widget _managementPanel(
     BuildContext context,
@@ -620,118 +621,124 @@ class HomeScreen extends ConsumerWidget {
   }
 
   num _sum(List<Map<String, dynamic>> rows, String key) => rows.fold<num>(
-    0,
-    (sum, row) => sum + (num.tryParse('${row[key] ?? 0}') ?? 0),
-  );
+        0,
+        (sum, row) => sum + (num.tryParse('${row[key] ?? 0}') ?? 0),
+      );
 
   Widget _attendanceCard(dynamic api) => AsyncPanel(
-    future: api.get(ApiPaths.attendanceToday),
-    emptyMessage: 'Aaj attendance start nahi hui.',
-    builder: (context, data) {
-      if (data == null) {
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                _HomeIcon(icon: Icons.schedule_rounded),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Attendance pending',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      SizedBox(height: 3),
-                      Text('Check-In karke duty start karein.'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-      final r = Map<String, dynamic>.from(data as Map);
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              const _HomeIcon(icon: Icons.verified_user_outlined),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        future: api.get(ApiPaths.attendanceToday),
+        emptyMessage: 'Aaj attendance start nahi hui.',
+        builder: (context, data) {
+          if (data == null) {
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
                   children: [
-                    Text(
-                      BusinessFormat.status('${r['status'] ?? 'present'}'),
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                    _HomeIcon(icon: Icons.schedule_rounded),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Attendance pending',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          SizedBox(height: 3),
+                          Text('Check-In karke duty start karein.'),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 6),
-                    Text('Check-In: ${DateTimeText.local(r['check_in_at'])}'),
-                    Text('Check-Out: ${DateTimeText.local(r['check_out_at'])}'),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
+            );
+          }
+          final r = Map<String, dynamic>.from(data as Map);
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                children: [
+                  const _HomeIcon(icon: Icons.verified_user_outlined),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          BusinessFormat.status('${r['status'] ?? 'present'}'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                            'Check-In: ${DateTimeText.local(r['check_in_at'])}'),
+                        Text(
+                            'Check-Out: ${DateTimeText.local(r['check_out_at'])}'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       );
-    },
-  );
 
   Widget _performanceCard(dynamic api, AppState app, int branch) => AsyncPanel(
-    reloadToken: branch,
-    future: api.get(
-      ApiPaths.performanceSummary,
-      query: {
-        'branch_id': branch,
-        'from': app.businessMonthStart,
-        'to': app.businessDate,
-        'employee_id': (app.me['employee'] as Map?)?['id'],
-      },
-    ),
-    emptyMessage: 'Is month performance posting nahi hai.',
-    builder: (context, data) {
-      final rows = (data as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-      if (rows.isEmpty) return const SizedBox.shrink();
-      final r = rows.first;
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              const _HomeIcon(icon: Icons.insights_outlined),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Monthly Performance',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 6),
-                    Text('Points: ${BusinessFormat.quantity(r['points'])}'),
-                    Text(
-                      'Salary Fund: ${BusinessFormat.money(r['salary_fund'])}',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        reloadToken: branch,
+        future: api.get(
+          ApiPaths.performanceSummary,
+          query: {
+            'branch_id': branch,
+            'from': app.businessMonthStart,
+            'to': app.businessDate,
+            'employee_id': (app.me['employee'] as Map?)?['id'],
+          },
         ),
+        emptyMessage: 'Is month performance posting nahi hai.',
+        builder: (context, data) {
+          final rows = (data as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          if (rows.isEmpty) return const SizedBox.shrink();
+          final r = rows.first;
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                children: [
+                  const _HomeIcon(icon: Icons.insights_outlined),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Monthly Performance',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 6),
+                        Text('Points: ${BusinessFormat.quantity(r['points'])}'),
+                        Text(
+                          'Salary Fund: ${BusinessFormat.money(r['salary_fund'])}',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       );
-    },
-  );
 
   String _designation(AppState app) {
     final e = Map<String, dynamic>.from(
@@ -760,47 +767,33 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _HeroMetric extends StatelessWidget {
-  const _HeroMetric({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
+class _CompactContext extends StatelessWidget {
+  const _CompactContext({required this.label, required this.value});
   final String label;
   final String value;
 
   @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(minHeight: 88),
-    padding: const EdgeInsets.all(11),
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(.13),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.white.withOpacity(.12)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 19, color: Colors.white),
-        const SizedBox(height: 10),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(color: Colors.white.withOpacity(.7)),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelLarge
-              ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+        ],
+      );
 }
 
 class _StatusPill extends StatelessWidget {
@@ -815,25 +808,27 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 18),
-        const SizedBox(width: 7),
-        Text('$label: ', style: Theme.of(context).textTheme.labelMedium),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.labelMedium
-              ?.copyWith(fontWeight: FontWeight.w800),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
         ),
-      ],
-    ),
-  );
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 7),
+            Text('$label: ', style: Theme.of(context).textTheme.labelMedium),
+            Text(
+              value,
+              style: Theme.of(context)
+                  .textTheme
+                  .labelMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      );
 }
 
 class _CompactInfoRow extends StatelessWidget {
@@ -858,7 +853,7 @@ class _CompactInfoRow extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: scheme.primary.withOpacity(.09),
+              color: scheme.primary.withValues(alpha: .09),
               borderRadius: BorderRadius.circular(12),
             ),
             alignment: Alignment.center,
@@ -871,7 +866,9 @@ class _CompactInfoRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: Theme.of(context).textTheme.labelMedium
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelMedium
                       ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 2),
@@ -879,7 +876,9 @@ class _CompactInfoRow extends StatelessWidget {
                   value,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyLarge
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ],
@@ -903,7 +902,7 @@ class _HomeIcon extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: scheme.primary.withOpacity(.10),
+        color: scheme.primary.withValues(alpha: .10),
         borderRadius: BorderRadius.circular(15),
       ),
       alignment: Alignment.center,
@@ -924,40 +923,42 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.labelMedium),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-              ],
-            ),
+                child: Icon(icon, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: Theme.of(context).textTheme.labelMedium),
+                    const SizedBox(height: 3),
+                    Text(
+                      value,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }
 
 class _Kpi {
@@ -973,41 +974,44 @@ class _KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-            child: Icon(kpi.icon, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  kpi.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor:
+                    Theme.of(context).colorScheme.secondaryContainer,
+                child: Icon(kpi.icon, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      kpi.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      kpi.value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  kpi.value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }
 
 class _PerformanceRanking extends StatelessWidget {
@@ -1032,7 +1036,9 @@ class _PerformanceRanking extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Top Performance',
-                  style: Theme.of(context).textTheme.titleMedium
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ],
@@ -1063,9 +1069,9 @@ class _PerformanceRanking extends StatelessWidget {
                 value: maxPoints <= 0
                     ? 0
                     : ((double.tryParse('${rows[i]['points'] ?? 0}') ?? 0) /
-                              maxPoints)
-                          .clamp(0, 1)
-                          .toDouble(),
+                            maxPoints)
+                        .clamp(0, 1)
+                        .toDouble(),
                 minHeight: 6,
                 borderRadius: BorderRadius.circular(10),
               ),
