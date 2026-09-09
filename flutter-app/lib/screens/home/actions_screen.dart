@@ -11,7 +11,7 @@ class ActionsScreen extends ConsumerWidget {
     required this.openModule,
   });
 
-  final VoidCallback openMyWork;
+  final void Function(String section) openMyWork;
   final void Function(String) openModule;
 
   @override
@@ -23,33 +23,33 @@ class ActionsScreen extends ConsumerWidget {
       actions.add((
         label: 'Check-In / Out',
         icon: Icons.location_on_outlined,
-        run: openMyWork,
+        run: () => openMyWork('attendance'),
       ));
     }
     if (app.canAny(const ['daily_order.self', 'daily_order.others'])) {
       actions.add((
         label: 'Create Daily Order',
         icon: Icons.shopping_cart_checkout,
-        run: openMyWork,
+        run: () => openMyWork('daily'),
       ));
       actions.add((
         label: 'Evening Closing',
         icon: Icons.nightlight_outlined,
-        run: openMyWork,
+        run: () => openMyWork('daily'),
       ));
     }
     if (app.can('workforce.field_visit.self')) {
       actions.add((
         label: 'Field Visit',
         icon: Icons.route_outlined,
-        run: openMyWork,
+        run: () => openMyWork('leave_visit'),
       ));
     }
     if (app.can('workforce.leave.self')) {
       actions.add((
         label: 'Apply Leave',
         icon: Icons.event_available_outlined,
-        run: openMyWork,
+        run: () => openMyWork('leave_visit'),
       ));
     }
     if (app.can('sales.create')) {

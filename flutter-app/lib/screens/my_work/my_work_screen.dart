@@ -17,7 +17,9 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 
 class MyWorkScreen extends ConsumerStatefulWidget {
-  const MyWorkScreen({super.key});
+  const MyWorkScreen({super.key, this.initialSection});
+
+  final String? initialSection;
 
   @override
   ConsumerState<MyWorkScreen> createState() => _MyWorkScreenState();
@@ -53,8 +55,18 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     if (tabs.isEmpty) {
       return const Center(child: Text('No authorised My Work functions.'));
     }
+    final requestedLabel = switch (widget.initialSection) {
+      'attendance' => 'Attendance & Duty',
+      'daily' => 'Daily Order',
+      'leave_visit' => 'Leave & Visit',
+      _ => null,
+    };
+    final requestedIndex = requestedLabel == null
+        ? -1
+        : tabs.indexWhere((tab) => tab.$1 == requestedLabel);
     return DefaultTabController(
       length: tabs.length,
+      initialIndex: requestedIndex < 0 ? 0 : requestedIndex,
       child: Column(
         children: [
           const Padding(

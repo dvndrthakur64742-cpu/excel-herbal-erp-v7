@@ -19,18 +19,16 @@ class ProfileScreen extends ConsumerWidget {
     final managerCode = '${employee['reporting_employee_code'] ?? ''}'.trim();
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
       children: [
-        Text('Profile', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 12),
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(14),
             child: Row(
               children: [
                 Container(
-                  width: 58,
-                  height: 58,
+                  width: 48,
+                  height: 48,
                   decoration: const BoxDecoration(
                     color: ExcelBrand.primarySoft,
                     shape: BoxShape.circle,
@@ -38,10 +36,10 @@ class ProfileScreen extends ConsumerWidget {
                   child: const Icon(
                     Icons.person_rounded,
                     color: ExcelBrand.primaryDark,
-                    size: 30,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,7 +51,9 @@ class ProfileScreen extends ConsumerWidget {
                       const SizedBox(height: 3),
                       Text(
                         '${employee['employee_code'] ?? '—'} · $designation',
-                        style: Theme.of(context).textTheme.bodyMedium
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
                             ?.copyWith(color: ExcelBrand.muted),
                       ),
                     ],
@@ -98,8 +98,8 @@ class ProfileScreen extends ConsumerWidget {
                 value: manager.isEmpty
                     ? 'Not assigned'
                     : managerCode.isEmpty
-                    ? manager
-                    : '$manager · $managerCode',
+                        ? manager
+                        : '$manager · $managerCode',
               ),
             ],
           ),
@@ -128,15 +128,17 @@ class _InfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListTile(
-    leading: Icon(icon),
-    title: Text(label, style: Theme.of(context).textTheme.bodySmall),
-    subtitle: Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Text(
-        value,
-        style: Theme.of(context).textTheme.bodyLarge
-            ?.copyWith(fontWeight: FontWeight.w600),
-      ),
-    ),
-  );
+        leading: Icon(icon),
+        title: Text(label, style: Theme.of(context).textTheme.bodySmall),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            value,
+            style: Theme.of(context)
+                .textTheme
+                .bodyLarge
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+      );
 }

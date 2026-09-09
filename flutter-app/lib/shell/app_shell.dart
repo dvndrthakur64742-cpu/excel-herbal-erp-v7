@@ -31,7 +31,9 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   int mobileIndex = 0;
+  String? mobileMyWorkSection;
   String desktopRoute = 'home';
+  String? desktopMyWorkSection;
 
   @override
   Widget build(BuildContext context) {
@@ -287,11 +289,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (!_routeAllowed(app, desktopRoute)) desktopRoute = 'home';
     final child = switch (desktopRoute) {
       'home' => const HomeScreen(),
-      'my_work' => const MyWorkScreen(),
+      'my_work' => MyWorkScreen(initialSection: desktopMyWorkSection),
       'quick_actions' => ActionsScreen(
-          openMyWork: () {
-            if (app.sectionVisible('my_work'))
-              setState(() => desktopRoute = 'my_work');
+          openMyWork: (section) {
+            if (app.sectionVisible('my_work')) {
+              setState(() {
+                desktopMyWorkSection = section;
+                desktopRoute = 'my_work';
+              });
+            }
           },
           openModule: (id) {
             if (_routeAllowed(app, id)) setState(() => desktopRoute = id);
@@ -594,9 +600,9 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   Widget _mobilePage(AppState app, String id) => switch (id) {
         'home' => const HomeScreen(),
-        'my_work' => const MyWorkScreen(),
+        'my_work' => MyWorkScreen(initialSection: mobileMyWorkSection),
         'actions' => ActionsScreen(
-            openMyWork: () => _selectMobileRoute(app, 'my_work'),
+            openMyWork: (section) => _openMyWorkSection(app, section),
             openModule: _openModule,
           ),
         'tasks' => const TasksScreen(),
@@ -628,7 +634,13 @@ class _AppShellState extends ConsumerState<AppShell> {
           top: false,
           child: NavigationBar(
             selectedIndex: safeIndex,
-            onDestinationSelected: (v) => setState(() => mobileIndex = v),
+            onDestinationSelected: (v) {
+              final id = '${items[v]['id']}';
+              setState(() {
+                mobileIndex = v;
+                if (id == 'my_work') mobileMyWorkSection = null;
+              });
+            },
             destinations: items
                 .map(
                   (item) => NavigationDestination(
@@ -654,10 +666,25 @@ class _AppShellState extends ConsumerState<AppShell> {
         _ => Icons.circle_outlined,
       };
 
+  void _openMyWorkSection(AppState app, String section) {
+    final items = app.bottomNav;
+    final index = items.indexWhere((item) => '${item['id']}' == 'my_work');
+    if (index < 0) return;
+    setState(() {
+      mobileMyWorkSection = section;
+      mobileIndex = index;
+    });
+  }
+
   void _selectMobileRoute(AppState app, String id) {
     final items = app.bottomNav;
     final index = items.indexWhere((item) => '${item['id']}' == id);
-    if (index >= 0) setState(() => mobileIndex = index);
+    if (index >= 0) {
+      setState(() {
+        mobileIndex = index;
+        if (id == 'my_work') mobileMyWorkSection = null;
+      });
+    }
   }
 
   IconData _icon(String id) => switch (id) {
