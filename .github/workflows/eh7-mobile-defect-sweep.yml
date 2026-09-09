@@ -28,22 +28,14 @@ jobs:
               raise SystemExit('route patch normalizer anchor missing')
           text = text.replace(route_old, route_new, 1)
 
-          inventory_old = '''text = text.replace(
-              """                    DropdownButtonFormField<int>(\n                      initialValue: lineId,""",
-              """                    DropdownButtonFormField<int>(\n                      isExpanded: true,\n                      menuMaxHeight: 360,\n                      initialValue: lineId,""",
-          )
-          if text.count('menuMaxHeight: 360') < 2:
-              raise SystemExit('Expected both inventory stock selectors to become bounded')'''
-          inventory_new = '''selector_count = text.count('initialValue: lineId,')
-          if selector_count != 2:
-              raise SystemExit(f'Expected 2 inventory stock selectors, found {selector_count}')
-          text = text.replace(
-              'initialValue: lineId,',
-              "isExpanded: true,\\n                      menuMaxHeight: 360,\\n                      initialValue: lineId,",
-          )'''
-          if text.count(inventory_old) != 1:
-              raise SystemExit('inventory patch normalizer anchor missing')
-          path.write_text(text.replace(inventory_old, inventory_new, 1))
+          section = text.find('# 4) Inventory selectors:')
+          old_label = text.find('old_label =', section)
+          replace_start = text.find('text = text.replace(', section)
+          if section < 0 or replace_start < 0 or old_label < 0 or replace_start >= old_label:
+              raise SystemExit('inventory selector patch region missing')
+          selector_patch = '''selector_count = text.count('initialValue: lineId,')\nif selector_count != 2:\n    raise SystemExit(f'Expected 2 inventory stock selectors, found {selector_count}')\ntext = text.replace(\n    'initialValue: lineId,',\n    "isExpanded: true,\\n                      menuMaxHeight: 360,\\n                      initialValue: lineId,",\n)\n'''
+          text = text[:replace_start] + selector_patch + text[old_label:]
+          path.write_text(text)
           PY
 
       - name: Apply mobile defect sweep
