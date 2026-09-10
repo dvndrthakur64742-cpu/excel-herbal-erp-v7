@@ -26,19 +26,31 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     final api = ref.watch(apiClientProvider);
-    final config = _config(type);
-    final needsBranch = !const {'trial', 'price_distribution'}.contains(type);
+    final available = _availableReports(app);
+    if (available.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('No authorised reports.')),
+      );
+    }
+
+    final activeType = available.any((item) => item.id == type)
+        ? type
+        : available.first.id;
+    final config = _config(activeType);
+    final needsBranch =
+        !const {'trial', 'price_distribution'}.contains(activeType);
 
     final query = <String, dynamic>{
       if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
-      if (type != 'stock' && type != 'trial') 'from': app.businessMonthStart,
-      if (type != 'stock') 'to': app.businessDate,
-      if (type == 'price_distribution' && reportingCategory.isNotEmpty)
+      if (activeType != 'stock' && activeType != 'trial')
+        'from': app.businessMonthStart,
+      if (activeType != 'stock') 'to': app.businessDate,
+      if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };
-    final scopeLabel = type == 'stock'
+    final scopeLabel = activeType == 'stock'
         ? 'Live stock'
-        : type == 'trial'
+        : activeType == 'trial'
             ? BusinessFormat.date(app.businessDate)
             : '${BusinessFormat.date(app.businessMonthStart)} – ${BusinessFormat.date(app.businessDate)}';
 
@@ -46,12 +58,12 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ? const _BranchRequired()
         : AsyncPanel(
             key: ValueKey(
-              '$type-${app.currentBranchId}-${app.businessDate}-$reportingCategory',
+              '$activeType-${app.currentBranchId}-${app.businessDate}-$reportingCategory',
             ),
             future: api.get(config.path, query: query),
             emptyMessage: config.emptyMessage,
             builder: (context, data) {
-              if (type == 'price_distribution') {
+              if (activeType == 'price_distribution') {
                 return _PriceDistributionPanel(
                   data: data,
                   reportingCategory: reportingCategory,
@@ -78,7 +90,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               child: ModuleWorkspaceHeader(
                 title: 'Reports Centre',
                 subtitle:
-                    'Operational, inventory and financial reporting workspace.',
+                    'Only reports allowed by your current capabilities are shown.',
                 icon: Icons.analytics_outlined,
                 contextLabel: scopeLabel,
               ),
@@ -130,7 +142,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                           Card(
                             child: SizedBox(
                               width: 220,
-                              child: _reportRail(),
+                              child: _reportRail(available, activeType),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -142,7 +154,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   return Column(
                     children: [
                       const SizedBox(height: 8),
-                      _mobileReportSelector(),
+                      _mobileReportSelector(available, activeType),
                       Expanded(child: content),
                     ],
                   );
@@ -155,30 +167,55 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  Widget _mobileReportSelector() => Padding(
+  List<_ReportOption> _availableReports(AppState app) {
+    final out = <_ReportOption>[];
+    if (app.can('reports.view')) {
+      out.addAll(const [
+        _ReportOption('sales', 'Sales Summary', Icons.point_of_sale_outlined),
+        _ReportOption(
+          'price_distribution',
+          'Price Distribution',
+          Icons.account_tree_outlined,
+        ),
+        _ReportOption(
+          'purchase',
+          'Purchase Summary',
+          Icons.local_shipping_outlined,
+        ),
+        _ReportOption('stock', 'Stock Position', Icons.inventory_2_outlined),
+        _ReportOption(
+          'finance',
+          'Finance Movement',
+          Icons.account_balance_outlined,
+        ),
+      ]);
+    }
+    if (app.can('finance.accounting.view')) {
+      out.add(
+        const _ReportOption('trial', 'Trial Balance', Icons.balance_outlined),
+      );
+    }
+    return out;
+  }
+
+  Widget _mobileReportSelector(
+    List<_ReportOption> available,
+    String activeType,
+  ) =>
+      Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: DropdownButtonFormField<String>(
           isExpanded: true,
           menuMaxHeight: 420,
-          initialValue: type,
+          initialValue: activeType,
           decoration: const InputDecoration(
             labelText: 'Report view',
             prefixIcon: Icon(Icons.analytics_outlined, size: 20),
             isDense: true,
           ),
-          items: const [
-            DropdownMenuItem(value: 'sales', child: Text('Sales Summary')),
-            DropdownMenuItem(
-              value: 'price_distribution',
-              child: Text('Price Distribution'),
-            ),
-            DropdownMenuItem(
-              value: 'purchase',
-              child: Text('Purchase Summary'),
-            ),
-            DropdownMenuItem(value: 'stock', child: Text('Stock Position')),
-            DropdownMenuItem(value: 'finance', child: Text('Finance Movement')),
-            DropdownMenuItem(value: 'trial', child: Text('Trial Balance')),
+          items: [
+            for (final item in available)
+              DropdownMenuItem(value: item.id, child: Text(item.label)),
           ],
           onChanged: (value) {
             if (value != null) setState(() => type = value);
@@ -186,46 +223,21 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ),
       );
 
-  Widget _reportRail() {
-    const values = [
-      'sales',
-      'price_distribution',
-      'purchase',
-      'stock',
-      'finance',
-      'trial',
-    ];
+  Widget _reportRail(List<_ReportOption> available, String activeType) {
+    final selected = available.indexWhere((item) => item.id == activeType);
     return NavigationRail(
-      selectedIndex: values.indexOf(type),
+      selectedIndex: selected < 0 ? 0 : selected,
       extended: true,
       minExtendedWidth: 220,
       backgroundColor: Colors.transparent,
-      onDestinationSelected: (index) => setState(() => type = values[index]),
-      destinations: const [
-        NavigationRailDestination(
-          icon: Icon(Icons.point_of_sale_outlined),
-          label: Text('Sales'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.account_tree_outlined),
-          label: Text('Price Distribution'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.local_shipping_outlined),
-          label: Text('Purchase'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.inventory_2_outlined),
-          label: Text('Stock'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.account_balance_outlined),
-          label: Text('Finance'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.balance_outlined),
-          label: Text('Trial Balance'),
-        ),
+      onDestinationSelected: (index) =>
+          setState(() => type = available[index].id),
+      destinations: [
+        for (final item in available)
+          NavigationRailDestination(
+            icon: Icon(item.icon),
+            label: Text(item.label),
+          ),
       ],
     );
   }
@@ -277,6 +289,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             emptyMessage: 'No sales activity for the selected period.',
           ),
       };
+}
+
+class _ReportOption {
+  const _ReportOption(this.id, this.label, this.icon);
+
+  final String id;
+  final String label;
+  final IconData icon;
 }
 
 class _PriceDistributionPanel extends StatelessWidget {
