@@ -168,6 +168,7 @@ def verify_current_frontend() -> None:
             'authority inheritance marker cannot manufacture client permissions',
             'reports-only role does not get management dashboard',
             'stale ERP Tools bottom-nav entry is hidden without tool authority',
+            'technical admin caps alone do not expose account duty workspace',
             'zero branch authority blocks business access even with capabilities',
         ],
         'Authority regression tests',
