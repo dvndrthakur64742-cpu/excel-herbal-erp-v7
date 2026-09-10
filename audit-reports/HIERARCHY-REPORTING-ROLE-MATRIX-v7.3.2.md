@@ -66,6 +66,9 @@ No reporting manager was guessed or auto-assigned. The Flutter Designation & Rep
 - The Hierarchy workspace never auto-assigns a manager and explicitly states that Reporting Category and Additional Designations do not create authority.
 - Duty GPS has no manual Start/Stop UI; status refresh does not create a manual route lifecycle.
 - Reporting Manager is managed separately from Reporting Category and Multiple Designations.
+- Reporting-manager audit-reason validation is now dialog-local, so invalid short reasons are visible before submit rather than being written behind the open dialog.
+- Additional/Temporary Designation `active` values are normalized across boolean/integer/string API representations. A WordPress DB value of `"0"` is treated as inactive and cannot show an active Deactivate action.
+- Deactivation is defensively blocked client-side for already-inactive assignments, matching the backend idempotent contract.
 - Price Distribution retains exactly six business fields: Sale Price, HO Amount, BM Profit, Salary Fund, Expense, Points.
 - Reports Centre is capability-filtered and selects the first authorised report when the previous/default type is not allowed.
 - Automated authority-projection tests cover additional-designation non-escalation, reporting-category non-escalation, inheritance-marker non-escalation, reports-only dashboard isolation, stale tool-navigation filtering, technical-admin-only tool isolation and zero-branch blocking.
@@ -74,6 +77,7 @@ No reporting manager was guessed or auto-assigned. The Flutter Designation & Rep
 - **My Account & Duty** contains business-facing Duty, My Account, Communication and capability-gated Team Access only. Backend Diagnostics, maintenance cleanup and App Version Policy are not exposed on this business workspace.
 - Technical `administration.access.manage` / `administration.audit.view` capabilities no longer make My Account & Duty visible by themselves.
 - Employee app-login management remains capability-gated by `organization.employee.manage` and is branch-scoped.
+- Administration now includes an authorised Branch Selector for access management, removes stale backend-version messaging, uses professional reversal/access prompts, and no longer exposes raw API response objects in success messages.
 - Team Operations business copy is standardized to a consistent professional tone.
 - The pre-Flutter Python gate is read-only; CI does not patch or commit source during a build.
 
