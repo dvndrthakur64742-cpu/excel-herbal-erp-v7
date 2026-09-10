@@ -11,32 +11,131 @@ class GpsTrackingService extends ChangeNotifier {
   GpsTrackingService(this.api);
 
   final ApiClient api;
-  Timer? _timer;
+  Timer? _pointTimer;
+  Timer? _scheduleTimer;
+  Timer? _stopTimer;
   bool _active = false;
+  bool _armed = false;
   bool _sending = false;
+  String _dutyStatus = 'unknown';
   String? _lastError;
   DateTime? _lastSentAt;
 
   bool get active => _active;
+  bool get armed => _armed;
   bool get sending => _sending;
+  String get dutyStatus => _dutyStatus;
   String? get lastError => _lastError;
   DateTime? get lastSentAt => _lastSentAt;
 
+  /// Synchronises route tracking with the server-owned attendance/GPS policy.
+  /// There is deliberately no user-controlled route start/stop state: an
+  /// active attendance starts tracking at the duty window and checkout/5 PM
+  /// stops it automatically.
   Future<void> start() async {
-    if (_active) return;
-    await _ensurePermission();
-    _active = true;
+    Map<String, dynamic>? attendance;
+    try {
+      final data = await api.get(ApiPaths.attendanceToday);
+      if (data is Map) attendance = Map<String, dynamic>.from(data);
+    } catch (e) {
+      _lastError = UiError.message(e);
+      _dutyStatus = 'unavailable';
+      notifyListeners();
+      return;
+    }
+
+    if (attendance == null || attendance.isEmpty) {
+      stop(status: 'not_checked_in');
+      return;
+    }
+
+    final status = '${attendance['gps_status'] ?? 'unknown'}';
+    _dutyStatus = status;
     _lastError = null;
-    notifyListeners();
-    await sendNow();
-    _timer = Timer.periodic(const Duration(minutes: 5), (_) => sendNow());
+
+    switch (status) {
+      case 'active':
+        await _activate(attendance);
+        return;
+      case 'scheduled':
+        _armForWindow(attendance);
+        return;
+      case 'checked_out':
+      case 'auto_stopped':
+      case 'not_checked_in':
+        stop(status: status);
+        return;
+      default:
+        stop(status: status);
+    }
   }
 
-  void stop() {
-    _timer?.cancel();
-    _timer = null;
+  Future<void> sync() => start();
+
+  Future<void> _activate(Map<String, dynamic> attendance) async {
+    _scheduleTimer?.cancel();
+    _scheduleTimer = null;
+    _armed = true;
+    if (!_active) {
+      await _ensurePermission();
+      _active = true;
+      _dutyStatus = 'active';
+      notifyListeners();
+      await sendNow();
+      _pointTimer?.cancel();
+      _pointTimer = Timer.periodic(const Duration(minutes: 5), (_) => sendNow());
+    }
+    _scheduleAutoStop(attendance);
+  }
+
+  void _armForWindow(Map<String, dynamic> attendance) {
+    _pointTimer?.cancel();
+    _pointTimer = null;
     _active = false;
+    _armed = true;
+    _dutyStatus = 'scheduled';
+    _scheduleTimer?.cancel();
+
+    final startsAt = DateTime.tryParse('${attendance['gps_window_start_utc'] ?? ''}')?.toLocal();
+    if (startsAt == null) {
+      _lastError = 'GPS duty schedule unavailable.';
+      _armed = false;
+      notifyListeners();
+      return;
+    }
+    final delay = startsAt.difference(DateTime.now());
+    if (delay <= Duration.zero) {
+      unawaited(start());
+    } else {
+      _scheduleTimer = Timer(delay, () => unawaited(start()));
+    }
+    _scheduleAutoStop(attendance);
+    notifyListeners();
+  }
+
+  void _scheduleAutoStop(Map<String, dynamic> attendance) {
+    _stopTimer?.cancel();
+    final stopsAt = DateTime.tryParse('${attendance['gps_window_stop_utc'] ?? ''}')?.toLocal();
+    if (stopsAt == null) return;
+    final delay = stopsAt.difference(DateTime.now());
+    if (delay <= Duration.zero) {
+      stop(status: 'auto_stopped');
+      return;
+    }
+    _stopTimer = Timer(delay, () => stop(status: 'auto_stopped'));
+  }
+
+  void stop({String status = 'stopped'}) {
+    _pointTimer?.cancel();
+    _scheduleTimer?.cancel();
+    _stopTimer?.cancel();
+    _pointTimer = null;
+    _scheduleTimer = null;
+    _stopTimer = null;
+    _active = false;
+    _armed = false;
     _sending = false;
+    _dutyStatus = status;
     notifyListeners();
   }
 
@@ -66,7 +165,21 @@ class GpsTrackingService extends ChangeNotifier {
       _lastError = null;
     } catch (e) {
       _lastError = UiError.message(e);
-      if (e is ApiException && e.code == 'gps_checkin_required') stop();
+      if (e is ApiException &&
+          const {
+            'gps_checkin_required',
+            'gps_window_closed',
+            'gps_recorded_date_invalid',
+          }.contains(e.code)) {
+        stop(status: e.code == 'gps_window_closed' ? 'auto_stopped' : 'not_checked_in');
+        return;
+      }
+      if (e is ApiException && e.code == 'gps_window_not_started') {
+        _active = false;
+        _pointTimer?.cancel();
+        _pointTimer = null;
+        unawaited(start());
+      }
     } finally {
       _sending = false;
       notifyListeners();
@@ -86,7 +199,9 @@ class GpsTrackingService extends ChangeNotifier {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _pointTimer?.cancel();
+    _scheduleTimer?.cancel();
+    _stopTimer?.cancel();
     super.dispose();
   }
 }
