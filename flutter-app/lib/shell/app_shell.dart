@@ -125,19 +125,23 @@ class _AppShellState extends ConsumerState<AppShell> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 22, 18, 18),
+            padding: const EdgeInsets.fromLTRB(18, 20, 16, 16),
             child: Row(
               children: [
                 Container(
-                  width: 42,
+                  width: 116,
                   height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
-                  child: Icon(
-                    Icons.business_center_outlined,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  child: Image.asset(
+                    'assets/branding/excel-herbal-logo.webp',
+                    fit: BoxFit.contain,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -146,15 +150,19 @@ class _AppShellState extends ConsumerState<AppShell> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Excel Herbal ERP',
+                        'ERP Workspace',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context)
                             .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Version 7 workspace',
+                        'Secure business access',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -195,8 +203,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                 if (app.erpToolsVisible)
                   _desktopTile(
                     'erp_tools',
-                    'ERP Tools',
-                    Icons.construction_outlined,
+                    'My Account & Duty',
+                    Icons.badge_outlined,
                   ),
                 const SizedBox(height: 12),
                 _sectionLabel(context, 'MODULES'),
@@ -473,14 +481,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                       _approvalVisible(app) ||
                       !app.businessAccessBlocked) ...[
                     const SizedBox(height: 12),
-                    _drawerSectionLabel('TOOLS & CONTROL'),
+                    _drawerSectionLabel('WORKSPACE TOOLS'),
                   ],
                   if (app.erpToolsVisible)
                     _drawerTile(
                       app: app,
                       id: 'erp_tools',
-                      label: 'ERP Tools',
-                      icon: Icons.tune_rounded,
+                      label: 'My Account & Duty',
+                      icon: Icons.badge_outlined,
                     ),
                   if (_approvalVisible(app))
                     _drawerTile(
@@ -824,7 +832,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         'profile' => selected ? Icons.person : Icons.person_outline,
         'approvals' => selected ? Icons.approval : Icons.approval_outlined,
         'global_search' => Icons.manage_search_outlined,
-        'erp_tools' => Icons.construction_outlined,
+        'erp_tools' => Icons.badge_outlined,
         _ => Icons.circle_outlined,
       };
 
@@ -849,7 +857,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         'administration' => Icons.admin_panel_settings_outlined,
         'approvals' => Icons.approval_outlined,
         'global_search' => Icons.manage_search_outlined,
-        'erp_tools' => Icons.construction_outlined,
+        'erp_tools' => Icons.badge_outlined,
         _ => Icons.circle_outlined,
       };
 
