@@ -8,7 +8,7 @@ Flutter release certification is the only remaining gate: invariant checks -> AP
 
 ## GitHub-hosted runner evidence
 
-Two controlled probes were executed with different GitHub-hosted Linux runner labels.
+Controlled probes were executed with different GitHub-hosted Linux runner labels, followed by a later re-run attempt.
 
 ### Standard runner probe
 
@@ -22,13 +22,22 @@ Two controlled probes were executed with different GitHub-hosted Linux runner la
 ### Slim runner probe
 
 - Workflow run: `34498125506`
-- Job: `102941721000`
+- Initial job: `102941721000`
 - Runner label: `ubuntu-slim`
 - Result: failure before job execution
 - Job payload: `steps=null`
 - Job logs: no log URL/blob
 
-Because neither job reached its first step, these failures are not Flutter/Dart compile failures and are not test failures. They indicate a GitHub-hosted runner allocation/account gate before execution. The exact account-side billing/quota/policy cause is not exposed through the connected repository API and must not be guessed.
+### Later re-run attempt
+
+- Workflow run: `34498125506`
+- New job created by re-run: `102982204766`
+- Result: failure before job execution
+- Job payload after completion: `steps=null`
+- Job logs: no log URL/blob
+- Check-run metadata reports one annotation (`annotations_count=1`), but the connected repository API does not expose the annotation text endpoint.
+
+Because none of these jobs reached their first workflow step, these failures are not Flutter/Dart compile failures and are not test failures. They indicate a GitHub-hosted runner allocation/account gate before execution. GitHub public status reported Actions operational on 2026-09-10, so no shared Actions incident was identified during the latest retry. The exact account-side billing/quota/policy cause is not exposed through the connected repository API and must not be guessed.
 
 ## Local build fallback evidence
 
@@ -38,14 +47,15 @@ The available execution container was also checked as a fallback build environme
 - Flutter executable: not installed.
 - Dart executable: not installed.
 - Android SDK/ADB: not installed.
-- No Flutter SDK archive is present in the Project/Library files.
-- Outbound shell DNS/package access is unavailable, so Flutter/Android SDK bootstrap cannot be downloaded from this container.
+- No usable Flutter SDK archive is present in the Project/Library files.
+- A Flutter 3.47.2 Linux SDK archive was identified through the official/mirror release listings, but the available container download/network paths could not retrieve the ~1.5 GiB SDK bundle.
+- Outbound shell DNS/package access is unavailable, so Flutter/Android SDK bootstrap cannot be completed from this container.
 
 Therefore the current container cannot replace the unavailable GitHub-hosted runner for APK certification.
 
 ## Repository safety state
 
-After both controlled probes:
+After the controlled probes:
 
 - temporary push trigger files were removed;
 - certification workflow was restored to `workflow_dispatch` only;
