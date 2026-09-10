@@ -29,6 +29,9 @@ class AppState {
   Map<String, dynamic> get me =>
       Map<String, dynamic>.from((bootstrap?['me'] as Map?) ?? const {});
 
+  Map<String, dynamic> get employee =>
+      Map<String, dynamic>.from((me['employee'] as Map?) ?? const {});
+
   Map<String, dynamic> get company =>
       Map<String, dynamic>.from((bootstrap?['company'] as Map?) ?? const {});
 
@@ -37,12 +40,55 @@ class AppState {
       : '${company['name']}'.trim();
 
   String get employeeName {
-    final employee = Map<String, dynamic>.from(
-      (me['employee'] as Map?) ?? const {},
-    );
     final name = '${employee['full_name'] ?? ''}'.trim();
     return name.isEmpty ? 'ERP User' : name;
   }
+
+  String get primaryDesignationCode =>
+      '${employee['designation_code'] ?? ''}'.trim();
+
+  String get primaryDesignationName {
+    final name = '${employee['designation_name'] ?? ''}'.trim();
+    return name.isNotEmpty ? name : primaryDesignationCode;
+  }
+
+  String get primaryDesignationLabel {
+    final name = primaryDesignationName;
+    final code = primaryDesignationCode;
+    if (name.isEmpty) return '—';
+    if (code.isEmpty || name.toUpperCase() == code.toUpperCase()) return name;
+    return '$name ($code)';
+  }
+
+  /// Reporting category is a dashboard/reporting grouping only. It must never
+  /// be treated as a permission or branch-authority source on the client.
+  String get reportingCategory =>
+      '${employee['reporting_category'] ?? ''}'.trim();
+
+  List<Map<String, dynamic>> get additionalDesignations =>
+      ((employee['additional_designations'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(growable: false);
+
+  bool get additionalDesignationAuthorityInherited =>
+      employee['additional_designations_authority_inherited'] == true;
+
+  /// A management summary is only appropriate when the server projected the
+  /// Team workspace and the actor also has report authority. reports.view by
+  /// itself (for example an accounting-only role) does not imply team scope.
+  bool get managementDashboardVisible =>
+      sectionVisible('team') && can('reports.view');
+
+  bool get erpToolsVisible => canAny(const [
+        'workforce.attendance.self',
+        'workforce.leave.self',
+        'workforce.field_visit.self',
+        'communication.view',
+        'organization.employee.manage',
+        'administration.access.manage',
+        'administration.audit.view',
+      ]);
 
   String get currentBranchName {
     if (currentBranchId == null) return 'All Authorised Branches';
