@@ -247,6 +247,7 @@ void main() {
 
     expect(state.businessAccessBlocked, isTrue);
     expect(state.currentBranchId, isNull);
+    expect(state.currentBranchName, 'No Authorised Branch');
     expect(state.can('erp.access'), isTrue);
     expect(state.can('reports.view'), isFalse);
     expect(state.can('communication.view'), isFalse);
