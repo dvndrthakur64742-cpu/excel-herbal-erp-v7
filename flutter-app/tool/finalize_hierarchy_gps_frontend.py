@@ -29,9 +29,11 @@ def verify_current_frontend() -> None:
     profile = ROOT / 'lib/screens/home/profile_screen.dart'
     login = ROOT / 'lib/screens/auth/login_screen.dart'
     ui_error = ROOT / 'lib/core/ui_error.dart'
+    app_version_gate = ROOT / 'lib/core/app_version_gate.dart'
     administration = ROOT / 'lib/screens/administration/administration_screen.dart'
     authority_test = ROOT / 'test/authority_projection_test.dart'
     role_matrix_test = ROOT / 'test/role_projection_matrix_test.dart'
+    app_version_test = ROOT / 'test/app_version_policy_test.dart'
 
     require(
         shell,
@@ -283,6 +285,24 @@ def verify_current_frontend() -> None:
     )
 
     require(
+        app_version_gate,
+        [
+            'bool isAppUpdateRequired(Map<String, dynamic>? policy)',
+            "policy?['force_update'] == true",
+            "policy?['update_required'] == true",
+            'if (!isAppUpdateRequired(policy)) return widget.child;',
+        ],
+        'App version gate',
+    )
+    forbid(
+        app_version_gate,
+        [
+            "final required = policy?['update_required'] == true;",
+        ],
+        'App version gate',
+    )
+
+    require(
         administration,
         [
             "import '../../widgets/branch_selector.dart';",
@@ -344,6 +364,18 @@ def verify_current_frontend() -> None:
             "expect(state.bottomNav.map((e) => e['id']), ['home', 'profile']);",
         ],
         'Role projection matrix tests',
+    )
+
+    require(
+        app_version_test,
+        [
+            'v7 force_update blocks outdated client',
+            "isAppUpdateRequired(const {'force_update': true})",
+            'force_update false does not block client even with message',
+            'legacy update_required remains a compatibility fallback',
+            'missing policy fails open',
+        ],
+        'App version policy tests',
     )
 
 
