@@ -10,6 +10,7 @@ Date: 2026-09-10
 - Additional/Temporary Designations are responsibility labels only; authority inheritance is always false.
 - GPS Team and GPS Route use the same hierarchy/branch privacy boundary as employee visibility.
 - Price Distribution uses the actor's existing employee/branch scope; category filters cannot expand scope.
+- Zero authorised branches fail closed: the authenticated shell remains available for Home/Profile/Sign out, but business capabilities, business sections and management projections are not usable.
 - v14 code/module/schema is not merged.
 
 ## Default role matrix
@@ -71,9 +72,10 @@ No reporting manager was guessed or auto-assigned. The Flutter Designation & Rep
 - Deactivation is defensively blocked client-side for already-inactive assignments, matching the backend idempotent contract.
 - Price Distribution retains exactly six business fields: Sale Price, HO Amount, BM Profit, Salary Fund, Expense, Points.
 - Reports Centre is capability-filtered and selects the first authorised report when the previous/default type is not allowed.
-- Price Distribution and Trial Balance now support an explicit **All Authorised Branches** aggregate option. The selector clears only the current branch filter and never expands the server-projected authorised branch IDs. Sales/Purchase/Stock/Finance remain branch-required.
-- Automated authority-projection tests cover additional-designation non-escalation, reporting-category non-escalation, inheritance-marker non-escalation, reports-only dashboard isolation, stale tool-navigation filtering, technical-admin-only tool isolation, aggregate authorised-branch semantics and zero-branch blocking.
-- Dedicated `role_projection_matrix_test.dart` covers Field, ASM/SM, BM, RM/RC/AGM/ZI, CM/MD, System Admin, accounting-only and zero-branch projection boundaries.
+- Price Distribution and Trial Balance support an explicit **All Authorised Branches** aggregate option. The selector clears only the current branch filter and never expands the server-projected authorised branch IDs. Sales/Purchase/Stock/Finance remain branch-required.
+- Zero-authorised-branch projection now fails closed in `AppState`: all business `can(...)` checks return false except authenticated shell `erp.access`; business sections collapse to Home; bottom navigation collapses to Home/Profile; management dashboard and Account & Duty are not projected.
+- Automated authority-projection tests cover additional-designation non-escalation, reporting-category non-escalation, inheritance-marker non-escalation, reports-only dashboard isolation, stale tool-navigation filtering, technical-admin-only tool isolation, aggregate authorised-branch semantics and zero-branch fail-closed projection.
+- Dedicated `role_projection_matrix_test.dart` covers Field, ASM/SM, BM, RM/RC/AGM/ZI, CM/MD, System Admin, accounting-only and zero-branch projection boundaries. Even a raw SYSADMIN capability payload cannot expose business functions when authorised branch IDs are empty.
 - Desktop and mobile shell use the Excel Herbal brand logo and consistent business-facing labels. The old user-facing `ERP Tools` label is replaced by **My Account & Duty** while the internal route id remains unchanged.
 - The brand asset is bundled through `pubspec.yaml`, and the Material 3 theme uses the Excel Herbal green as the single primary design seed rather than mixed legacy palettes.
 - Profile copy is standardized and explicitly states that Reporting Category does not increase permissions or branch authority.
@@ -84,16 +86,17 @@ No reporting manager was guessed or auto-assigned. The Flutter Designation & Rep
 - Central `UiError` known business/security messages are standardized to professional English so module-level error presentation stays consistent.
 - Login uses the real Excel Herbal logo, validates blank mobile/password locally, and displays the already-sanitized application error without re-wrapping it as a technical Exception.
 - Team Operations business copy is standardized to a consistent professional tone.
-- The pre-Flutter Python gate is read-only; CI does not patch or commit source during a build.
+- The pre-Flutter Python gate is read-only and now explicitly checks zero-branch fail-closed capability, section and bottom-navigation projection. CI does not patch or commit source during a build.
 
 ## Completion checkpoint
 
-Estimated stabilization completion: **95%**.
+Estimated overall stabilization completion: **95–96%**.
+Estimated source stabilization completion: **96%**.
 
 - Backend/live v7.3.2 correction and contract verification: 100%.
 - Hierarchy / Reporting Manager / Multiple Designation / GPS auto-policy / Price Distribution / role-dashboard source correction: approximately 98%.
-- Permission, branch-scope and authority regression coverage: approximately 96% source-complete.
-- Professional UI/copy stabilization for the targeted business surfaces: approximately 95% source-complete.
+- Permission, branch-scope and authority regression coverage: approximately 98% source-complete.
+- Professional UI/copy stabilization for the targeted business surfaces: approximately 96% source-complete.
 - Flutter compiler/test/APK certification and final device visual UAT: pending and represents the remaining critical completion gate.
 
 ## Certification status
@@ -106,4 +109,4 @@ Backend v7.3.2 static package QA:
 
 Flutter compiler/APK certification remains pending. Repeated GitHub Actions runs fail before runner execution: the build job is returned with `steps=null` / empty steps and no log blob. This is not evidence of a Dart compile failure and must not be treated as a compile PASS either.
 
-To avoid generating repeated infrastructure failures during source stabilization, automatic push-triggered certification is temporarily paused. The workflow is now **manual-dispatch only**, `contents: read`, artifact-only, and performs no source commit or release mutation. Once runner allocation is healthy, one controlled manual certification run should execute: invariant gate → Flutter dependencies → analyze → tests → debug APK → SHA256 artifact.
+To avoid generating repeated infrastructure failures during source stabilization, automatic push-triggered certification is temporarily paused. The workflow is **manual-dispatch only**, `contents: read`, artifact-only, and performs no source commit or release mutation. Once runner allocation is healthy, one controlled manual certification run should execute: invariant gate → Flutter dependencies → analyze → tests → debug APK → SHA256 artifact.
