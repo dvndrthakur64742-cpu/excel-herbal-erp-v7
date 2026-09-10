@@ -246,6 +246,19 @@ class AppController extends StateNotifier<AppState> {
     }
   }
 
+  /// Clears only the current report/workspace branch selection. Authorised
+  /// branch IDs remain server-projected in bootstrap and are never expanded.
+  void selectAllAuthorisedBranches() {
+    if (!state.branchSelectorVisible || state.businessAccessBlocked) return;
+    state = AppState(
+      loading: state.loading,
+      authenticated: state.authenticated,
+      bootstrap: state.bootstrap,
+      currentBranchId: null,
+      error: null,
+    );
+  }
+
   Future<void> logout() async {
     await api.logout();
     state = const AppState(loading: false);
