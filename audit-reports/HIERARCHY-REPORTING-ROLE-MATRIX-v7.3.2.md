@@ -66,20 +66,35 @@ No reporting manager was guessed or auto-assigned. The Flutter Designation & Rep
 - The Hierarchy workspace never auto-assigns a manager and explicitly states that Reporting Category and Additional Designations do not create authority.
 - Duty GPS has no manual Start/Stop UI; status refresh does not create a manual route lifecycle.
 - Reporting Manager is managed separately from Reporting Category and Multiple Designations.
-- Reporting-manager audit-reason validation is now dialog-local, so invalid short reasons are visible before submit rather than being written behind the open dialog.
+- Reporting-manager audit-reason validation is dialog-local, so invalid short reasons are visible before submit rather than being written behind the open dialog.
 - Additional/Temporary Designation `active` values are normalized across boolean/integer/string API representations. A WordPress DB value of `"0"` is treated as inactive and cannot show an active Deactivate action.
 - Deactivation is defensively blocked client-side for already-inactive assignments, matching the backend idempotent contract.
 - Price Distribution retains exactly six business fields: Sale Price, HO Amount, BM Profit, Salary Fund, Expense, Points.
 - Reports Centre is capability-filtered and selects the first authorised report when the previous/default type is not allowed.
-- Automated authority-projection tests cover additional-designation non-escalation, reporting-category non-escalation, inheritance-marker non-escalation, reports-only dashboard isolation, stale tool-navigation filtering, technical-admin-only tool isolation and zero-branch blocking.
+- Price Distribution and Trial Balance now support an explicit **All Authorised Branches** aggregate option. The selector clears only the current branch filter and never expands the server-projected authorised branch IDs. Sales/Purchase/Stock/Finance remain branch-required.
+- Automated authority-projection tests cover additional-designation non-escalation, reporting-category non-escalation, inheritance-marker non-escalation, reports-only dashboard isolation, stale tool-navigation filtering, technical-admin-only tool isolation, aggregate authorised-branch semantics and zero-branch blocking.
 - Dedicated `role_projection_matrix_test.dart` covers Field, ASM/SM, BM, RM/RC/AGM/ZI, CM/MD, System Admin, accounting-only and zero-branch projection boundaries.
 - Desktop and mobile shell use the Excel Herbal brand logo and consistent business-facing labels. The old user-facing `ERP Tools` label is replaced by **My Account & Duty** while the internal route id remains unchanged.
+- The brand asset is bundled through `pubspec.yaml`, and the Material 3 theme uses the Excel Herbal green as the single primary design seed rather than mixed legacy palettes.
+- Profile copy is standardized and explicitly states that Reporting Category does not increase permissions or branch authority.
 - **My Account & Duty** contains business-facing Duty, My Account, Communication and capability-gated Team Access only. Backend Diagnostics, maintenance cleanup and App Version Policy are not exposed on this business workspace.
 - Technical `administration.access.manage` / `administration.audit.view` capabilities no longer make My Account & Duty visible by themselves.
 - Employee app-login management remains capability-gated by `organization.employee.manage` and is branch-scoped.
-- Administration now includes an authorised Branch Selector for access management, removes stale backend-version messaging, uses professional reversal/access prompts, and no longer exposes raw API response objects in success messages.
+- Administration includes an authorised Branch Selector for access management, removes stale backend-version messaging, uses professional reversal/access prompts, and no longer exposes raw API response objects in success messages.
+- Central `UiError` known business/security messages are standardized to professional English so module-level error presentation stays consistent.
+- Login uses the real Excel Herbal logo, validates blank mobile/password locally, and displays the already-sanitized application error without re-wrapping it as a technical Exception.
 - Team Operations business copy is standardized to a consistent professional tone.
 - The pre-Flutter Python gate is read-only; CI does not patch or commit source during a build.
+
+## Completion checkpoint
+
+Estimated stabilization completion: **95%**.
+
+- Backend/live v7.3.2 correction and contract verification: 100%.
+- Hierarchy / Reporting Manager / Multiple Designation / GPS auto-policy / Price Distribution / role-dashboard source correction: approximately 98%.
+- Permission, branch-scope and authority regression coverage: approximately 96% source-complete.
+- Professional UI/copy stabilization for the targeted business surfaces: approximately 95% source-complete.
+- Flutter compiler/test/APK certification and final device visual UAT: pending and represents the remaining critical completion gate.
 
 ## Certification status
 
