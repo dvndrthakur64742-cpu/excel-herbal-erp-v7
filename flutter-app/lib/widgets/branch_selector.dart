@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/app_state.dart';
 
 class BranchSelector extends ConsumerWidget {
-  const BranchSelector({super.key});
+  const BranchSelector({super.key, this.allowAllAuthorised = false});
+
+  final bool allowAllAuthorised;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -19,9 +21,11 @@ class BranchSelector extends ConsumerWidget {
     }
     if (branches.isEmpty) return const SizedBox.shrink();
 
-    final selected = branches.any((branch) => branch.id == app.currentBranchId)
+    final selectedBranchExists =
+        branches.any((branch) => branch.id == app.currentBranchId);
+    final selected = selectedBranchExists
         ? app.currentBranchId
-        : null;
+        : (allowAllAuthorised ? -1 : null);
 
     return DropdownButtonFormField<int>(
       isExpanded: true,
@@ -34,6 +38,11 @@ class BranchSelector extends ConsumerWidget {
         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
       items: [
+        if (allowAllAuthorised)
+          const DropdownMenuItem<int>(
+            value: -1,
+            child: Text('All Authorised Branches'),
+          ),
         for (final branch in branches)
           DropdownMenuItem<int>(
             value: branch.id,
@@ -45,6 +54,10 @@ class BranchSelector extends ConsumerWidget {
           ),
       ],
       onChanged: (value) {
+        if (value == -1 && allowAllAuthorised) {
+          ref.read(appStateProvider.notifier).selectAllAuthorisedBranches();
+          return;
+        }
         if (value != null) {
           ref.read(appStateProvider.notifier).selectBranch(value);
         }
