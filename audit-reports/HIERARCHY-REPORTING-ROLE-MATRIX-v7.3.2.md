@@ -30,7 +30,7 @@ Date: 2026-09-10
 Notes:
 - The matrix describes designation defaults. Explicit roles and employee capability overrides may add or remove capabilities, but they do not bypass branch or hierarchy scope checks.
 - Home management overview additionally requires both a projected Team workspace and `reports.view`.
-- Reports Centre filters operational reports behind `reports.view` and Trial Balance behind `finance.accounting.view`, preventing dead/forbidden report options for accounting-only users.
+- Reports Centre matches backend permissions: Sales/Purchase/Stock/Finance/Price Distribution require `reports.view`; Trial Balance requires `finance.accounting.view`.
 
 ## v7.3.2 backend consistency correction
 
@@ -38,7 +38,7 @@ The hierarchy engine already classified `AGM` / `ASSISTANT_GENERAL_MANAGER` as `
 
 ## Live deployment verification
 
-The connected office runtime is now running **Excel Herbal ERP 7 Clean Core v7.3.2**.
+The connected office runtime is running **Excel Herbal ERP 7 Clean Core v7.3.2**.
 
 Verified live contract:
 - `/health` reports `version=7.3.2`, `api_contract=7.3.2-contract-1` and the existing `7.3.0-hierarchy-gps-reporting-1` schema.
@@ -58,16 +58,19 @@ No reporting manager was guessed or auto-assigned. The Flutter Designation & Rep
 
 ## Frontend correction checkpoint
 
-- ERP Tools is no longer unconditionally exposed; route, desktop sidebar, drawer, and defensive bottom-navigation filtering use `erpToolsVisible`.
+- Team Operations includes a branch-scoped **Hierarchy** workspace. It counts active ASM/SM leadership links as Linked/Missing and opens the existing Designation & Reporting workspace for explicit manager setup.
+- The Hierarchy workspace never auto-assigns a manager and explicitly states that Reporting Category and Additional Designations do not create authority.
 - Duty GPS has no manual Start/Stop UI; status refresh does not create a manual route lifecycle.
 - Reporting Manager is managed separately from Reporting Category and Multiple Designations.
-- Team Operations now includes a branch-scoped **Hierarchy** workspace. It counts active ASM/SM leadership links as Linked/Missing and opens the existing Designation & Reporting workspace for explicit manager setup.
-- The Hierarchy workspace never auto-assigns a manager and explicitly states that Reporting Category and Additional Designations do not create authority.
 - Price Distribution retains exactly six business fields: Sale Price, HO Amount, BM Profit, Salary Fund, Expense, Points.
-- Reports Centre options are capability-filtered and selects the first authorised report when the previous/default type is not allowed.
-- Automated authority-projection tests cover additional-designation non-escalation, reporting-category non-escalation, inheritance-marker non-escalation, reports-only dashboard isolation, stale ERP Tools navigation filtering and zero-branch blocking.
+- Reports Centre is capability-filtered and selects the first authorised report when the previous/default type is not allowed.
+- Automated authority-projection tests cover additional-designation non-escalation, reporting-category non-escalation, inheritance-marker non-escalation, reports-only dashboard isolation, stale tool-navigation filtering, technical-admin-only tool isolation and zero-branch blocking.
+- Desktop and mobile shell use the Excel Herbal brand logo and consistent business-facing labels. The old user-facing `ERP Tools` label is replaced by **My Account & Duty** while the internal route id remains unchanged.
+- **My Account & Duty** contains business-facing Duty, My Account, Communication and capability-gated Team Access only. Backend Diagnostics, maintenance cleanup and App Version Policy are not exposed on this business workspace.
+- Technical `administration.access.manage` / `administration.audit.view` capabilities no longer make My Account & Duty visible by themselves.
+- Employee app-login management remains capability-gated by `organization.employee.manage` and is branch-scoped.
 - Team Operations business copy is standardized to a consistent professional tone.
-- The pre-Flutter Python gate is read-only; CI no longer patches or commits source during a build.
+- The pre-Flutter Python gate is read-only; CI does not patch or commit source during a build.
 
 ## Certification status
 
@@ -77,4 +80,4 @@ Backend v7.3.2 static package QA:
 - source manifest: 77/77 PASS
 - fresh-extract ZIP integrity: PASS
 
-Flutter compiler/APK certification remains pending. GitHub Actions runs are currently failing before a runner starts (`steps=null`, no log blob), while GitHub's public Actions status is operational. This is not evidence of a Dart compile failure and must not be treated as a compile PASS either.
+Flutter compiler/APK certification remains pending. GitHub Actions runs are currently failing before a runner starts (`steps=null`, no log blob), while GitHub's public Actions status was operational when checked. This is not evidence of a Dart compile failure and must not be treated as a compile PASS either.
