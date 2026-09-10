@@ -2,6 +2,11 @@ name: EH7 Flutter v7.4.0 Stabilization Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - v7-hierarchy-gps-reporting-dashboard
+    paths:
+      - '.ci/eh7-slim-certify.trigger'
 
 concurrency:
   group: eh7-v740-${{ github.ref }}
@@ -12,8 +17,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
+    runs-on: ubuntu-slim
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
