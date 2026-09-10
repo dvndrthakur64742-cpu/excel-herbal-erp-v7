@@ -186,6 +186,42 @@ void main() {
     expect(state.bottomNav.map((e) => e['id']), ['home', 'erp_tools']);
   });
 
+  test('aggregate branch scope remains limited to authorised branch ids', () {
+    final state = AppState(
+      loading: false,
+      authenticated: true,
+      currentBranchId: null,
+      bootstrap: const {
+        'me': {
+          'employee': {
+            'id': 10,
+            'full_name': 'Aggregate Scope Test',
+            'designation_code': 'RM',
+          },
+          'branch_ids': [1, 2],
+          'branch_selector_visible': true,
+          'capabilities': ['erp.access', 'reports.view'],
+        },
+        'branches': [
+          {'id': 1, 'code': 'B1', 'name': 'Branch 1'},
+          {'id': 2, 'code': 'B2', 'name': 'Branch 2'},
+        ],
+        'navigation': {
+          'sections': [
+            {'id': 'home', 'label': 'Home'},
+            {'id': 'reports', 'label': 'Reports Centre'},
+          ],
+          'bottom_nav': [],
+        },
+      },
+    );
+
+    expect(state.currentBranchId, isNull);
+    expect(state.currentBranchName, 'All Authorised Branches');
+    expect(state.branches.map((e) => e['id']), [1, 2]);
+    expect(state.businessAccessBlocked, isFalse);
+  });
+
   test('zero branch authority blocks business access even with capabilities', () {
     final state = _state(
       capabilities: const ['erp.access', 'reports.view'],
