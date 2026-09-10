@@ -11,6 +11,20 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     raise SystemExit(f'Expected patch target not found: {label}')
 
 
+def require(path: Path, needles: list[str], label: str) -> None:
+    text = path.read_text(encoding='utf-8')
+    for item in needles:
+        if item not in text:
+            raise SystemExit(f'{label} invariant missing: {item}')
+
+
+def forbid(path: Path, needles: list[str], label: str) -> None:
+    text = path.read_text(encoding='utf-8')
+    for item in needles:
+        if item in text:
+            raise SystemExit(f'{label} forbidden source still present: {item}')
+
+
 def patch_shell() -> None:
     path = ROOT / 'lib/shell/app_shell.dart'
     text = path.read_text(encoding='utf-8')
@@ -36,17 +50,8 @@ def patch_shell() -> None:
         'route gate',
     )
 
-    required = [
-        'if (app.erpToolsVisible)',
-        "if (id == 'erp_tools') return app.erpToolsVisible;",
-    ]
-    for item in required:
-        if item not in text:
-            raise SystemExit(f'Shell invariant missing after patch: {item}')
-
     if "{'home', 'profile', 'erp_tools'}" in text:
         raise SystemExit('Unconditional ERP Tools route authority still present')
-
     path.write_text(text, encoding='utf-8')
 
 
@@ -93,29 +98,75 @@ def patch_erp_tools() -> None:
         replacement = """                const SizedBox(height: 16),\n                Container(\n                  width: double.infinity,\n                  padding: const EdgeInsets.all(12),\n                  decoration: BoxDecoration(\n                    color: ExcelBrand.primarySoft,\n                    borderRadius: BorderRadius.circular(14),\n                  ),\n                  child: const Row(\n                    crossAxisAlignment: CrossAxisAlignment.start,\n                    children: [\n                      Icon(\n                        Icons.policy_outlined,\n                        size: 19,\n                        color: ExcelBrand.primaryDark,\n                      ),\n                      SizedBox(width: 8),\n                      Expanded(\n                        child: Text(\n                          'Duty GPS starts automatically from attendance/server policy and stops after checkout or the duty cutoff. There is no manual route Start/Stop.',\n                          style: TextStyle(fontWeight: FontWeight.w600),\n                        ),\n                      ),\n                    ],\n                  ),\n                ),\n                const SizedBox(height: 8),\n                SizedBox(\n                  width: double.infinity,\n                  child: OutlinedButton.icon(\n                    onPressed: tracker.sending\n                        ? null\n                        : () async {\n                            await ref.read(gpsTrackingProvider).sync();\n                            if (mounted) {\n                              _msg('Duty GPS status refreshed.');\n                            }\n                          },\n                    icon: tracker.sending\n                        ? const SizedBox(\n                            width: 16,\n                            height: 16,\n                            child: CircularProgressIndicator(strokeWidth: 2),\n                          )\n                        : const Icon(Icons.sync_rounded),\n                    label: const Text('Refresh duty GPS status'),\n                  ),\n                ),"""
         text = text[:start_at] + replacement + text[end_at:]
 
-    forbidden = [
+    path.write_text(text, encoding='utf-8')
+
+
+def verify_current_frontend() -> None:
+    shell = ROOT / 'lib/shell/app_shell.dart'
+    tools = ROOT / 'lib/screens/tools/erp_tools_screen.dart'
+    state = ROOT / 'lib/state/app_state.dart'
+    reports = ROOT / 'lib/screens/reports/reports_screen.dart'
+    designations = ROOT / 'lib/screens/organization/employee_designations_screen.dart'
+    team = ROOT / 'lib/screens/organization/team_screen.dart'
+    home = ROOT / 'lib/screens/home/home_screen.dart'
+
+    require(shell, [
+        'if (app.erpToolsVisible)',
+        "if (id == 'erp_tools') return app.erpToolsVisible;",
+    ], 'Shell')
+    forbid(shell, ["{'home', 'profile', 'erp_tools'}"], 'Shell')
+
+    require(tools, [
+        "if (app.can('workforce.attendance.self'))",
+        'Refresh duty GPS status',
+        'There is no manual route Start/Stop.',
+        'BusinessFormat.status(tracker.dutyStatus)',
+    ], 'ERP Tools')
+    forbid(tools, [
         "label: const Text('Start')",
         "label: const Text('Stop')",
         "label: const Text('Sync current location now')",
-        "ref.read(gpsTrackingProvider).stop()",
-    ]
-    for item in forbidden:
-        if item in text:
-            raise SystemExit(f'Manual GPS control still present: {item}')
+        'ref.read(gpsTrackingProvider).stop()',
+    ], 'ERP Tools')
 
-    required = [
-        "Refresh duty GPS status",
-        "There is no manual route Start/Stop.",
-        "if (app.can('workforce.attendance.self'))",
-    ]
-    for item in required:
-        if item not in text:
-            raise SystemExit(f'ERP Tools invariant missing: {item}')
+    require(state, [
+        'bool get managementDashboardVisible =>',
+        "sectionVisible('team') && can('reports.view')",
+        "if (id == 'erp_tools') return erpToolsVisible;",
+        'additional_designations_authority_inherited',
+    ], 'AppState')
 
-    path.write_text(text, encoding='utf-8')
+    require(reports, [
+        "if (app.can('reports.view'))",
+        "if (app.can('finance.accounting.view'))",
+        "'price_distribution'",
+        'Reporting category filters rows only. It never expands employee or branch authority.',
+    ], 'Reports')
+
+    require(designations, [
+        "ApiPaths.employeeReportingManager(widget.employeeId)",
+        "'reporting_employee_id': selected == 0 ? null : selected",
+        "'reason': why",
+        'The server blocks self-reporting, reporting cycles and managers outside your branch authority.',
+        'Extra designations never inherit authority.',
+    ], 'Designation & Reporting')
+
+    require(team, [
+        "if (app.can('workforce.attendance.manage'))",
+        'ApiPaths.gpsTeam',
+        'ApiPaths.gpsRoute',
+        'Route visibility follows the same reporting hierarchy and authorised branch scope as the team list.',
+    ], 'Team Operations')
+
+    require(home, [
+        'app.managementDashboardVisible',
+        'Report access is available, but Team management scope is not assigned.',
+        'route lifecycle is automatic',
+    ], 'Home')
 
 
 if __name__ == '__main__':
     patch_shell()
     patch_erp_tools()
-    print('Hierarchy/GPS frontend correction invariants: PASS')
+    verify_current_frontend()
+    print('Hierarchy/reporting/GPS/dashboard frontend invariants: PASS')
