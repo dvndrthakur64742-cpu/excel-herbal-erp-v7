@@ -411,21 +411,22 @@ class _HierarchyReadinessPanel extends StatelessWidget {
   final bool canManage;
   final ValueChanged<Map<String, dynamic>> onOpenEmployee;
 
-  static const _hierarchyLeadershipCodes = {
+  static const _managerRequiredCategories = {
+    'FIELD_EXECUTIVE',
     'ASM',
-    'AREA_SALES_MANAGER',
     'SM',
-    'SALES_MANAGER',
   };
 
   @override
   Widget build(BuildContext context) {
     final relevant = rows.where((row) {
-      final code = '${row['designation_code'] ?? ''}'.trim().toUpperCase();
-      return _hierarchyLeadershipCodes.contains(code);
+      final category =
+          '${row['reporting_category'] ?? ''}'.trim().toUpperCase();
+      return _managerRequiredCategories.contains(category);
     }).toList(growable: false);
     final linked = relevant.where(_hasManager).length;
-    final missing = relevant.where((row) => !_hasManager(row)).toList(growable: false);
+    final missing =
+        relevant.where((row) => !_hasManager(row)).toList(growable: false);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
@@ -454,7 +455,7 @@ class _HierarchyReadinessPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Checks active ASM/SM reporting links inside the selected authorised branch. Reporting Category and Additional Designations are not used to create authority.',
+                  'Checks active Field Executive, ASM and SM reporting links inside the selected authorised branch. Reporting Category is used only to classify readiness; it never creates authority. Additional Designations also do not create authority.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 14),
@@ -462,7 +463,10 @@ class _HierarchyReadinessPanel extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _ReadinessMetric(label: 'Leadership', value: '${relevant.length}'),
+                    _ReadinessMetric(
+                      label: 'Hierarchy Roles',
+                      value: '${relevant.length}',
+                    ),
                     _ReadinessMetric(label: 'Linked', value: '$linked'),
                     _ReadinessMetric(label: 'Missing', value: '${missing.length}'),
                   ],
@@ -477,7 +481,9 @@ class _HierarchyReadinessPanel extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.all(20),
               child: Center(
-                child: Text('No active ASM/SM employees in this branch scope.'),
+                child: Text(
+                  'No active Field Executive, ASM or SM employees in this branch scope.',
+                ),
               ),
             ),
           )
@@ -485,9 +491,9 @@ class _HierarchyReadinessPanel extends StatelessWidget {
           const Card(
             child: ListTile(
               leading: Icon(Icons.check_circle_outline_rounded),
-              title: Text('Leadership reporting links complete'),
+              title: Text('Reporting links complete'),
               subtitle: Text(
-                'All active ASM/SM employees in this branch have a reporting manager configured.',
+                'All active Field Executive, ASM and SM employees in this branch have a reporting manager configured.',
               ),
             ),
           )
@@ -510,7 +516,7 @@ class _HierarchyReadinessPanel extends StatelessWidget {
                 leading: const Icon(Icons.link_off_rounded),
                 title: Text('${row['full_name'] ?? 'Employee'}'),
                 subtitle: Text(
-                  '${row['employee_code'] ?? ''} · ${BusinessFormat.status(row['designation_code'])}\nReporting Manager: Not assigned',
+                  '${row['employee_code'] ?? ''} · ${BusinessFormat.status(row['reporting_category'])}\nReporting Manager: Not assigned',
                 ),
                 isThreeLine: true,
                 trailing: canManage
