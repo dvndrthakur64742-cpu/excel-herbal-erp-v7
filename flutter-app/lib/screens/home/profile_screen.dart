@@ -10,13 +10,11 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final app = ref.watch(appStateProvider);
-    final employee = Map<String, dynamic>.from(
-      (app.me['employee'] as Map?) ?? const {},
-    );
-    final designation =
-        '${employee['designation_name'] ?? employee['designation_code'] ?? '—'}';
+    final employee = app.employee;
     final manager = '${employee['reporting_employee_name'] ?? ''}'.trim();
     final managerCode = '${employee['reporting_employee_code'] ?? ''}'.trim();
+    final reporting = _reportingLabel(app.reportingCategory);
+    final extras = app.additionalDesignations;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -52,7 +50,7 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${employee['employee_code'] ?? '—'} · $designation',
+                        '${employee['employee_code'] ?? '—'} · ${app.primaryDesignationLabel}',
                         style: Theme.of(context).textTheme.bodyMedium
                             ?.copyWith(color: ExcelBrand.muted),
                       ),
@@ -67,6 +65,29 @@ class ProfileScreen extends ConsumerWidget {
         Card(
           child: Column(
             children: [
+              _InfoTile(
+                icon: Icons.badge_outlined,
+                label: 'Primary Designation',
+                value: app.primaryDesignationLabel,
+              ),
+              const Divider(height: 1),
+              _InfoTile(
+                icon: Icons.account_tree_outlined,
+                label: 'Reporting Category',
+                value: reporting,
+                helper: 'Reporting grouping only — permission/branch authority नहीं बढ़ती।',
+              ),
+              const Divider(height: 1),
+              _InfoTile(
+                icon: Icons.supervisor_account_outlined,
+                label: 'Reporting Manager',
+                value: manager.isEmpty
+                    ? 'Not assigned'
+                    : managerCode.isEmpty
+                    ? manager
+                    : '$manager · $managerCode',
+              ),
+              const Divider(height: 1),
               _InfoTile(
                 icon: Icons.store_outlined,
                 label: 'Current Branch',
@@ -91,19 +112,54 @@ class ProfileScreen extends ConsumerWidget {
                 label: 'Email',
                 value: '${employee['email'] ?? '—'}',
               ),
-              const Divider(height: 1),
-              _InfoTile(
-                icon: Icons.account_tree_outlined,
-                label: 'Reporting Manager',
-                value: manager.isEmpty
-                    ? 'Not assigned'
-                    : managerCode.isEmpty
-                    ? manager
-                    : '$manager · $managerCode',
-              ),
             ],
           ),
         ),
+        if (extras.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Additional / Temporary Designations',
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'These are responsibility/display assignments only; they do not inherit authority.',
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: ExcelBrand.muted),
+                  ),
+                  const SizedBox(height: 10),
+                  for (final item in extras) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: Icon(
+                        '${item['assignment_type']}' == 'temporary'
+                            ? Icons.schedule_outlined
+                            : Icons.add_moderator_outlined,
+                      ),
+                      title: Text(_designationLabel(item)),
+                      subtitle: Text(_assignmentPeriod(item)),
+                      trailing: Chip(
+                        label: Text(
+                          '${item['assignment_type'] ?? 'additional'}'
+                              .toUpperCase(),
+                        ),
+                      ),
+                    ),
+                    if (item != extras.last) const Divider(height: 1),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         OutlinedButton.icon(
           onPressed: () => ref.read(appStateProvider.notifier).logout(),
@@ -113,6 +169,31 @@ class ProfileScreen extends ConsumerWidget {
       ],
     );
   }
+
+  String _reportingLabel(String value) {
+    if (value.isEmpty) return 'Not assigned';
+    return value
+        .split('_')
+        .where((e) => e.isNotEmpty)
+        .map((e) => '${e[0]}${e.substring(1).toLowerCase()}')
+        .join(' ');
+  }
+
+  String _designationLabel(Map<String, dynamic> item) {
+    final name = '${item['designation_name'] ?? ''}'.trim();
+    final code = '${item['designation_code'] ?? ''}'.trim();
+    if (name.isEmpty) return code.isEmpty ? 'Designation' : code;
+    if (code.isEmpty || name.toUpperCase() == code.toUpperCase()) return name;
+    return '$name ($code)';
+  }
+
+  String _assignmentPeriod(Map<String, dynamic> item) {
+    final from = '${item['effective_from'] ?? ''}'.trim();
+    final to = '${item['effective_to'] ?? ''}'.trim();
+    if (from.isEmpty && to.isEmpty) return 'Effective period not supplied';
+    if (to.isEmpty) return 'From $from · ongoing';
+    return '$from → $to';
+  }
 }
 
 class _InfoTile extends StatelessWidget {
@@ -120,11 +201,13 @@ class _InfoTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.helper,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final String? helper;
 
   @override
   Widget build(BuildContext context) => ListTile(
@@ -132,10 +215,23 @@ class _InfoTile extends StatelessWidget {
     title: Text(label, style: Theme.of(context).textTheme.bodySmall),
     subtitle: Padding(
       padding: const EdgeInsets.only(top: 2),
-      child: Text(
-        value,
-        style: Theme.of(context).textTheme.bodyLarge
-            ?.copyWith(fontWeight: FontWeight.w600),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyLarge
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          if (helper != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              helper!,
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: ExcelBrand.muted),
+            ),
+          ],
+        ],
       ),
     ),
   );
