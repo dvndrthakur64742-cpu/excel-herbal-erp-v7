@@ -1,5 +1,5 @@
 name: excel_herbal_erp
-description: Excel Herbal ERP Flutter client recovered from UAT APK and aligned to ERP backend v7.2.0.
+description: Excel Herbal ERP Flutter client aligned to ERP backend v7.3.2 contract.
 publish_to: 'none'
 version: 7.4.0+740
 
