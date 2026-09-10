@@ -6,7 +6,7 @@ import '../../core/business_format.dart';
 import '../../core/date_time_text.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
-import '../../widgets/async_panel.dart';
+import '../../theme/excel_brand.dart';
 import '../../widgets/branch_selector.dart';
 import '../my_work/my_work_screen.dart';
 
@@ -21,935 +21,109 @@ class HomeScreen extends ConsumerWidget {
     final api = ref.watch(apiClientProvider);
     final branch = app.currentBranchId;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final desktop = constraints.maxWidth >= 900;
-        final employee = Map<String, dynamic>.from(
-          (app.me['employee'] as Map?) ?? const {},
-        );
-
-        return RefreshIndicator(
-          onRefresh: () =>
-              ref.read(appStateProvider.notifier).refreshBootstrap(),
-          child: ListView(
-            padding: EdgeInsets.all(desktop ? 24 : 16),
-            children: [
-              if (desktop) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Good ${_dayPart()}, ${employee['full_name'] ?? 'Employee'}',
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Your authorised ERP workspace and today’s activity.',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: () => ref
-                          .read(appStateProvider.notifier)
-                          .refreshBootstrap(),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Refresh'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                const BranchSelector(),
-                const SizedBox(height: 18),
-                _workspaceCards(context, app, true),
-              ] else ...[
-                _welcomeHero(context, app, employee),
-                const SizedBox(height: 14),
-                const BranchSelector(),
-              ],
-              if (branch != null && app.sectionVisible('my_work')) ...[
-                const SizedBox(height: 18),
-                _dailyWorkPanel(context, api, app, branch),
-              ],
-              if (app.can('reports.view') && branch != null) ...[
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Management Overview',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    Text(
-                      'This month',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _managementPanel(context, api, app, branch, desktop),
-              ],
-              const SizedBox(height: 24),
-              Text(
-                'Today',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 10),
-              if (desktop)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _attendanceCard(api)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: branch == null
-                          ? const SizedBox.shrink()
-                          : _performanceCard(api, app, branch),
-                    ),
-                  ],
-                )
-              else ...[
-                _attendanceCard(api),
-                const SizedBox(height: 12),
-                if (branch != null) _performanceCard(api, app, branch),
-              ],
-            ],
-          ),
-        );
+    return RefreshIndicator(
+      onRefresh: () async {
+        await ref.read(appStateProvider.notifier).refreshBootstrap();
       },
-    );
-  }
-
-  Widget _welcomeHero(
-    BuildContext context,
-    AppState app,
-    Map<String, dynamic> employee,
-  ) {
-    final designation = _designation(app);
-    final name = '${employee['full_name'] ?? 'Employee'}'.trim();
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Icon(
-                    Icons.business_center_outlined,
-                    color: scheme.onPrimaryContainer,
-                    size: 19,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Good ${_dayPart()}',
-                        style:
-                            Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  color: scheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${app.branches.length} branches',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _CompactContext(
-                    label: 'Branch',
-                    value: _branchName(app),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _CompactContext(
-                    label: 'Role',
-                    value: designation,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _workspaceCards(BuildContext context, AppState app, bool desktop) {
-    final cards = [
-      _InfoCard(
-        icon: Icons.store_outlined,
-        label: 'Branch',
-        value: _branchName(app),
-      ),
-      _InfoCard(
-        icon: Icons.badge_outlined,
-        label: 'Designation',
-        value: _designation(app),
-      ),
-      _InfoCard(
-        icon: Icons.security_outlined,
-        label: 'Authority',
-        value:
-            '${app.branches.length} branch${app.branches.length == 1 ? '' : 'es'}',
-      ),
-    ];
-    if (desktop) {
-      return Row(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          Expanded(child: cards[0]),
-          const SizedBox(width: 12),
-          Expanded(child: cards[1]),
-          const SizedBox(width: 12),
-          Expanded(child: cards[2]),
-        ],
-      );
-    }
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        child: Column(
-          children: [
-            _CompactInfoRow(
-              icon: Icons.store_outlined,
-              label: 'Working branch',
-              value: _branchName(app),
-            ),
-            const Divider(height: 1),
-            _CompactInfoRow(
-              icon: Icons.badge_outlined,
-              label: 'Designation',
-              value: _designation(app),
-            ),
-            const Divider(height: 1),
-            _CompactInfoRow(
-              icon: Icons.security_outlined,
-              label: 'Branch authority',
-              value:
-                  '${app.branches.length} authorised branch${app.branches.length == 1 ? '' : 'es'}',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _dailyWorkPanel(
-    BuildContext context,
-    dynamic api,
-    AppState app,
-    int branch,
-  ) {
-    return AsyncPanel(
-      reloadToken: 'daily-work-$branch-${app.employeeName}',
-      future: _loadDailyWork(api, app, branch),
-      emptyMessage: 'Aaj ka work status available nahi hai.',
-      builder: (context, data) {
-        final d = Map<String, dynamic>.from(data as Map);
-        final attendance = Map<String, dynamic>.from(
-          (d['attendance'] as Map?) ?? const {},
-        );
-        final order = Map<String, dynamic>.from(
-          (d['order'] as Map?) ?? const {},
-        );
-        final tasks = int.tryParse('${d['tasks'] ?? 0}') ?? 0;
-        final unread = int.tryParse('${d['unread'] ?? 0}') ?? 0;
-        final status = '${order['status'] ?? ''}';
-        final next = _nextAction(status, attendance);
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Today & Next Action',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: openMyWork ??
-                          () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const Scaffold(
-                                    body: SafeArea(child: MyWorkScreen()),
-                                  ),
-                                ),
-                              ),
-                      icon: const Icon(Icons.arrow_forward, size: 18),
-                      label: const Text('Open My Work'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    _StatusPill(
-                      icon: Icons.how_to_reg_outlined,
-                      label: 'Attendance',
-                      value: attendance.isEmpty
-                          ? 'Pending'
-                          : BusinessFormat.status(
-                              attendance['status'] ?? 'Present',
+          _IdentityHero(app: app),
+          const SizedBox(height: 12),
+          const BranchSelector(),
+          const SizedBox(height: 12),
+          _AuthorityCard(app: app),
+          if (app.sectionVisible('my_work')) ...[
+            const SizedBox(height: 16),
+            _SectionTitle(
+              title: 'My Work',
+              subtitle: 'Only your authorised self-service work is shown here.',
+              action: TextButton.icon(
+                onPressed: openMyWork ??
+                    () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const Scaffold(
+                              body: SafeArea(child: MyWorkScreen()),
                             ),
-                    ),
-                    _StatusPill(
-                      icon: Icons.inventory_2_outlined,
-                      label: 'Daily Order',
-                      value:
-                          status.isEmpty ? 'Not Started' : _homeStatus(status),
-                    ),
-                    _StatusPill(
-                      icon: Icons.task_alt_outlined,
-                      label: 'Tasks',
-                      value: '$tasks Pending',
-                    ),
-                    _StatusPill(
-                      icon: Icons.notifications_none_rounded,
-                      label: 'Unread',
-                      value: '$unread',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.bolt_rounded,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        next,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<Map<String, dynamic>> _loadDailyWork(
-    dynamic api,
-    AppState app,
-    int branch,
-  ) async {
-    final futures = <Future<dynamic>>[
-      api.get(ApiPaths.attendanceToday),
-      api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}),
-      api.get(ApiPaths.communicationSummary),
-    ];
-    final results = await Future.wait(futures);
-    final attendance = results[0] is Map
-        ? Map<String, dynamic>.from(results[0] as Map)
-        : <String, dynamic>{};
-    final rows = ((results[1] as List?) ?? const [])
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
-    final communication = results[2] is Map
-        ? Map<String, dynamic>.from(results[2] as Map)
-        : <String, dynamic>{};
-    final employee = Map<String, dynamic>.from(
-      (app.me['employee'] as Map?) ?? const {},
-    );
-    final employeeId = int.tryParse('${employee['id'] ?? ''}');
-    final today = app.businessDate;
-    Map<String, dynamic> order = {};
-    for (final row in rows.reversed) {
-      final rowEmployee = int.tryParse('${row['employee_id'] ?? ''}');
-      if (rowEmployee == employeeId &&
-          '${row['business_date'] ?? ''}' == today) {
-        order = row;
-        break;
-      }
-    }
-    final tasks = ((communication['tasks'] as List?) ?? const []).length;
-    final unread = ((communication['notifications'] as List?) ?? const [])
-        .whereType<Map>()
-        .where((n) => n['read_at'] == null || '${n['read_at']}'.trim().isEmpty)
-        .length;
-    return {
-      'attendance': attendance,
-      'order': order,
-      'tasks': tasks,
-      'unread': unread,
-    };
-  }
-
-  String _nextAction(String status, Map<String, dynamic> attendance) {
-    if (attendance.isEmpty ||
-        '${attendance['check_in_at'] ?? ''}'.trim().isEmpty) {
-      return 'Next: Attendance Check-In';
-    }
-    return switch (status) {
-      '' => 'Next: Create today’s Daily Order',
-      'morning_draft' => 'Next: Submit Daily Order for approval',
-      'stock_requested' => 'Next: Approval pending',
-      'approved' => 'Next: Stock issue pending',
-      'issued' => 'Next: Field work / Additional Requirement / Evening Closing',
-      'evening_draft' => 'Next: Submit Evening Closing',
-      'evening_submitted' => 'Next: Office Final Post pending',
-      'completed' => 'Today’s Daily Order completed',
-      _ => 'Open My Work for pending action',
-    };
-  }
-
-  String _homeStatus(String status) => switch (status) {
-        'morning_draft' => 'Draft',
-        'stock_requested' => 'Approval Pending',
-        'approved' => 'Issue Pending',
-        'issued' => 'Evening Pending',
-        'evening_draft' => 'Evening Draft',
-        'evening_submitted' => 'Final Post Pending',
-        'completed' => 'Completed',
-        _ => BusinessFormat.status(status),
-      };
-
-  Widget _managementPanel(
-    BuildContext context,
-    dynamic api,
-    AppState app,
-    int branch,
-    bool desktop,
-  ) {
-    return AsyncPanel(
-      reloadToken: '$branch-${app.capabilities.join(',')}',
-      future: _loadManagement(api, app, branch),
-      emptyMessage: 'Management data is not available for this period.',
-      builder: (context, data) {
-        final d = Map<String, dynamic>.from(data as Map);
-        final sales = (d['sales'] as List<Map<String, dynamic>>?) ?? const [];
-        final purchases =
-            (d['purchases'] as List<Map<String, dynamic>>?) ?? const [];
-        final stock = (d['stock'] as List<Map<String, dynamic>>?) ?? const [];
-        final performance =
-            (d['performance'] as List<Map<String, dynamic>>?) ?? const [];
-        final daily = (d['daily'] as List<Map<String, dynamic>>?) ?? const [];
-
-        final gross = _sum(sales, 'gross_amount');
-        final collected = _sum(sales, 'paid_amount');
-        final outstanding = _sum(sales, 'outstanding_amount');
-        final purchase = _sum(purchases, 'total_amount');
-        final stockValue = stock.fold<num>(0, (sum, row) {
-          final qty = num.tryParse('${row['quantity'] ?? 0}') ?? 0;
-          final cost = num.tryParse('${row['average_unit_cost'] ?? 0}') ?? 0;
-          return sum + (qty * cost);
-        });
-        final pending = daily.where((r) {
-          final request = '${r['initial_request_status'] ?? ''}'.toLowerCase();
-          final status = '${r['status'] ?? ''}'.toLowerCase();
-          return request == 'submitted' ||
-              status == 'approved' ||
-              status == 'evening_submitted';
-        }).length;
-
-        final kpis = [
-          _Kpi('Gross Sales', BusinessFormat.money(gross), Icons.trending_up),
-          _Kpi(
-            'Collected',
-            BusinessFormat.money(collected),
-            Icons.payments_outlined,
-          ),
-          _Kpi(
-            'Outstanding',
-            BusinessFormat.money(outstanding),
-            Icons.pending_actions_outlined,
-          ),
-          _Kpi(
-            'Purchases',
-            BusinessFormat.money(purchase),
-            Icons.shopping_bag_outlined,
-          ),
-          _Kpi(
-            'Stock Value',
-            BusinessFormat.money(stockValue),
-            Icons.inventory_2_outlined,
-          ),
-          _Kpi('Pending Work', '$pending', Icons.approval_outlined),
-        ];
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (desktop)
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 2.5,
-                ),
-                itemCount: kpis.length,
-                itemBuilder: (_, i) => _KpiCard(kpi: kpis[i]),
-              )
-            else
-              SizedBox(
-                height: 112,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: kpis.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (_, i) =>
-                      SizedBox(width: 176, child: _KpiCard(kpi: kpis[i])),
-                ),
+                          ),
+                        ),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: const Text('Open'),
               ),
-            if (performance.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _PerformanceRanking(rows: performance.take(5).toList()),
+            ),
+            const SizedBox(height: 8),
+            if (app.can('workforce.attendance.self'))
+              _AttendanceCard(api: api),
+            if (branch != null && app.can('performance.view')) ...[
+              const SizedBox(height: 10),
+              _PersonalPerformanceCard(api: api, app: app, branch: branch),
             ],
           ],
-        );
-      },
-    );
-  }
-
-  Future<Map<String, dynamic>> _loadManagement(
-    dynamic api,
-    AppState app,
-    int branch,
-  ) async {
-    final period = {
-      'branch_id': branch,
-      'from': app.businessMonthStart,
-      'to': app.businessDate,
-    };
-    final futures = <Future<dynamic>>[
-      api.get(ApiPaths.reportsSales, query: period),
-      api.get(ApiPaths.reportsPurchase, query: period),
-      api.get(ApiPaths.reportsStock, query: {'branch_id': branch}),
-      api.get(ApiPaths.performanceSummary, query: period),
-    ];
-    final includeDaily = app.can('daily_order.others');
-    if (includeDaily) {
-      futures.add(api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}));
-    }
-    final values = await Future.wait(futures);
-    List<Map<String, dynamic>> rows(dynamic value) =>
-        ((value as List?) ?? const [])
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
-    return {
-      'sales': rows(values[0]),
-      'purchases': rows(values[1]),
-      'stock': rows(values[2]),
-      'performance': rows(values[3]),
-      'daily': includeDaily ? rows(values[4]) : <Map<String, dynamic>>[],
-    };
-  }
-
-  num _sum(List<Map<String, dynamic>> rows, String key) => rows.fold<num>(
-        0,
-        (sum, row) => sum + (num.tryParse('${row[key] ?? 0}') ?? 0),
-      );
-
-  Widget _attendanceCard(dynamic api) => AsyncPanel(
-        future: api.get(ApiPaths.attendanceToday),
-        emptyMessage: 'Aaj attendance start nahi hui.',
-        builder: (context, data) {
-          if (data == null) {
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    _HomeIcon(icon: Icons.schedule_rounded),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Attendance pending',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          SizedBox(height: 3),
-                          Text('Check-In karke duty start karein.'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-          final r = Map<String, dynamic>.from(data as Map);
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Row(
-                children: [
-                  const _HomeIcon(icon: Icons.verified_user_outlined),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          BusinessFormat.status('${r['status'] ?? 'present'}'),
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                            'Check-In: ${DateTimeText.local(r['check_in_at'])}'),
-                        Text(
-                            'Check-Out: ${DateTimeText.local(r['check_out_at'])}'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+          if (branch != null && app.managementDashboardVisible) ...[
+            const SizedBox(height: 18),
+            const _SectionTitle(
+              title: 'Management Overview',
+              subtitle:
+                  'Projected from your Team workspace, report authority and selected authorised branch.',
             ),
-          );
-        },
-      );
-
-  Widget _performanceCard(dynamic api, AppState app, int branch) => AsyncPanel(
-        reloadToken: branch,
-        future: api.get(
-          ApiPaths.performanceSummary,
-          query: {
-            'branch_id': branch,
-            'from': app.businessMonthStart,
-            'to': app.businessDate,
-            'employee_id': (app.me['employee'] as Map?)?['id'],
-          },
-        ),
-        emptyMessage: 'Is month performance posting nahi hai.',
-        builder: (context, data) {
-          final rows = (data as List)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
-          if (rows.isEmpty) return const SizedBox.shrink();
-          final r = rows.first;
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Row(
-                children: [
-                  const _HomeIcon(icon: Icons.insights_outlined),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Monthly Performance',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 6),
-                        Text('Points: ${BusinessFormat.quantity(r['points'])}'),
-                        Text(
-                          'Salary Fund: ${BusinessFormat.money(r['salary_fund'])}',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 8),
+            _ManagementOverview(api: api, app: app, branch: branch),
+          ],
+          if (!app.managementDashboardVisible && app.can('reports.view')) ...[
+            const SizedBox(height: 16),
+            const _InfoNotice(
+              icon: Icons.analytics_outlined,
+              text:
+                  'Report access is available, but Team management scope is not assigned. Management KPIs are therefore hidden from Home.',
             ),
-          );
-        },
-      );
-
-  String _designation(AppState app) {
-    final e = Map<String, dynamic>.from(
-      (app.me['employee'] as Map?) ?? const {},
+          ],
+        ],
+      ),
     );
-    final name = '${e['designation_name'] ?? ''}'.trim();
-    final code = '${e['designation_code'] ?? ''}'.trim();
-    if (name.isNotEmpty && code.isNotEmpty) return '$name ($code)';
-    if (name.isNotEmpty) return name;
-    return code.isNotEmpty ? code : '-';
-  }
-
-  String _branchName(AppState app) {
-    for (final b in app.branches) {
-      if (int.tryParse('${b['id']}') == app.currentBranchId)
-        return '${b['name']}';
-    }
-    return '-';
-  }
-
-  static String _dayPart() {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'morning';
-    if (h < 17) return 'afternoon';
-    return 'evening';
   }
 }
 
-class _CompactContext extends StatelessWidget {
-  const _CompactContext({required this.label, required this.value});
-  final String label;
-  final String value;
+class _IdentityHero extends StatelessWidget {
+  const _IdentityHero({required this.app});
+
+  final AppState app;
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) {
+    final reporting = _human(app.reportingCategory);
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .55),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-          ),
-        ],
-      );
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18),
-            const SizedBox(width: 7),
-            Text('$label: ', style: Theme.of(context).textTheme.labelMedium),
-            Text(
-              value,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelMedium
-                  ?.copyWith(fontWeight: FontWeight.w800),
-            ),
-          ],
-        ),
-      );
-}
-
-class _CompactInfoRow extends StatelessWidget {
-  const _CompactInfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: scheme.primary.withValues(alpha: .09),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 20, color: scheme.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelMedium
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HomeIcon extends StatelessWidget {
-  const _HomeIcon({required this.icon});
-
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: scheme.primary.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      alignment: Alignment.center,
-      child: Icon(icon, size: 25, color: scheme.primary),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
+          Row(
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 22),
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                child: const Icon(Icons.person_rounded, color: Colors.white),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label, style: Theme.of(context).textTheme.labelMedium),
-                    const SizedBox(height: 3),
                     Text(
-                      value,
+                      'Good ${_dayPart()}, ${app.employeeName}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      app.primaryDesignationLabel,
+                      style: Theme.of(context).textTheme.bodyMedium
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ],
@@ -957,53 +131,370 @@ class _InfoCard extends StatelessWidget {
               ),
             ],
           ),
+          if (reporting.isNotEmpty || app.additionalDesignations.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (reporting.isNotEmpty)
+                  _ContextChip(
+                    icon: Icons.account_tree_outlined,
+                    label: 'Reporting: $reporting',
+                  ),
+                if (app.additionalDesignations.isNotEmpty)
+                  _ContextChip(
+                    icon: Icons.badge_outlined,
+                    label:
+                        '${app.additionalDesignations.length} additional designation${app.additionalDesignations.length == 1 ? '' : 's'}',
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _human(String value) {
+    if (value.trim().isEmpty) return '';
+    return value
+        .split('_')
+        .where((e) => e.isNotEmpty)
+        .map((e) => '${e[0]}${e.substring(1).toLowerCase()}')
+        .join(' ');
+  }
+
+  static String _dayPart() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    return 'evening';
+  }
+}
+
+class _AuthorityCard extends StatelessWidget {
+  const _AuthorityCard({required this.app});
+
+  final AppState app;
+
+  @override
+  Widget build(BuildContext context) {
+    final extras = app.additionalDesignations.length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            _AuthorityRow(
+              icon: Icons.store_outlined,
+              label: 'Working Branch',
+              value: app.currentBranchName,
+            ),
+            const Divider(height: 18),
+            _AuthorityRow(
+              icon: Icons.security_outlined,
+              label: 'Branch Authority',
+              value:
+                  '${app.branches.length} authorised branch${app.branches.length == 1 ? '' : 'es'}',
+            ),
+            if (extras > 0) ...[
+              const Divider(height: 18),
+              _AuthorityRow(
+                icon: Icons.add_moderator_outlined,
+                label: 'Extra Designations',
+                value: '$extras responsibility assignment${extras == 1 ? '' : 's'} · no authority inheritance',
+              ),
+            ],
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _AttendanceCard extends StatelessWidget {
+  const _AttendanceCard({required this.api});
+
+  final dynamic api;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<dynamic>(
+        future: api.get(ApiPaths.attendanceToday),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const _LoadingCard(label: 'Loading attendance…');
+          }
+          if (snapshot.hasError) {
+            return const _InfoNotice(
+              icon: Icons.info_outline,
+              text: 'Attendance status is temporarily unavailable.',
+            );
+          }
+          final row = snapshot.data is Map
+              ? Map<String, dynamic>.from(snapshot.data as Map)
+              : <String, dynamic>{};
+          if (row.isEmpty) {
+            return const _InfoNotice(
+              icon: Icons.schedule_outlined,
+              text: 'Attendance is not checked in yet.',
+            );
+          }
+          final gps = BusinessFormat.status(row['gps_status'] ?? 'unknown');
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.how_to_reg_outlined),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Today’s Attendance',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      Chip(label: Text(BusinessFormat.status(row['status']))),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text('Check-In: ${DateTimeText.local(row['check_in_at'])}'),
+                  Text('Check-Out: ${DateTimeText.local(row['check_out_at'])}'),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Duty GPS: $gps · route lifecycle is automatic',
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: ExcelBrand.muted),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       );
 }
 
-class _Kpi {
-  const _Kpi(this.label, this.value, this.icon);
+class _PersonalPerformanceCard extends StatelessWidget {
+  const _PersonalPerformanceCard({
+    required this.api,
+    required this.app,
+    required this.branch,
+  });
+
+  final dynamic api;
+  final AppState app;
+  final int branch;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<dynamic>(
+        future: api.get(
+          ApiPaths.performanceSummary,
+          query: {
+            'branch_id': branch,
+            'from': app.businessMonthStart,
+            'to': app.businessDate,
+            'employee_id': app.employee['id'],
+          },
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const _LoadingCard(label: 'Loading performance…');
+          }
+          if (snapshot.hasError || snapshot.data is! List) {
+            return const SizedBox.shrink();
+          }
+          final rows = (snapshot.data as List)
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList(growable: false);
+          if (rows.isEmpty) return const SizedBox.shrink();
+          final row = rows.first;
+          return Card(
+            child: ListTile(
+              leading: const Icon(Icons.insights_outlined),
+              title: const Text('My Monthly Performance'),
+              subtitle: Text(
+                'Points ${BusinessFormat.quantity(row['points'])} · Salary Fund ${BusinessFormat.money(row['salary_fund'])}',
+              ),
+            ),
+          );
+        },
+      );
+}
+
+class _ManagementOverview extends StatelessWidget {
+  const _ManagementOverview({
+    required this.api,
+    required this.app,
+    required this.branch,
+  });
+
+  final dynamic api;
+  final AppState app;
+  final int branch;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
+        future: _load(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const _LoadingCard(label: 'Loading management summary…');
+          }
+          if (snapshot.hasError) {
+            return const _InfoNotice(
+              icon: Icons.info_outline,
+              text: 'Management summary is temporarily unavailable.',
+            );
+          }
+          final data = snapshot.data ?? const <String, dynamic>{};
+          final cards = <_Metric>[];
+          final sales = (data['sales'] as List<Map<String, dynamic>>?) ?? const [];
+          if (sales.isNotEmpty) {
+            cards.add(
+              _Metric(
+                'Gross Sales',
+                BusinessFormat.money(_sum(sales, 'gross_amount')),
+                Icons.trending_up_rounded,
+              ),
+            );
+            cards.add(
+              _Metric(
+                'Outstanding',
+                BusinessFormat.money(_sum(sales, 'outstanding_amount')),
+                Icons.pending_actions_outlined,
+              ),
+            );
+          }
+          final daily = (data['daily'] as List<Map<String, dynamic>>?) ?? const [];
+          if (daily.isNotEmpty || app.can('daily_order.others')) {
+            final pending = daily.where((row) {
+              final status = '${row['status'] ?? ''}'.toLowerCase();
+              return status != 'completed' && status != 'cancelled';
+            }).length;
+            cards.add(_Metric('Pending Daily Work', '$pending', Icons.approval_outlined));
+          }
+          final performance =
+              (data['performance'] as List<Map<String, dynamic>>?) ?? const [];
+          if (performance.isNotEmpty) {
+            cards.add(
+              _Metric(
+                'Team Points',
+                BusinessFormat.quantity(_sum(performance, 'points')),
+                Icons.leaderboard_outlined,
+              ),
+            );
+          }
+          if (cards.isEmpty) {
+            return const _InfoNotice(
+              icon: Icons.dashboard_outlined,
+              text: 'No management KPI is available for your current authority.',
+            );
+          }
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth >= 800
+                  ? (constraints.maxWidth - 24) / 3
+                  : constraints.maxWidth >= 500
+                      ? (constraints.maxWidth - 12) / 2
+                      : constraints.maxWidth;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final metric in cards)
+                    SizedBox(width: width, child: _MetricCard(metric: metric)),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+  Future<Map<String, dynamic>> _load() async {
+    final period = {
+      'branch_id': branch,
+      'from': app.businessMonthStart,
+      'to': app.businessDate,
+    };
+    final result = <String, dynamic>{};
+
+    // Management Overview is intentionally capability-by-capability. One extra
+    // designation or reporting category can never make these requests appear.
+    try {
+      result['sales'] = _rows(await api.get(ApiPaths.reportsSales, query: period));
+    } catch (_) {
+      result['sales'] = <Map<String, dynamic>>[];
+    }
+    if (app.can('daily_order.others')) {
+      try {
+        result['daily'] = _rows(
+          await api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}),
+        );
+      } catch (_) {
+        result['daily'] = <Map<String, dynamic>>[];
+      }
+    }
+    if (app.can('performance.view')) {
+      try {
+        result['performance'] =
+            _rows(await api.get(ApiPaths.performanceSummary, query: period));
+      } catch (_) {
+        result['performance'] = <Map<String, dynamic>>[];
+      }
+    }
+    return result;
+  }
+
+  static List<Map<String, dynamic>> _rows(dynamic value) =>
+      ((value as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(growable: false);
+
+  static num _sum(List<Map<String, dynamic>> rows, String key) => rows.fold<num>(
+        0,
+        (sum, row) => sum + (BusinessFormat.number(row[key]) ?? 0),
+      );
+}
+
+class _Metric {
+  const _Metric(this.label, this.value, this.icon);
+
   final String label;
   final String value;
   final IconData icon;
 }
 
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({required this.kpi});
-  final _Kpi kpi;
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({required this.metric});
+
+  final _Metric metric;
 
   @override
   Widget build(BuildContext context) => Card(
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(15),
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor:
-                    Theme.of(context).colorScheme.secondaryContainer,
-                child: Icon(kpi.icon, size: 20),
+                backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                child: Icon(metric.icon),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(metric.label, style: Theme.of(context).textTheme.labelMedium),
+                    const SizedBox(height: 3),
                     Text(
-                      kpi.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      kpi.value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                      metric.value,
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w900),
                     ),
                   ],
                 ),
@@ -1014,72 +505,145 @@ class _KpiCard extends StatelessWidget {
       );
 }
 
-class _PerformanceRanking extends StatelessWidget {
-  const _PerformanceRanking({required this.rows});
-  final List<Map<String, dynamic>> rows;
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.title,
+    required this.subtitle,
+    this.action,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget? action;
 
   @override
-  Widget build(BuildContext context) {
-    final maxPoints = rows.fold<double>(0, (max, row) {
-      final p = double.tryParse('${row['points'] ?? 0}') ?? 0;
-      return p > max ? p : max;
-    });
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.leaderboard_outlined, size: 22),
-                const SizedBox(width: 8),
                 Text(
-                  'Top Performance',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: ExcelBrand.muted),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            for (var i = 0; i < rows.length; i++) ...[
-              Row(
-                children: [
-                  SizedBox(width: 24, child: Text('${i + 1}.')),
-                  Expanded(
-                    child: Text(
-                      '${rows[i]['full_name'] ?? 'Employee'}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    BusinessFormat.quantity(
-                      num.tryParse('${rows[i]['points'] ?? 0}') ?? 0,
-                    ),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 5),
-              LinearProgressIndicator(
-                value: maxPoints <= 0
-                    ? 0
-                    : ((double.tryParse('${rows[i]['points'] ?? 0}') ?? 0) /
-                            maxPoints)
-                        .clamp(0, 1)
-                        .toDouble(),
-                minHeight: 6,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              if (i != rows.length - 1) const SizedBox(height: 12),
-            ],
+          ),
+          if (action != null) action!,
+        ],
+      );
+}
+
+class _AuthorityRow extends StatelessWidget {
+  const _AuthorityRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 21, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _ContextChip extends StatelessWidget {
+  const _ContextChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: .76),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16),
+            const SizedBox(width: 6),
+            Text(label, style: Theme.of(context).textTheme.labelMedium),
           ],
         ),
-      ),
-    );
-  }
+      );
+}
+
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Text(label),
+            ],
+          ),
+        ),
+      );
+}
+
+class _InfoNotice extends StatelessWidget {
+  const _InfoNotice({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text)),
+          ],
+        ),
+      );
 }
