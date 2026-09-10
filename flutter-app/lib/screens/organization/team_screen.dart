@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/business_format.dart';
 import '../../core/daily_order_workflow.dart';
 import '../../core/stock_allocation.dart';
 import '../../core/providers.dart';
@@ -11,6 +12,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import 'employee_designations_screen.dart';
 
 class TeamScreen extends ConsumerStatefulWidget {
   const TeamScreen({super.key});
@@ -21,6 +23,7 @@ class TeamScreen extends ConsumerStatefulWidget {
 class _TeamScreenState extends ConsumerState<TeamScreen> {
   int refresh = 0;
   String? message;
+
   @override
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
@@ -76,12 +79,32 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
           ),
         ),
       ));
+      tabs.add((
+        'GPS Team',
+        AsyncPanel(
+          key: ValueKey('gps-${app.currentBranchId}-$refresh'),
+          future: app.currentBranchId == null
+              ? Future.value(const <dynamic>[])
+              : api.get(
+                  ApiPaths.gpsTeam,
+                  query: {'branch_id': app.currentBranchId},
+                ),
+          emptyMessage: 'No employee is visible in this GPS scope.',
+          builder: (context, data) => _GpsTeamList(
+            rows: (data as List)
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList(),
+            onRoute: _gpsRoute,
+          ),
+        ),
+      ));
     }
     if (app.can('organization.employee.view')) {
       tabs.add((
         'Employees',
         AsyncPanel(
-          reloadToken: app.currentBranchId,
+          key: ValueKey('e-${app.currentBranchId}-$refresh'),
+          reloadToken: '${app.currentBranchId}-$refresh',
           future: app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
@@ -93,6 +116,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
             rows: (data as List)
                 .map((e) => Map<String, dynamic>.from(e as Map))
                 .toList(),
+            onTap: _employeeDesignations,
           ),
         ),
       ));
@@ -107,7 +131,10 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Team Operations'),
-          bottom: TabBar(tabs: [for (final tab in tabs) Tab(text: tab.$1)]),
+          bottom: TabBar(
+            isScrollable: tabs.length > 3,
+            tabs: [for (final tab in tabs) Tab(text: tab.$1)],
+          ),
         ),
         body: Column(
           children: [
@@ -126,6 +153,88 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _employeeDesignations(Map<String, dynamic> row) async {
+    final id = int.tryParse('${row['id'] ?? row['employee_id'] ?? ''}') ?? 0;
+    if (id <= 0) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => EmployeeDesignationsScreen(
+          employeeId: id,
+          employeeName: '${row['full_name'] ?? row['employee_name'] ?? 'Employee'}',
+        ),
+      ),
+    );
+    if (mounted) setState(() => refresh++);
+  }
+
+  Future<void> _gpsRoute(Map<String, dynamic> row) async {
+    final employeeId = int.tryParse('${row['employee_id'] ?? ''}') ?? 0;
+    if (employeeId <= 0) return;
+    final app = ref.read(appStateProvider);
+    final date = DateTime.tryParse(app.businessDate) ?? DateTime.now();
+    final from = DateTime(date.year, date.month, date.day).toUtc();
+    final to = DateTime(date.year, date.month, date.day, 23, 59, 59).toUtc();
+    try {
+      final data = await ref.read(apiClientProvider).get(
+        ApiPaths.gpsRoute,
+        query: {
+          'employee_id': employeeId,
+          'from': from.toIso8601String(),
+          'to': to.toIso8601String(),
+        },
+      );
+      if (!mounted) return;
+      final points = (data as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(growable: false);
+      await showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: .72,
+          maxChildSize: .94,
+          builder: (_, controller) => ListView(
+            controller: controller,
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                '${row['full_name'] ?? 'Employee'} · Today’s Route',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Route visibility follows the same reporting hierarchy and authorised branch scope as the team list.',
+                style: TextStyle(color: Colors.black54),
+              ),
+              const SizedBox(height: 12),
+              if (points.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: Text('No GPS route points recorded.')),
+                )
+              else
+                for (final point in points)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.location_on_outlined),
+                    title: Text(
+                      '${point['latitude'] ?? '—'}, ${point['longitude'] ?? '—'}',
+                    ),
+                    subtitle: Text(
+                      '${BusinessFormat.dateTime(point['recorded_at'])} · accuracy ${point['accuracy_m'] ?? '—'} m',
+                    ),
+                  ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
   }
 
   Future<void> _dailyDetail(Map<String, dynamic> row) async {
@@ -263,5 +372,50 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
       if (mounted) setState(() => message = UiError.message(e));
     }
   }
+}
 
+class _GpsTeamList extends StatelessWidget {
+  const _GpsTeamList({required this.rows, required this.onRoute});
+
+  final List<Map<String, dynamic>> rows;
+  final ValueChanged<Map<String, dynamic>> onRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return const Center(child: Text('No employee is visible in this GPS scope.'));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+      itemCount: rows.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 6),
+      itemBuilder: (context, index) {
+        final row = rows[index];
+        final status = '${row['gps_status'] ?? row['status'] ?? 'unknown'}';
+        final hasPoint = row['latitude'] != null && row['longitude'] != null;
+        return Card(
+          child: ListTile(
+            leading: Icon(
+              status == 'active'
+                  ? Icons.location_searching_rounded
+                  : status == 'scheduled'
+                      ? Icons.schedule_outlined
+                      : Icons.location_off_outlined,
+            ),
+            title: Text('${row['full_name'] ?? 'Employee'}'),
+            subtitle: Text(
+              '${row['employee_code'] ?? ''} · ${BusinessFormat.status(row['reporting_category'])}\n'
+              '${BusinessFormat.status(status)}${hasPoint ? ' · ${BusinessFormat.dateTime(row['latest_gps_at'])}' : ' · no point yet'}',
+            ),
+            isThreeLine: true,
+            trailing: IconButton(
+              tooltip: 'View route',
+              onPressed: () => onRoute(row),
+              icon: const Icon(Icons.route_outlined),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
