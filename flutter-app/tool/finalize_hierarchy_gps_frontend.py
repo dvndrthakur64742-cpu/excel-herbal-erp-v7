@@ -126,6 +126,8 @@ def verify_current_frontend() -> None:
         authority_test,
         [
             'additional designation never manufactures authority',
+            'reporting category alone is grouping and never grants authority',
+            'authority inheritance marker cannot manufacture client permissions',
             'reports-only role does not get management dashboard',
             'stale ERP Tools bottom-nav entry is hidden without tool authority',
             'zero branch authority blocks business access even with capabilities',
