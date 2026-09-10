@@ -32,30 +32,51 @@ def verify_current_frontend() -> None:
         [
             'if (app.erpToolsVisible)',
             "if (id == 'erp_tools') return app.erpToolsVisible;",
+            "'assets/branding/excel-herbal-logo.webp'",
+            "'My Account & Duty'",
+            "'WORKSPACE TOOLS'",
         ],
         'Shell',
     )
-    forbid(shell, ["{'home', 'profile', 'erp_tools'}"], 'Shell')
+    forbid(
+        shell,
+        [
+            "{'home', 'profile', 'erp_tools'}",
+            "label: 'ERP Tools'",
+            "'TOOLS & CONTROL'",
+        ],
+        'Shell',
+    )
 
     require(
         tools,
         [
             "if (app.can('workforce.attendance.self'))",
+            "title: const Text('My Account & Duty')",
             'Refresh duty GPS status',
             'There is no manual route Start/Stop.',
             'BusinessFormat.status(tracker.dutyStatus)',
+            "if (app.can('administration.access.manage')) ...[",
+            "title: 'App Version Policy'",
         ],
-        'ERP Tools',
+        'Account & Duty',
     )
     forbid(
         tools,
         [
+            "title: const Text('ERP Tools')",
             "label: const Text('Start')",
             "label: const Text('Stop')",
             "label: const Text('Sync current location now')",
             'ref.read(gpsTrackingProvider).stop()',
+            'Ye holiday',
+            'Is device par bhi',
+            'housekeeping run karega',
+            'secure channel se batayein',
+            'sessions logout ho jayenge',
+            'characters rakhein',
         ],
-        'ERP Tools',
+        'Account & Duty',
     )
 
     require(
@@ -105,6 +126,8 @@ def verify_current_frontend() -> None:
             "'organization.employee.manage'",
             'No manager is auto-assigned.',
             'Reporting Category and Additional Designations are not used to create authority.',
+            'No attendance records for the selected period.',
+            'Select an authorised branch to continue.',
             'ApiPaths.gpsTeam',
             'ApiPaths.gpsRoute',
             'Route visibility follows the same reporting hierarchy and authorised branch scope as the team list.',
