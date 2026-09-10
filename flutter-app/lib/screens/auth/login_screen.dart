@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_config.dart';
-import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
 
@@ -17,6 +16,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final mobile = TextEditingController();
   final password = TextEditingController();
   bool obscure = true;
+  String? validationError;
 
   @override
   void dispose() {
@@ -28,6 +28,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
+    final error = validationError ?? app.error;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -112,6 +113,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           controller: mobile,
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.next,
+                          onChanged: (_) => _clearValidationError(),
                           decoration: const InputDecoration(
                             labelText: 'Mobile number',
                             prefixIcon: Icon(Icons.phone_outlined),
@@ -121,6 +123,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         TextField(
                           controller: password,
                           obscureText: obscure,
+                          onChanged: (_) => _clearValidationError(),
                           onSubmitted: (_) => _login(app.loading),
                           decoration: InputDecoration(
                             labelText: 'Password',
@@ -139,7 +142,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                         ),
-                        if (app.error != null) ...[
+                        if (error != null) ...[
                           const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -158,7 +161,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    UiError.message(Exception(app.error!)),
+                                    error,
                                     style: const TextStyle(
                                       color: Color(0xFF8C2D2D),
                                       fontWeight: FontWeight.w600,
@@ -202,10 +205,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  void _clearValidationError() {
+    if (validationError != null) {
+      setState(() => validationError = null);
+    }
+  }
+
   void _login(bool loading) {
     if (loading) return;
-    ref
-        .read(appStateProvider.notifier)
-        .login(mobile.text.trim(), password.text);
+    final mobileValue = mobile.text.trim();
+    if (mobileValue.isEmpty) {
+      setState(() => validationError = 'Enter your mobile number.');
+      return;
+    }
+    if (password.text.isEmpty) {
+      setState(() => validationError = 'Enter your password.');
+      return;
+    }
+    if (validationError != null) {
+      setState(() => validationError = null);
+    }
+    ref.read(appStateProvider.notifier).login(mobileValue, password.text);
   }
 }
