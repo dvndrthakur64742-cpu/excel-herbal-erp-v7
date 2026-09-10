@@ -98,6 +98,13 @@ def verify_current_frontend() -> None:
         team,
         [
             "if (app.can('workforce.attendance.manage'))",
+            "'Hierarchy'",
+            'Reporting Hierarchy Readiness',
+            "'status': 'active'",
+            "'limit': 200",
+            "'organization.employee.manage'",
+            'No manager is auto-assigned.',
+            'Reporting Category and Additional Designations are not used to create authority.',
             'ApiPaths.gpsTeam',
             'ApiPaths.gpsRoute',
             'Route visibility follows the same reporting hierarchy and authorised branch scope as the team list.',
