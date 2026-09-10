@@ -148,6 +148,28 @@ void main() {
     expect(state.bottomNav.map((e) => e['id']), ['home', 'profile']);
   });
 
+  test('technical admin caps alone do not expose account duty workspace', () {
+    final state = _state(
+      capabilities: const [
+        'erp.access',
+        'administration.access.manage',
+        'administration.audit.view',
+      ],
+      sections: const [
+        {'id': 'home', 'label': 'Home'},
+        {'id': 'administration', 'label': 'Administration'},
+      ],
+      bottomNav: const [
+        {'id': 'home', 'label': 'Home'},
+        {'id': 'erp_tools', 'label': 'ERP Tools'},
+        {'id': 'profile', 'label': 'Profile'},
+      ],
+    );
+
+    expect(state.erpToolsVisible, isFalse);
+    expect(state.bottomNav.map((e) => e['id']), ['home', 'profile']);
+  });
+
   test('ERP Tools remains visible when projected capability needs it', () {
     final state = _state(
       capabilities: const ['erp.access', 'communication.view'],
