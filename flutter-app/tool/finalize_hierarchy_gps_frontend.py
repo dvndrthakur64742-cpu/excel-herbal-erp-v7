@@ -102,6 +102,7 @@ def verify_current_frontend() -> None:
             "{'id': 'profile', 'label': 'Profile'},",
             'if (!businessAccessBlocked) return projected;',
             ".where((section) => '${section['id']}' == 'home')",
+            "if (businessAccessBlocked) return 'No Authorised Branch';",
             'bool get managementDashboardVisible =>',
             "sectionVisible('team') && can('reports.view')",
             "if (id == 'erp_tools') return erpToolsVisible;",
@@ -205,6 +206,8 @@ def verify_current_frontend() -> None:
     require(
         home,
         [
+            'app.businessAccessBlocked',
+            'No authorised branch is assigned to your account. Business modules are locked until branch access is configured.',
             'app.managementDashboardVisible',
             'Report access is available, but Team management scope is not assigned.',
             'route lifecycle is automatic',
@@ -317,6 +320,7 @@ def verify_current_frontend() -> None:
             'technical admin caps alone do not expose account duty workspace',
             'aggregate branch scope remains limited to authorised branch ids',
             'zero branch authority blocks business access even with capabilities',
+            "expect(state.currentBranchName, 'No Authorised Branch');",
             "expect(state.can('reports.view'), isFalse);",
             "expect(state.sections.map((e) => e['id']), ['home']);",
             "expect(state.bottomNav.map((e) => e['id']), ['home', 'profile']);",
