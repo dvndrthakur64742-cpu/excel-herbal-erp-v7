@@ -44,7 +44,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('ERP Tools'),
+          title: const Text('My Account & Duty'),
           actions: [
             IconButton(
               tooltip: 'Refresh',
@@ -397,7 +397,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                             onPressed: () async {
                               final ok = await _confirm(
                                 'Deactivate holiday?',
-                                'Ye holiday active list se deactivate ho jayega. Continue?',
+                                'This holiday will be removed from the active list. Continue?',
                               );
                               if (ok != true) return;
                               await _post(
@@ -437,8 +437,10 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
                   const SizedBox(height: 3),
                   Text(
                     message,
@@ -470,7 +472,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
             onPressed: () async {
               final ok = await _confirm(
                 'Logout all devices?',
-                'Is device par bhi dobara login karna padega.',
+                'You will also need to sign in again on this device.',
               );
               if (ok != true) return;
               try {
@@ -728,7 +730,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                     onPressed: () async {
                       final ok = await _confirm(
                         'Run backend cleanup?',
-                        'Maintenance cleanup backend data housekeeping run karega. Sirf jab diagnostics/maintenance ke liye zaroori ho tab continue karein.',
+                        'Run maintenance cleanup for backend housekeeping? Continue only when diagnostics or maintenance requires it.',
                       );
                       if (ok != true) return;
                       await _post(ApiPaths.maintenanceCleanup, const {});
@@ -740,12 +742,14 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
             future: api.get(ApiPaths.diagnostics),
             builder: (data) => SelectableText(_pretty(data)),
           ),
-        const SizedBox(height: 12),
-        _futureCard(
-          title: 'App Version Policy',
-          future: _versionPolicy(),
-          builder: (data) => SelectableText(_pretty(data)),
-        ),
+        if (app.can('administration.access.manage')) ...[
+          const SizedBox(height: 12),
+          _futureCard(
+            title: 'App Version Policy',
+            future: _versionPolicy(),
+            builder: (data) => SelectableText(_pretty(data)),
+          ),
+        ],
       ],
     );
   }
@@ -1183,7 +1187,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  'Password manually employee ko secure channel se batayein.',
+                  'Share the password with the employee only through an approved secure channel.',
                 ),
               ],
             ),
@@ -1193,7 +1197,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
               onPressed: () async {
                 final ok = await _confirm(
                   'Revoke employee sessions?',
-                  'Is employee ke sab active app sessions logout ho jayenge. Continue?',
+                  'All active app sessions for this employee will be signed out. Continue?',
                 );
                 if (ok != true) return;
                 try {
@@ -1212,7 +1216,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
             FilledButton(
               onPressed: () async {
                 if (password.text.length < 8) {
-                  _msg('Password minimum 8 characters rakhein.');
+                  _msg('Password must contain at least 8 characters.');
                   return;
                 }
                 try {
