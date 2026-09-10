@@ -204,6 +204,7 @@ void main() {
         capabilities: const [
           'erp.access',
           'reports.view',
+          'organization.employee.view',
           'administration.access.manage',
         ],
         sectionIds: const ['home', 'team', 'reports', 'administration'],
@@ -212,6 +213,15 @@ void main() {
 
       expect(state.businessAccessBlocked, isTrue);
       expect(state.currentBranchId, isNull);
+      expect(state.can('erp.access'), isTrue);
+      expect(state.can('reports.view'), isFalse);
+      expect(state.can('organization.employee.view'), isFalse);
+      expect(state.can('administration.access.manage'), isFalse);
+      expect(state.sectionVisible('team'), isFalse);
+      expect(state.sectionVisible('reports'), isFalse);
+      expect(state.sectionVisible('administration'), isFalse);
+      expect(state.managementDashboardVisible, isFalse);
+      expect(state.bottomNav.map((e) => e['id']), ['home', 'profile']);
     });
   });
 }
