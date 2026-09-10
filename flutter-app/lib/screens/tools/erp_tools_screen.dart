@@ -27,9 +27,11 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     final tabs = <(String, IconData, Widget)>[
-      ('Duty', Icons.location_on_outlined, _dutyTab(app)),
+      if (app.can('workforce.attendance.self'))
+        ('Duty', Icons.location_on_outlined, _dutyTab(app)),
       ('My Account', Icons.badge_outlined, _accountTab(app)),
-      ('Communication', Icons.notifications_outlined, _communicationTab(app)),
+      if (app.can('communication.view'))
+        ('Communication', Icons.notifications_outlined, _communicationTab(app)),
       if (app.canAny(const [
         'organization.employee.manage',
         'administration.access.manage',
@@ -104,7 +106,10 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     ).toUtc().toIso8601String();
 
     return RefreshIndicator(
-      onRefresh: () async => setState(() => refresh++),
+      onRefresh: () async {
+        await ref.read(gpsTrackingProvider).sync();
+        if (mounted) setState(() => refresh++);
+      },
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
@@ -153,9 +158,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            tracker.active
-                                ? 'Tracking active'
-                                : 'Tracking stopped',
+                            BusinessFormat.status(tracker.dutyStatus),
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
@@ -181,7 +184,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        tracker.active ? 'ACTIVE' : 'OFF',
+                        BusinessFormat.status(tracker.dutyStatus).toUpperCase(),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w900,
@@ -244,58 +247,51 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: tracker.active
-                            ? null
-                            : () async {
-                                try {
-                                  await ref.read(gpsTrackingProvider).start();
-                                  _msg('Duty GPS tracking started.');
-                                } catch (e) {
-                                  _msg(UiError.message(e));
-                                }
-                              },
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Start'),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: ExcelBrand.primarySoft,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.policy_outlined,
+                        size: 19,
+                        color: ExcelBrand.primaryDark,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: tracker.active
-                            ? () {
-                                ref.read(gpsTrackingProvider).stop();
-                                _msg('Duty GPS tracking stopped.');
-                              }
-                            : null,
-                        icon: const Icon(Icons.stop_rounded),
-                        label: const Text('Stop'),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Duty GPS starts automatically from attendance/server policy and stops after checkout or the duty cutoff. There is no manual route Start/Stop.',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: tracker.active
-                        ? () async {
-                            try {
-                              await ref.read(gpsTrackingProvider).sendNow();
-                              if (ref.read(gpsTrackingProvider).lastError ==
-                                  null) {
-                                _msg('Current GPS point synced.');
-                              }
-                            } catch (e) {
-                              _msg(UiError.message(e));
+                  child: OutlinedButton.icon(
+                    onPressed: tracker.sending
+                        ? null
+                        : () async {
+                            await ref.read(gpsTrackingProvider).sync();
+                            if (mounted) {
+                              _msg('Duty GPS status refreshed.');
                             }
-                          }
-                        : null,
-                    icon: const Icon(Icons.my_location_rounded),
-                    label: const Text('Sync current location now'),
+                          },
+                    icon: tracker.sending
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sync_rounded),
+                    label: const Text('Refresh duty GPS status'),
                   ),
                 ),
               ],
@@ -312,8 +308,8 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   Icons.route_outlined,
                   'No route points yet',
                   tracker.active
-                      ? 'The first valid duty location will appear here after sync.'
-                      : 'Start duty tracking after check-in to record today’s route.',
+                      ? 'The first valid duty location will appear here after the automatic sync.'
+                      : 'Check in first. Duty route tracking starts automatically inside the server-owned GPS window.',
                 );
               }
               return Column(
