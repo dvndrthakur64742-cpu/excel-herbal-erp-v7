@@ -95,6 +95,13 @@ def verify_current_frontend() -> None:
     require(
         state,
         [
+            'bool get businessAccessBlocked =>',
+            "if (businessAccessBlocked && capability != 'erp.access') return false;",
+            'if (businessAccessBlocked) {',
+            "{'id': 'home', 'label': 'Home'},",
+            "{'id': 'profile', 'label': 'Profile'},",
+            'if (!businessAccessBlocked) return projected;',
+            ".where((section) => '${section['id']}' == 'home')",
             'bool get managementDashboardVisible =>',
             "sectionVisible('team') && can('reports.view')",
             "if (id == 'erp_tools') return erpToolsVisible;",
@@ -310,6 +317,9 @@ def verify_current_frontend() -> None:
             'technical admin caps alone do not expose account duty workspace',
             'aggregate branch scope remains limited to authorised branch ids',
             'zero branch authority blocks business access even with capabilities',
+            "expect(state.can('reports.view'), isFalse);",
+            "expect(state.sections.map((e) => e['id']), ['home']);",
+            "expect(state.bottomNav.map((e) => e['id']), ['home', 'profile']);",
         ],
         'Authority regression tests',
     )
@@ -325,6 +335,9 @@ def verify_current_frontend() -> None:
             'system admin can project administration without changing hierarchy rules',
             'accounting-only profile gets accounting but no team dashboard',
             'zero authorised branches blocks business access for every role',
+            "expect(state.can('reports.view'), isFalse);",
+            "expect(state.sectionVisible('administration'), isFalse);",
+            "expect(state.bottomNav.map((e) => e['id']), ['home', 'profile']);",
         ],
         'Role projection matrix tests',
     )
