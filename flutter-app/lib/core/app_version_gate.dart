@@ -5,6 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api_client.dart';
 import 'api_paths.dart';
 
+bool isAppUpdateRequired(Map<String, dynamic>? policy) =>
+    policy?['force_update'] == true || policy?['update_required'] == true;
+
 class AppVersionGate extends StatefulWidget {
   const AppVersionGate({super.key, required this.api, required this.child});
   final ApiClient api;
@@ -44,11 +47,7 @@ class _AppVersionGateState extends State<AppVersionGate> {
       future: _policy,
       builder: (context, snapshot) {
         final policy = snapshot.data;
-        // v7 backend contract uses force_update. update_required remains a
-        // compatibility fallback for any older policy projection.
-        final required = policy?['force_update'] == true ||
-            policy?['update_required'] == true;
-        if (!required) return widget.child;
+        if (!isAppUpdateRequired(policy)) return widget.child;
         final message = '${policy?['message'] ?? 'App update required.'}';
         final url = '${policy?['update_url'] ?? ''}'.trim();
         return Scaffold(
