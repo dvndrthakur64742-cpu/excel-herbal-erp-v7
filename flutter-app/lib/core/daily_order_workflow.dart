@@ -17,10 +17,17 @@ abstract final class DailyOrderWorkflow {
 
   static bool canApproveRequest(
     String requestStatus,
-    Iterable<String> capabilities,
-  ) =>
-      requestStatus == 'submitted' &&
-      capabilities.contains('daily_order.approve');
+    Iterable<String> capabilities, {
+    int? requesterId,
+    int? currentEmployeeId,
+  }) {
+    final isSelfApproval = requesterId != null &&
+        currentEmployeeId != null &&
+        requesterId == currentEmployeeId;
+    return requestStatus == 'submitted' &&
+        capabilities.contains('daily_order.approve') &&
+        !isSelfApproval;
+  }
 
   static bool canIssueRequest(
     String requestStatus,
