@@ -26,6 +26,7 @@ def verify_current_frontend() -> None:
     team = ROOT / 'lib/screens/organization/team_screen.dart'
     home = ROOT / 'lib/screens/home/home_screen.dart'
     authority_test = ROOT / 'test/authority_projection_test.dart'
+    role_matrix_test = ROOT / 'test/role_projection_matrix_test.dart'
 
     require(
         shell,
@@ -177,6 +178,21 @@ def verify_current_frontend() -> None:
             'zero branch authority blocks business access even with capabilities',
         ],
         'Authority regression tests',
+    )
+
+    require(
+        role_matrix_test,
+        [
+            'field employee remains self-service only',
+            "for (final role in const ['ASM', 'SM'])",
+            'branch manager gets branch management overview without system admin',
+            "for (final role in const ['RM', 'RC', 'AGM', 'ZI'])",
+            "for (final role in const ['CM', 'MD'])",
+            'system admin can project administration without changing hierarchy rules',
+            'accounting-only profile gets accounting but no team dashboard',
+            'zero authorised branches blocks business access for every role',
+        ],
+        'Role projection matrix tests',
     )
 
 
