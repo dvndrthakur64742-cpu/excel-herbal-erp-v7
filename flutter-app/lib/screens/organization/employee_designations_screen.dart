@@ -69,6 +69,12 @@ class _EmployeeDesignationsScreenState
                   .map((e) => Map<String, dynamic>.from(e))
                   .toList(growable: false)
               : <Map<String, dynamic>>[];
+          final employees = data.length > 2 && data[2] is List
+              ? (data[2] as List)
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList(growable: false)
+              : <Map<String, dynamic>>[];
           final assignmentRows = ((detail['additional_designations'] as List?) ??
                   const [])
               .whereType<Map>()
@@ -83,6 +89,17 @@ class _EmployeeDesignationsScreenState
               '${detail['reporting_designation_code'] ?? ''}'.trim();
           final effectiveReporting =
               '${detail['reporting_category'] ?? ''}'.trim();
+          final employeeRow = _rowById(employees, widget.employeeId);
+          final managerId =
+              int.tryParse('${employeeRow?['reporting_employee_id'] ?? ''}');
+          final managerRow = managerId == null
+              ? null
+              : _rowById(employees, managerId);
+          final managerLabel = managerRow == null
+              ? (managerId == null ? 'Not assigned' : 'Employee #$managerId')
+              : _employeeLabel(managerRow, app);
+          final hierarchyLinkMissing = managerId == null &&
+              const {'FIELD_EXECUTIVE', 'ASM', 'SM'}.contains(effectiveReporting);
 
           return RefreshIndicator(
             onRefresh: () async => setState(() => refresh++),
@@ -95,7 +112,7 @@ class _EmployeeDesignationsScreenState
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Primary authority, reporting grouping and extra responsibilities are kept separate.',
+                  'Primary authority, reporting hierarchy, reporting grouping and extra responsibilities are kept separate.',
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: ExcelBrand.muted),
                 ),
@@ -129,6 +146,45 @@ class _EmployeeDesignationsScreenState
                       ),
                       const Divider(height: 1),
                       ListTile(
+                        leading: const Icon(Icons.supervisor_account_outlined),
+                        title: const Text('Reporting Manager'),
+                        subtitle: Text(managerLabel),
+                        trailing: canManage
+                            ? IconButton(
+                                tooltip: 'Change reporting manager',
+                                onPressed: employees.isEmpty
+                                    ? null
+                                    : () => _changeReportingManager(
+                                          employees,
+                                          managerId,
+                                        ),
+                                icon: const Icon(Icons.edit_outlined),
+                              )
+                            : null,
+                      ),
+                      if (hierarchyLinkMissing)
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                size: 18,
+                                color: ExcelBrand.warning,
+                              ),
+                              SizedBox(width: 7),
+                              Expanded(
+                                child: Text(
+                                  'No reporting manager is assigned. Hierarchy-based ASM/SM team visibility can remain incomplete until this reporting link is configured.',
+                                  style: TextStyle(color: ExcelBrand.muted),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const Divider(height: 1),
+                      ListTile(
                         leading: const Icon(Icons.account_tree_outlined),
                         title: const Text('Reporting Category'),
                         subtitle: Text(
@@ -148,7 +204,7 @@ class _EmployeeDesignationsScreenState
                       const Padding(
                         padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
                         child: Text(
-                          'Reporting Category is a reporting/dashboard grouping only. It does not grant role permissions or branch authority.',
+                          'Reporting Manager controls the employee reporting tree. Reporting Category is only a reporting/dashboard grouping and does not grant role permissions or branch authority.',
                           style: TextStyle(color: ExcelBrand.muted),
                         ),
                       ),
@@ -175,7 +231,7 @@ class _EmployeeDesignationsScreenState
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Same primary designation or overlapping duplicate date ranges are blocked by the server.',
+                  'Same primary designation or overlapping duplicate date ranges are blocked by the server. Extra designations never inherit authority.',
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: ExcelBrand.muted),
                 ),
@@ -230,6 +286,7 @@ class _EmployeeDesignationsScreenState
 
   Future<List<dynamic>> _load(bool canManage) async {
     final api = ref.read(apiClientProvider);
+    final app = ref.read(appStateProvider);
     final detail = await api.get(ApiPaths.employeeDesignations(widget.employeeId));
     dynamic master = const <dynamic>[];
     if (canManage) {
@@ -239,7 +296,135 @@ class _EmployeeDesignationsScreenState
         master = const <dynamic>[];
       }
     }
-    return [detail, master];
+
+    final employeeMap = <int, Map<String, dynamic>>{};
+    for (final branch in app.branches) {
+      final branchId = int.tryParse('${branch['id'] ?? ''}') ?? 0;
+      if (branchId <= 0) continue;
+      try {
+        final rows = await api.get(
+          ApiPaths.employees,
+          query: {
+            'branch_id': branchId,
+            'status': 'active',
+            'limit': 200,
+          },
+        );
+        for (final row in ((rows as List?) ?? const []).whereType<Map>()) {
+          final mapped = Map<String, dynamic>.from(row);
+          final id = int.tryParse('${mapped['id'] ?? ''}') ?? 0;
+          if (id > 0) employeeMap[id] = mapped;
+        }
+      } catch (_) {
+        // A branch can be visible in bootstrap while a narrower employee
+        // hierarchy hides its rows. Keep the rest of the authorised scope.
+      }
+    }
+    final employees = employeeMap.values.toList(growable: false)
+      ..sort((a, b) => '${a['full_name'] ?? ''}'
+          .toLowerCase()
+          .compareTo('${b['full_name'] ?? ''}'.toLowerCase()));
+    return [detail, master, employees];
+  }
+
+  Future<void> _changeReportingManager(
+    List<Map<String, dynamic>> employees,
+    int? currentManagerId,
+  ) async {
+    final app = ref.read(appStateProvider);
+    final choices = employees
+        .where((row) => int.tryParse('${row['id'] ?? ''}') != widget.employeeId)
+        .toList(growable: false);
+    var selected = currentManagerId ?? 0;
+    if (selected != 0 &&
+        !choices.any((row) => int.tryParse('${row['id'] ?? ''}') == selected)) {
+      selected = 0;
+    }
+    final reason = TextEditingController();
+
+    final payload = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Reporting Manager'),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<int>(
+                  initialValue: selected,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Reports To',
+                    prefixIcon: Icon(Icons.supervisor_account_outlined),
+                  ),
+                  items: [
+                    const DropdownMenuItem<int>(
+                      value: 0,
+                      child: Text('No reporting manager'),
+                    ),
+                    for (final row in choices)
+                      DropdownMenuItem<int>(
+                        value: int.tryParse('${row['id'] ?? ''}') ?? 0,
+                        child: Text(
+                          _employeeLabel(row, app),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) =>
+                      setDialogState(() => selected = value ?? 0),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reason,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Change reason',
+                    hintText: 'Minimum 5 characters · saved in audit trail',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'The server blocks self-reporting, reporting cycles and managers outside your branch authority.',
+                  style: TextStyle(color: ExcelBrand.muted),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final why = reason.text.trim();
+                if (why.length < 5) {
+                  setState(() => message = 'Reporting-manager reason minimum 5 characters hona chahiye.');
+                  return;
+                }
+                Navigator.pop(dialogContext, {
+                  'reporting_employee_id': selected == 0 ? null : selected,
+                  'reason': why,
+                });
+              },
+              child: const Text('Save Manager'),
+            ),
+          ],
+        ),
+      ),
+    );
+    reason.dispose();
+    if (payload == null) return;
+    await _post(
+      ApiPaths.employeeReportingManager(widget.employeeId),
+      payload,
+      success: 'Reporting manager updated. Hierarchy scope will use the new reporting link.',
+    );
   }
 
   Future<void> _changeReportingCategory(String current) async {
@@ -437,6 +622,32 @@ class _EmployeeDesignationsScreenState
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
+  }
+
+  static Map<String, dynamic>? _rowById(
+    List<Map<String, dynamic>> rows,
+    int id,
+  ) {
+    for (final row in rows) {
+      if (int.tryParse('${row['id'] ?? ''}') == id) return row;
+    }
+    return null;
+  }
+
+  static String _employeeLabel(Map<String, dynamic> row, AppState app) {
+    final name = '${row['full_name'] ?? row['employee_code'] ?? 'Employee'}';
+    final code = '${row['employee_code'] ?? ''}'.trim();
+    final designation = '${row['designation_code'] ?? ''}'.trim();
+    final branchId = int.tryParse('${row['assigned_branch_id'] ?? ''}');
+    var branch = '';
+    for (final item in app.branches) {
+      if (int.tryParse('${item['id']}') == branchId) {
+        branch = '${item['name'] ?? item['code'] ?? ''}'.trim();
+        break;
+      }
+    }
+    final meta = [code, designation, branch].where((e) => e.isNotEmpty).join(' · ');
+    return meta.isEmpty ? name : '$name · $meta';
   }
 
   String _designationLabel(String code, String? name) {
