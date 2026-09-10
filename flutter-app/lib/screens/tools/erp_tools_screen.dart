@@ -2,7 +2,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_paths.dart';
@@ -32,12 +31,8 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       ('My Account', Icons.badge_outlined, _accountTab(app)),
       if (app.can('communication.view'))
         ('Communication', Icons.notifications_outlined, _communicationTab(app)),
-      if (app.canAny(const [
-        'organization.employee.manage',
-        'administration.access.manage',
-        'administration.audit.view',
-      ]))
-        ('Admin', Icons.admin_panel_settings_outlined, _adminTab(app)),
+      if (app.can('organization.employee.manage'))
+        ('Team Access', Icons.manage_accounts_outlined, _teamAccessTab()),
     ];
 
     return DefaultTabController(
@@ -681,88 +676,54 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     );
   }
 
-  Widget _adminTab(AppState app) {
+  Widget _teamAccessTab() {
     final api = ref.watch(apiClientProvider);
+    final app = ref.watch(appStateProvider);
+    if (app.currentBranchId == null) {
+      return const Center(
+        child: Text('Select an authorised branch to manage employee access.'),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (app.can('organization.employee.manage'))
-          _futureCard(
-            title: 'Employee App Login Management',
-            future: api.get(
-              ApiPaths.employees,
-              query: {'status': 'all', 'limit': 200},
-            ),
-            builder: (data) {
-              final rows = _rows(data);
-              if (rows.isEmpty) return const Text('No employees.');
-              return Column(
-                children: rows.map((r) {
-                  final id = int.tryParse('${r['id']}') ?? 0;
-                  return ListTile(
-                    leading: Icon(
-                      r['login_enabled'] == '1' ||
-                              r['login_enabled'] == 1 ||
-                              r['login_enabled'] == true
-                          ? Icons.verified_user_outlined
-                          : Icons.person_off_outlined,
-                    ),
-                    title: Text('${r['full_name'] ?? ''}'),
-                    subtitle: Text(
-                      '${r['employee_code'] ?? ''} · ${r['mobile'] ?? 'No mobile'} · ${r['status'] ?? ''}',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: id > 0 ? () => _employeeLoginDialog(r) : null,
-                  );
-                }).toList(),
-              );
+        _futureCard(
+          title: 'Employee App Login Management',
+          future: api.get(
+            ApiPaths.employees,
+            query: {
+              'branch_id': app.currentBranchId,
+              'status': 'all',
+              'limit': 200,
             },
           ),
-        const SizedBox(height: 12),
-        if (app.canAny(const [
-          'administration.access.manage',
-          'administration.audit.view',
-        ]))
-          _futureCard(
-            title: 'Backend Diagnostics',
-            action: app.can('administration.access.manage')
-                ? TextButton.icon(
-                    onPressed: () async {
-                      final ok = await _confirm(
-                        'Run backend cleanup?',
-                        'Run maintenance cleanup for backend housekeeping? Continue only when diagnostics or maintenance requires it.',
-                      );
-                      if (ok != true) return;
-                      await _post(ApiPaths.maintenanceCleanup, const {});
-                    },
-                    icon: const Icon(Icons.cleaning_services_outlined),
-                    label: const Text('Cleanup'),
-                  )
-                : null,
-            future: api.get(ApiPaths.diagnostics),
-            builder: (data) => SelectableText(_pretty(data)),
-          ),
-        if (app.can('administration.access.manage')) ...[
-          const SizedBox(height: 12),
-          _futureCard(
-            title: 'App Version Policy',
-            future: _versionPolicy(),
-            builder: (data) => SelectableText(_pretty(data)),
-          ),
-        ],
+          builder: (data) {
+            final rows = _rows(data);
+            if (rows.isEmpty) return const Text('No employees.');
+            return Column(
+              children: rows.map((r) {
+                final id = int.tryParse('${r['id']}') ?? 0;
+                return ListTile(
+                  leading: Icon(
+                    r['login_enabled'] == '1' ||
+                            r['login_enabled'] == 1 ||
+                            r['login_enabled'] == true
+                        ? Icons.verified_user_outlined
+                        : Icons.person_off_outlined,
+                  ),
+                  title: Text('${r['full_name'] ?? ''}'),
+                  subtitle: Text(
+                    '${r['employee_code'] ?? ''} · ${r['status'] ?? ''}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: id > 0 ? () => _employeeLoginDialog(r) : null,
+                );
+              }).toList(),
+            );
+          },
+        ),
       ],
     );
-  }
-
-  Future<Map<String, dynamic>> _versionPolicy() async {
-    final info = await PackageInfo.fromPlatform();
-    final build = int.tryParse(info.buildNumber) ?? 0;
-    final data = await ref.read(apiClientProvider).get(
-          ApiPaths.appVersionPolicy,
-          query: {'client_build': build},
-          authenticated: false,
-        );
-    return Map<String, dynamic>.from((data as Map?) ?? const {});
   }
 
   Widget _futureCard({
@@ -950,10 +911,11 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
 
   Future<List<Map<String, dynamic>>> _employeeChoices() async {
     final app = ref.read(appStateProvider);
+    if (app.currentBranchId == null) return const [];
     final data = await ref.read(apiClientProvider).get(
       ApiPaths.employees,
       query: {
-        if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+        'branch_id': app.currentBranchId,
         'status': 'active',
         'limit': 200,
       },
@@ -977,7 +939,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<int>(
-                  value: employeeId,
+                  initialValue: employeeId,
                   items: employees
                       .map(
                         (e) => DropdownMenuItem<int>(
@@ -1094,7 +1056,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<int>(
-                  value: employeeId,
+                  initialValue: employeeId,
                   items: employees
                       .map(
                         (e) => DropdownMenuItem<int>(
@@ -1290,13 +1252,5 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   static String _today() {
     final n = DateTime.now();
     return '${n.year.toString().padLeft(4, '0')}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
-  }
-
-  static String _pretty(dynamic value) {
-    if (value is Map) {
-      return value.entries.map((e) => '${e.key}: ${e.value}').join('\n');
-    }
-    if (value is List) return value.map((e) => '$e').join('\n');
-    return '$value';
   }
 }
