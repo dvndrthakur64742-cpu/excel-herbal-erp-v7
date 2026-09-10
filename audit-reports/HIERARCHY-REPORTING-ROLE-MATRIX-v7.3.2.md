@@ -52,6 +52,8 @@ Verified live contract:
 
 The hierarchy engine is active, but the current reporting-manager master data is not complete. Across the seven active branches inspected, **17 active ASM/SM employees currently have no `reporting_employee_id` link**. This is a business-data setup gap, not an authority bypass.
 
+A live selected-branch sanity check confirms the readiness logic is identifying the intended leadership population: in Head Office, **7 active ASM/SM employees are currently missing a reporting-manager link**, while the active BM record inspected already has a reporting manager configured. No employee names, contact data or GPS coordinates are required for this readiness evidence.
+
 No reporting manager was guessed or auto-assigned. The Flutter Designation & Reporting workspace exposes Reporting Manager separately from Reporting Category. Manager changes are explicit only and use the existing backend endpoint, which requires an audit reason and blocks self-reporting, reporting cycles, inactive/nonexistent managers, and managers outside effective branch authority.
 
 ## Frontend correction checkpoint
@@ -59,9 +61,12 @@ No reporting manager was guessed or auto-assigned. The Flutter Designation & Rep
 - ERP Tools is no longer unconditionally exposed; route, desktop sidebar, drawer, and defensive bottom-navigation filtering use `erpToolsVisible`.
 - Duty GPS has no manual Start/Stop UI; status refresh does not create a manual route lifecycle.
 - Reporting Manager is managed separately from Reporting Category and Multiple Designations.
+- Team Operations now includes a branch-scoped **Hierarchy** workspace. It counts active ASM/SM leadership links as Linked/Missing and opens the existing Designation & Reporting workspace for explicit manager setup.
+- The Hierarchy workspace never auto-assigns a manager and explicitly states that Reporting Category and Additional Designations do not create authority.
 - Price Distribution retains exactly six business fields: Sale Price, HO Amount, BM Profit, Salary Fund, Expense, Points.
 - Reports Centre options are capability-filtered and selects the first authorised report when the previous/default type is not allowed.
-- Automated authority-projection tests cover additional-designation non-escalation, reports-only dashboard isolation, stale ERP Tools navigation filtering and zero-branch blocking.
+- Automated authority-projection tests cover additional-designation non-escalation, reporting-category non-escalation, inheritance-marker non-escalation, reports-only dashboard isolation, stale ERP Tools navigation filtering and zero-branch blocking.
+- Team Operations business copy is standardized to a consistent professional tone.
 - The pre-Flutter Python gate is read-only; CI no longer patches or commits source during a build.
 
 ## Certification status
