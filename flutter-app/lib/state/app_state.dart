@@ -121,10 +121,20 @@ class AppState {
   bool canAny(Iterable<String> wanted) => wanted.any(can);
   bool sectionVisible(String id) => sections.any((s) => '${s['id']}' == id);
 
-  List<Map<String, dynamic>> get bottomNav =>
-      (((bootstrap?['navigation'] as Map?)?['bottom_nav'] as List?) ?? const [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+  /// Navigation is server-projected, but capability filters are repeated here
+  /// defensively so a stale bootstrap/navigation cache cannot expose a tool
+  /// entry that the current actor is not allowed to open.
+  List<Map<String, dynamic>> get bottomNav {
+    final items =
+        (((bootstrap?['navigation'] as Map?)?['bottom_nav'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+    return items.where((item) {
+      final id = '${item['id']}';
+      if (id == 'erp_tools') return erpToolsVisible;
+      return true;
+    }).toList(growable: false);
+  }
 
   bool get branchSelectorVisible =>
       branches.length > 1 && me['branch_selector_visible'] == true;
