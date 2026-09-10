@@ -25,6 +25,7 @@ def verify_current_frontend() -> None:
     designations = ROOT / 'lib/screens/organization/employee_designations_screen.dart'
     team = ROOT / 'lib/screens/organization/team_screen.dart'
     home = ROOT / 'lib/screens/home/home_screen.dart'
+    administration = ROOT / 'lib/screens/administration/administration_screen.dart'
     authority_test = ROOT / 'test/authority_projection_test.dart'
     role_matrix_test = ROOT / 'test/role_projection_matrix_test.dart'
 
@@ -164,6 +165,33 @@ def verify_current_frontend() -> None:
             'route lifecycle is automatic',
         ],
         'Home',
+    )
+
+    require(
+        administration,
+        [
+            "import '../../widgets/branch_selector.dart';",
+            'child: BranchSelector()',
+            'Select an authorised branch to manage access.',
+            'Primary designation defaults apply automatically.',
+            'Individual Grant/Deny overrides are unavailable for this employee access record.',
+            'Access change reason must contain at least 5 characters.',
+            "message = 'Saved successfully.';",
+        ],
+        'Administration',
+    )
+    forbid(
+        administration,
+        [
+            'Koi reversal request nahi hai.',
+            'Authorised branch select karein.',
+            'journal aur audit chain backend se reverse honge',
+            'Ye stock, outstanding',
+            'backend v7.1.7 alignment',
+            'minimum 5 characters hona chahiye',
+            "message = 'Done: $r';",
+        ],
+        'Administration',
     )
 
     require(
