@@ -44,7 +44,10 @@ class _AppVersionGateState extends State<AppVersionGate> {
       future: _policy,
       builder: (context, snapshot) {
         final policy = snapshot.data;
-        final required = policy?['update_required'] == true;
+        // v7 backend contract uses force_update. update_required remains a
+        // compatibility fallback for any older policy projection.
+        final required = policy?['force_update'] == true ||
+            policy?['update_required'] == true;
         if (!required) return widget.child;
         final message = '${policy?['message'] ?? 'App update required.'}';
         final url = '${policy?['update_url'] ?? ''}'.trim();
