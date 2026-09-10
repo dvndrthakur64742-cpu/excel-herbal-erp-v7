@@ -70,7 +70,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                     'to': app.businessDate,
                   },
                 ),
-          emptyMessage: 'Attendance record nahi hai.',
+          emptyMessage: 'No attendance records for the selected period.',
           builder: (context, data) => RecordsList(
             recordType: 'attendance',
             rows: (data as List)
@@ -170,7 +170,9 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
               ),
             Expanded(
               child: app.currentBranchId == null
-                  ? const Center(child: Text('Branch select karein.'))
+                  ? const Center(
+                      child: Text('Select an authorised branch to continue.'),
+                    )
                   : TabBarView(children: [for (final tab in tabs) tab.$2]),
             ),
           ],
@@ -349,7 +351,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
   Future<void> _approve(int requestId) async {
     final app = ref.read(appStateProvider);
     if (!app.can('daily_order.approve')) {
-      setState(() => message = 'Daily Order approval permission required hai.');
+      setState(() => message = 'Daily Order approval permission is required.');
       return;
     }
     final closed = await OverlayTransition.closeAndSettle(context);
@@ -367,7 +369,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
   Future<void> _issue(Map<String, dynamic> request, int branchId) async {
     final app = ref.read(appStateProvider);
     if (!app.can('daily_order.issue')) {
-      setState(() => message = 'Daily Order stock issue permission required hai.');
+      setState(() => message = 'Daily Order stock issue permission is required.');
       return;
     }
     try {
