@@ -27,6 +27,8 @@ class GpsTrackingService extends ChangeNotifier {
   String get dutyStatus => _dutyStatus;
   String? get lastError => _lastError;
   DateTime? get lastSentAt => _lastSentAt;
+  bool get permissionBlocked => _dutyStatus == 'permission_blocked';
+  bool get locationDisabled => _dutyStatus == 'location_disabled';
 
   /// Synchronises route tracking with the server-owned attendance/GPS policy.
   /// There is deliberately no user-controlled route start/stop state: an
@@ -77,13 +79,26 @@ class GpsTrackingService extends ChangeNotifier {
     _scheduleTimer = null;
     _armed = true;
     if (!_active) {
-      await _ensurePermission();
+      final permissionReady = await _ensurePermission();
+      if (!permissionReady) {
+        _active = false;
+        _pointTimer?.cancel();
+        _pointTimer = null;
+        _scheduleAutoStop(attendance);
+        notifyListeners();
+        return;
+      }
       _active = true;
       _dutyStatus = 'active';
       notifyListeners();
       await sendNow();
-      _pointTimer?.cancel();
-      _pointTimer = Timer.periodic(const Duration(minutes: 5), (_) => sendNow());
+      if (_active) {
+        _pointTimer?.cancel();
+        _pointTimer = Timer.periodic(
+          const Duration(minutes: 5),
+          (_) => unawaited(sendNow()),
+        );
+      }
     }
     _scheduleAutoStop(attendance);
   }
@@ -96,7 +111,9 @@ class GpsTrackingService extends ChangeNotifier {
     _dutyStatus = 'scheduled';
     _scheduleTimer?.cancel();
 
-    final startsAt = DateTime.tryParse('${attendance['gps_window_start_utc'] ?? ''}')?.toLocal();
+    final startsAt = DateTime.tryParse(
+      '${attendance['gps_window_start_utc'] ?? ''}',
+    )?.toLocal();
     if (startsAt == null) {
       _lastError = 'GPS duty schedule unavailable.';
       _armed = false;
@@ -115,7 +132,9 @@ class GpsTrackingService extends ChangeNotifier {
 
   void _scheduleAutoStop(Map<String, dynamic> attendance) {
     _stopTimer?.cancel();
-    final stopsAt = DateTime.tryParse('${attendance['gps_window_stop_utc'] ?? ''}')?.toLocal();
+    final stopsAt = DateTime.tryParse(
+      '${attendance['gps_window_stop_utc'] ?? ''}',
+    )?.toLocal();
     if (stopsAt == null) return;
     final delay = stopsAt.difference(DateTime.now());
     if (delay <= Duration.zero) {
@@ -125,6 +144,8 @@ class GpsTrackingService extends ChangeNotifier {
     _stopTimer = Timer(delay, () => stop(status: 'auto_stopped'));
   }
 
+  /// Internal/system lifecycle stop only. UI must never expose a manual route
+  /// Start/Stop business action; checkout/server policy owns the route state.
   void stop({String status = 'stopped'}) {
     _pointTimer?.cancel();
     _scheduleTimer?.cancel();
@@ -171,7 +192,11 @@ class GpsTrackingService extends ChangeNotifier {
             'gps_window_closed',
             'gps_recorded_date_invalid',
           }.contains(e.code)) {
-        stop(status: e.code == 'gps_window_closed' ? 'auto_stopped' : 'not_checked_in');
+        stop(
+          status: e.code == 'gps_window_closed'
+              ? 'auto_stopped'
+              : 'not_checked_in',
+        );
         return;
       }
       if (e is ApiException && e.code == 'gps_window_not_started') {
@@ -186,15 +211,27 @@ class GpsTrackingService extends ChangeNotifier {
     }
   }
 
-  Future<void> _ensurePermission() async {
+  Future<bool> _ensurePermission() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      _dutyStatus = 'location_disabled';
+      _lastError = 'Device location is off. Turn on Location for duty GPS.';
+      return false;
+    }
+
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
-      throw Exception('Location permission required.');
+      _dutyStatus = 'permission_blocked';
+      _lastError = permission == LocationPermission.deniedForever
+          ? 'Location permission is blocked in device settings.'
+          : 'Location permission is required for duty GPS.';
+      return false;
     }
+    return true;
   }
 
   @override
