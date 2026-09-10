@@ -66,6 +66,44 @@ void main() {
     expect(state.erpToolsVisible, isFalse);
   });
 
+  test('reporting category alone is grouping and never grants authority', () {
+    final state = _state(
+      capabilities: const ['erp.access'],
+      sections: const [
+        {'id': 'home', 'label': 'Home'},
+      ],
+      reportingCategory: 'SYSTEM_ADMIN',
+    );
+
+    expect(state.reportingCategory, 'SYSTEM_ADMIN');
+    expect(state.can('reports.view'), isFalse);
+    expect(state.can('workforce.attendance.manage'), isFalse);
+    expect(state.can('administration.access.manage'), isFalse);
+    expect(state.managementDashboardVisible, isFalse);
+  });
+
+  test('authority inheritance marker cannot manufacture client permissions', () {
+    final state = _state(
+      capabilities: const ['erp.access'],
+      sections: const [
+        {'id': 'home', 'label': 'Home'},
+      ],
+      additionalAuthorityInherited: true,
+      additionalDesignations: const [
+        {
+          'designation_code': 'MD',
+          'designation_name': 'Managing Director',
+          'assignment_type': 'additional',
+        },
+      ],
+    );
+
+    expect(state.additionalDesignationAuthorityInherited, isTrue);
+    expect(state.can('reports.view'), isFalse);
+    expect(state.can('organization.employee.manage'), isFalse);
+    expect(state.managementDashboardVisible, isFalse);
+  });
+
   test('reports-only role does not get management dashboard', () {
     final state = _state(
       capabilities: const ['erp.access', 'reports.view'],
