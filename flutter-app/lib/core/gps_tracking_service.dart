@@ -147,6 +147,14 @@ class GpsTrackingService extends ChangeNotifier {
   /// Internal/system lifecycle stop only. UI must never expose a manual route
   /// Start/Stop business action; checkout/server policy owns the route state.
   void stop({String status = 'stopped'}) {
+    // Legacy UI may still call stop() without a server-owned reason. Refuse to
+    // turn tracking off in that case so an employee cannot bypass duty GPS.
+    if (status == 'stopped') {
+      _lastError =
+          'Duty GPS is automatic. It stops only after checkout or the 5 PM duty cutoff.';
+      notifyListeners();
+      return;
+    }
     _pointTimer?.cancel();
     _scheduleTimer?.cancel();
     _stopTimer?.cancel();
