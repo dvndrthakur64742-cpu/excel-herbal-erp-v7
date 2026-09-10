@@ -34,6 +34,14 @@ class HomeScreen extends ConsumerWidget {
           const BranchSelector(),
           const SizedBox(height: 12),
           _AuthorityCard(app: app),
+          if (app.businessAccessBlocked) ...[
+            const SizedBox(height: 16),
+            const _InfoNotice(
+              icon: Icons.block_outlined,
+              text:
+                  'No authorised branch is assigned to your account. Business modules are locked until branch access is configured.',
+            ),
+          ],
           if (app.sectionVisible('my_work')) ...[
             const SizedBox(height: 16),
             _SectionTitle(
