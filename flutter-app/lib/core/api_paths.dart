@@ -23,6 +23,7 @@ abstract final class ApiPaths {
       attendanceReport = '/workforce/attendance/report',
       gpsPoints = '/workforce/gps/points',
       gpsRoute = '/workforce/gps/route',
+      gpsTeam = '/workforce/gps/team',
       holidays = '/workforce/holidays';
 
   static const fieldVisitCurrent = '/workforce/field-visits/current',
@@ -75,7 +76,8 @@ abstract final class ApiPaths {
       balanceSheet = '/reports/balance-sheet',
       receivables = '/reports/receivables',
       payables = '/reports/payables',
-      financeReconciliation = '/reports/finance-reconciliation';
+      financeReconciliation = '/reports/finance-reconciliation',
+      priceDistribution = '/reports/price-distribution';
 
   static const communicationSummary = '/communication/summary',
       taskManage = '/communication/tasks/manage',
@@ -110,6 +112,10 @@ abstract final class ApiPaths {
       '/organization/employees/$id/reactivate';
   static String employeeReportingManager(int id) =>
       '/organization/employees/$id/reporting-manager';
+  static String employeeDesignations(int id) =>
+      '/organization/employees/$id/designations';
+  static String employeeDesignationDeactivate(int id, int assignmentId) =>
+      '/organization/employees/$id/designations/$assignmentId/deactivate';
   static String employeeHistory(int id) =>
       '/organization/employees/$id/branch-history';
   static String employeeTransfer(int id) =>
