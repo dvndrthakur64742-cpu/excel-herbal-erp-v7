@@ -128,6 +128,22 @@ def verify_current_frontend() -> None:
             "'reason': why",
             'The server blocks self-reporting, reporting cycles and managers outside your branch authority.',
             'Extra designations never inherit authority.',
+            "final active = _isActive(row['active']);",
+            "if (id <= 0 || !_isActive(row['active'])) return;",
+            "final text = '$value'.trim().toLowerCase();",
+            "return text == '1' || text == 'true';",
+            'Enter at least 5 characters for the audit reason.',
+            'errorText: reasonError',
+            'Field Executive/ASM/SM hierarchy visibility can remain incomplete',
+        ],
+        'Designation & Reporting',
+    )
+    forbid(
+        designations,
+        [
+            "row['active'] != 0",
+            "row['active'] == 0",
+            'Reporting-manager reason minimum 5 characters hona chahiye.',
         ],
         'Designation & Reporting',
     )
