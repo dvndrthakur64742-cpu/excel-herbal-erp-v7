@@ -53,11 +53,12 @@ def verify_current_frontend() -> None:
         [
             "if (app.can('workforce.attendance.self'))",
             "title: const Text('My Account & Duty')",
+            "if (app.can('organization.employee.manage'))",
+            "('Team Access', Icons.manage_accounts_outlined, _teamAccessTab())",
             'Refresh duty GPS status',
             'There is no manual route Start/Stop.',
             'BusinessFormat.status(tracker.dutyStatus)',
-            "if (app.can('administration.access.manage')) ...[",
-            "title: 'App Version Policy'",
+            "'branch_id': app.currentBranchId",
         ],
         'Account & Duty',
     )
@@ -69,6 +70,12 @@ def verify_current_frontend() -> None:
             "label: const Text('Stop')",
             "label: const Text('Sync current location now')",
             'ref.read(gpsTrackingProvider).stop()',
+            'Backend Diagnostics',
+            'App Version Policy',
+            'ApiPaths.diagnostics',
+            'ApiPaths.maintenanceCleanup',
+            'ApiPaths.appVersionPolicy',
+            'PackageInfo.fromPlatform()',
             'Ye holiday',
             'Is device par bhi',
             'housekeeping run karega',
@@ -86,8 +93,16 @@ def verify_current_frontend() -> None:
             "sectionVisible('team') && can('reports.view')",
             "if (id == 'erp_tools') return erpToolsVisible;",
             'additional_designations_authority_inherited',
+            "'organization.employee.manage',",
         ],
         'AppState',
+    )
+    forbid(
+        state,
+        [
+            "'administration.access.manage',\n        'administration.audit.view',",
+        ],
+        'AppState workspace visibility',
     )
 
     require(
