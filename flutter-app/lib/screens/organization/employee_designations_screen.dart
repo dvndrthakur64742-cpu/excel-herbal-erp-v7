@@ -126,6 +126,7 @@ class _EmployeeDesignationsScreenState
                       leading: const Icon(Icons.info_outline),
                       title: Text(message!),
                       trailing: IconButton(
+                        tooltip: 'Dismiss',
                         icon: const Icon(Icons.close),
                         onPressed: () => setState(() => message = null),
                       ),
@@ -176,7 +177,7 @@ class _EmployeeDesignationsScreenState
                               SizedBox(width: 7),
                               Expanded(
                                 child: Text(
-                                  'No reporting manager is assigned. Hierarchy-based ASM/SM team visibility can remain incomplete until this reporting link is configured.',
+                                  'No reporting manager is assigned. Field Executive/ASM/SM hierarchy visibility can remain incomplete until this reporting link is configured.',
                                   style: TextStyle(color: ExcelBrand.muted),
                                 ),
                               ),
@@ -247,39 +248,44 @@ class _EmployeeDesignationsScreenState
                   )
                 else
                   for (final row in assignmentRows)
-                    Card(
-                      child: ListTile(
-                        leading: Icon(
-                          '${row['assignment_type']}' == 'temporary'
-                              ? Icons.schedule_outlined
-                              : Icons.add_moderator_outlined,
-                        ),
-                        title: Text(
-                          _designationLabel(
-                            '${row['designation_code'] ?? ''}',
-                            names['${row['designation_code'] ?? ''}'],
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${_typeLabel('${row['assignment_type'] ?? ''}')} · ${_period(row)}',
-                        ),
-                        trailing: (canManage && row['active'] != 0)
-                            ? IconButton(
-                                tooltip: 'Deactivate assignment',
-                                onPressed: () => _deactivate(row),
-                                icon: const Icon(Icons.block_outlined),
-                              )
-                            : Chip(
-                                label: Text(
-                                  row['active'] == 0 ? 'INACTIVE' : 'ACTIVE',
-                                ),
-                              ),
-                      ),
-                    ),
+                    _assignmentCard(row, canManage, names),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _assignmentCard(
+    Map<String, dynamic> row,
+    bool canManage,
+    Map<String, String> names,
+  ) {
+    final active = _isActive(row['active']);
+    return Card(
+      child: ListTile(
+        leading: Icon(
+          '${row['assignment_type']}' == 'temporary'
+              ? Icons.schedule_outlined
+              : Icons.add_moderator_outlined,
+        ),
+        title: Text(
+          _designationLabel(
+            '${row['designation_code'] ?? ''}',
+            names['${row['designation_code'] ?? ''}'],
+          ),
+        ),
+        subtitle: Text(
+          '${_typeLabel('${row['assignment_type'] ?? ''}')} · ${_period(row)}',
+        ),
+        trailing: canManage && active
+            ? IconButton(
+                tooltip: 'Deactivate assignment',
+                onPressed: () => _deactivate(row),
+                icon: const Icon(Icons.block_outlined),
+              )
+            : Chip(label: Text(active ? 'ACTIVE' : 'INACTIVE')),
       ),
     );
   }
@@ -320,7 +326,7 @@ class _EmployeeDesignationsScreenState
         // hierarchy hides its rows. Keep the rest of the authorised scope.
       }
     }
-    final employees = employeeMap.values.toList(growable: false)
+    final employees = employeeMap.values.toList()
       ..sort((a, b) => '${a['full_name'] ?? ''}'
           .toLowerCase()
           .compareTo('${b['full_name'] ?? ''}'.toLowerCase()));
@@ -341,6 +347,7 @@ class _EmployeeDesignationsScreenState
       selected = 0;
     }
     final reason = TextEditingController();
+    String? reasonError;
 
     final payload = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -382,9 +389,15 @@ class _EmployeeDesignationsScreenState
                   controller: reason,
                   minLines: 2,
                   maxLines: 3,
-                  decoration: const InputDecoration(
+                  onChanged: (_) {
+                    if (reasonError != null) {
+                      setDialogState(() => reasonError = null);
+                    }
+                  },
+                  decoration: InputDecoration(
                     labelText: 'Change reason',
                     hintText: 'Minimum 5 characters · saved in audit trail',
+                    errorText: reasonError,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -404,7 +417,10 @@ class _EmployeeDesignationsScreenState
               onPressed: () {
                 final why = reason.text.trim();
                 if (why.length < 5) {
-                  setState(() => message = 'Reporting-manager reason minimum 5 characters hona chahiye.');
+                  setDialogState(
+                    () => reasonError =
+                        'Enter at least 5 characters for the audit reason.',
+                  );
                   return;
                 }
                 Navigator.pop(dialogContext, {
@@ -575,7 +591,7 @@ class _EmployeeDesignationsScreenState
 
   Future<void> _deactivate(Map<String, dynamic> row) async {
     final id = int.tryParse('${row['id'] ?? ''}') ?? 0;
-    if (id <= 0) return;
+    if (id <= 0 || !_isActive(row['active'])) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -622,6 +638,12 @@ class _EmployeeDesignationsScreenState
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
+  }
+
+  static bool _isActive(dynamic value) {
+    if (value == true || value == 1) return true;
+    final text = '$value'.trim().toLowerCase();
+    return text == '1' || text == 'true';
   }
 
   static Map<String, dynamic>? _rowById(
