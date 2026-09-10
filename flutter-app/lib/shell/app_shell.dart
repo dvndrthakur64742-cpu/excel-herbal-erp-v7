@@ -192,11 +192,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                 if (app.can('communication.view'))
                   _desktopTile('tasks', 'Tasks', Icons.task_alt_outlined),
-                _desktopTile(
-                  'erp_tools',
-                  'ERP Tools',
-                  Icons.construction_outlined,
-                ),
+                if (app.erpToolsVisible)
+                  _desktopTile(
+                    'erp_tools',
+                    'ERP Tools',
+                    Icons.construction_outlined,
+                  ),
                 const SizedBox(height: 12),
                 _sectionLabel(context, 'MODULES'),
                 ...app.sections
@@ -468,14 +469,19 @@ class _AppShellState extends ConsumerState<AppShell> {
                         icon: _icon('${section['id']}'),
                       ),
                   ],
-                  const SizedBox(height: 12),
-                  _drawerSectionLabel('TOOLS & CONTROL'),
-                  _drawerTile(
-                    app: app,
-                    id: 'erp_tools',
-                    label: 'ERP Tools',
-                    icon: Icons.tune_rounded,
-                  ),
+                  if (app.erpToolsVisible ||
+                      _approvalVisible(app) ||
+                      !app.businessAccessBlocked) ...[
+                    const SizedBox(height: 12),
+                    _drawerSectionLabel('TOOLS & CONTROL'),
+                  ],
+                  if (app.erpToolsVisible)
+                    _drawerTile(
+                      app: app,
+                      id: 'erp_tools',
+                      label: 'ERP Tools',
+                      icon: Icons.tune_rounded,
+                    ),
                   if (_approvalVisible(app))
                     _drawerTile(
                       app: app,
@@ -919,7 +925,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       ]);
 
   bool _routeAllowed(AppState app, String id) {
-    if (const {'home', 'profile', 'erp_tools'}.contains(id)) return true;
+    if (const {'home', 'profile'}.contains(id)) return true;
+    if (id == 'erp_tools') return app.erpToolsVisible;
     if (id == 'quick_actions' || id == 'actions')
       return _quickActionsVisible(app);
     if (id == 'tasks') return app.can('communication.view');
