@@ -5,11 +5,16 @@ void main() {
   test('request approval and issue require exact permissions', () {
     expect(
       DailyOrderWorkflow.canApproveRequest(
-          'submitted', ['daily_order.approve']),
+        'submitted',
+        ['daily_order.approve'],
+      ),
       isTrue,
     );
     expect(
-      DailyOrderWorkflow.canApproveRequest('submitted', ['daily_order.others']),
+      DailyOrderWorkflow.canApproveRequest(
+        'submitted',
+        ['daily_order.others'],
+      ),
       isFalse,
     );
     expect(
@@ -19,6 +24,39 @@ void main() {
     expect(
       DailyOrderWorkflow.canIssueRequest('approved', ['daily_order.review']),
       isFalse,
+    );
+  });
+
+  test('maker-checker blocks self approval when identities are known', () {
+    expect(
+      DailyOrderWorkflow.canApproveRequest(
+        'submitted',
+        ['daily_order.approve'],
+        requesterId: 2,
+        currentEmployeeId: 2,
+      ),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.canApproveRequest(
+        'submitted',
+        ['daily_order.approve'],
+        requesterId: 6,
+        currentEmployeeId: 2,
+      ),
+      isTrue,
+    );
+  });
+
+  test('maker-checker keeps older payloads compatible when identity is absent', () {
+    expect(
+      DailyOrderWorkflow.canApproveRequest(
+        'submitted',
+        ['daily_order.approve'],
+        requesterId: null,
+        currentEmployeeId: 2,
+      ),
+      isTrue,
     );
   });
 
