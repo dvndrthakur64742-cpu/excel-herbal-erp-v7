@@ -22,6 +22,7 @@ def verify_current_frontend() -> None:
     tools = ROOT / 'lib/screens/tools/erp_tools_screen.dart'
     state = ROOT / 'lib/state/app_state.dart'
     reports = ROOT / 'lib/screens/reports/reports_screen.dart'
+    branch_selector = ROOT / 'lib/widgets/branch_selector.dart'
     designations = ROOT / 'lib/screens/organization/employee_designations_screen.dart'
     team = ROOT / 'lib/screens/organization/team_screen.dart'
     home = ROOT / 'lib/screens/home/home_screen.dart'
@@ -97,6 +98,9 @@ def verify_current_frontend() -> None:
             "if (id == 'erp_tools') return erpToolsVisible;",
             'additional_designations_authority_inherited',
             "'organization.employee.manage',",
+            'void selectAllAuthorisedBranches()',
+            'if (!state.branchSelectorVisible || state.businessAccessBlocked) return;',
+            'currentBranchId: null,',
         ],
         'AppState',
     )
@@ -109,10 +113,25 @@ def verify_current_frontend() -> None:
     )
 
     require(
+        branch_selector,
+        [
+            'this.allowAllAuthorised = false',
+            'final bool allowAllAuthorised;',
+            "child: Text('All Authorised Branches')",
+            'selectAllAuthorisedBranches()',
+            'if (value == -1 && allowAllAuthorised)',
+        ],
+        'Branch selector',
+    )
+
+    require(
         reports,
         [
             'final available = _availableReports(app);',
             'final activeType = available.any((item) => item.id == type)',
+            "!const {'trial', 'price_distribution'}.contains(activeType)",
+            'BranchSelector(allowAllAuthorised: !needsBranch)',
+            "if (app.currentBranchId != null) 'branch_id': app.currentBranchId",
             "if (app.can('reports.view'))",
             "if (app.can('finance.accounting.view'))",
             "'price_distribution'",
