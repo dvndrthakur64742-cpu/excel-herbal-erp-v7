@@ -2,9 +2,10 @@ name: EH7 Flutter v7.4.0 Stabilization Build
 
 on:
   push:
-    branches: [flutter-v720-build]
+    branches: [flutter-v720-build, v7-hierarchy-gps-reporting-dashboard]
     paths:
       - 'flutter-app/**'
+      - '.github/workflows/eh7-v740-stabilization-build.yml'
   workflow_dispatch:
 
 permissions:
@@ -16,6 +17,22 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+
+      - name: Apply final hierarchy/GPS frontend corrections
+        working-directory: flutter-app
+        run: python3 tool/finalize_hierarchy_gps_frontend.py
+
+      - name: Commit canonical source corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add flutter-app/lib/shell/app_shell.dart flutter-app/lib/screens/tools/erp_tools_screen.dart
+          if ! git diff --cached --quiet; then
+            git commit -m "fix: finalize hierarchy GPS frontend [skip ci]"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
 
       - name: Install Flutter 3.47.2
         uses: subosito/flutter-action@v2
@@ -74,12 +91,13 @@ jobs:
           TAG=v7.4.0-stabilization-uat
           APK=dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
           HASH=dist/flutter-v7.4.0/APK-SHA256.txt
-          NOTES="Full APK stabilization candidate from canonical editable Flutter source. Source commit: ${GITHUB_SHA}. Includes responsive Daily Order Evening Closing, Final Post reconciliation, business-date alignment, session/error/idempotency/GPS improvements, destructive-action confirmations, permission-aware quick actions, common async states, Reports Centre, Communication read/acknowledgement flows, Profile cleanup, brand fixes, and canonical source hygiene. UAT only."
+          TARGET_SHA=$(git rev-parse HEAD)
+          NOTES="UAT APK from canonical editable Flutter source. Source commit: ${TARGET_SHA}. Includes hierarchy/reporting designation separation, non-authority additional designations, hierarchy-scoped GPS team visibility, automatic duty-route lifecycle, Price Distribution reporting, and authority-projected Home dashboard. v14 code is not merged. UAT only."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release delete "$TAG" --cleanup-tag --yes
           fi
           gh release create "$TAG" "$APK" "$HASH" \
-            --target "$GITHUB_SHA" \
+            --target "$TARGET_SHA" \
             --title "Excel Herbal ERP Flutter v7.4.0 Stabilization UAT" \
             --notes "$NOTES" \
             --prerelease
