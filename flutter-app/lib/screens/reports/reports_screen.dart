@@ -95,9 +95,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 contextLabel: scopeLabel,
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
-              child: BranchSelector(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: BranchSelector(allowAllAuthorised: !needsBranch),
             ),
             Expanded(
               child: LayoutBuilder(
