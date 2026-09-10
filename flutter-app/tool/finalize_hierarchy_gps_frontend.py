@@ -25,6 +25,7 @@ def verify_current_frontend() -> None:
     designations = ROOT / 'lib/screens/organization/employee_designations_screen.dart'
     team = ROOT / 'lib/screens/organization/team_screen.dart'
     home = ROOT / 'lib/screens/home/home_screen.dart'
+    profile = ROOT / 'lib/screens/home/profile_screen.dart'
     administration = ROOT / 'lib/screens/administration/administration_screen.dart'
     authority_test = ROOT / 'test/authority_projection_test.dart'
     role_matrix_test = ROOT / 'test/role_projection_matrix_test.dart'
@@ -181,6 +182,27 @@ def verify_current_frontend() -> None:
             'route lifecycle is automatic',
         ],
         'Home',
+    )
+
+    require(
+        profile,
+        [
+            "label: 'Primary Designation'",
+            "label: 'Reporting Category'",
+            "label: 'Reporting Manager'",
+            'Reporting group only. It does not increase role permissions or branch authority.',
+            'These are responsibility/display assignments only; they do not inherit authority.',
+            "label: const Text('Sign out')",
+        ],
+        'Profile',
+    )
+    forbid(
+        profile,
+        [
+            'permission/branch authority नहीं बढ़ती।',
+            "label: const Text('Logout')",
+        ],
+        'Profile',
     )
 
     require(
