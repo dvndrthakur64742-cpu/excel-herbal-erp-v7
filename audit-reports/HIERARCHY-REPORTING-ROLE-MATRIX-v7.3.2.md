@@ -36,6 +36,8 @@ Notes:
 
 The hierarchy engine already classified `AGM` / `ASSISTANT_GENERAL_MANAGER` as `REGIONAL`, but v7.3.1 designation capability defaults omitted AGM. v7.3.2 adds AGM to the same least-privilege monitoring capability profile as the Regional management family while preserving explicitly-authorised-branch scope. AGM is not promoted to all-company branch authority.
 
+A local source sanity pass against v7.3.2 `DesignationDefaults` confirms the intended profiles for ASM, SM, BM, Regional/AGM, Executive CM/MD and System Admin.
+
 ## Live deployment verification
 
 The connected office runtime is running **Excel Herbal ERP 7 Clean Core v7.3.2**.
@@ -54,17 +56,20 @@ The hierarchy engine is active, but the current reporting-manager master data is
 
 A live selected-branch sanity check confirms the readiness logic is identifying the intended leadership population: in Head Office, **7 active ASM/SM employees are currently missing a reporting-manager link**, while the active BM record inspected already has a reporting manager configured. No employee names, contact data or GPS coordinates are required for this readiness evidence.
 
+The Flutter Hierarchy readiness workspace now also checks active **Field Executive** reporting links because the recursive chain depends on Field Executive → ASM/SM manager links as well. Reporting Category may classify a row for readiness display, but it still never creates authority.
+
 No reporting manager was guessed or auto-assigned. The Flutter Designation & Reporting workspace exposes Reporting Manager separately from Reporting Category. Manager changes are explicit only and use the existing backend endpoint, which requires an audit reason and blocks self-reporting, reporting cycles, inactive/nonexistent managers, and managers outside effective branch authority.
 
 ## Frontend correction checkpoint
 
-- Team Operations includes a branch-scoped **Hierarchy** workspace. It counts active ASM/SM leadership links as Linked/Missing and opens the existing Designation & Reporting workspace for explicit manager setup.
+- Team Operations includes a branch-scoped **Hierarchy** workspace. It reports Linked/Missing manager links for active Field Executive, ASM and SM hierarchy participants and opens the existing Designation & Reporting workspace for explicit manager setup.
 - The Hierarchy workspace never auto-assigns a manager and explicitly states that Reporting Category and Additional Designations do not create authority.
 - Duty GPS has no manual Start/Stop UI; status refresh does not create a manual route lifecycle.
 - Reporting Manager is managed separately from Reporting Category and Multiple Designations.
 - Price Distribution retains exactly six business fields: Sale Price, HO Amount, BM Profit, Salary Fund, Expense, Points.
 - Reports Centre is capability-filtered and selects the first authorised report when the previous/default type is not allowed.
 - Automated authority-projection tests cover additional-designation non-escalation, reporting-category non-escalation, inheritance-marker non-escalation, reports-only dashboard isolation, stale tool-navigation filtering, technical-admin-only tool isolation and zero-branch blocking.
+- Dedicated `role_projection_matrix_test.dart` covers Field, ASM/SM, BM, RM/RC/AGM/ZI, CM/MD, System Admin, accounting-only and zero-branch projection boundaries.
 - Desktop and mobile shell use the Excel Herbal brand logo and consistent business-facing labels. The old user-facing `ERP Tools` label is replaced by **My Account & Duty** while the internal route id remains unchanged.
 - **My Account & Duty** contains business-facing Duty, My Account, Communication and capability-gated Team Access only. Backend Diagnostics, maintenance cleanup and App Version Policy are not exposed on this business workspace.
 - Technical `administration.access.manage` / `administration.audit.view` capabilities no longer make My Account & Duty visible by themselves.
@@ -80,4 +85,6 @@ Backend v7.3.2 static package QA:
 - source manifest: 77/77 PASS
 - fresh-extract ZIP integrity: PASS
 
-Flutter compiler/APK certification remains pending. GitHub Actions runs are currently failing before a runner starts (`steps=null`, no log blob), while GitHub's public Actions status was operational when checked. This is not evidence of a Dart compile failure and must not be treated as a compile PASS either.
+Flutter compiler/APK certification remains pending. Repeated GitHub Actions runs fail before runner execution: the build job is returned with `steps=null` / empty steps and no log blob. This is not evidence of a Dart compile failure and must not be treated as a compile PASS either.
+
+To avoid generating repeated infrastructure failures during source stabilization, automatic push-triggered certification is temporarily paused. The workflow is now **manual-dispatch only**, `contents: read`, artifact-only, and performs no source commit or release mutation. Once runner allocation is healthy, one controlled manual certification run should execute: invariant gate → Flutter dependencies → analyze → tests → debug APK → SHA256 artifact.
