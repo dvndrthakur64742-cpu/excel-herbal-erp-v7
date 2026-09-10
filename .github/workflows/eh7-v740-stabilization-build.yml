@@ -1,11 +1,6 @@
 name: EH7 Flutter v7.4.0 Stabilization Build
 
 on:
-  push:
-    branches: [flutter-v720-build, v7-hierarchy-gps-reporting-dashboard]
-    paths:
-      - 'flutter-app/**'
-      - '.github/workflows/eh7-v740-stabilization-build.yml'
   workflow_dispatch:
 
 concurrency:
