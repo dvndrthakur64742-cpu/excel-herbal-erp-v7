@@ -60,6 +60,44 @@ jobs:
           --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
           --dart-define=EH7_ENVIRONMENT=uat
 
+      - name: Stamp Web Asset Cache Keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          version = os.environ['GITHUB_SHA']
+          web = Path('flutter-app/build/web')
+          index = web / 'index.html'
+          bootstrap = web / 'flutter_bootstrap.js'
+
+          index_text = index.read_text(encoding='utf-8')
+          bootstrap_src = 'src="flutter_bootstrap.js"'
+          if bootstrap_src not in index_text:
+              raise SystemExit('flutter_bootstrap.js script tag not found')
+          index.write_text(
+              index_text.replace(
+                  bootstrap_src,
+                  f'src="flutter_bootstrap.js?v={version}"',
+                  1,
+              ),
+              encoding='utf-8',
+          )
+
+          bootstrap_text = bootstrap.read_text(encoding='utf-8')
+          if 'main.dart.js' not in bootstrap_text:
+              raise SystemExit('main.dart.js entrypoint not found')
+          bootstrap.write_text(
+              bootstrap_text.replace(
+                  'main.dart.js',
+                  f'main.dart.js?v={version}',
+              ),
+              encoding='utf-8',
+          )
+          PY
+
       - name: Verify and Package Web Bundle
         shell: bash
         run: |
@@ -68,6 +106,8 @@ jobs:
           test -s flutter-app/build/web/main.dart.js
           test -s flutter-app/build/web/flutter_bootstrap.js
           grep -q '/wp-content/uploads/eh7-flutter-web/' flutter-app/build/web/index.html
+          grep -q "flutter_bootstrap.js?v=$GITHUB_SHA" flutter-app/build/web/index.html
+          grep -q "main.dart.js?v=$GITHUB_SHA" flutter-app/build/web/flutter_bootstrap.js
           printf 'source_commit=%s\nbuild_run=%s\nenvironment=uat\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > flutter-app/build/web/WEB-BUILD-INFO.txt
           (cd flutter-app/build/web && zip -qr ../../../Excel-Herbal-ERP-v7.4-Web-UAT.zip .)
           sha256sum Excel-Herbal-ERP-v7.4-Web-UAT.zip | tee WEB-SHA256.txt
