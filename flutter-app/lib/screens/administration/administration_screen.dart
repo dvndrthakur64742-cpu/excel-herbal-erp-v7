@@ -6,6 +6,7 @@ import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
+import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 
 class AdministrationScreen extends ConsumerStatefulWidget {
@@ -33,7 +34,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         AsyncPanel(
           key: ValueKey('reversals-$refresh'),
           future: api.get(ApiPaths.reversals),
-          emptyMessage: 'Koi reversal request nahi hai.',
+          emptyMessage: 'No reversal requests.',
           builder: (context, data) => RecordsList(
             recordType: 'reversal',
             rows: _rows(data),
@@ -73,8 +74,29 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         ),
         body: Column(
           children: [
+            if (app.can('administration.access.manage'))
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: BranchSelector(),
+              ),
             if (message != null)
-              Padding(padding: const EdgeInsets.all(8), child: Text(message!)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Material(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.info_outline),
+                    title: Text(message!),
+                    trailing: IconButton(
+                      tooltip: 'Dismiss',
+                      onPressed: () => setState(() => message = null),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ),
+                ),
+              ),
             Expanded(
               child: TabBarView(children: [for (final tab in tabs) tab.$2]),
             ),
@@ -85,8 +107,11 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
   }
 
   Widget _accessTab(int? branchId) {
-    if (branchId == null)
-      return const Center(child: Text('Authorised branch select karein.'));
+    if (branchId == null) {
+      return const Center(
+        child: Text('Select an authorised branch to manage access.'),
+      );
+    }
     final api = ref.watch(apiClientProvider);
     return AsyncPanel(
       key: ValueKey('access-$refresh-$branchId'),
@@ -145,7 +170,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Designation recommended permissions are automatic; roles are additional access.',
+              'Primary designation defaults apply automatically. Assigned roles add access and remain subject to branch authority.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
@@ -205,7 +230,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                 leading: const Icon(Icons.undo),
                 title: const Text('Execute Reversal'),
                 subtitle: const Text(
-                  'Stock, outstanding, journal aur audit chain backend se reverse honge.',
+                  'Reverses the approved stock, outstanding, journal and audit-linked transaction chain.',
                 ),
                 onTap: () async {
                   final confirmed = await showDialog<bool>(
@@ -213,7 +238,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                     builder: (dialogContext) => AlertDialog(
                       title: const Text('Execute approved reversal?'),
                       content: const Text(
-                        'Ye stock, outstanding, journal aur audit-linked reversal execute karega. Is action ko sirf approved reversal ke liye continue karein.',
+                        'This will execute the approved stock, outstanding, journal and audit-linked reversal. Continue only for the reviewed and approved request.',
                       ),
                       actions: [
                         TextButton(
@@ -271,14 +296,16 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         ],
       ),
     );
-    if (ok == true)
+    if (ok == true) {
       await _post(
-          ApiPaths.adminRoles,
-          {
-            'code': code.text.trim(),
-            'name': name.text.trim(),
-          },
-          closeSheet: false);
+        ApiPaths.adminRoles,
+        {
+          'code': code.text.trim(),
+          'name': name.text.trim(),
+        },
+        closeSheet: false,
+      );
+    }
     code.dispose();
     name.dispose();
   }
@@ -341,14 +368,16 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         ),
       ),
     );
-    if (saved == true)
+    if (saved == true) {
       await _post(
-          ApiPaths.roleCapabilities(int.parse('${role['id']}')),
-          {
-            'capabilities': selected.toList()..sort(),
-            'reason': reason.text.trim(),
-          },
-          closeSheet: false);
+        ApiPaths.roleCapabilities(int.parse('${role['id']}')),
+        {
+          'capabilities': selected.toList()..sort(),
+          'reason': reason.text.trim(),
+        },
+        closeSheet: false,
+      );
+    }
     reason.dispose();
   }
 
@@ -423,7 +452,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
                                 child: Text(
-                                  'Designation: ${employee['designation_code']} · recommended permissions apply automatically.',
+                                  'Primary designation: ${employee['designation_code']} · default permissions apply automatically.',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ),
@@ -447,7 +476,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                               child: Padding(
                                 padding: EdgeInsets.all(20),
                                 child: Text(
-                                  'Individual Grant/Deny overrides will become available after backend v7.1.7 alignment.',
+                                  'Individual Grant/Deny overrides are unavailable for this employee access record.',
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -531,11 +560,12 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                 !_sameStrings(originalDenies, denies));
         if ((rolesChanged || overridesChanged) &&
             reason.text.trim().length < 5) {
-          if (mounted)
+          if (mounted) {
             setState(
               () => message =
-                  'Access change reason minimum 5 characters hona chahiye.',
+                  'Access change reason must contain at least 5 characters.',
             );
+          }
         } else {
           if (rolesChanged) {
             await ref.read(apiClientProvider).post(
@@ -593,12 +623,13 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
   }) async {
     if (closeSheet && Navigator.canPop(context)) Navigator.pop(context);
     try {
-      final r = await ref.read(apiClientProvider).post(path, data: data);
-      if (mounted)
+      await ref.read(apiClientProvider).post(path, data: data);
+      if (mounted) {
         setState(() {
-          message = 'Done: $r';
+          message = 'Saved successfully.';
           refresh++;
         });
+      }
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
