@@ -95,6 +95,7 @@ class AppState {
       ]);
 
   String get currentBranchName {
+    if (businessAccessBlocked) return 'No Authorised Branch';
     if (currentBranchId == null) return 'All Authorised Branches';
     for (final branch in branches) {
       if (int.tryParse('${branch['id']}') == currentBranchId) {
