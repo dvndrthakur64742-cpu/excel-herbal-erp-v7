@@ -219,20 +219,41 @@ void main() {
     expect(state.currentBranchId, isNull);
     expect(state.currentBranchName, 'All Authorised Branches');
     expect(state.branches.map((e) => e['id']), [1, 2]);
+    expect(state.can('reports.view'), isTrue);
     expect(state.businessAccessBlocked, isFalse);
   });
 
   test('zero branch authority blocks business access even with capabilities', () {
     final state = _state(
-      capabilities: const ['erp.access', 'reports.view'],
+      capabilities: const [
+        'erp.access',
+        'reports.view',
+        'communication.view',
+        'administration.access.manage',
+      ],
       sections: const [
         {'id': 'home', 'label': 'Home'},
+        {'id': 'team', 'label': 'Team Operations'},
         {'id': 'reports', 'label': 'Reports Centre'},
+        {'id': 'administration', 'label': 'Administration'},
+      ],
+      bottomNav: const [
+        {'id': 'home', 'label': 'Home'},
+        {'id': 'my_work', 'label': 'My Work'},
+        {'id': 'profile', 'label': 'Profile'},
       ],
       branchIds: const [],
     );
 
     expect(state.businessAccessBlocked, isTrue);
     expect(state.currentBranchId, isNull);
+    expect(state.can('erp.access'), isTrue);
+    expect(state.can('reports.view'), isFalse);
+    expect(state.can('communication.view'), isFalse);
+    expect(state.can('administration.access.manage'), isFalse);
+    expect(state.erpToolsVisible, isFalse);
+    expect(state.sections.map((e) => e['id']), ['home']);
+    expect(state.bottomNav.map((e) => e['id']), ['home', 'profile']);
+    expect(state.managementDashboardVisible, isFalse);
   });
 }
