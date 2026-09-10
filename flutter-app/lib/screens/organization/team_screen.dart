@@ -101,6 +101,30 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     }
     if (app.can('organization.employee.view')) {
       tabs.add((
+        'Hierarchy',
+        AsyncPanel(
+          key: ValueKey('h-${app.currentBranchId}-$refresh'),
+          reloadToken: '${app.currentBranchId}-$refresh',
+          future: app.currentBranchId == null
+              ? Future.value(const <dynamic>[])
+              : api.get(
+                  ApiPaths.employees,
+                  query: {
+                    'branch_id': app.currentBranchId,
+                    'status': 'active',
+                    'limit': 200,
+                  },
+                ),
+          builder: (context, data) => _HierarchyReadinessPanel(
+            rows: (data as List)
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList(growable: false),
+            canManage: app.can('organization.employee.manage'),
+            onOpenEmployee: _employeeDesignations,
+          ),
+        ),
+      ));
+      tabs.add((
         'Employees',
         AsyncPanel(
           key: ValueKey('e-${app.currentBranchId}-$refresh'),
@@ -372,6 +396,167 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
       if (mounted) setState(() => message = UiError.message(e));
     }
   }
+}
+
+class _HierarchyReadinessPanel extends StatelessWidget {
+  const _HierarchyReadinessPanel({
+    required this.rows,
+    required this.canManage,
+    required this.onOpenEmployee,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final bool canManage;
+  final ValueChanged<Map<String, dynamic>> onOpenEmployee;
+
+  static const _hierarchyLeadershipCodes = {
+    'ASM',
+    'AREA_SALES_MANAGER',
+    'SM',
+    'SALES_MANAGER',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final relevant = rows.where((row) {
+      final code = '${row['designation_code'] ?? ''}'.trim().toUpperCase();
+      return _hierarchyLeadershipCodes.contains(code);
+    }).toList(growable: false);
+    final linked = relevant.where(_hasManager).length;
+    final missing = relevant.where((row) => !_hasManager(row)).toList(growable: false);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      missing.isEmpty
+                          ? Icons.account_tree_rounded
+                          : Icons.warning_amber_rounded,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Reporting Hierarchy Readiness',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Checks active ASM/SM reporting links inside the selected authorised branch. Reporting Category and Additional Designations are not used to create authority.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _ReadinessMetric(label: 'Leadership', value: '${relevant.length}'),
+                    _ReadinessMetric(label: 'Linked', value: '$linked'),
+                    _ReadinessMetric(label: 'Missing', value: '${missing.length}'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (relevant.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(
+                child: Text('No active ASM/SM employees in this branch scope.'),
+              ),
+            ),
+          )
+        else if (missing.isEmpty)
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.check_circle_outline_rounded),
+              title: Text('Leadership reporting links complete'),
+              subtitle: Text(
+                'All active ASM/SM employees in this branch have a reporting manager configured.',
+              ),
+            ),
+          )
+        else ...[
+          Text(
+            'Needs setup',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            canManage
+                ? 'Open an employee to assign Reporting Manager with an audit reason. No manager is auto-assigned.'
+                : 'These reporting links are incomplete. An authorised employee manager must configure them.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          for (final row in missing)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.link_off_rounded),
+                title: Text('${row['full_name'] ?? 'Employee'}'),
+                subtitle: Text(
+                  '${row['employee_code'] ?? ''} · ${BusinessFormat.status(row['designation_code'])}\nReporting Manager: Not assigned',
+                ),
+                isThreeLine: true,
+                trailing: canManage
+                    ? IconButton(
+                        tooltip: 'Configure reporting manager',
+                        onPressed: () => onOpenEmployee(row),
+                        icon: const Icon(Icons.arrow_forward_rounded),
+                      )
+                    : null,
+                onTap: canManage ? () => onOpenEmployee(row) : null,
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  static bool _hasManager(Map<String, dynamic> row) =>
+      int.tryParse('${row['reporting_employee_id'] ?? ''}') != null;
+}
+
+class _ReadinessMetric extends StatelessWidget {
+  const _ReadinessMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minWidth: 96),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ],
+        ),
+      );
 }
 
 class _GpsTeamList extends StatelessWidget {
