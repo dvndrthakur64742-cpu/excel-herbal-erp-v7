@@ -7,7 +7,7 @@ class UiError {
     if (error is ApiException) return _api(error);
     if (error is FormatException) {
       final text = '${error.message}'.trim();
-      return text.isEmpty ? 'Entered value check karein.' : text;
+      return text.isEmpty ? 'Check the entered value and try again.' : text;
     }
 
     var text = error.toString().trim();
@@ -43,37 +43,37 @@ class UiError {
 
   static String _api(ApiException error) {
     if (error.statusCode == 401) {
-      return 'Session expire ho gayi hai. Dobara sign in karein.';
+      return 'Your session has expired. Please sign in again.';
     }
     if (error.statusCode == 403) {
-      return 'Aapke role ko is action ki permission nahi hai.';
+      return 'Your role is not authorised for this action.';
     }
 
     switch (error.code) {
       case 'gps_invalid':
-        return 'GPS point sync nahi hua. Retry karein.';
+        return 'The GPS point could not be recorded. Please retry.';
       case 'gps_checkin_required':
-        return 'Duty GPS tracking se pehle check-in required hai.';
+        return 'Attendance check-in is required before duty GPS tracking can begin.';
       case 'gps_recorded_date_invalid':
       case 'gps_recorded_time_invalid':
-        return 'GPS point active duty window ke bahar hai.';
+        return 'The GPS point is outside the active duty window.';
       case 'branch_forbidden':
       case 'branch_access_required':
-        return 'Selected branch ke liye access available nahi hai.';
+        return 'You do not have access to the selected branch.';
       case 'daily_duplicate':
-        return 'Is employee aur date ke liye Daily Order pehle se bana hua hai.';
+        return 'A Daily Order already exists for this employee and date.';
       case 'database_conflict':
-        return 'Ye record pehle se maujood hai.';
+        return 'This record already exists.';
       case 'rate_limited':
-        return 'Bahut zyada attempts hue. Thodi der baad retry karein.';
+        return 'Too many attempts were made. Please try again later.';
       case 'whole_pcs_required':
-        return 'Quantity whole PCS mein enter karein.';
+        return 'Enter the quantity in whole PCS.';
       case 'additional_request_pending':
-        return 'Pending Additional Stock request pehle complete karein.';
+        return 'Complete the pending Additional Stock request first.';
       default:
         final text = error.message.trim();
         return text.isEmpty
-            ? 'Request complete nahi ho saka. Please try again.'
+            ? 'The request could not be completed. Please try again.'
             : text;
     }
   }
