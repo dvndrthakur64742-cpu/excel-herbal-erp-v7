@@ -27,6 +27,8 @@ def verify_current_frontend() -> None:
     team = ROOT / 'lib/screens/organization/team_screen.dart'
     home = ROOT / 'lib/screens/home/home_screen.dart'
     profile = ROOT / 'lib/screens/home/profile_screen.dart'
+    login = ROOT / 'lib/screens/auth/login_screen.dart'
+    ui_error = ROOT / 'lib/core/ui_error.dart'
     administration = ROOT / 'lib/screens/administration/administration_screen.dart'
     authority_test = ROOT / 'test/authority_projection_test.dart'
     role_matrix_test = ROOT / 'test/role_projection_matrix_test.dart'
@@ -225,6 +227,52 @@ def verify_current_frontend() -> None:
     )
 
     require(
+        login,
+        [
+            'String? validationError;',
+            'final error = validationError ?? app.error;',
+            "validationError = 'Enter your mobile number.'",
+            "validationError = 'Enter your password.'",
+            "'assets/branding/excel-herbal-logo.webp'",
+            "const Text('SIGN IN')",
+        ],
+        'Login',
+    )
+    forbid(
+        login,
+        [
+            'UiError.message(Exception(app.error!))',
+            "import '../../core/ui_error.dart';",
+        ],
+        'Login',
+    )
+
+    require(
+        ui_error,
+        [
+            'Your session has expired. Please sign in again.',
+            'Your role is not authorised for this action.',
+            'You do not have access to the selected branch.',
+            'Attendance check-in is required before duty GPS tracking can begin.',
+            'Too many attempts were made. Please try again later.',
+        ],
+        'UI errors',
+    )
+    forbid(
+        ui_error,
+        [
+            'check karein',
+            'Dobara sign in karein',
+            'permission nahi hai',
+            'sync nahi hua',
+            'access available nahi hai',
+            'pehle se bana hua hai',
+            'Thodi der baad retry karein',
+        ],
+        'UI errors',
+    )
+
+    require(
         administration,
         [
             "import '../../widgets/branch_selector.dart';",
@@ -260,6 +308,7 @@ def verify_current_frontend() -> None:
             'reports-only role does not get management dashboard',
             'stale ERP Tools bottom-nav entry is hidden without tool authority',
             'technical admin caps alone do not expose account duty workspace',
+            'aggregate branch scope remains limited to authorised branch ids',
             'zero branch authority blocks business access even with capabilities',
         ],
         'Authority regression tests',
