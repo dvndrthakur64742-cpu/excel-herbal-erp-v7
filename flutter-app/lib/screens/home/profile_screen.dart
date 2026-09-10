@@ -75,7 +75,8 @@ class ProfileScreen extends ConsumerWidget {
                 icon: Icons.account_tree_outlined,
                 label: 'Reporting Category',
                 value: reporting,
-                helper: 'Reporting grouping only — permission/branch authority नहीं बढ़ती।',
+                helper:
+                    'Reporting group only. It does not increase role permissions or branch authority.',
               ),
               const Divider(height: 1),
               _InfoTile(
@@ -164,7 +165,7 @@ class ProfileScreen extends ConsumerWidget {
         OutlinedButton.icon(
           onPressed: () => ref.read(appStateProvider.notifier).logout(),
           icon: const Icon(Icons.logout_rounded),
-          label: const Text('Logout'),
+          label: const Text('Sign out'),
         ),
       ],
     );
