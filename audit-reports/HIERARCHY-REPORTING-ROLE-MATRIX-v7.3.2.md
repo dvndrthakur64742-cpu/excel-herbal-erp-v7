@@ -30,17 +30,29 @@ Date: 2026-09-10
 Notes:
 - The matrix describes designation defaults. Explicit roles and employee capability overrides may add or remove capabilities, but they do not bypass branch or hierarchy scope checks.
 - Home management overview additionally requires both a projected Team workspace and `reports.view`.
-- Reports Centre now filters operational reports behind `reports.view` and Trial Balance behind `finance.accounting.view`, preventing dead/forbidden report options for accounting-only users.
+- Reports Centre filters operational reports behind `reports.view` and Trial Balance behind `finance.accounting.view`, preventing dead/forbidden report options for accounting-only users.
 
 ## v7.3.2 backend consistency correction
 
 The hierarchy engine already classified `AGM` / `ASSISTANT_GENERAL_MANAGER` as `REGIONAL`, but v7.3.1 designation capability defaults omitted AGM. v7.3.2 adds AGM to the same least-privilege monitoring capability profile as the Regional management family while preserving explicitly-authorised-branch scope. AGM is not promoted to all-company branch authority.
 
-## Live data readiness observation
+## Live deployment verification
 
-The live v7.3.1 runtime is healthy, but reporting-manager master data is not yet fully configured. The branch audit found the active ASM/SM employees inspected currently have blank `reporting_employee_id` links. This is a business-data setup gap, not a hierarchy-engine bypass.
+The connected office runtime is now running **Excel Herbal ERP 7 Clean Core v7.3.2**.
 
-The Flutter Designation & Reporting workspace now exposes Reporting Manager separately from Reporting Category. Manager changes are explicit only and use the existing backend endpoint, which requires an audit reason and blocks self-reporting, cycles, inactive/nonexistent managers, and managers outside effective branch authority. No reporting manager is auto-assigned.
+Verified live contract:
+- `/health` reports `version=7.3.2`, `api_contract=7.3.2-contract-1` and the existing `7.3.0-hierarchy-gps-reporting-1` schema.
+- `/bootstrap` reports the same `7.3.2-contract-1` feature contract.
+- Price Distribution returns exactly: `sale_price`, `ho_amount`, `bm_profit`, `salary_fund`, `expense`, `points`.
+- GPS Team returns server-owned duty state and explicitly reports `manual_start_allowed=false` and `manual_stop_allowed=false`.
+- Fake/out-of-authority branches are rejected with `403 branch_forbidden` by both Price Distribution and GPS Team.
+- Invalid reporting-category filters are rejected with `422 reporting_category_invalid`.
+
+## Live hierarchy-data readiness
+
+The hierarchy engine is active, but the current reporting-manager master data is not complete. Across the seven active branches inspected, **17 active ASM/SM employees currently have no `reporting_employee_id` link**. This is a business-data setup gap, not an authority bypass.
+
+No reporting manager was guessed or auto-assigned. The Flutter Designation & Reporting workspace exposes Reporting Manager separately from Reporting Category. Manager changes are explicit only and use the existing backend endpoint, which requires an audit reason and blocks self-reporting, reporting cycles, inactive/nonexistent managers, and managers outside effective branch authority.
 
 ## Frontend correction checkpoint
 
@@ -48,7 +60,9 @@ The Flutter Designation & Reporting workspace now exposes Reporting Manager sepa
 - Duty GPS has no manual Start/Stop UI; status refresh does not create a manual route lifecycle.
 - Reporting Manager is managed separately from Reporting Category and Multiple Designations.
 - Price Distribution retains exactly six business fields: Sale Price, HO Amount, BM Profit, Salary Fund, Expense, Points.
-- Reports Centre options are capability-filtered.
+- Reports Centre options are capability-filtered and selects the first authorised report when the previous/default type is not allowed.
+- Automated authority-projection tests cover additional-designation non-escalation, reports-only dashboard isolation, stale ERP Tools navigation filtering and zero-branch blocking.
+- The pre-Flutter Python gate is read-only; CI no longer patches or commits source during a build.
 
 ## Certification status
 
@@ -58,4 +72,4 @@ Backend v7.3.2 static package QA:
 - source manifest: 77/77 PASS
 - fresh-extract ZIP integrity: PASS
 
-Flutter compiler/APK certification is still pending because current GitHub Actions runs are failing before runner steps begin. This must not be interpreted as a Dart compile failure or a compile PASS.
+Flutter compiler/APK certification remains pending. GitHub Actions runs are currently failing before a runner starts (`steps=null`, no log blob), while GitHub's public Actions status is operational. This is not evidence of a Dart compile failure and must not be treated as a compile PASS either.
