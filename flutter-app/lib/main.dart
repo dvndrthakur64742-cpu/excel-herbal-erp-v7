@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/app_version_gate.dart';
+import 'core/gps_tracking_coordinator.dart';
 import 'core/providers.dart';
 import 'screens/auth/login_screen.dart';
 import 'shell/app_shell.dart';
@@ -63,7 +64,7 @@ class ExcelHerbalApp extends ConsumerWidget {
         : app.authenticated
         ? (app.businessAccessBlocked
               ? const _BranchAccessBlockedScreen()
-              : const AppShell())
+              : const GpsTrackingCoordinator(child: AppShell()))
         : const LoginScreen();
 
     return MaterialApp(
