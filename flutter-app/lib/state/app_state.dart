@@ -74,6 +74,9 @@ class AppState {
   bool get additionalDesignationAuthorityInherited =>
       employee['additional_designations_authority_inherited'] == true;
 
+  bool get businessAccessBlocked =>
+      ((me['branch_ids'] as List?) ?? const []).isEmpty;
+
   /// A management summary is only appropriate when the server projected the
   /// Team workspace and the actor also has report authority. reports.view by
   /// itself (for example an accounting-only role) does not imply team scope.
@@ -118,7 +121,15 @@ class AppState {
   List<String> get capabilities =>
       ((me['capabilities'] as List?) ?? const []).map((e) => '$e').toList();
 
-  bool can(String capability) => capabilities.contains(capability);
+  /// No branch authority means no business capability may be exercised on the
+  /// client. The raw server projection remains inspectable through
+  /// [capabilities], but UI permission checks fail closed until a branch is
+  /// authorised. `erp.access` is retained only for the authenticated shell.
+  bool can(String capability) {
+    if (businessAccessBlocked && capability != 'erp.access') return false;
+    return capabilities.contains(capability);
+  }
+
   bool canAny(Iterable<String> wanted) => wanted.any(can);
   bool sectionVisible(String id) => sections.any((s) => '${s['id']}' == id);
 
@@ -126,6 +137,12 @@ class AppState {
   /// defensively so a stale bootstrap/navigation cache cannot expose a tool
   /// entry that the current actor is not allowed to open.
   List<Map<String, dynamic>> get bottomNav {
+    if (businessAccessBlocked) {
+      return const [
+        {'id': 'home', 'label': 'Home'},
+        {'id': 'profile', 'label': 'Profile'},
+      ];
+    }
     final items =
         (((bootstrap?['navigation'] as Map?)?['bottom_nav'] as List?) ?? const [])
             .map((e) => Map<String, dynamic>.from(e as Map))
@@ -140,13 +157,16 @@ class AppState {
   bool get branchSelectorVisible =>
       branches.length > 1 && me['branch_selector_visible'] == true;
 
-  bool get businessAccessBlocked =>
-      ((me['branch_ids'] as List?) ?? const []).isEmpty;
-
-  List<Map<String, dynamic>> get sections =>
-      (((bootstrap?['navigation'] as Map?)?['sections'] as List?) ?? const [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+  List<Map<String, dynamic>> get sections {
+    final projected =
+        (((bootstrap?['navigation'] as Map?)?['sections'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+    if (!businessAccessBlocked) return projected;
+    return projected
+        .where((section) => '${section['id']}' == 'home')
+        .toList(growable: false);
+  }
 
   AppState copyWith({
     bool? loading,
@@ -246,8 +266,8 @@ class AppController extends StateNotifier<AppState> {
     }
   }
 
-  /// Clears only the current report/workspace branch selection. Authorised
-  /// branch IDs remain server-projected in bootstrap and are never expanded.
+  /// Clears only the current branch selection. Authorised branch IDs remain
+  /// server-projected in bootstrap and are never expanded.
   void selectAllAuthorisedBranches() {
     if (!state.branchSelectorVisible || state.businessAccessBlocked) return;
     state = AppState(
