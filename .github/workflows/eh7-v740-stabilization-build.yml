@@ -105,8 +105,18 @@ jobs:
 
       - name: Accept Android licenses and install SDK packages
         run: |
-          (for /l %%i in (1,1,100) do @echo y) | sdkmanager.bat --licenses
-          sdkmanager.bat "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0"
+          set SDKMANAGER=%ANDROID_SDK_ROOT%\cmdline-tools\latest\bin\sdkmanager.bat
+          set LICENSE_INPUT=%RUNNER_TEMP%\android-license-input.txt
+          if exist "%LICENSE_INPUT%" del /q "%LICENSE_INPUT%"
+          for /l %%i in (1,1,100) do @echo y>>"%LICENSE_INPUT%"
+          call "%SDKMANAGER%" --licenses < "%LICENSE_INPUT%"
+          if errorlevel 1 exit /b 1
+          call "%SDKMANAGER%" "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0"
+          if errorlevel 1 exit /b 1
+          if not exist "%ANDROID_SDK_ROOT%\platforms\android-35\android.jar" exit /b 1
+          if not exist "%ANDROID_SDK_ROOT%\platforms\android-36\android.jar" exit /b 1
+          if not exist "%ANDROID_SDK_ROOT%\build-tools\35.0.0\aapt2.exe" exit /b 1
+          if not exist "%ANDROID_SDK_ROOT%\build-tools\36.0.0\aapt2.exe" exit /b 1
 
       - name: Bootstrap Flutter 3.44.9 with persistent resume cache
         run: |
