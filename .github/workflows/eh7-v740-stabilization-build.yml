@@ -20,6 +20,7 @@ defaults:
 
 jobs:
   build:
+    # ERP7-PC self-hosted certification path; avoids local PowerShell execution-policy changes.
     runs-on: self-hosted
     timeout-minutes: 120
     steps:
