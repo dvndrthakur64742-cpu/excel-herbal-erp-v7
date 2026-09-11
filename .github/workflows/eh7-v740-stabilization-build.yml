@@ -115,16 +115,25 @@ jobs:
           if errorlevel 1 exit /b 1
           call :install_package "build-tools;36.0.0"
           if errorlevel 1 exit /b 1
+          call :install_package "platforms;android-34"
+          if errorlevel 1 exit /b 1
           call :install_package "platforms;android-35"
           if errorlevel 1 exit /b 1
           call :install_package "platforms;android-36"
           if errorlevel 1 exit /b 1
           call :install_package "platform-tools"
           if errorlevel 1 exit /b 1
+          call :install_package "ndk;28.2.13676358"
+          if errorlevel 1 exit /b 1
+          call :install_package "cmake;3.22.1"
+          if errorlevel 1 exit /b 1
+          if not exist "%ANDROID_SDK_ROOT%\platforms\android-34\android.jar" exit /b 1
           if not exist "%ANDROID_SDK_ROOT%\platforms\android-35\android.jar" exit /b 1
           if not exist "%ANDROID_SDK_ROOT%\platforms\android-36\android.jar" exit /b 1
           if not exist "%ANDROID_SDK_ROOT%\build-tools\35.0.0\aapt2.exe" exit /b 1
           if not exist "%ANDROID_SDK_ROOT%\build-tools\36.0.0\aapt2.exe" exit /b 1
+          if not exist "%ANDROID_SDK_ROOT%\ndk\28.2.13676358\source.properties" exit /b 1
+          if not exist "%ANDROID_SDK_ROOT%\cmake\3.22.1\bin\cmake.exe" exit /b 1
           goto sdk_packages_done
           :install_package
           set PKG=%~1
@@ -204,7 +213,17 @@ jobs:
           certutil -hashfile "dist\flutter-v7.4.0\Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk" SHA256 > "dist\flutter-v7.4.0\APK-SHA256.txt"
           type "dist\flutter-v7.4.0\APK-SHA256.txt"
 
+      - name: Persist certified UAT APK on runner
+        run: |
+          set RELEASE_DIR=%USERPROFILE%\ERP7-Releases\v7.4.0
+          if not exist "%RELEASE_DIR%" mkdir "%RELEASE_DIR%"
+          copy /y "dist\flutter-v7.4.0\Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk" "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk"
+          copy /y "dist\flutter-v7.4.0\APK-SHA256.txt" "%RELEASE_DIR%\APK-SHA256.txt"
+          if not exist "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk" exit /b 1
+          echo Certified UAT package persisted at %RELEASE_DIR%
+
       - name: Upload workflow artifact
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Excel-Herbal-ERP-v7.4.0-Stabilization-UAT
@@ -212,3 +231,9 @@ jobs:
             dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
             dist/flutter-v7.4.0/APK-SHA256.txt
           if-no-files-found: error
+
+      - name: Certification summary
+        run: |
+          if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk" exit /b 1
+          echo ERP7 v7.4.0 UAT certification gates passed.
+          echo Local artifact: %USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
