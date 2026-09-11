@@ -22,7 +22,7 @@ jobs:
   build:
     # ERP7-PC self-hosted certification path; avoids local PowerShell execution-policy changes.
     runs-on: self-hosted
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -31,9 +31,11 @@ jobs:
           set PYZIP=%RUNNER_TEMP%\python-3.12.10-embed-amd64.zip
           set PYDIR=%RUNNER_TEMP%\python-3.12.10-embed
           if exist "%PYDIR%" rmdir /s /q "%PYDIR%"
-          curl.exe -fL --retry 3 --retry-delay 2 "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip" -o "%PYZIP%"
+          curl.exe -fL --retry 10 --retry-all-errors --retry-delay 2 "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip" -o "%PYZIP%"
+          if errorlevel 1 exit /b 1
           mkdir "%PYDIR%"
           tar.exe -xf "%PYZIP%" -C "%PYDIR%"
+          if errorlevel 1 exit /b 1
           echo %PYDIR%>>"%GITHUB_PATH%"
           "%PYDIR%\python.exe" --version
 
@@ -49,51 +51,80 @@ jobs:
         working-directory: flutter-app
         run: python tool\verify_api_paths_against_backend.py
 
-      - name: Bootstrap JDK 17
+      - name: Bootstrap JDK 17 with persistent resume cache
         run: |
-          set JDKZIP=%RUNNER_TEMP%\jdk17.zip
-          set JDKROOT=%RUNNER_TEMP%\jdk17
+          set CACHE=C:\actions-runner\eh7-toolcache
+          set JDKZIP=C:\actions-runner\eh7-toolcache\jdk17.zip
+          set JDKROOT=C:\actions-runner\eh7-toolcache\jdk17
+          if not exist "%CACHE%" mkdir "%CACHE%"
+          if exist "%RUNNER_TEMP%\jdk17.zip" if not exist "%JDKZIP%" copy /y "%RUNNER_TEMP%\jdk17.zip" "%JDKZIP%"
+          if exist "%JDKZIP%.complete" goto jdk_downloaded
+          curl.exe -fL -C - --retry 50 --retry-all-errors --retry-delay 3 "https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse?project=jdk" -o "%JDKZIP%"
+          if errorlevel 1 exit /b 1
+          echo complete>"%JDKZIP%.complete"
+          :jdk_downloaded
+          for /d %%D in ("%JDKROOT%\*") do if exist "%%~fD\bin\javac.exe" goto jdk_ready
           if exist "%JDKROOT%" rmdir /s /q "%JDKROOT%"
           mkdir "%JDKROOT%"
-          curl.exe -fL --retry 3 --retry-delay 2 "https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse?project=jdk" -o "%JDKZIP%"
           tar.exe -xf "%JDKZIP%" -C "%JDKROOT%"
-          for /d %%D in ("%JDKROOT%\*") do echo JAVA_HOME=%%~fD>>"%GITHUB_ENV%"
-          for /d %%D in ("%JDKROOT%\*") do echo %%~fD\bin>>"%GITHUB_PATH%"
-          for /d %%D in ("%JDKROOT%\*") do "%%~fD\bin\java.exe" -version
+          if errorlevel 1 exit /b 1
+          :jdk_ready
+          for /d %%D in ("%JDKROOT%\*") do if exist "%%~fD\bin\javac.exe" echo JAVA_HOME=%%~fD>>"%GITHUB_ENV%"
+          for /d %%D in ("%JDKROOT%\*") do if exist "%%~fD\bin\javac.exe" echo %%~fD\bin>>"%GITHUB_PATH%"
+          for /d %%D in ("%JDKROOT%\*") do if exist "%%~fD\bin\javac.exe" "%%~fD\bin\java.exe" -version
+          for /d %%D in ("%JDKROOT%\*") do if exist "%%~fD\bin\javac.exe" "%%~fD\bin\javac.exe" -version
 
-      - name: Bootstrap Android SDK command-line tools
+      - name: Bootstrap Android SDK command-line tools with persistent resume cache
         run: |
-          set SDK=%RUNNER_TEMP%\android-sdk
-          set SDKZIP=%RUNNER_TEMP%\commandlinetools-win-15859902_latest.zip
-          if exist "%SDK%" rmdir /s /q "%SDK%"
-          mkdir "%SDK%"
-          curl.exe -fL --retry 3 --retry-delay 2 "https://dl.google.com/android/repository/commandlinetools-win-15859902_latest.zip" -o "%SDKZIP%"
+          set CACHE=C:\actions-runner\eh7-toolcache
+          set SDK=C:\actions-runner\eh7-toolcache\android-sdk
+          set SDKZIP=C:\actions-runner\eh7-toolcache\commandlinetools-win-15859902_latest.zip
+          set SDKEXTRACT=C:\actions-runner\eh7-toolcache\cmdline-extract
+          if not exist "%CACHE%" mkdir "%CACHE%"
+          if exist "%SDK%\cmdline-tools\latest\bin\sdkmanager.bat" goto sdk_ready
+          if exist "%SDKZIP%.complete" goto sdk_downloaded
+          curl.exe -fL -C - --retry 50 --retry-all-errors --retry-delay 3 "https://dl.google.com/android/repository/commandlinetools-win-15859902_latest.zip" -o "%SDKZIP%"
+          if errorlevel 1 exit /b 1
           certutil -hashfile "%SDKZIP%" SHA256 | findstr /i "90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a" >nul
           if errorlevel 1 exit /b 1
-          tar.exe -xf "%SDKZIP%" -C "%SDK%"
-          mkdir "%SDK%\cmdline-tools\latest"
-          move "%SDK%\cmdline-tools\bin" "%SDK%\cmdline-tools\latest\bin"
-          move "%SDK%\cmdline-tools\lib" "%SDK%\cmdline-tools\latest\lib"
-          move "%SDK%\cmdline-tools\NOTICE.txt" "%SDK%\cmdline-tools\latest\NOTICE.txt"
-          move "%SDK%\cmdline-tools\source.properties" "%SDK%\cmdline-tools\latest\source.properties"
+          echo complete>"%SDKZIP%.complete"
+          :sdk_downloaded
+          if exist "%SDKEXTRACT%" rmdir /s /q "%SDKEXTRACT%"
+          mkdir "%SDKEXTRACT%"
+          tar.exe -xf "%SDKZIP%" -C "%SDKEXTRACT%"
+          if errorlevel 1 exit /b 1
+          if not exist "%SDK%\cmdline-tools\latest" mkdir "%SDK%\cmdline-tools\latest"
+          xcopy /e /i /y "%SDKEXTRACT%\cmdline-tools\*" "%SDK%\cmdline-tools\latest\" >nul
+          if errorlevel 1 exit /b 1
+          :sdk_ready
           echo ANDROID_HOME=%SDK%>>"%GITHUB_ENV%"
           echo ANDROID_SDK_ROOT=%SDK%>>"%GITHUB_ENV%"
           echo %SDK%\cmdline-tools\latest\bin>>"%GITHUB_PATH%"
           echo %SDK%\platform-tools>>"%GITHUB_PATH%"
+          "%SDK%\cmdline-tools\latest\bin\sdkmanager.bat" --version
 
       - name: Accept Android licenses and install SDK packages
         run: |
           (for /l %%i in (1,1,100) do @echo y) | sdkmanager.bat --licenses
           sdkmanager.bat "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0"
 
-      - name: Bootstrap Flutter 3.44.9 stable
+      - name: Bootstrap Flutter 3.44.9 with persistent resume cache
         run: |
-          set FLUTTERZIP=%RUNNER_TEMP%\flutter_windows_3.44.9-stable.zip
-          set FLUTTERROOT=%RUNNER_TEMP%\flutter-3.44.9
+          set CACHE=C:\actions-runner\eh7-toolcache
+          set FLUTTERZIP=C:\actions-runner\eh7-toolcache\flutter_windows_3.44.9-stable.zip
+          set FLUTTERROOT=C:\actions-runner\eh7-toolcache\flutter-3.44.9
+          if not exist "%CACHE%" mkdir "%CACHE%"
+          if exist "%FLUTTERROOT%\flutter\bin\flutter.bat" goto flutter_ready
+          if exist "%FLUTTERZIP%.complete" goto flutter_downloaded
+          curl.exe -fL -C - --retry 100 --retry-all-errors --retry-delay 3 "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.44.9-stable.zip" -o "%FLUTTERZIP%"
+          if errorlevel 1 exit /b 1
+          echo complete>"%FLUTTERZIP%.complete"
+          :flutter_downloaded
           if exist "%FLUTTERROOT%" rmdir /s /q "%FLUTTERROOT%"
           mkdir "%FLUTTERROOT%"
-          curl.exe -fL --retry 3 --retry-delay 2 "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.44.9-stable.zip" -o "%FLUTTERZIP%"
           tar.exe -xf "%FLUTTERZIP%" -C "%FLUTTERROOT%"
+          if errorlevel 1 exit /b 1
+          :flutter_ready
           git config --global --add safe.directory "%FLUTTERROOT%\flutter"
           echo %FLUTTERROOT%\flutter\bin>>"%GITHUB_PATH%"
           "%FLUTTERROOT%\flutter\bin\flutter.bat" --version
