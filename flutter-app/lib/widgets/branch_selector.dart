@@ -28,6 +28,7 @@ class BranchSelector extends ConsumerWidget {
         : (allowAllAuthorised ? -1 : null);
 
     return DropdownButtonFormField<int>(
+      key: ValueKey('${allowAllAuthorised}_${app.currentBranchId}'),
       isExpanded: true,
       menuMaxHeight: 360,
       initialValue: selected,
