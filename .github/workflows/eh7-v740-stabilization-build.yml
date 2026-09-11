@@ -5,7 +5,7 @@ on:
   push:
     branches: [v7-hierarchy-gps-reporting-dashboard]
     paths:
-      - '.ci/eh7-self-hosted-certify.trigger'
+      - '.github/workflows/eh7-v740-stabilization-build.yml'
 
 concurrency:
   group: eh7-v740-${{ github.ref }}
