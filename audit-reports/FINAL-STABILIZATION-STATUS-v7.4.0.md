@@ -1,6 +1,6 @@
 # Excel Herbal ERP v7.4.0 — Final Stabilization Status
 
-Date: 2026-09-10
+Date: 2026-09-11
 Branch: `v7-hierarchy-gps-reporting-dashboard`
 Backend runtime: v7.3.2 / API contract `7.3.2-contract-1`
 
@@ -21,6 +21,7 @@ Completed and locked by source invariants/regression coverage:
 - Price Distribution retains exactly: Sale Price, HO Amount, BM Profit, Salary Fund, Expense, Points.
 - Price Distribution and Trial Balance can use All Authorised Branches without expanding the server-projected authorised branch IDs.
 - Sales/Purchase/Stock/Finance reports remain branch-required.
+- Report branch selector state is keyed to both branch scope mode and current branch, so switching between branch-required and All Authorised reports cannot retain a stale dropdown value.
 - Home management dashboard requires both Team projection and `reports.view`.
 - Reports-only/accounting-only profiles do not gain Team management dashboards.
 - ERP Tools user-facing exposure is replaced by My Account & Duty and technical maintenance/diagnostic controls are not exposed there.
@@ -41,11 +42,13 @@ Production backend v7.3.2 was verified live during stabilization:
 - fake/out-of-authority branch requests rejected;
 - invalid reporting-category filters rejected.
 
-Fresh package re-check on 2026-09-10:
+Fresh package re-check:
 
 - PHP lint: 51/51 PASS
 - ZIP integrity: PASS
 - SHA-256: `786c8ff2b063cd1c606522095da27ec455fe80e57b4bca84b454d946103118aa`
+
+Frontend/backend report query cross-check also confirms Trial Balance uses `to` plus an optional branch. When branch is omitted, the backend aggregates only the actor's existing authorised branch IDs; it does not expand to company-wide authority.
 
 ## Reporting-data readiness
 
@@ -53,20 +56,53 @@ The software hierarchy engine is corrected, but reporting-manager master data st
 
 ## Flutter certification blocker
 
-A single controlled GitHub Actions certification attempt was made after source stabilization:
+GitHub-hosted runner execution was probed multiple times after source stabilization.
+
+### Standard hosted runner
 
 - Run ID: `34486920153`
-- Event: push (one-shot trigger only)
+- Initial job: `102903441436`
+- Runner: `ubuntu-latest`
 - Result: failure before runner execution
-- Job: `build`
 - Steps: `null`
 - Job logs: `null`
 
-Therefore no Flutter command executed in that run. This is neither a Flutter compile PASS nor a Flutter compile failure.
+### Alternate hosted runner
 
-The one-shot push trigger was removed immediately after the diagnostic run. The certification workflow is restored to manual-dispatch only, `contents: read`, artifact-only, and does not mutate source or publish a release automatically.
+- Run ID: `34498125506`
+- Initial job: `102941721000`
+- Runner: `ubuntu-slim`
+- Result: failure before runner execution
+- Steps: `null`
+- Job logs: `null`
 
-The current execution environment also has no Flutter/Dart SDK or Android SDK, and direct external SDK download is unavailable here, so it cannot substitute for the failed GitHub runner.
+### Explicit re-run
+
+- Same run: `34498125506`
+- Re-run job: `102982204766`
+- Re-run request was accepted by GitHub.
+- Result again: failure before runner execution
+- Steps: `null`
+- Job logs: `null`
+
+Because every probe failed before the first workflow step, no Flutter command executed. These results are neither a Flutter compile PASS nor a Flutter compile failure. The evidence isolates the remaining blocker to GitHub-hosted runner allocation/account execution rather than the workflow's Dart source steps.
+
+All temporary push-trigger probes were removed after diagnosis. The certification workflow is restored to manual-dispatch only, `contents: read`, artifact-only, and does not mutate source or publish a release automatically.
+
+## Local fallback evidence
+
+A prior 48 MB Flutter source bundle was inspected locally. It contains `.dart_tool` metadata and test cache generated with Flutter 3.47.2, confirming the existing project dependency set has previously been exercised on the same Flutter line. That cache points to the original hosted-runner SDK/package paths, which are not mounted in the current container and therefore cannot execute current tests by itself.
+
+Current local environment:
+
+- OpenJDK 21: available
+- Flutter executable: unavailable
+- Dart executable: unavailable
+- Android SDK/ADB: unavailable
+- original hosted-runner Flutter/package cache paths: unavailable
+- direct SDK bootstrap from this execution container: unavailable
+
+Flutter 3.47.2 API documentation was also checked for the current branch-selector implementation: `DropdownButtonFormField.initialValue` is the supported API in this Flutter release line.
 
 ## Remaining certification gate
 
@@ -86,6 +122,7 @@ When a Flutter-capable runner is available, execute exactly one controlled certi
 - Backend/live correction: **100% complete**.
 - Requested source/business-logic correction scope: **100% complete**.
 - Source regression/static stabilization: **100% complete for the requested scope**.
-- Overall release certification: **not 100% yet**, because Flutter analyze/test/APK/device UAT have not executed successfully on a Flutter-capable runner.
+- Overall release readiness: **approximately 98–99%**.
+- Production APK certification: **pending only because Flutter analyze/test/APK/device UAT have not executed successfully on a Flutter-capable runner**.
 
 Do not publish or call an APK production-ready until the remaining certification gate passes.
