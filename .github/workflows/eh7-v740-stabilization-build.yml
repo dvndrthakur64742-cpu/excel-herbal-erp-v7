@@ -2,6 +2,10 @@ name: EH7 Flutter v7.4.0 Stabilization Build
 
 on:
   workflow_dispatch:
+  push:
+    branches: [v7-hierarchy-gps-reporting-dashboard]
+    paths:
+      - '.ci/eh7-self-hosted-certify.trigger'
 
 concurrency:
   group: eh7-v740-${{ github.ref }}
@@ -12,39 +16,56 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Verify hierarchy/reporting/GPS frontend invariants
         working-directory: flutter-app
-        run: python3 tool/finalize_hierarchy_gps_frontend.py
+        run: python tool/finalize_hierarchy_gps_frontend.py
 
       - name: Verify branch selector state sync
         working-directory: flutter-app
-        run: python3 tool/verify_branch_selector_state_sync.py
+        run: python tool/verify_branch_selector_state_sync.py
 
       - name: Verify Flutter API paths against v7 backend
         working-directory: flutter-app
-        run: python3 tool/verify_api_paths_against_backend.py
+        run: python tool/verify_api_paths_against_backend.py
 
-      - name: Install verified Flutter 3.44.9 stable
-        shell: bash
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses and install SDK packages
+        shell: powershell
         run: |
-          set -euo pipefail
-          ARCHIVE="$RUNNER_TEMP/flutter_linux_3.44.9-stable.tar.xz"
-          SDK_DIR="$RUNNER_TEMP/flutter-sdk"
-          curl --fail --location --retry 3 --retry-delay 2 \
-            --output "$ARCHIVE" \
-            https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.9-stable.tar.xz
-          echo "a9120fa4a01048bdef438ddc3a2d4b7389662ea98a95db86eeaf10382bc4efcb  $ARCHIVE" | sha256sum --check --status
-          mkdir -p "$SDK_DIR"
-          tar -xf "$ARCHIVE" -C "$SDK_DIR"
-          git config --global --add safe.directory "$SDK_DIR/flutter"
-          echo "$SDK_DIR/flutter/bin" >> "$GITHUB_PATH"
-          "$SDK_DIR/flutter/bin/flutter" --version
-          "$SDK_DIR/flutter/bin/flutter" config --no-analytics
+          cmd.exe /c "(for /l %i in (1,1,100) do @echo y) | sdkmanager --licenses"
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Flutter 3.44.9 stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.9'
+          cache: true
+
+      - name: Verify Flutter toolchain
+        shell: powershell
+        run: |
+          flutter --version
+          flutter config --no-analytics
+          flutter doctor -v
 
       - name: Dependencies
         working-directory: flutter-app
@@ -67,15 +88,18 @@ jobs:
           --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
           --dart-define=EH7_ENVIRONMENT=uat
 
-      - name: Verify APK
-        shell: bash
+      - name: Verify APK and SHA256
+        shell: powershell
         run: |
-          set -euo pipefail
-          APK=flutter-app/build/app/outputs/flutter-apk/app-debug.apk
-          test -s "$APK"
-          mkdir -p dist/flutter-v7.4.0
-          cp "$APK" dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
-          sha256sum dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk | tee dist/flutter-v7.4.0/APK-SHA256.txt
+          $apk = 'flutter-app/build/app/outputs/flutter-apk/app-debug.apk'
+          if (!(Test-Path $apk) -or ((Get-Item $apk).Length -le 0)) { throw 'APK missing or empty' }
+          New-Item -ItemType Directory -Force -Path 'dist/flutter-v7.4.0' | Out-Null
+          $out = 'dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk'
+          Copy-Item $apk $out -Force
+          $hash = (Get-FileHash -Algorithm SHA256 $out).Hash.ToLower()
+          "$hash  Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk" | Set-Content -Encoding ascii 'dist/flutter-v7.4.0/APK-SHA256.txt'
+          Get-Item $out | Format-List FullName,Length
+          Get-Content 'dist/flutter-v7.4.0/APK-SHA256.txt'
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
