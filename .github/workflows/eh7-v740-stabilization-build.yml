@@ -174,6 +174,7 @@ jobs:
       - name: Verify Flutter toolchain
         run: |
           flutter.bat config --android-sdk "%ANDROID_SDK_ROOT%"
+          flutter.bat config --enable-web
           flutter.bat --version
           flutter.bat doctor -v
 
@@ -188,6 +189,38 @@ jobs:
       - name: Test
         working-directory: flutter-app
         run: flutter.bat test
+
+      - name: Build Web UAT
+        working-directory: flutter-app
+        run: |
+          set WEB_TRY=0
+          :retry_web
+          set /a WEB_TRY+=1
+          echo Web build attempt %WEB_TRY% of 3
+          call flutter.bat build web --release --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=uat
+          if not errorlevel 1 goto web_ok
+          if %WEB_TRY% GEQ 3 exit /b 1
+          timeout /t 10 /nobreak >nul
+          goto retry_web
+          :web_ok
+          echo Web build completed.
+
+      - name: Verify and persist Web UAT
+        run: |
+          if not exist "flutter-app\build\web\index.html" exit /b 1
+          if not exist "flutter-app\build\web\flutter_bootstrap.js" exit /b 1
+          if not exist "flutter-app\build\web\main.dart.js" exit /b 1
+          if not exist "dist\flutter-v7.4.0\web-uat" mkdir "dist\flutter-v7.4.0\web-uat"
+          xcopy /e /i /y "flutter-app\build\web\*" "dist\flutter-v7.4.0\web-uat\" >nul
+          certutil -hashfile "dist\flutter-v7.4.0\web-uat\main.dart.js" SHA256 > "dist\flutter-v7.4.0\WEB-MAIN-SHA256.txt"
+          set WEB_RELEASE_DIR=%USERPROFILE%\ERP7-Releases\v7.4.0\web-uat
+          if exist "%WEB_RELEASE_DIR%" rmdir /s /q "%WEB_RELEASE_DIR%"
+          mkdir "%WEB_RELEASE_DIR%"
+          xcopy /e /i /y "dist\flutter-v7.4.0\web-uat\*" "%WEB_RELEASE_DIR%\" >nul
+          copy /y "dist\flutter-v7.4.0\WEB-MAIN-SHA256.txt" "%USERPROFILE%\ERP7-Releases\v7.4.0\WEB-MAIN-SHA256.txt"
+          if not exist "%WEB_RELEASE_DIR%\index.html" exit /b 1
+          if not exist "%WEB_RELEASE_DIR%\main.dart.js" exit /b 1
+          type "dist\flutter-v7.4.0\WEB-MAIN-SHA256.txt"
 
       - name: Build APK with network retry
         working-directory: flutter-app
@@ -230,10 +263,15 @@ jobs:
           path: |
             dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
             dist/flutter-v7.4.0/APK-SHA256.txt
+            dist/flutter-v7.4.0/web-uat/
+            dist/flutter-v7.4.0/WEB-MAIN-SHA256.txt
           if-no-files-found: error
 
       - name: Certification summary
         run: |
           if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk" exit /b 1
-          echo ERP7 v7.4.0 UAT certification gates passed.
-          echo Local artifact: %USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
+          if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\web-uat\index.html" exit /b 1
+          if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\web-uat\main.dart.js" exit /b 1
+          echo ERP7 v7.4.0 Android and Web UAT certification gates passed.
+          echo Android: %USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk
+          echo Web: %USERPROFILE%\ERP7-Releases\v7.4.0\web-uat
