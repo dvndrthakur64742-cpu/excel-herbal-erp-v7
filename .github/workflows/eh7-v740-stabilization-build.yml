@@ -18,7 +18,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -34,12 +34,22 @@ jobs:
         working-directory: flutter-app
         run: python3 tool/verify_api_paths_against_backend.py
 
-      - name: Install Flutter 3.47.2
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
-        with:
-          channel: stable
-          flutter-version: '3.47.2'
-          cache: true
+      - name: Install verified Flutter 3.44.9 stable
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="$RUNNER_TEMP/flutter_linux_3.44.9-stable.tar.xz"
+          SDK_DIR="$RUNNER_TEMP/flutter-sdk"
+          curl --fail --location --retry 3 --retry-delay 2 \
+            --output "$ARCHIVE" \
+            https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.9-stable.tar.xz
+          echo "a9120fa4a01048bdef438ddc3a2d4b7389662ea98a95db86eeaf10382bc4efcb  $ARCHIVE" | sha256sum --check --status
+          mkdir -p "$SDK_DIR"
+          tar -xf "$ARCHIVE" -C "$SDK_DIR"
+          git config --global --add safe.directory "$SDK_DIR/flutter"
+          echo "$SDK_DIR/flutter/bin" >> "$GITHUB_PATH"
+          "$SDK_DIR/flutter/bin/flutter" --version
+          "$SDK_DIR/flutter/bin/flutter" config --no-analytics
 
       - name: Dependencies
         working-directory: flutter-app
