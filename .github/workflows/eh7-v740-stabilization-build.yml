@@ -103,7 +103,7 @@ jobs:
           echo %SDK%\platform-tools>>"%GITHUB_PATH%"
           "%SDK%\cmdline-tools\latest\bin\sdkmanager.bat" --version
 
-      - name: Accept Android licenses and install SDK packages
+      - name: Accept Android licenses and install SDK packages with retry
         run: |
           set SDKMANAGER=%ANDROID_SDK_ROOT%\cmdline-tools\latest\bin\sdkmanager.bat
           set LICENSE_INPUT=%RUNNER_TEMP%\android-license-input.txt
@@ -111,12 +111,34 @@ jobs:
           for /l %%i in (1,1,100) do @echo y>>"%LICENSE_INPUT%"
           call "%SDKMANAGER%" --licenses < "%LICENSE_INPUT%"
           if errorlevel 1 exit /b 1
-          call "%SDKMANAGER%" "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0"
+          call :install_package "build-tools;35.0.0"
+          if errorlevel 1 exit /b 1
+          call :install_package "build-tools;36.0.0"
+          if errorlevel 1 exit /b 1
+          call :install_package "platforms;android-35"
+          if errorlevel 1 exit /b 1
+          call :install_package "platforms;android-36"
+          if errorlevel 1 exit /b 1
+          call :install_package "platform-tools"
           if errorlevel 1 exit /b 1
           if not exist "%ANDROID_SDK_ROOT%\platforms\android-35\android.jar" exit /b 1
           if not exist "%ANDROID_SDK_ROOT%\platforms\android-36\android.jar" exit /b 1
           if not exist "%ANDROID_SDK_ROOT%\build-tools\35.0.0\aapt2.exe" exit /b 1
           if not exist "%ANDROID_SDK_ROOT%\build-tools\36.0.0\aapt2.exe" exit /b 1
+          goto sdk_packages_done
+          :install_package
+          set PKG=%~1
+          set ATTEMPT=0
+          :install_retry
+          set /a ATTEMPT+=1
+          echo Installing %PKG% - attempt %ATTEMPT% of 12
+          call "%SDKMANAGER%" "%PKG%"
+          if not errorlevel 1 exit /b 0
+          if %ATTEMPT% GEQ 12 exit /b 1
+          timeout /t 8 /nobreak >nul
+          goto install_retry
+          :sdk_packages_done
+          echo Android SDK packages verified.
 
       - name: Bootstrap Flutter 3.44.9 with persistent resume cache
         run: |
@@ -142,6 +164,7 @@ jobs:
 
       - name: Verify Flutter toolchain
         run: |
+          flutter.bat config --android-sdk "%ANDROID_SDK_ROOT%"
           flutter.bat --version
           flutter.bat doctor -v
 
@@ -157,9 +180,20 @@ jobs:
         working-directory: flutter-app
         run: flutter.bat test
 
-      - name: Build APK
+      - name: Build APK with network retry
         working-directory: flutter-app
-        run: flutter.bat build apk --debug --build-name=7.4.0 --build-number=740 --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=uat
+        run: |
+          set BUILD_TRY=0
+          :retry_apk
+          set /a BUILD_TRY+=1
+          echo APK build attempt %BUILD_TRY% of 5
+          call flutter.bat build apk --debug --build-name=7.4.0 --build-number=740 --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=uat
+          if not errorlevel 1 goto apk_ok
+          if %BUILD_TRY% GEQ 5 exit /b 1
+          timeout /t 10 /nobreak >nul
+          goto retry_apk
+          :apk_ok
+          echo APK build completed.
 
       - name: Verify APK and SHA256
         run: |
