@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Verify hierarchy/reporting/GPS frontend invariants
         working-directory: flutter-app
@@ -30,7 +30,7 @@ jobs:
         run: python3 tool/verify_api_paths_against_backend.py
 
       - name: Install Flutter 3.47.2
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: '3.47.2'
@@ -68,7 +68,7 @@ jobs:
           sha256sum dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Stabilization-UAT.apk | tee dist/flutter-v7.4.0/APK-SHA256.txt
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Excel-Herbal-ERP-v7.4.0-Stabilization-UAT
           path: |
