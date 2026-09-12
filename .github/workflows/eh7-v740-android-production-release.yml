@@ -1,0 +1,139 @@
+name: EH7 v7.4.0 Android Production Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [v7-hierarchy-gps-reporting-dashboard]
+    paths:
+      - '.github/workflows/eh7-v740-android-production-release.yml'
+
+concurrency:
+  group: eh7-v740-android-production-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: cmd
+
+jobs:
+  android-production:
+    runs-on: self-hosted
+    timeout-minutes: 180
+    steps:
+      - name: Enable Windows long paths
+        run: git config --global core.longpaths true
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Configure cached JDK Android SDK and Flutter
+        run: |
+          set JDKROOT=C:\actions-runner\eh7-toolcache\jdk17
+          set SDK=C:\actions-runner\eh7-toolcache\android-sdk
+          set FLUTTERROOT=C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter
+          if not exist "%SDK%\build-tools\35.0.0\apksigner.bat" exit /b 1
+          if not exist "%FLUTTERROOT%\bin\flutter.bat" exit /b 1
+          set JDK_FOUND=0
+          for /d %%D in ("%JDKROOT%\*") do if exist "%%~fD\bin\javac.exe" echo JAVA_HOME=%%~fD>>"%GITHUB_ENV%"
+          for /d %%D in ("%JDKROOT%\*") do if exist "%%~fD\bin\javac.exe" echo %%~fD\bin>>"%GITHUB_PATH%"
+          for /d %%D in ("%JDKROOT%\*") do if exist "%%~fD\bin\javac.exe" set JDK_FOUND=1
+          if "%JDK_FOUND%"=="0" exit /b 1
+          echo ANDROID_HOME=%SDK%>>"%GITHUB_ENV%"
+          echo ANDROID_SDK_ROOT=%SDK%>>"%GITHUB_ENV%"
+          echo %SDK%\platform-tools>>"%GITHUB_PATH%"
+          echo %SDK%\build-tools\35.0.0>>"%GITHUB_PATH%"
+          echo %FLUTTERROOT%\bin>>"%GITHUB_PATH%"
+          "%FLUTTERROOT%\bin\flutter.bat" --version
+
+      - name: Detect approved local signing material
+        run: |
+          set SIGNING_SOURCE=
+          if exist "%USERPROFILE%\ERP7-Signing\key.properties" set SIGNING_SOURCE=%USERPROFILE%\ERP7-Signing\key.properties
+          if not defined SIGNING_SOURCE if exist "%USERPROFILE%\.eh7-signing\key.properties" set SIGNING_SOURCE=%USERPROFILE%\.eh7-signing\key.properties
+          if defined SIGNING_SOURCE goto signing_ready
+          echo EH7_SIGNING_READY=false>>"%GITHUB_ENV%"
+          echo Production signing material is not configured on this runner.
+          goto signing_done
+          :signing_ready
+          copy /y "%SIGNING_SOURCE%" "flutter-app\android\key.properties" >nul
+          if errorlevel 1 exit /b 1
+          echo EH7_SIGNING_READY=true>>"%GITHUB_ENV%"
+          echo Approved local signing configuration staged without printing secrets.
+          :signing_done
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: flutter.bat pub get
+
+      - name: Analyze clean source
+        working-directory: flutter-app
+        run: flutter.bat analyze
+
+      - name: Test
+        working-directory: flutter-app
+        run: flutter.bat test
+
+      - name: Build production release APK
+        working-directory: flutter-app
+        run: flutter.bat build apk --release --build-name=7.4.0 --build-number=740 --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
+
+      - name: Verify release signing state and preserve APK
+        run: |
+          set APK=flutter-app\build\app\outputs\flutter-apk\app-release.apk
+          set RELEASE_DIR=%USERPROFILE%\ERP7-Releases\v7.4.0
+          set APKSIGNER=%ANDROID_SDK_ROOT%\build-tools\35.0.0\apksigner.bat
+          if not exist "%APK%" exit /b 1
+          if not exist "%RELEASE_DIR%" mkdir "%RELEASE_DIR%"
+          call "%APKSIGNER%" verify --verbose "%APK%"
+          set VERIFY_EXIT=%ERRORLEVEL%
+          if /i "%EH7_SIGNING_READY%"=="true" goto require_signed
+          if "%VERIFY_EXIT%"=="0" (
+            echo ERROR: APK verified as signed even though no approved signing source was staged.
+            exit /b 1
+          )
+          copy /y "%APK%" "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-UNSIGNED-RELEASE-COMPILE.apk" >nul
+          certutil -hashfile "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-UNSIGNED-RELEASE-COMPILE.apk" SHA256 > "%RELEASE_DIR%\ANDROID-UNSIGNED-RELEASE-COMPILE-SHA256.txt"
+          type "%RELEASE_DIR%\ANDROID-UNSIGNED-RELEASE-COMPILE-SHA256.txt"
+          echo EH7_RELEASE_SIGNED=false>>"%GITHUB_ENV%"
+          echo Release-mode compile passed, but production signing is not configured.
+          goto verify_done
+          :require_signed
+          if not "%VERIFY_EXIT%"=="0" exit /b 1
+          call "%APKSIGNER%" verify --verbose --print-certs "%APK%"
+          if errorlevel 1 exit /b 1
+          copy /y "%APK%" "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.apk" >nul
+          certutil -hashfile "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.apk" SHA256 > "%RELEASE_DIR%\ANDROID-PRODUCTION-APK-SHA256.txt"
+          type "%RELEASE_DIR%\ANDROID-PRODUCTION-APK-SHA256.txt"
+          echo EH7_RELEASE_SIGNED=true>>"%GITHUB_ENV%"
+          :verify_done
+
+      - name: Build signed production AAB
+        if: env.EH7_RELEASE_SIGNED == 'true'
+        working-directory: flutter-app
+        run: flutter.bat build appbundle --release --build-name=7.4.0 --build-number=740 --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
+
+      - name: Verify and preserve signed AAB
+        if: env.EH7_RELEASE_SIGNED == 'true'
+        run: |
+          set AAB=flutter-app\build\app\outputs\bundle\release\app-release.aab
+          set RELEASE_DIR=%USERPROFILE%\ERP7-Releases\v7.4.0
+          if not exist "%AAB%" exit /b 1
+          copy /y "%AAB%" "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.aab" >nul
+          certutil -hashfile "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.aab" SHA256 > "%RELEASE_DIR%\ANDROID-PRODUCTION-AAB-SHA256.txt"
+          type "%RELEASE_DIR%\ANDROID-PRODUCTION-AAB-SHA256.txt"
+
+      - name: Remove staged signing configuration
+        if: always()
+        run: if exist "flutter-app\android\key.properties" del /q "flutter-app\android\key.properties"
+
+      - name: Production release readiness summary
+        run: |
+          if /i "%EH7_RELEASE_SIGNED%"=="true" (
+            echo ERP7 v7.4.0 production Android APK/AAB signing gates passed.
+            exit /b 0
+          )
+          echo ERP7 v7.4.0 release-mode compile passed, but production signing remains BLOCKED.
+          echo Configure key.properties only on the approved runner under %USERPROFILE%\ERP7-Signing\key.properties and keep the keystore outside the repository.
+          exit /b 2
