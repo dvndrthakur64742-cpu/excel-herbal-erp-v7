@@ -673,7 +673,7 @@ class _EmployeeDesignationsScreenState
   }
 
   String _designationLabel(String code, String? name) {
-    final cleanName = '${name ?? ''}'.trim();
+    final cleanName = (name ?? '').trim();
     if (cleanName.isEmpty || cleanName.toUpperCase() == code.toUpperCase()) {
       return code.isEmpty ? '—' : code;
     }
