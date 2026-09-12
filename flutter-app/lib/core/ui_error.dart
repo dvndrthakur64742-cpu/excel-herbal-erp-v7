@@ -6,7 +6,7 @@ class UiError {
   static String message(Object error) {
     if (error is ApiException) return _api(error);
     if (error is FormatException) {
-      final text = '${error.message}'.trim();
+      final text = error.message.trim();
       return text.isEmpty ? 'Check the entered value and try again.' : text;
     }
 
