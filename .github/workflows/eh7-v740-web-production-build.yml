@@ -92,6 +92,7 @@ jobs:
           findstr /c:"UAT BUILD" "flutter-app\build\web\main.dart.js" >nul
           if not errorlevel 1 exit /b 1
           echo Production web invariants verified.
+          exit /b 0
 
       - name: Persist and package production web
         run: |
