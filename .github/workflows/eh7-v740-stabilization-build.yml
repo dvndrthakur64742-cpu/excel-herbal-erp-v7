@@ -184,7 +184,7 @@ jobs:
 
       - name: Analyze
         working-directory: flutter-app
-        run: flutter.bat analyze --no-fatal-infos --no-fatal-warnings
+        run: flutter.bat analyze
 
       - name: Test
         working-directory: flutter-app
