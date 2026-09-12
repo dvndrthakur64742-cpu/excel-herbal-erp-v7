@@ -6,6 +6,8 @@ on:
     branches: [v7-hierarchy-gps-reporting-dashboard]
     paths:
       - '.github/workflows/eh7-v740-web-production-build.yml'
+      - 'flutter-app/lib/core/app_config.dart'
+      - 'flutter-app/lib/screens/auth/login_screen.dart'
 
 concurrency:
   group: eh7-v740-web-production-${{ github.ref }}
