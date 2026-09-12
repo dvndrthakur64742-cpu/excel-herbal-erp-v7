@@ -15,5 +15,7 @@ class AppConfig {
   );
 
   static bool get isProductionApi => apiBaseUrl == productionApiBaseUrl;
-  static bool get isUat => environment.toLowerCase() != 'production';
+
+  /// Compile-time environment flag so release builds can tree-shake UAT-only UI.
+  static const bool isUat = environment != 'production';
 }
