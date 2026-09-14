@@ -157,21 +157,21 @@ void main() {
   replaceOnce(
     records,
     '''      'stock' => const [
-        'quantity',
-        'sku',
-        'uom',
-        'batch_no',
-        'custodian_name',
-        'expires_on',
-      ],''',
+          'quantity',
+          'sku',
+          'uom',
+          'batch_no',
+          'custodian_name',
+          'expires_on',
+        ],''',
     '''      'stock' => const [
-        'quantity',
-        'custodian_name',
-        'sku',
-        'uom',
-        'batch_no',
-        'expires_on',
-      ],''',
+          'quantity',
+          'custodian_name',
+          'sku',
+          'uom',
+          'batch_no',
+          'expires_on',
+        ],''',
   );
   replaceOnce(records, '    return ordered.take(3).toList();',
       """    final limit = widget.recordType == 'stock' ? 4 : 3;
@@ -188,8 +188,8 @@ void main() {
 
   File('flutter-app/test/frontend_responsive_ux_test.dart').writeAsStringSync(r'''import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:excel_herbal_erp_v7/core/business_format.dart';
-import 'package:excel_herbal_erp_v7/widgets/records_list.dart';
+import 'package:excel_herbal_erp/core/business_format.dart';
+import 'package:excel_herbal_erp/widgets/records_list.dart';
 
 void main() {
   testWidgets('business records stay readable at audited widths', (tester) async {
