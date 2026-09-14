@@ -29,7 +29,7 @@
                  ),
              ],
            ),
-@@ -767,8 +776,29 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
+@@ -767,8 +776,30 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
    }
  
    Future<void> _newDailyOrder() async {
@@ -70,7 +70,7 @@
          return;
        }
        final lines = <Map<String, dynamic>>[];
-@@ -981,6 +1014,11 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
+@@ -981,6 +1014,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
        }
      } catch (e) {
        if (mounted) setState(() => message = UiError.message(e));
