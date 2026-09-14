@@ -23,6 +23,11 @@ jobs:
         with:
           ref: v740-business-completion
 
+      - name: Normalize checkout line endings
+        run: |
+          git config core.autocrlf false
+          git reset --hard HEAD
+
       - name: Apply frontend UX batch
         run: |
           set DART=C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\cache\dart-sdk\bin\dart.exe
