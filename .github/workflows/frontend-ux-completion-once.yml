@@ -5,6 +5,7 @@ on:
     branches: [v740-business-completion]
     paths:
       - '.github/scripts/frontend_ux_batch.dart'
+      - '.github/workflows/frontend-ux-completion-once.yml'
 
 permissions:
   contents: write
