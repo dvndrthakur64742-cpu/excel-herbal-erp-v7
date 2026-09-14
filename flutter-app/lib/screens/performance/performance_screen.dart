@@ -9,6 +9,8 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 
+import 'compensation_workspace.dart';
+
 class PerformanceScreen extends ConsumerStatefulWidget {
   const PerformanceScreen({super.key});
 
@@ -82,6 +84,23 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             ),
           ],
         ),
+      ));
+    }
+    if (app.canAny(const [
+      'salary.view',
+      'salary.manage',
+      'salary.approve',
+      'rewards.view',
+      'rewards.manage',
+      'rewards.approve',
+      'rewards.pay',
+      'promotion.view',
+      'promotion.request',
+      'promotion.approve',
+    ])) {
+      tabs.add((
+        'Compensation',
+        const CompensationWorkspace(),
       ));
     }
     if (app.canAny(const [
