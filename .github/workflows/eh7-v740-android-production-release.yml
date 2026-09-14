@@ -3,7 +3,7 @@ name: EH7 v7.4.0 Android Production Release
 on:
   workflow_dispatch:
   push:
-    branches: [v7-hierarchy-gps-reporting-dashboard]
+    branches: [v740-business-completion]
     paths:
       - '.github/workflows/eh7-v740-android-production-release.yml'
 
@@ -123,6 +123,30 @@ jobs:
           copy /y "%AAB%" "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.aab" >nul
           certutil -hashfile "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.aab" SHA256 > "%RELEASE_DIR%\ANDROID-PRODUCTION-AAB-SHA256.txt"
           type "%RELEASE_DIR%\ANDROID-PRODUCTION-AAB-SHA256.txt"
+
+      - name: Stage Android release artifact
+        if: always()
+        run: |
+          set RELEASE_DIR=%USERPROFILE%\ERP7-Releases\v7.4.0
+          if exist "dist\android-release" rmdir /s /q "dist\android-release"
+          mkdir "dist\android-release"
+          if exist "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.apk" copy /y "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.apk" "dist\android-release\" >nul
+          if exist "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.aab" copy /y "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Production.aab" "dist\android-release\" >nul
+          if exist "%RELEASE_DIR%\ANDROID-PRODUCTION-APK-SHA256.txt" copy /y "%RELEASE_DIR%\ANDROID-PRODUCTION-APK-SHA256.txt" "dist\android-release\" >nul
+          if exist "%RELEASE_DIR%\ANDROID-PRODUCTION-AAB-SHA256.txt" copy /y "%RELEASE_DIR%\ANDROID-PRODUCTION-AAB-SHA256.txt" "dist\android-release\" >nul
+          if exist "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-UNSIGNED-RELEASE-COMPILE.apk" copy /y "%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-UNSIGNED-RELEASE-COMPILE.apk" "dist\android-release\" >nul
+          if exist "%RELEASE_DIR%\ANDROID-UNSIGNED-RELEASE-COMPILE-SHA256.txt" copy /y "%RELEASE_DIR%\ANDROID-UNSIGNED-RELEASE-COMPILE-SHA256.txt" "dist\android-release\" >nul
+          echo commit=%GITHUB_SHA%>"dist\android-release\ANDROID-RELEASE-STATUS.txt"
+          echo signed=%EH7_RELEASE_SIGNED%>>"dist\android-release\ANDROID-RELEASE-STATUS.txt"
+          echo signing_ready=%EH7_SIGNING_READY%>>"dist\android-release\ANDROID-RELEASE-STATUS.txt"
+
+      - name: Upload Android release artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Excel-Herbal-ERP-v7.4.0-Android-Release-Candidate
+          path: dist/android-release/*
+          if-no-files-found: error
 
       - name: Remove staged signing configuration
         if: always()
