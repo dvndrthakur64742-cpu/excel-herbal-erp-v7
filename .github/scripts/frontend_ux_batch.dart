@@ -1,58 +1,48 @@
 import 'dart:io';
 
-String _normalisedText(File file) =>
-    file.readAsStringSync().replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+String readNormalised(String path) => File(path)
+    .readAsStringSync()
+    .replaceAll('\r\n', '\n')
+    .replaceAll('\r', '\n');
 
 void replaceOnce(String path, String from, String to) {
   final file = File(path);
-  var text = _normalisedText(file);
+  var text = readNormalised(path);
   final count = from.allMatches(text).length;
   if (count != 1) {
-    throw StateError('$path: expected 1 match, found $count');
+    throw StateError('$path: expected 1 match, found $count for: $from');
   }
-  text = text.replaceFirst(from, to);
-  file.writeAsStringSync(text);
+  file.writeAsStringSync(text.replaceFirst(from, to));
 }
 
 void replaceExpected(String path, String from, String to, int expected) {
   final file = File(path);
-  var text = _normalisedText(file);
+  var text = readNormalised(path);
   final count = from.allMatches(text).length;
   if (count != expected) {
-    throw StateError('$path: expected $expected matches, found $count');
+    throw StateError('$path: expected $expected matches, found $count for: $from');
   }
-  text = text.replaceAll(from, to);
-  file.writeAsStringSync(text);
+  file.writeAsStringSync(text.replaceAll(from, to));
 }
 
 void main() {
   const theme = 'flutter-app/lib/theme/excel_brand.dart';
-  replaceExpected(
-    theme,
-    'minimumSize: const Size(44, 44),',
-    'minimumSize: const Size(48, 48),',
-    2,
-  );
+  replaceExpected(theme, 'minimumSize: const Size(44, 44),',
+      'minimumSize: const Size(48, 48),', 2);
   replaceOnce(
     theme,
-    '''style: TextButton.styleFrom(
-          foregroundColor: primaryDark,
-          textStyle: const TextStyle(fontWeight: FontWeight.w800),
-        ),''',
-    '''style: TextButton.styleFrom(
-          foregroundColor: primaryDark,
+    '''foregroundColor: primaryDark,
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),''',
+    '''foregroundColor: primaryDark,
           minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800),
-        ),''',
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),''',
   );
 
   const asyncPanel = 'flutter-app/lib/widgets/async_panel.dart';
-  replaceOnce(
-    asyncPanel,
-    "this.emptyMessage = 'Abhi koi data available nahi hai.',",
-    "this.emptyMessage = 'This section has no records to show.',",
-  );
+  replaceOnce(asyncPanel,
+      "this.emptyMessage = 'Abhi koi data available nahi hai.',",
+      "this.emptyMessage = 'This section has no records to show.',");
   replaceOnce(
     asyncPanel,
     '''Widget build(BuildContext context) => const Center(
@@ -96,57 +86,48 @@ void main() {
               message,
               textAlign: TextAlign.center,''',
   );
-  replaceOnce(
-    asyncPanel,
-    "'Section load nahi ho paaya',",
-    "'Unable to load this section',",
-  );
-  replaceOnce(asyncPanel, "label: const Text('Try Again'),", "label: const Text('Retry'),");
+  replaceOnce(asyncPanel, "'Section load nahi ho paaya',",
+      "'Unable to load this section',");
+  replaceOnce(asyncPanel, "label: const Text('Try Again'),",
+      "label: const Text('Retry'),");
 
-  const businessFormat = 'flutter-app/lib/core/business_format.dart';
+  const format = 'flutter-app/lib/core/business_format.dart';
   replaceOnce(
-    businessFormat,
-    "'designation_code': 'Designation Code',",
-    "'designation_code': 'Designation',",
+    format,
+    "    'employee_code': 'Employee Code',",
+    """    'employee_code': 'Employee Code',
+    'designation_code': 'Designation',
+    'reporting_category': 'Reporting Group',
+    'role_code': 'Role',
+    'login_enabled': 'Login Access',""",
   );
   replaceOnce(
-    businessFormat,
-    "'reporting_category': 'Reporting Category',",
-    "'reporting_category': 'Reporting Group',",
-  );
-  replaceOnce(
-    businessFormat,
-    "'role_code': 'Role Code',",
-    "'role_code': 'Role',",
-  );
-  replaceOnce(
-    businessFormat,
-    "'login_enabled': 'Login Enabled',",
-    "'login_enabled': 'Login Access',",
-  );
-  replaceOnce(
-    businessFormat,
-    "'''if (v is bool) return v ? 'Yes' : 'No';''',",
-    "'''if (v is bool) return v ? 'Enabled' : 'Disabled';''',",
+    format,
+    "    if (k == 'status') return status(value);",
+    """    if (k == 'status') return status(value);
+    if (k == 'login_enabled') {
+      final raw = '\$value'.trim().toLowerCase();
+      return value == true || raw == '1' || raw == 'true' ? 'Enabled' : 'Disabled';
+    }
+    if (const {'designation_code', 'reporting_category', 'role_code'}.contains(k)) {
+      return _titleWords('\$value'.replaceAll('_', ' ').toLowerCase());
+    }""",
   );
 
   const gps = 'flutter-app/lib/core/gps_tracking_service.dart';
-  replaceOnce(
-    gps,
-    "'Location permission blocked. Browser/device settings me permission allow karein.',",
-    "'Location permission is blocked. Allow location for this site in your browser or device settings, then tap Retry.',",
-  );
-  replaceOnce(
-    gps,
-    "'Location permission deny ho gayi. Permission allow karke dobara try karein.',",
-    "'Location permission was denied. Allow location when prompted, then tap Retry.',",
-  );
+  replaceOnce(gps, "'Location permission is blocked in device settings.'",
+      "'Location permission is blocked. Allow location for this site in browser or device settings, then tap Retry.'");
+  replaceOnce(gps, "'Location permission is required for duty GPS.'",
+      "'Location permission is required for duty GPS. Allow it when prompted, then tap Retry.'");
+  replaceOnce(gps, "'Device location is off. Turn on Location for duty GPS.'",
+      "'Device location is off. Turn on Location, then tap Retry for duty GPS.'");
 
   const tasks = 'flutter-app/lib/screens/communication/tasks_screen.dart';
   replaceOnce(
     tasks,
     '''    return Column(
-      children: [''',
+      children: [
+        if (message != null)''',
     '''    return Column(
       children: [
         Padding(
@@ -165,13 +146,12 @@ void main() {
               ],
             ),
           ),
-        ),''',
+        ),
+        if (message != null)''',
   );
-  replaceOnce(
-    tasks,
-    "return const Center(child: Text('Koi pending task nahi hai.'));",
-    "return const Center(child: Text('No pending tasks.'));",
-  );
+  replaceOnce(tasks,
+      "return const Center(child: Text('Koi pending task nahi hai.'));",
+      "return const Center(child: Text('No pending tasks.'));");
 
   const records = 'flutter-app/lib/widgets/records_list.dart';
   replaceOnce(
@@ -193,8 +173,9 @@ void main() {
         'expires_on',
       ],''',
   );
-  replaceOnce(records, 'return ordered.take(3).toList();', '''final limit = widget.recordType == 'stock' ? 4 : 3;
-    return ordered.take(limit).toList();''');
+  replaceOnce(records, '    return ordered.take(3).toList();',
+      """    final limit = widget.recordType == 'stock' ? 4 : 3;
+    return ordered.take(limit).toList();""");
   replaceOnce(
     records,
     '''                  : SizedBox(
@@ -205,8 +186,7 @@ void main() {
                       height: 48,''',
   );
 
-  final testFile = File('flutter-app/test/frontend_responsive_ux_test.dart');
-  testFile.writeAsStringSync(r'''import 'package:flutter/material.dart';
+  File('flutter-app/test/frontend_responsive_ux_test.dart').writeAsStringSync(r'''import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:excel_herbal_erp_v7/core/business_format.dart';
 import 'package:excel_herbal_erp_v7/widgets/records_list.dart';
@@ -224,29 +204,33 @@ void main() {
         'status': 'issue_pending',
       }
     ];
-
     for (final width in <double>[360, 390, 768]) {
       await tester.binding.setSurfaceSize(Size(width, 800));
-      await tester.pumpWidget(MaterialApp(home: Scaffold(body: RecordsList(rows: rows, recordType: 'stock'))));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: RecordsList(rows: rows, recordType: 'stock')),
+      ));
       await tester.pumpAndSettle();
       expect(find.byType(Card), findsWidgets);
       expect(find.textContaining('Head Office Store Custodian'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
-
     await tester.binding.setSurfaceSize(const Size(1366, 900));
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: RecordsList(rows: rows, recordType: 'stock'))));
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: RecordsList(rows: rows, recordType: 'stock')),
+    ));
     await tester.pumpAndSettle();
     expect(find.byType(DataTable), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.binding.setSurfaceSize(null);
   });
 
-  test('internal values are presented as readable business labels', () {
+  test('internal values are readable business labels', () {
     expect(BusinessFormat.label('designation_code'), 'Designation');
     expect(BusinessFormat.label('reporting_category'), 'Reporting Group');
     expect(BusinessFormat.label('login_enabled'), 'Login Access');
     expect(BusinessFormat.value('login_enabled', true), 'Enabled');
+    expect(BusinessFormat.value('login_enabled', 0), 'Disabled');
+    expect(BusinessFormat.value('designation_code', 'BRANCH_MANAGER'), 'Branch Manager');
     expect(BusinessFormat.status('issue_pending'), 'Issue Pending');
   });
 }
