@@ -1,0 +1,56 @@
+name: Frontend UX Completion Once
+
+on:
+  push:
+    branches: [v740-business-completion]
+    paths:
+      - '.github/scripts/frontend_ux_batch.dart'
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: cmd
+
+jobs:
+  apply-frontend-ux:
+    runs-on: self-hosted
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: v740-business-completion
+
+      - name: Apply frontend UX batch
+        run: |
+          set DART=C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\cache\dart-sdk\bin\dart.exe
+          if not exist "%DART%" exit /b 1
+          "%DART%" .github\scripts\frontend_ux_batch.dart
+          "%DART%" format flutter-app\lib\theme\excel_brand.dart flutter-app\lib\widgets\async_panel.dart flutter-app\lib\core\business_format.dart flutter-app\lib\core\gps_tracking_service.dart flutter-app\lib\screens\communication\tasks_screen.dart flutter-app\lib\widgets\records_list.dart flutter-app\test\frontend_responsive_ux_test.dart
+          git diff --check
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: |
+          C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat pub get
+
+      - name: Responsive viewport and label tests
+        working-directory: flutter-app
+        run: |
+          C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat test test\frontend_responsive_ux_test.dart
+
+      - name: Strict Flutter analysis
+        working-directory: flutter-app
+        run: |
+          C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat analyze
+
+      - name: Commit frontend UX completion batch
+        run: |
+          git diff --quiet
+          if not errorlevel 1 exit /b 0
+          git config user.name "erp7-ci"
+          git config user.email "erp7-ci@users.noreply.github.com"
+          git add flutter-app\lib\theme\excel_brand.dart flutter-app\lib\widgets\async_panel.dart flutter-app\lib\core\business_format.dart flutter-app\lib\core\gps_tracking_service.dart flutter-app\lib\screens\communication\tasks_screen.dart flutter-app\lib\widgets\records_list.dart flutter-app\test\frontend_responsive_ux_test.dart
+          git commit -m "fix(frontend): complete responsive UX accessibility batch"
+          git push origin HEAD:v740-business-completion
