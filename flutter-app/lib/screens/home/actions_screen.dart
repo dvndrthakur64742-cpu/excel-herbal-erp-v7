@@ -8,12 +8,10 @@ import '../organization/hr_lifecycle_screen.dart';
 class ActionsScreen extends ConsumerWidget {
   const ActionsScreen({
     super.key,
-    required this.openMyWork,
-    required this.openModule,
+    required this.openConnectedAction,
   });
 
-  final VoidCallback openMyWork;
-  final void Function(String) openModule;
+  final void Function(String actionId) openConnectedAction;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,61 +22,61 @@ class ActionsScreen extends ConsumerWidget {
       actions.add((
         label: 'Check-In / Out',
         icon: Icons.location_on_outlined,
-        run: openMyWork,
+        run: () => openConnectedAction('attendance'),
       ));
     }
     if (app.canAny(const ['daily_order.self', 'daily_order.others'])) {
       actions.add((
         label: 'Create Daily Order',
         icon: Icons.shopping_cart_checkout,
-        run: openMyWork,
+        run: () => openConnectedAction('daily_create'),
       ));
       actions.add((
         label: 'Evening Closing',
         icon: Icons.nightlight_outlined,
-        run: openMyWork,
+        run: () => openConnectedAction('evening'),
       ));
     }
     if (app.can('workforce.field_visit.self')) {
       actions.add((
         label: 'Field Visit',
         icon: Icons.route_outlined,
-        run: openMyWork,
+        run: () => openConnectedAction('field_visit'),
       ));
     }
     if (app.can('workforce.leave.self')) {
       actions.add((
         label: 'Apply Leave',
         icon: Icons.event_available_outlined,
-        run: openMyWork,
+        run: () => openConnectedAction('leave'),
       ));
     }
     if (app.can('sales.create')) {
       actions.add((
         label: 'Counter Sale',
         icon: Icons.point_of_sale,
-        run: () => openModule('sales'),
+        run: () => openConnectedAction('counter_sale'),
       ));
     }
     if (app.can('inventory.transfer.create')) {
       actions.add((
         label: 'Stock Transfer',
         icon: Icons.swap_horiz,
-        run: () => openModule('inventory'),
+        run: () => openConnectedAction('stock_transfer'),
       ));
     }
     if (app.can('purchase.create')) {
       actions.add((
         label: 'Purchase Entry',
         icon: Icons.local_shipping_outlined,
-        run: () => openModule('purchase'),
+        run: () => openConnectedAction('purchase_entry'),
       ));
     }
     if (app.can('finance.expense.create')) {
       actions.add((
         label: 'Expense Entry',
         icon: Icons.receipt_long_outlined,
-        run: () => openModule('finance'),
+        run: () => openConnectedAction('expense_entry'),
       ));
     }
     if (app.canAny(const [
