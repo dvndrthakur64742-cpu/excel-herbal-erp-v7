@@ -62,8 +62,11 @@ abstract final class ApiPaths {
       bankReconciliations = '/finance/bank-reconciliations';
 
   static const payrollRuns = '/payroll/runs',
+      salaryStructures = '/payroll/salary-structures',
       performanceSummary = '/performance/summary',
-      performanceTargets = '/performance/targets';
+      performanceTargets = '/performance/targets',
+      performanceRewards = '/performance/rewards',
+      performancePromotions = '/performance/promotions';
 
   static const reportsSales = '/reports/sales',
       reportsPurchase = '/reports/purchase',
@@ -181,7 +184,13 @@ abstract final class ApiPaths {
       '/payroll/runs/$id/items/$itemId';
   static String payrollApprove(int id) => '/payroll/runs/$id/approve';
   static String payrollPay(int id) => '/payroll/runs/$id/pay';
+  static String salaryStructureApprove(int id) =>
+      '/payroll/salary-structures/$id/approve';
   static String targetApprove(int id) => '/performance/targets/$id/approve';
+  static String rewardDecision(int id) => '/performance/rewards/$id/decision';
+  static String rewardPay(int id) => '/performance/rewards/$id/pay';
+  static String promotionDecision(int id) =>
+      '/performance/promotions/$id/decision';
 
   static String notificationRead(int id) =>
       '/communication/notifications/$id/read';
