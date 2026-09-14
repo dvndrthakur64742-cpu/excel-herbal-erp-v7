@@ -26,7 +26,7 @@ diff --git a/flutter-app/lib/screens/my_work/my_work_screen.dart b/flutter-app/l
 +                          child: CircularProgressIndicator(strokeWidth: 2),
 +                        )
 +                      : const Icon(Icons.add),
-+                  label: Text(_dailyOrderOpening ? 'Opening…' : 'New Order'),
++                  label: Text(_dailyOrderOpening ? 'Opening...' : 'New Order'),
                  ),
              ],
            ),
@@ -55,7 +55,7 @@ diff --git a/flutter-app/lib/screens/my_work/my_work_screen.dart b/flutter-app/l
 +    if (mounted) {
 +      setState(() {
 +        _dailyOrderOpening = true;
-+        message = 'Daily Order form load ho raha hai…';
++        message = 'Daily Order form load ho raha hai...';
 +      });
 +    }
      try {
