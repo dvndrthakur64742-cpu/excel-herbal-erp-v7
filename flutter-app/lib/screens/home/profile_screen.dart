@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
+import 'employee_id_card_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -26,19 +27,7 @@ class ProfileScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(18),
             child: Row(
               children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: const BoxDecoration(
-                    color: ExcelBrand.primarySoft,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.person_rounded,
-                    color: ExcelBrand.primaryDark,
-                    size: 30,
-                  ),
-                ),
+                _profilePhoto(employee),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -60,6 +49,20 @@ class ProfileScreen extends ConsumerWidget {
               ],
             ),
           ),
+        ),
+        const SizedBox(height: 12),
+        FilledButton.tonalIcon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => EmployeeIdCardScreen(
+                employee: Map<String, dynamic>.from(employee),
+                branchName: app.currentBranchName,
+                designation: app.primaryDesignationLabel,
+              ),
+            ),
+          ),
+          icon: const Icon(Icons.badge_outlined),
+          label: const Text('View / Print Employee I-Card'),
         ),
         const SizedBox(height: 12),
         Card(
@@ -169,6 +172,49 @@ class ProfileScreen extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Widget _profilePhoto(Map<String, dynamic> employee) {
+    final photoUrl = _photoUrl(employee);
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: const BoxDecoration(
+        color: ExcelBrand.primarySoft,
+        shape: BoxShape.circle,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: photoUrl == null
+          ? const Icon(
+              Icons.person_rounded,
+              color: ExcelBrand.primaryDark,
+              size: 30,
+            )
+          : Image.network(
+              photoUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.person_rounded,
+                color: ExcelBrand.primaryDark,
+                size: 30,
+              ),
+            ),
+    );
+  }
+
+  String? _photoUrl(Map<String, dynamic> employee) {
+    for (final key in const [
+      'profile_photo_url',
+      'photo_url',
+      'employee_photo_url',
+      'photo',
+    ]) {
+      final value = '${employee[key] ?? ''}'.trim();
+      if (value.startsWith('https://') || value.startsWith('http://')) {
+        return value;
+      }
+    }
+    return null;
   }
 
   String _reportingLabel(String value) {
