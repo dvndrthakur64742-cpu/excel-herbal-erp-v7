@@ -134,7 +134,7 @@ void main() {
   };
 
   static String codeLabel(dynamic value) {
-    final raw = '${value ?? ''}'.trim();
+    final raw = '\${value ?? ''}'.trim();
     if (raw.isEmpty) return '—';
     return raw
         .split(RegExp(r'[_\\s-]+'))
@@ -143,13 +143,13 @@ void main() {
           final upper = part.toUpperCase();
           if (_acronyms.contains(upper)) return upper;
           final lower = part.toLowerCase();
-          return '${lower[0].toUpperCase()}${lower.substring(1)}';
+          return '\${lower[0].toUpperCase()}\${lower.substring(1)}';
         })
         .join(' ');
   }
 
   static String enabledLabel(dynamic value) {
-    final raw = '${value ?? ''}'.trim();
+    final raw = '\${value ?? ''}'.trim();
     if (raw.isEmpty) return '—';
     final lower = raw.toLowerCase();
     if (const {'1', 'true', 'yes', 'on', 'enabled'}.contains(lower)) {
