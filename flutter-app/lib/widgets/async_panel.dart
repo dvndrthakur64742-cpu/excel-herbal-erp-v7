@@ -8,7 +8,7 @@ class AsyncPanel extends StatefulWidget {
     super.key,
     required this.future,
     required this.builder,
-    this.emptyMessage = 'Abhi koi data available nahi hai.',
+    this.emptyMessage = 'This section has no records to show.',
     this.reloadToken,
   });
 
@@ -61,12 +61,16 @@ class _LoadingState extends StatelessWidget {
   const _LoadingState();
 
   @override
-  Widget build(BuildContext context) => const Center(
-    child: Padding(
-      padding: EdgeInsets.all(32),
-      child: SizedBox.square(
-        dimension: 30,
-        child: CircularProgressIndicator(strokeWidth: 2.6),
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    label: 'Loading content',
+    child: const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: SizedBox.square(
+          dimension: 30,
+          child: CircularProgressIndicator(strokeWidth: 2.6),
+        ),
       ),
     ),
   );
@@ -98,6 +102,14 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
+            Text(
+              'No records yet',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 7),
             Text(
               message,
               textAlign: TextAlign.center,
@@ -144,10 +156,11 @@ class _ErrorState extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Section load nahi ho paaya',
+                'Unable to load this section',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 7),
               Text(
@@ -168,7 +181,7 @@ class _ErrorState extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Try Again'),
+                label: const Text('Retry'),
               ),
             ],
           ),

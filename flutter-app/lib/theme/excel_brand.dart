@@ -186,7 +186,7 @@ class ExcelBrand {
           foregroundColor: Colors.white,
           disabledBackgroundColor: const Color(0xFFDCE4DF),
           disabledForegroundColor: const Color(0xFF8A938E),
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
           shape: RoundedRectangleBorder(
@@ -197,7 +197,7 @@ class ExcelBrand {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: primaryDark,
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
           side: const BorderSide(color: Color(0xFF9AB8A7)),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
@@ -209,6 +209,8 @@ class ExcelBrand {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: primaryDark,
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
@@ -217,10 +219,7 @@ class ExcelBrand {
         selectedColor: primarySoft,
         side: BorderSide.none,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        labelStyle: const TextStyle(
-          color: ink,
-          fontWeight: FontWeight.w700,
-        ),
+        labelStyle: const TextStyle(color: ink, fontWeight: FontWeight.w700),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: surface,

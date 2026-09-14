@@ -25,6 +25,23 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     final api = ref.watch(apiClientProvider);
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('My Tasks', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 3),
+                Text(
+                  'Pending work assigned to you. Open a task to review its context.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ),
         if (message != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -51,7 +68,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                   .map((e) => Map<String, dynamic>.from(e as Map))
                   .toList();
               if (tasks.isEmpty) {
-                return const Center(child: Text('Koi pending task nahi hai.'));
+                return const Center(child: Text('No pending tasks.'));
               }
               return ListView.separated(
                 padding: const EdgeInsets.all(16),
@@ -89,9 +106,9 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                               children: [
                                 Text(
                                   '${task['title'] ?? 'Task'}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(

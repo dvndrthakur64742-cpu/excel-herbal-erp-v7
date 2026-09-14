@@ -131,6 +131,10 @@ class BusinessFormat {
     'employee_name': 'Employee',
     'full_name': 'Name',
     'employee_code': 'Employee Code',
+    'designation_code': 'Designation',
+    'reporting_category': 'Reporting Group',
+    'role_code': 'Role',
+    'login_enabled': 'Login Access',
     'source_type': 'Source',
     'batch_no': 'Batch',
     'custodian_name': 'Custodian',
@@ -226,6 +230,19 @@ class BusinessFormat {
       return '—';
     final k = key.toLowerCase();
     if (k == 'status') return status(value);
+    if (k == 'login_enabled') {
+      final raw = '$value'.trim().toLowerCase();
+      return value == true || raw == '1' || raw == 'true'
+          ? 'Enabled'
+          : 'Disabled';
+    }
+    if (const {
+      'designation_code',
+      'reporting_category',
+      'role_code',
+    }.contains(k)) {
+      return _titleWords('$value'.replaceAll('_', ' ').toLowerCase());
+    }
     if (k.endsWith('_at') || k == 'due_at') return dateTime(value);
     if (_dateKeys.contains(k)) return date(value);
     if (_moneyKeys.contains(k) ||

@@ -223,7 +223,8 @@ class GpsTrackingService extends ChangeNotifier {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _dutyStatus = 'location_disabled';
-      _lastError = 'Device location is off. Turn on Location for duty GPS.';
+      _lastError =
+          'Device location is off. Turn on Location, then tap Retry for duty GPS.';
       return false;
     }
 
@@ -235,8 +236,8 @@ class GpsTrackingService extends ChangeNotifier {
         permission == LocationPermission.deniedForever) {
       _dutyStatus = 'permission_blocked';
       _lastError = permission == LocationPermission.deniedForever
-          ? 'Location permission is blocked in device settings.'
-          : 'Location permission is required for duty GPS.';
+          ? 'Location permission is blocked. Allow location for this site in browser or device settings, then tap Retry.'
+          : 'Location permission is required for duty GPS. Allow it when prompted, then tap Retry.';
       return false;
     }
     return true;
