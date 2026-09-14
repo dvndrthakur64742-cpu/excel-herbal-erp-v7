@@ -34,6 +34,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   int refresh = 0;
   String? message;
   bool _handledInitialAction = false;
+  bool _dailyOrderOpening = false;
 
   @override
   void initState() {
@@ -218,10 +219,17 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               ),
               if (app.can('daily_order.self') || app.can('daily_order.others'))
                 FilledButton.icon(
-                  onPressed:
-                      app.currentBranchId == null ? null : _newDailyOrder,
-                  icon: const Icon(Icons.add),
-                  label: const Text('New Order'),
+                  onPressed: app.currentBranchId == null || _dailyOrderOpening
+                      ? null
+                      : _newDailyOrder,
+                  icon: _dailyOrderOpening
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add),
+                  label: Text(_dailyOrderOpening ? 'Opening...' : 'New Order'),
                 ),
             ],
           ),
@@ -787,8 +795,30 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   }
 
   Future<void> _newDailyOrder() async {
+    if (_dailyOrderOpening) return;
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
+    if (app.currentBranchId == null) {
+      if (mounted) {
+        setState(() => message = 'Authorised Branch select karein.');
+      }
+      return;
+    }
+    if (!app.can('daily_order.self') && !app.can('daily_order.others')) {
+      if (mounted) {
+        setState(
+          () => message =
+              'Daily Order create karne ki permission aapke role mein nahi hai.',
+        );
+      }
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _dailyOrderOpening = true;
+        message = 'Daily Order form load ho raha hai...';
+      });
+    }
     try {
       final data = Map<String, dynamic>.from(
         await api.get(ApiPaths.masterData) as Map,
@@ -965,6 +995,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
 
       if (mode == null) {
         for (final c in qty.values) c.dispose();
+        if (mounted) {
+          setState(() => message = null);
+        }
         return;
       }
       final lines = <Map<String, dynamic>>[];
@@ -1004,6 +1037,10 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       }
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      if (mounted && _dailyOrderOpening) {
+        setState(() => _dailyOrderOpening = false);
+      }
     }
   }
 
