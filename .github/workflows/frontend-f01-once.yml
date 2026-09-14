@@ -1,0 +1,45 @@
+name: Frontend F01 once
+
+on:
+  push:
+    branches: [v740-business-completion]
+    paths:
+      - '.github/patches/frontend-f01-daily-order-open.patch'
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: cmd
+
+jobs:
+  apply-f01:
+    runs-on: self-hosted
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: v740-business-completion
+
+      - name: Apply deterministic F01 patch
+        run: |
+          git apply --check .github\patches\frontend-f01-daily-order-open.patch
+          git apply .github\patches\frontend-f01-daily-order-open.patch
+
+      - name: Verify Daily Order open-state contract
+        run: |
+          findstr /c:"bool _dailyOrderOpening = false;" flutter-app\lib\screens\my_work\my_work_screen.dart >nul || exit /b 1
+          findstr /c:"Daily Order form load ho raha hai" flutter-app\lib\screens\my_work\my_work_screen.dart >nul || exit /b 1
+          findstr /c:"_dailyOrderOpening ? null : _newDailyOrder" flutter-app\lib\screens\my_work\my_work_screen.dart >nul || exit /b 1
+          git diff --check
+
+      - name: Commit F01 fix
+        run: |
+          git diff --quiet
+          if not errorlevel 1 exit /b 0
+          git config user.name "erp7-ci"
+          git config user.email "erp7-ci@users.noreply.github.com"
+          git add flutter-app\lib\screens\my_work\my_work_screen.dart
+          git commit -m "fix(frontend): make Daily Order open action responsive"
+          git push origin HEAD:v740-business-completion
