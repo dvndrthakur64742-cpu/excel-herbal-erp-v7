@@ -10,13 +10,9 @@ on:
 permissions:
   contents: write
 
-defaults:
-  run:
-    shell: cmd
-
 jobs:
   wire-compensation:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -24,24 +20,23 @@ jobs:
           ref: v740-business-completion
 
       - name: Apply guarded source patch
-        run: python .github\scripts\wire_compensation_workspace.py
+        run: python .github/scripts/wire_compensation_workspace.py
 
       - name: Verify patch contract
         run: |
-          findstr /c:"import 'compensation_workspace.dart';" flutter-app\lib\screens\performance\performance_screen.dart >nul || exit /b 1
-          findstr /c:"const CompensationWorkspace()" flutter-app\lib\screens\performance\performance_screen.dart >nul || exit /b 1
-          findstr /c:"'salary.approve'" flutter-app\lib\screens\performance\performance_screen.dart >nul || exit /b 1
-          findstr /c:"'rewards.pay'" flutter-app\lib\screens\performance\performance_screen.dart >nul || exit /b 1
-          findstr /c:"'promotion.approve'" flutter-app\lib\screens\performance\performance_screen.dart >nul || exit /b 1
-          if not exist flutter-app\test\compensation_workspace_visibility_test.dart exit /b 1
+          grep -F "import 'compensation_workspace.dart';" flutter-app/lib/screens/performance/performance_screen.dart >/dev/null
+          grep -F "const CompensationWorkspace()" flutter-app/lib/screens/performance/performance_screen.dart >/dev/null
+          grep -F "'salary.approve'" flutter-app/lib/screens/performance/performance_screen.dart >/dev/null
+          grep -F "'rewards.pay'" flutter-app/lib/screens/performance/performance_screen.dart >/dev/null
+          grep -F "'promotion.approve'" flutter-app/lib/screens/performance/performance_screen.dart >/dev/null
+          test -f flutter-app/test/compensation_workspace_visibility_test.dart
           git diff --check
 
       - name: Commit wired workspace
         run: |
-          git diff --quiet
-          if not errorlevel 1 exit /b 0
+          if git diff --quiet; then exit 0; fi
           git config user.name "erp7-ci"
           git config user.email "erp7-ci@users.noreply.github.com"
-          git add flutter-app\lib\screens\performance\performance_screen.dart flutter-app\test\compensation_workspace_visibility_test.dart
+          git add flutter-app/lib/screens/performance/performance_screen.dart flutter-app/test/compensation_workspace_visibility_test.dart
           git commit -m "feat: expose compensation workspace in performance module"
           git push origin HEAD:v740-business-completion
