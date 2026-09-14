@@ -1,3 +1,4 @@
+// Regression coverage for the certified responsive UX/accessibility batch.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:excel_herbal_erp/core/business_format.dart';
