@@ -10,7 +10,7 @@ diff --git a/flutter-app/lib/screens/performance/performance_screen.dart b/flutt
  
  class PerformanceScreen extends ConsumerStatefulWidget {
    const PerformanceScreen({super.key});
-@@ -80,6 +82,24 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
+@@ -80,6 +82,23 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
        ));
      }
 +    if (app.canAny(const [
@@ -33,37 +33,4 @@ diff --git a/flutter-app/lib/screens/performance/performance_screen.dart b/flutt
      if (app.canAny(const [
        'payroll.generate',
        'payroll.approve',
-diff --git a/flutter-app/test/compensation_workspace_visibility_test.dart b/flutter-app/test/compensation_workspace_visibility_test.dart
-new file mode 100644
---- /dev/null
-+++ b/flutter-app/test/compensation_workspace_visibility_test.dart
-@@ -0,0 +1,31 @@
-+import 'dart:io';
-+
-+import 'package:flutter_test/flutter_test.dart';
-+
-+void main() {
-+  test('performance screen exposes compensation workspace behind exact capabilities', () {
-+    final source = File('lib/screens/performance/performance_screen.dart')
-+        .readAsStringSync();
-+
-+    expect(source, contains("import 'compensation_workspace.dart';"));
-+    expect(source, contains("'Compensation'"));
-+    expect(source, contains('const CompensationWorkspace()'));
-+
-+    for (final capability in const [
-+      'salary.view',
-+      'salary.manage',
-+      'salary.approve',
-+      'rewards.view',
-+      'rewards.manage',
-+      'rewards.approve',
-+      'rewards.pay',
-+      'promotion.view',
-+      'promotion.request',
-+      'promotion.approve',
-+    ]) {
-+      expect(source, contains("'$capability'"), reason: capability);
-+    }
-+  });
-+}
+       'payroll.pay',
