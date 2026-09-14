@@ -41,15 +41,18 @@ jobs:
 
       - name: Dependencies
         working-directory: flutter-app
-        run: "%FLUTTER%" pub get
+        run: |
+          "%FLUTTER%" pub get
 
       - name: Strict Flutter analysis
         working-directory: flutter-app
-        run: "%FLUTTER%" analyze
+        run: |
+          "%FLUTTER%" analyze
 
       - name: Flutter tests
         working-directory: flutter-app
-        run: "%FLUTTER%" test
+        run: |
+          "%FLUTTER%" test
 
       - name: Compile production Desktop Web candidate
         working-directory: flutter-app
