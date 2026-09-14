@@ -31,7 +31,8 @@ jobs:
         run: |
           findstr /c:"bool _dailyOrderOpening = false;" flutter-app\lib\screens\my_work\my_work_screen.dart >nul || exit /b 1
           findstr /c:"Daily Order form load ho raha hai" flutter-app\lib\screens\my_work\my_work_screen.dart >nul || exit /b 1
-          findstr /c:"_dailyOrderOpening ? null : _newDailyOrder" flutter-app\lib\screens\my_work\my_work_screen.dart >nul || exit /b 1
+          findstr /c:"app.currentBranchId == null || _dailyOrderOpening" flutter-app\lib\screens\my_work\my_work_screen.dart >nul || exit /b 1
+          findstr /c:"Opening…" flutter-app\lib\screens\my_work\my_work_screen.dart >nul || exit /b 1
           git diff --check
 
       - name: Commit F01 fix
