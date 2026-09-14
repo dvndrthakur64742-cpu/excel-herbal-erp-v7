@@ -1,0 +1,48 @@
+name: Frontend functional batch 1 once
+
+on:
+  push:
+    branches: [v740-business-completion]
+    paths:
+      - '.github/patches/frontend-functional-batch1.patch'
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: cmd
+
+jobs:
+  apply-frontend-functional-fixes:
+    runs-on: self-hosted
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: v740-business-completion
+
+      - name: Apply deterministic frontend patch
+        run: |
+          git apply --check .github\patches\frontend-functional-batch1.patch
+          git apply .github\patches\frontend-functional-batch1.patch
+
+      - name: Verify functional navigation contract
+        run: |
+          findstr /c:"openConnectedAction: _openConnectedAction" flutter-app\lib\shell\app_shell.dart >nul || exit /b 1
+          findstr /c:"desktop-enterprise-approvals" flutter-app\lib\shell\app_shell.dart >nul || exit /b 1
+          findstr /c:"desktop-enterprise-global-search" flutter-app\lib\shell\app_shell.dart >nul || exit /b 1
+          findstr /c:"openConnectedAction('daily_create')" flutter-app\lib\screens\home\actions_screen.dart >nul || exit /b 1
+          findstr /c:"openConnectedAction('evening')" flutter-app\lib\screens\home\actions_screen.dart >nul || exit /b 1
+          findstr /c:"openConnectedAction('field_visit')" flutter-app\lib\screens\home\actions_screen.dart >nul || exit /b 1
+          git diff --check
+
+      - name: Commit frontend functional fixes
+        run: |
+          git diff --quiet
+          if not errorlevel 1 exit /b 0
+          git config user.name "erp7-ci"
+          git config user.email "erp7-ci@users.noreply.github.com"
+          git add flutter-app\lib\shell\app_shell.dart
+          git commit -m "fix(frontend): connect quick actions and search route"
+          git push origin HEAD:v740-business-completion
