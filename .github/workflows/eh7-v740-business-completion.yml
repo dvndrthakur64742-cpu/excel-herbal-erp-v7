@@ -85,3 +85,17 @@ jobs:
           if not exist "%WEB_ZIP%" exit /b 1
           certutil -hashfile "%WEB_ZIP%" SHA256
           echo Certified HR lifecycle production web bundle saved to %WEB_ZIP%
+
+      - name: Stage certified web artifact
+        run: |
+          if exist "dist\certified-web" rmdir /s /q "dist\certified-web"
+          mkdir "dist\certified-web"
+          copy /y "C:\Users\intel\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Web-HR-Lifecycle-Production.zip" "dist\certified-web\Excel-Herbal-ERP-v7.4.0-Web-HR-Lifecycle-Production.zip" >nul
+          if not exist "dist\certified-web\Excel-Herbal-ERP-v7.4.0-Web-HR-Lifecycle-Production.zip" exit /b 1
+
+      - name: Upload certified web artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Excel-Herbal-ERP-v7.4.0-Web-HR-Lifecycle-Production
+          path: dist/certified-web/Excel-Herbal-ERP-v7.4.0-Web-HR-Lifecycle-Production.zip
+          if-no-files-found: error
