@@ -68,3 +68,20 @@ jobs:
           findstr /c:"UAT BUILD" "flutter-app\build\web\main.dart.js" >nul && exit /b 1
           certutil -hashfile "flutter-app\build\web\main.dart.js" SHA256
           echo Business completion Flutter compile gates PASS.
+
+      - name: Persist certified production web bundle locally
+        run: |
+          set RELEASE_DIR=C:\Users\intel\ERP7-Releases\v7.4.0
+          set WEB_DIR=%RELEASE_DIR%\web-hr-lifecycle-production
+          set WEB_ZIP=%RELEASE_DIR%\Excel-Herbal-ERP-v7.4.0-Web-HR-Lifecycle-Production.zip
+          if not exist "%RELEASE_DIR%" mkdir "%RELEASE_DIR%"
+          if exist "%WEB_DIR%" rmdir /s /q "%WEB_DIR%"
+          xcopy /e /i /y "flutter-app\build\web" "%WEB_DIR%" >nul
+          if exist "%WEB_ZIP%" del /q "%WEB_ZIP%"
+          pushd "flutter-app\build\web"
+          tar -a -c -f "%WEB_ZIP%" .
+          if errorlevel 1 exit /b 1
+          popd
+          if not exist "%WEB_ZIP%" exit /b 1
+          certutil -hashfile "%WEB_ZIP%" SHA256
+          echo Certified HR lifecycle production web bundle saved to %WEB_ZIP%
