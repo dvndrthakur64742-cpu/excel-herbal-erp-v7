@@ -1,0 +1,67 @@
+name: EH7 v7.4.0 Business Completion
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [v740-business-completion]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: cmd
+
+jobs:
+  flutter-business-completion:
+    runs-on: self-hosted
+    timeout-minutes: 120
+    steps:
+      - name: Enable Windows long paths
+        run: git config --global core.longpaths true
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Verify persistent Flutter toolchain
+        run: |
+          set FLUTTER=C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat
+          if not exist "%FLUTTER%" exit /b 1
+          echo FLUTTER=%FLUTTER%>>"%GITHUB_ENV%"
+          "%FLUTTER%" --version
+          "%FLUTTER%" config --enable-web
+
+      - name: Verify I-card source contract
+        run: |
+          findstr /c:"_cr80WidthMm = 85.60" flutter-app\lib\screens\home\employee_id_card_screen.dart >nul || exit /b 1
+          findstr /c:"_cr80HeightMm = 53.98" flutter-app\lib\screens\home\employee_id_card_screen.dart >nul || exit /b 1
+          findstr /c:"Printing.layoutPdf" flutter-app\lib\screens\home\employee_id_card_screen.dart >nul || exit /b 1
+          findstr /c:"Printing.sharePdf" flutter-app\lib\screens\home\employee_id_card_screen.dart >nul || exit /b 1
+          findstr /c:"View / Print Employee I-Card" flutter-app\lib\screens\home\profile_screen.dart >nul || exit /b 1
+          echo Employee I-card source contract PASS.
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: "%FLUTTER%" pub get
+
+      - name: Strict Flutter analysis
+        working-directory: flutter-app
+        run: "%FLUTTER%" analyze
+
+      - name: Flutter tests
+        working-directory: flutter-app
+        run: "%FLUTTER%" test
+
+      - name: Compile production Desktop Web candidate
+        working-directory: flutter-app
+        run: |
+          "%FLUTTER%" build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
+          if errorlevel 1 exit /b 1
+
+      - name: Production web invariants
+        run: |
+          if not exist "flutter-app\build\web\index.html" exit /b 1
+          if not exist "flutter-app\build\web\main.dart.js" exit /b 1
+          findstr /c:"/wp-content/uploads/eh7-flutter-web/" "flutter-app\build\web\index.html" >nul || exit /b 1
+          findstr /c:"UAT BUILD" "flutter-app\build\web\main.dart.js" >nul && exit /b 1
+          certutil -hashfile "flutter-app\build\web\main.dart.js" SHA256
+          echo Business completion Flutter compile gates PASS.
