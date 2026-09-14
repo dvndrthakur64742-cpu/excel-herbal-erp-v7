@@ -300,18 +300,18 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
       'my_work' => const MyWorkScreen(),
       'quick_actions' => ActionsScreen(
-          openMyWork: () {
-            if (app.sectionVisible('my_work'))
-              setState(() => desktopRoute = 'my_work');
-          },
-          openModule: (id) {
-            if (_routeAllowed(app, id)) setState(() => desktopRoute = id);
-          },
+          openConnectedAction: _openConnectedAction,
         ),
       'tasks' => const TasksScreen(),
       'erp_tools' => const ErpToolsScreen(),
-      'approvals' => const EnterpriseHubScreen(initialTab: 0),
-      'global_search' => const EnterpriseHubScreen(initialTab: 1),
+      'approvals' => const EnterpriseHubScreen(
+          key: ValueKey('desktop-enterprise-approvals'),
+          initialTab: 0,
+        ),
+      'global_search' => const EnterpriseHubScreen(
+          key: ValueKey('desktop-enterprise-global-search'),
+          initialTab: 1,
+        ),
       'profile' => const ProfileScreen(),
       'team' => const TeamScreen(),
       'sales' => const SalesScreen(),
@@ -613,8 +613,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           HomeScreen(openMyWork: () => _selectMobileRoute(app, 'my_work')),
         'my_work' => const MyWorkScreen(),
         'actions' => ActionsScreen(
-            openMyWork: () => _selectMobileRoute(app, 'my_work'),
-            openModule: _openModule,
+            openConnectedAction: _openConnectedAction,
           ),
         'tasks' => const TasksScreen(),
         'erp_tools' => const ErpToolsScreen(),
