@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
+import '../organization/hr_lifecycle_screen.dart';
 
 class ActionsScreen extends ConsumerWidget {
   const ActionsScreen({
@@ -78,6 +79,21 @@ class ActionsScreen extends ConsumerWidget {
         label: 'Expense Entry',
         icon: Icons.receipt_long_outlined,
         run: () => openModule('finance'),
+      ));
+    }
+    if (app.canAny(const [
+      'organization.hr.view',
+      'organization.hr.manage',
+      'organization.hr.review',
+    ])) {
+      actions.add((
+        label: 'HR Lifecycle',
+        icon: Icons.badge_outlined,
+        run: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const HrLifecycleScreen(),
+          ),
+        ),
       ));
     }
 
