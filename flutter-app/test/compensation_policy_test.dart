@@ -34,6 +34,13 @@ void main() {
       );
       expect(CompensationPolicy.validateSalaryStructure(draft), isNotNull);
     });
+
+    test('effective date must be an exact real calendar date', () {
+      expect(CompensationPolicy.validEffectiveDate('2026-09-15'), isTrue);
+      expect(CompensationPolicy.validEffectiveDate('2026-02-30'), isFalse);
+      expect(CompensationPolicy.validEffectiveDate('15-09-2026'), isFalse);
+      expect(CompensationPolicy.validEffectiveDate('2026-9-15'), isFalse);
+    });
   });
 
   group('reward and penalty', () {
@@ -139,6 +146,43 @@ void main() {
         minimumAveragePoints: 40,
       );
       expect(CompensationPolicy.promotionMayBeApproved(snapshot), isFalse);
+      expect(CompensationPolicy.sameDesignation(' asm ', 'ASM'), isTrue);
+    });
+
+    test('request preflight rejects invalid date and same designation', () {
+      expect(
+        CompensationPolicy.validatePromotionRequest(
+          currentDesignation: 'ASM',
+          nextDesignation: 'ASM',
+          incrementAmount: 500,
+          effectiveFrom: '2026-09-15',
+          reason: 'No real promotion',
+        ),
+        isNotNull,
+      );
+      expect(
+        CompensationPolicy.validatePromotionRequest(
+          currentDesignation: 'ASM',
+          nextDesignation: 'SM',
+          incrementAmount: 500,
+          effectiveFrom: '2026-02-30',
+          reason: 'Approved progression',
+        ),
+        isNotNull,
+      );
+    });
+
+    test('request preflight accepts controlled progression input', () {
+      expect(
+        CompensationPolicy.validatePromotionRequest(
+          currentDesignation: 'ASM',
+          nextDesignation: 'SM',
+          incrementAmount: 500,
+          effectiveFrom: '2026-09-15',
+          reason: 'Approved progression',
+        ),
+        isNull,
+      );
     });
   });
 }

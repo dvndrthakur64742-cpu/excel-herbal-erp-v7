@@ -69,6 +69,20 @@ abstract final class CompensationPolicy {
     return null;
   }
 
+  /// Effective dates sent to compensation APIs must be real calendar dates in
+  /// the exact business-date format expected by the v7 backend.
+  static bool validEffectiveDate(String text) {
+    final raw = text.trim();
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(raw)) return false;
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return false;
+    final canonical =
+        '${parsed.year.toString().padLeft(4, '0')}-'
+        '${parsed.month.toString().padLeft(2, '0')}-'
+        '${parsed.day.toString().padLeft(2, '0')}';
+    return canonical == raw;
+  }
+
   static String? validateRewardAdjustment({
     required RewardAdjustmentKind kind,
     required double amount,
@@ -111,13 +125,48 @@ abstract final class CompensationPolicy {
       checkerEmployeeId > 0 &&
       creatorEmployeeId != checkerEmployeeId;
 
+  static bool sameDesignation(String current, String next) {
+    final currentCode = current.trim().toUpperCase();
+    final nextCode = next.trim().toUpperCase();
+    return currentCode.isNotEmpty &&
+        nextCode.isNotEmpty &&
+        currentCode == nextCode;
+  }
+
+  /// Client-side preflight only. The backend remains authoritative for
+  /// eligibility thresholds, branch scope, maker-checker and final approval.
+  static String? validatePromotionRequest({
+    required String currentDesignation,
+    required String nextDesignation,
+    required double incrementAmount,
+    required String effectiveFrom,
+    required String reason,
+  }) {
+    if (nextDesignation.trim().isEmpty) {
+      return 'Next designation is required.';
+    }
+    if (sameDesignation(currentDesignation, nextDesignation)) {
+      return 'Next designation must be different from the current designation.';
+    }
+    if (!incrementAmount.isFinite || incrementAmount < 0) {
+      return 'Increment must be finite and non-negative.';
+    }
+    if (!validEffectiveDate(effectiveFrom)) {
+      return 'Effective date must be a valid YYYY-MM-DD date.';
+    }
+    if (reason.trim().isEmpty) return 'Reason is required.';
+    return null;
+  }
+
   /// Promotion eligibility is only a recommendation/preflight. The backend
   /// must still require an explicit authorised approval.
   static bool promotionMayBeApproved(PromotionEligibilitySnapshot snapshot) =>
       snapshot.currentDesignation.trim().isNotEmpty &&
       snapshot.nextDesignation.trim().isNotEmpty &&
-      snapshot.currentDesignation.trim().toUpperCase() !=
-          snapshot.nextDesignation.trim().toUpperCase() &&
+      !sameDesignation(
+        snapshot.currentDesignation,
+        snapshot.nextDesignation,
+      ) &&
       snapshot.eligible;
 
   /// A designation promotion must never manufacture reporting-manager,

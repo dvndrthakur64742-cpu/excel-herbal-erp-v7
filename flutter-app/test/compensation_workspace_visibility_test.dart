@@ -26,4 +26,20 @@ void main() {
       expect(source, contains("'$capability'"), reason: capability);
     }
   });
+
+  test('compensation workspace uses strict effective-date and promotion preflight', () {
+    final source = File('lib/screens/performance/compensation_workspace.dart')
+        .readAsStringSync();
+
+    expect(source, contains('CompensationPolicy.validEffectiveDate'));
+    expect(source, contains('CompensationPolicy.validatePromotionRequest'));
+    expect(source, contains('CompensationPolicy.sameDesignation'));
+    expect(
+      source,
+      contains("trim().toLowerCase() == 'active'"),
+      reason: 'employee/designation active-state checks must be normalized',
+    );
+    expect(source, isNot(contains('record nahi hai')));
+    expect(source, isNot(contains('auto-change nahi hogi')));
+  });
 }

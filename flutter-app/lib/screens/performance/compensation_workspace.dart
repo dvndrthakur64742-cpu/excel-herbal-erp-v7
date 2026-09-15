@@ -50,7 +50,7 @@ class _CompensationWorkspaceState
                         ApiPaths.salaryStructures,
                         query: {'branch_id': app.currentBranchId},
                       ),
-                emptyMessage: 'Salary structure record nahi hai.',
+                emptyMessage: 'No salary structures found for this branch.',
                 builder: (context, data) => RecordsList(
                   recordType: 'salary_structure',
                   rows: _rows(data),
@@ -92,7 +92,7 @@ class _CompensationWorkspaceState
                         ApiPaths.performanceRewards,
                         query: {'branch_id': app.currentBranchId},
                       ),
-                emptyMessage: 'Reward / penalty record nahi hai.',
+                emptyMessage: 'No reward or penalty records found for this branch.',
                 builder: (context, data) => RecordsList(
                   recordType: 'reward_adjustment',
                   rows: _rows(data),
@@ -133,7 +133,8 @@ class _CompensationWorkspaceState
                         ApiPaths.performancePromotions,
                         query: {'branch_id': app.currentBranchId},
                       ),
-                emptyMessage: 'Promotion / increment request nahi hai.',
+                emptyMessage:
+                    'No promotion or increment requests found for this branch.',
                 builder: (context, data) => RecordsList(
                   recordType: 'promotion_request',
                   rows: _rows(data),
@@ -206,7 +207,12 @@ class _CompensationWorkspaceState
       ApiPaths.employees,
       query: {'branch_id': app.currentBranchId},
     );
-    return _rows(raw).where((row) => '${row['employee_status']}' == 'active').toList();
+    return _rows(raw)
+        .where(
+          (row) =>
+              '${row['employee_status']}'.trim().toLowerCase() == 'active',
+        )
+        .toList();
   }
 
   Future<void> _createSalaryStructure() async {
@@ -262,7 +268,7 @@ class _CompensationWorkspaceState
                     TextField(
                       controller: effectiveFrom,
                       decoration: const InputDecoration(
-                        labelText: 'Effective From YYYY-MM-DD',
+                        labelText: 'Effective From (YYYY-MM-DD)',
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -297,11 +303,16 @@ class _CompensationWorkspaceState
                   );
                   final error = CompensationPolicy.validateSalaryStructure(draft);
                   if (employeeId == null) {
-                    setLocal(() => validation = 'Employee required.');
-                  } else if (effectiveFrom.text.trim().isEmpty) {
-                    setLocal(() => validation = 'Effective date required.');
+                    setLocal(() => validation = 'Employee is required.');
+                  } else if (!CompensationPolicy.validEffectiveDate(
+                    effectiveFrom.text,
+                  )) {
+                    setLocal(
+                      () => validation =
+                          'Effective date must be a valid YYYY-MM-DD date.',
+                    );
                   } else if (reason.text.trim().isEmpty) {
-                    setLocal(() => validation = 'Change reason required.');
+                    setLocal(() => validation = 'Change reason is required.');
                   } else if (error != null) {
                     setLocal(() => validation = error);
                   } else {
@@ -349,7 +360,8 @@ class _CompensationWorkspaceState
     if (id == null) return;
     final approved = await _confirm(
       title: 'Approve salary structure?',
-      body: 'Approved structure historical record banega. Existing payroll history rewrite nahi hogi.',
+      body:
+          'Approval creates an effective historical version. Existing payroll history will not be rewritten.',
       confirmText: 'Approve',
     );
     if (approved == true) {
@@ -413,7 +425,7 @@ class _CompensationWorkspaceState
                           setLocal(() => kind = value ?? kind),
                     ),
                     const SizedBox(height: 10),
-                    _moneyField(amount, 'Amount Magnitude'),
+                    _moneyField(amount, 'Amount (positive magnitude)'),
                     const SizedBox(height: 10),
                     TextField(
                       controller: points,
@@ -451,7 +463,7 @@ class _CompensationWorkspaceState
                     reason: reason.text,
                   );
                   if (employeeId == null) {
-                    setLocal(() => validation = 'Employee required.');
+                    setLocal(() => validation = 'Employee is required.');
                   } else if (error != null) {
                     setLocal(() => validation = error);
                   } else {
@@ -499,7 +511,9 @@ class _CompensationWorkspaceState
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Reward / Penalty Decision'),
-          content: Text('${row['employee_name'] ?? row['employee_id'] ?? ''} · ${row['reason'] ?? ''}'),
+          content: Text(
+            '${row['employee_name'] ?? row['employee_id'] ?? ''} · ${row['reason'] ?? ''}',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -526,7 +540,8 @@ class _CompensationWorkspaceState
     if (status == 'approved' && app.can('rewards.pay')) {
       final pay = await _confirm(
         title: 'Mark reward / penalty settled?',
-        body: 'Settlement must remain idempotent and payroll/accounting linked by backend.',
+        body:
+            'The backend must keep this settlement idempotent and linked to payroll/accounting.',
         confirmText: 'Settle',
       );
       if (pay == true) {
@@ -540,10 +555,12 @@ class _CompensationWorkspaceState
     final app = ref.read(appStateProvider);
     try {
       final employees = await _branchEmployees();
-      final rawDesignations = await ref.read(apiClientProvider).get(ApiPaths.designations);
+      final rawDesignations =
+          await ref.read(apiClientProvider).get(ApiPaths.designations);
       final designations = _rows(rawDesignations);
       if (!mounted) return;
       int? employeeId;
+      Map<String, dynamic>? selectedEmployee;
       String? nextDesignation;
       final effectiveFrom = TextEditingController(text: app.businessDate);
       final increment = TextEditingController(text: '0');
@@ -553,107 +570,139 @@ class _CompensationWorkspaceState
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: const Text('Promotion / Increment Request'),
-            content: SizedBox(
-              width: 580,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<int>(
-                      initialValue: employeeId,
-                      decoration: const InputDecoration(labelText: 'Employee'),
-                      items: employees
-                          .map(
-                            (e) => DropdownMenuItem<int>(
-                              value: int.tryParse('${e['id']}'),
-                              child: Text(
-                                '${e['employee_code'] ?? ''} · ${e['display_name'] ?? e['full_name'] ?? ''}',
+          builder: (context, setLocal) {
+            final currentDesignation = _designationCode(selectedEmployee);
+            final availableDesignations = designations
+                .where(
+                  (e) => '${e['status']}'.trim().toLowerCase() == 'active',
+                )
+                .where(
+                  (e) => !CompensationPolicy.sameDesignation(
+                    currentDesignation,
+                    '${e['code'] ?? ''}',
+                  ),
+                )
+                .toList();
+            return AlertDialog(
+              title: const Text('Promotion / Increment Request'),
+              content: SizedBox(
+                width: 580,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<int>(
+                        initialValue: employeeId,
+                        decoration: const InputDecoration(labelText: 'Employee'),
+                        items: employees
+                            .map(
+                              (e) => DropdownMenuItem<int>(
+                                value: int.tryParse('${e['id']}'),
+                                child: Text(
+                                  '${e['employee_code'] ?? ''} · ${e['display_name'] ?? e['full_name'] ?? ''}',
+                                ),
                               ),
-                            ),
-                          )
-                          .where((item) => item.value != null)
-                          .toList(),
-                      onChanged: (value) => setLocal(() => employeeId = value),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      initialValue: nextDesignation,
-                      decoration: const InputDecoration(
-                        labelText: 'Next Designation',
+                            )
+                            .where((item) => item.value != null)
+                            .toList(),
+                        onChanged: (value) => setLocal(() {
+                          employeeId = value;
+                          selectedEmployee = _employeeById(employees, value);
+                          if (nextDesignation != null &&
+                              CompensationPolicy.sameDesignation(
+                                _designationCode(selectedEmployee),
+                                nextDesignation!,
+                              )) {
+                            nextDesignation = null;
+                          }
+                        }),
                       ),
-                      items: designations
-                          .where((e) => '${e['status']}' == 'active')
-                          .map(
-                            (e) => DropdownMenuItem<String>(
-                              value: '${e['code']}',
-                              child: Text('${e['code']} · ${e['name']}'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) =>
-                          setLocal(() => nextDesignation = value),
-                    ),
-                    const SizedBox(height: 10),
-                    _moneyField(increment, 'Monthly Increment Amount'),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: effectiveFrom,
-                      decoration: const InputDecoration(
-                        labelText: 'Effective From YYYY-MM-DD',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: reason,
-                      maxLines: 3,
-                      decoration: const InputDecoration(labelText: 'Reason'),
-                    ),
-                    const SizedBox(height: 10),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Eligibility server preflight hai; request se Reporting Manager, Branch Authority, Role ya capability auto-change nahi hogi.',
-                      ),
-                    ),
-                    if (validation != null) ...[
+                      if (currentDesignation.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Current designation: $currentDesignation',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 10),
-                      Text(validation!),
+                      DropdownButtonFormField<String>(
+                        initialValue: nextDesignation,
+                        decoration: const InputDecoration(
+                          labelText: 'Next Designation',
+                        ),
+                        items: availableDesignations
+                            .map(
+                              (e) => DropdownMenuItem<String>(
+                                value: '${e['code']}',
+                                child: Text('${e['code']} · ${e['name']}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setLocal(() => nextDesignation = value),
+                      ),
+                      const SizedBox(height: 10),
+                      _moneyField(increment, 'Monthly Increment Amount'),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: effectiveFrom,
+                        decoration: const InputDecoration(
+                          labelText: 'Effective From (YYYY-MM-DD)',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: reason,
+                        maxLines: 3,
+                        decoration: const InputDecoration(labelText: 'Reason'),
+                      ),
+                      const SizedBox(height: 10),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Eligibility is a server-side preflight. This request never grants Reporting Manager, Branch Authority, Role, or capability access automatically.',
+                        ),
+                      ),
+                      if (validation != null) ...[
+                        const SizedBox(height: 10),
+                        Text(validation!),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final incrementValue = double.tryParse(increment.text.trim());
-                  if (employeeId == null) {
-                    setLocal(() => validation = 'Employee required.');
-                  } else if (nextDesignation == null ||
-                      nextDesignation!.trim().isEmpty) {
-                    setLocal(() => validation = 'Next designation required.');
-                  } else if (incrementValue == null ||
-                      !incrementValue.isFinite ||
-                      incrementValue < 0) {
-                    setLocal(() => validation = 'Increment must be non-negative.');
-                  } else if (effectiveFrom.text.trim().isEmpty) {
-                    setLocal(() => validation = 'Effective date required.');
-                  } else if (reason.text.trim().isEmpty) {
-                    setLocal(() => validation = 'Reason required.');
-                  } else {
-                    Navigator.pop(context, true);
-                  }
-                },
-                child: const Text('Request'),
-              ),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final incrementValue =
+                        double.tryParse(increment.text.trim()) ?? double.nan;
+                    final error = CompensationPolicy.validatePromotionRequest(
+                      currentDesignation: currentDesignation,
+                      nextDesignation: nextDesignation ?? '',
+                      incrementAmount: incrementValue,
+                      effectiveFrom: effectiveFrom.text,
+                      reason: reason.text,
+                    );
+                    if (employeeId == null) {
+                      setLocal(() => validation = 'Employee is required.');
+                    } else if (error != null) {
+                      setLocal(() => validation = error);
+                    } else {
+                      Navigator.pop(context, true);
+                    }
+                  },
+                  child: const Text('Request'),
+                ),
+              ],
+            );
+          },
         ),
       );
 
@@ -690,7 +739,7 @@ class _CompensationWorkspaceState
       builder: (context) => AlertDialog(
         title: const Text('Promotion / Increment Decision'),
         content: const Text(
-          'Approve karne se sirf controlled designation/salary effective version update ho sakta hai. Reporting Manager, Branch Authority, Role aur capabilities unchanged rahenge.',
+          'Approval may create only the controlled designation and/or effective salary version. Reporting Manager, Branch Authority, Roles, and capabilities remain unchanged.',
         ),
         actions: [
           TextButton(
@@ -712,6 +761,26 @@ class _CompensationWorkspaceState
       await _post(ApiPaths.promotionDecision(id), {'decision': decision});
       _success('Promotion / increment $decision.');
     }
+  }
+
+  static Map<String, dynamic>? _employeeById(
+    List<Map<String, dynamic>> employees,
+    int? employeeId,
+  ) {
+    if (employeeId == null) return null;
+    for (final employee in employees) {
+      if (int.tryParse('${employee['id']}') == employeeId) return employee;
+    }
+    return null;
+  }
+
+  static String _designationCode(Map<String, dynamic>? employee) {
+    if (employee == null) return '';
+    for (final key in const ['designation_code', 'primary_designation_code']) {
+      final value = '${employee[key] ?? ''}'.trim();
+      if (value.isNotEmpty) return value;
+    }
+    return '';
   }
 
   Widget _moneyField(TextEditingController controller, String label) => TextField(
