@@ -1,0 +1,79 @@
+name: Frontend Audit Completion
+
+on:
+  push:
+    branches: [frontend-audit-completion]
+    paths:
+      - '.github/scripts/frontend_audit_completion.dart'
+      - '.github/workflows/frontend-audit-completion.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: cmd
+
+jobs:
+  frontend-audit-completion:
+    runs-on: self-hosted
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: frontend-audit-completion
+
+      - name: Normalize checkout line endings
+        run: |
+          git config core.autocrlf false
+          git reset --hard HEAD
+
+      - name: Apply final frontend audit fixes
+        run: |
+          set DART=C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\cache\dart-sdk\bin\dart.exe
+          if not exist "%DART%" exit /b 1
+          "%DART%" .github\scripts\frontend_audit_completion.dart
+          "%DART%" format flutter-app\lib\shell\app_shell.dart flutter-app\lib\screens\my_work\my_work_screen.dart flutter-app\lib\screens\inventory\inventory_screen.dart flutter-app\test\frontend_functional_navigation_test.dart flutter-app\test\frontend_audit_polish_test.dart
+          git diff --check
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat pub get
+
+      - name: Frontend audit focused tests
+        working-directory: flutter-app
+        run: |
+          C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat test test\frontend_functional_navigation_test.dart test\frontend_responsive_ux_test.dart test\frontend_audit_polish_test.dart
+
+      - name: Full Flutter tests
+        working-directory: flutter-app
+        run: C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat test
+
+      - name: Strict Flutter analysis
+        working-directory: flutter-app
+        run: C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat analyze
+
+      - name: Production web compile
+        working-directory: flutter-app
+        run: |
+          C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
+          if errorlevel 1 exit /b 1
+
+      - name: Production web invariants
+        run: |
+          if not exist "flutter-app\build\web\index.html" exit /b 1
+          if not exist "flutter-app\build\web\main.dart.js" exit /b 1
+          findstr /c:"/wp-content/uploads/eh7-flutter-web/" "flutter-app\build\web\index.html" >nul || exit /b 1
+          findstr /c:"UAT BUILD" "flutter-app\build\web\main.dart.js" >nul && exit /b 1
+          certutil -hashfile "flutter-app\build\web\main.dart.js" SHA256
+
+      - name: Commit certified frontend audit fixes
+        run: |
+          git diff --quiet
+          if not errorlevel 1 exit /b 0
+          git config user.name "erp7-ci"
+          git config user.email "erp7-ci@users.noreply.github.com"
+          git add flutter-app\lib\shell\app_shell.dart flutter-app\lib\screens\my_work\my_work_screen.dart flutter-app\lib\screens\inventory\inventory_screen.dart flutter-app\test\frontend_functional_navigation_test.dart flutter-app\test\frontend_audit_polish_test.dart
+          git commit -m "fix(frontend): complete navigation and UX audit polish"
+          git push origin HEAD:frontend-audit-completion
