@@ -1,0 +1,73 @@
+name: Frontend Audit Completion Hosted
+
+on:
+  push:
+    branches: [frontend-audit-completion]
+    paths:
+      - '.github/workflows/frontend-audit-completion-hosted.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  certify-frontend-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: frontend-audit-completion
+
+      - name: Install Flutter 3.44.9
+        run: |
+          git clone --depth 1 --branch 3.44.9 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --enable-web
+          "$RUNNER_TEMP/flutter/bin/flutter" --version
+
+      - name: Apply final frontend audit fixes
+        run: |
+          dart .github/scripts/frontend_audit_completion.dart
+          dart format flutter-app/lib/shell/app_shell.dart flutter-app/lib/screens/my_work/my_work_screen.dart flutter-app/lib/screens/inventory/inventory_screen.dart flutter-app/test/frontend_functional_navigation_test.dart flutter-app/test/frontend_audit_polish_test.dart
+          git diff --check
+
+      - name: Dependencies
+        working-directory: flutter-app
+        run: flutter pub get
+
+      - name: Focused frontend audit tests
+        working-directory: flutter-app
+        run: flutter test test/frontend_functional_navigation_test.dart test/frontend_responsive_ux_test.dart test/frontend_audit_polish_test.dart
+
+      - name: Full Flutter tests
+        working-directory: flutter-app
+        run: flutter test
+
+      - name: Strict Flutter analysis
+        working-directory: flutter-app
+        run: flutter analyze
+
+      - name: Production web compile
+        working-directory: flutter-app
+        run: flutter build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
+
+      - name: Production web invariants
+        run: |
+          test -f flutter-app/build/web/index.html
+          test -f flutter-app/build/web/main.dart.js
+          grep -F '/wp-content/uploads/eh7-flutter-web/' flutter-app/build/web/index.html >/dev/null
+          ! grep -F 'UAT BUILD' flutter-app/build/web/main.dart.js >/dev/null
+          sha256sum flutter-app/build/web/main.dart.js
+
+      - name: Commit certified frontend audit fixes
+        run: |
+          if git diff --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git config user.name "erp7-ci"
+          git config user.email "erp7-ci@users.noreply.github.com"
+          git add flutter-app/lib/shell/app_shell.dart flutter-app/lib/screens/my_work/my_work_screen.dart flutter-app/lib/screens/inventory/inventory_screen.dart flutter-app/test/frontend_functional_navigation_test.dart flutter-app/test/frontend_audit_polish_test.dart
+          git commit -m "fix(frontend): complete navigation and UX audit polish"
+          git push origin HEAD:frontend-audit-completion
