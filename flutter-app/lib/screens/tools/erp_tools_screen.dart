@@ -2,9 +2,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/open_document.dart';
 import '../../core/providers.dart';
 import '../../core/business_format.dart';
 import '../../core/ui_error.dart';
@@ -535,18 +535,18 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
                   return ListTile(
                     leading: const Icon(Icons.description_outlined),
                     title: Text('${r['title'] ?? r['filename'] ?? 'Document'}'),
-                    subtitle: Text('${r['document_type'] ?? ''}'),
+                    subtitle: Text(r['migration_required'] == true
+                        ? 'Administrator migration required'
+                        : '${r['document_type'] ?? ''}'),
                     trailing: url.isEmpty
                         ? null
                         : IconButton(
                             tooltip: 'Open',
                             onPressed: () async {
-                              final uri = Uri.tryParse(url);
-                              if (uri != null) {
-                                await launchUrl(
-                                  uri,
-                                  mode: LaunchMode.externalApplication,
-                                );
+                              try {
+                                await openErpDocument(api, r);
+                              } catch (error) {
+                                if (mounted) _msg(error.toString());
                               }
                             },
                             icon: const Icon(Icons.open_in_new),

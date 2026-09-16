@@ -1,9 +1,9 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/open_document.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -898,12 +898,17 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                       return ListTile(
                         leading: const Icon(Icons.description_outlined),
                         title: Text('${row['title'] ?? 'Document'}'),
-                        subtitle: Text('${row['document_type'] ?? ''}'),
+                        subtitle: Text(row['migration_required'] == true
+                            ? 'Administrator migration required'
+                            : '${row['document_type'] ?? ''}'),
                         onTap: url.isEmpty
                             ? null
-                            : () {
-                                final uri = Uri.tryParse(url);
-                                if (uri != null) launchUrl(uri);
+                            : () async {
+                                try {
+                                  await openErpDocument(ref.read(apiClientProvider), row);
+                                } catch (error) {
+                                  if (mounted) _failure(error);
+                                }
                               },
                         trailing: _manage(ref.read(appStateProvider)) && docId != null
                             ? IconButton(
@@ -1295,3 +1300,4 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     setState(() => _message = UiError.message(error));
   }
 }
+

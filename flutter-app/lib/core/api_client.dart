@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import 'api_paths.dart';
 import 'app_config.dart';
+import 'document_download.dart';
 import 'secure_session.dart';
 
 class ApiException implements Exception {
@@ -161,6 +162,52 @@ class ApiClient {
         } on DioException catch (second) {
           throw _dioException(second);
         }
+      }
+      throw _dioException(error);
+    }
+  }
+
+  Future<({Uint8List bytes, String filename, String mimeType})>
+      downloadPrivateDocument(String url, {bool retried = false}) async {
+    final uri = privateDocumentUri(dio.options.baseUrl, url);
+    final token = await session.accessToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('not_authenticated', 'Please sign in again.', 401);
+    }
+    try {
+      final response = await dio.get<List<int>>(
+        uri.toString(),
+        options: Options(
+          responseType: ResponseType.bytes,
+          followRedirects: false,
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/pdf,image/jpeg,image/png,image/webp',
+          },
+        ),
+      );
+      final mime = (response.headers.value('content-type') ?? '')
+          .split(';').first.trim().toLowerCase();
+      final bytes = response.data;
+      if (response.statusCode != 200 ||
+          !{'application/pdf', 'image/jpeg', 'image/png', 'image/webp'}.contains(mime) ||
+          bytes == null || bytes.isEmpty || bytes.length > 10 * 1024 * 1024) {
+        throw const ApiException('document_response_invalid',
+            'The server did not return a supported document.');
+      }
+      return (
+        bytes: Uint8List.fromList(bytes),
+        filename: documentFilename(response.headers.value('content-disposition'), mime),
+        mimeType: mime,
+      );
+    } on DioException catch (error) {
+      if (!retried && error.response?.statusCode == 401 && await _refresh()) {
+        return downloadPrivateDocument(url, retried: true);
+      }
+      final body = error.response?.data;
+      if (body is List<int>) {
+        try { error.response?.data = jsonDecode(utf8.decode(body)); }
+        on FormatException { /* Use the normal network error if it is not JSON. */ }
       }
       throw _dioException(error);
     }
@@ -446,3 +493,4 @@ class ApiClient {
     return 'Server se response nahi mila. Retry karein.';
   }
 }
+

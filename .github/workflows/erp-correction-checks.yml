@@ -1,0 +1,45 @@
+name: ERP correction verification
+on:
+  push:
+    branches: [codex/erp735-document-integration]
+  pull_request:
+    branches: [v740-business-completion]
+permissions:
+  contents: read
+concurrency:
+  group: erp-correction-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  php-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: PHP runtime
+        run: php --version
+      - name: PHP lint and regression cases
+        working-directory: backend/excel-herbal-erp-v7
+        run: bash tests/run.sh
+      - name: Route and contract checks
+        run: python3 backend/excel-herbal-erp-v7/tests/static_checks.py
+  flutter-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install matching Flutter toolchain
+        run: |
+          git clone --depth 1 --branch 3.44.9 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Dependencies
+        working-directory: flutter-app
+        run: flutter pub get
+      - name: Analyze
+        working-directory: flutter-app
+        run: flutter analyze
+      - name: Tests
+        working-directory: flutter-app
+        run: flutter test
+      - name: Web compile
+        working-directory: flutter-app
+        run: flutter build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=development
