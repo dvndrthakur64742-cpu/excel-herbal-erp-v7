@@ -63,6 +63,18 @@ void main() {
       );
     });
 
+    test('penalty can carry an explicit negative points consequence', () {
+      expect(
+        CompensationPolicy.validateRewardAdjustment(
+          kind: RewardAdjustmentKind.penalty,
+          amount: 750,
+          points: -25,
+          reason: 'Approved disciplinary deduction and points consequence',
+        ),
+        isNull,
+      );
+    });
+
     test('negative monetary input is rejected for every workflow', () {
       expect(
         CompensationPolicy.validateRewardAdjustment(
@@ -70,6 +82,18 @@ void main() {
           amount: -100,
           points: 0,
           reason: 'bad encoding',
+        ),
+        isNotNull,
+      );
+    });
+
+    test('negative points are blocked outside penalty or points adjustment', () {
+      expect(
+        CompensationPolicy.validateRewardAdjustment(
+          kind: RewardAdjustmentKind.bonus,
+          amount: 100,
+          points: -5,
+          reason: 'Invalid hidden points deduction',
         ),
         isNotNull,
       );
@@ -147,6 +171,19 @@ void main() {
       );
       expect(CompensationPolicy.promotionMayBeApproved(snapshot), isFalse);
       expect(CompensationPolicy.sameDesignation(' asm ', 'ASM'), isTrue);
+    });
+
+    test('request preflight rejects missing current designation', () {
+      expect(
+        CompensationPolicy.validatePromotionRequest(
+          currentDesignation: '',
+          nextDesignation: 'SM',
+          incrementAmount: 500,
+          effectiveFrom: '2026-09-15',
+          reason: 'Progression request',
+        ),
+        isNotNull,
+      );
     });
 
     test('request preflight rejects invalid date and same designation', () {

@@ -96,8 +96,11 @@ abstract final class CompensationPolicy {
     if (amount < 0) {
       return 'Amount must be a positive magnitude; use penalty type for deductions.';
     }
-    if (kind != RewardAdjustmentKind.pointsAdjustment && points < 0) {
-      return 'Negative points require the explicit points-adjustment workflow.';
+    final negativePointsAllowed =
+        kind == RewardAdjustmentKind.pointsAdjustment ||
+        kind == RewardAdjustmentKind.penalty;
+    if (!negativePointsAllowed && points < 0) {
+      return 'Negative points require the explicit points-adjustment or penalty workflow.';
     }
     if (kind == RewardAdjustmentKind.pointsAdjustment && points == 0) {
       return 'Points adjustment cannot be zero.';
@@ -142,6 +145,9 @@ abstract final class CompensationPolicy {
     required String effectiveFrom,
     required String reason,
   }) {
+    if (currentDesignation.trim().isEmpty) {
+      return 'Current designation is required.';
+    }
     if (nextDesignation.trim().isEmpty) {
       return 'Next designation is required.';
     }
