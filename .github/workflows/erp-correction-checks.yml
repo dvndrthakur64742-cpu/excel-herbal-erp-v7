@@ -2,44 +2,94 @@ name: ERP correction verification
 on:
   push:
     branches: [codex/erp735-document-integration]
-  pull_request:
-    branches: [v740-business-completion]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: erp-correction-${{ github.ref }}
   cancel-in-progress: true
+defaults:
+  run:
+    shell: powershell
 jobs:
   php-regression:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    if: github.ref == 'refs/heads/codex/erp735-document-integration'
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: PHP runtime
-        run: php --version
-      - name: PHP lint and regression cases
-        working-directory: backend/excel-herbal-erp-v7
-        run: bash tests/run.sh
-      - name: Route and contract checks
-        run: python3 backend/excel-herbal-erp-v7/tests/static_checks.py
-  flutter-integration:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Install matching Flutter toolchain
+      - name: Locate PHP 8.1 or newer
         run: |
-          git clone --depth 1 --branch 3.44.9 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
-          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          $ErrorActionPreference = 'Stop'
+          $phpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
+          $candidates = @($env:EH7_PHP_EXE)
+          if ($phpCommand) { $candidates += $phpCommand.Source }
+          $candidates += @('C:\php\php.exe', 'C:\xampp\php\php.exe', 'C:\actions-runner\eh7-toolcache\php\php.exe')
+          $phpExe = $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
+          if (-not $phpExe) { throw 'PHP 8.1+ was not found. Install PHP CLI on ERP-PC and set EH7_PHP_EXE or add php.exe to the runner PATH, then restart the runner.' }
+          & $phpExe --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $phpExe -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);'
+          if ($LASTEXITCODE -ne 0) { throw 'PHP 8.1+ is required.' }
+          "EH7_PHP_EXE=$phpExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: PHP lint and 24 regression cases
+        working-directory: backend/excel-herbal-erp-v7
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(Get-ChildItem src,tests -Recurse -Filter *.php -File)
+          $files += Get-Item excel-herbal-erp-v7.php
+          foreach ($file in $files) {
+            & $env:EH7_PHP_EXE -l $file.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          & $env:EH7_PHP_EXE tests/regression.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Route and contract checks
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $py = Get-Command py.exe -ErrorAction SilentlyContinue
+          if ($py) {
+            & $py.Source -3 backend/excel-herbal-erp-v7/tests/static_checks.py
+          } else {
+            $python = Get-Command python.exe -ErrorAction Stop
+            & $python.Source backend/excel-herbal-erp-v7/tests/static_checks.py
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  flutter-integration:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration'
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Locate existing Flutter toolchain
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $flutterExe = 'C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat'
+          if (-not (Test-Path -LiteralPath $flutterExe -PathType Leaf)) {
+            $flutter = Get-Command flutter.bat -ErrorAction SilentlyContinue
+            if (-not $flutter) { throw 'Flutter is not available. Start ERP-PC with its existing Flutter toolcache or add flutter.bat to the runner PATH.' }
+            $flutterExe = $flutter.Source
+          }
+          & $flutterExe --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "EH7_FLUTTER_EXE=$flutterExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Dependencies
         working-directory: flutter-app
-        run: flutter pub get
+        run: |
+          & $env:EH7_FLUTTER_EXE pub get
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Analyze
         working-directory: flutter-app
-        run: flutter analyze
+        run: |
+          & $env:EH7_FLUTTER_EXE analyze
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Tests
         working-directory: flutter-app
-        run: flutter test
-      - name: Web compile
+        run: |
+          & $env:EH7_FLUTTER_EXE test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Development web compile
         working-directory: flutter-app
-        run: flutter build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=development
+        run: |
+          & $env:EH7_FLUTTER_EXE build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=development
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
