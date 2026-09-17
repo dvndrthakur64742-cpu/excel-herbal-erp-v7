@@ -8,37 +8,15 @@ permissions:
 concurrency:
   group: erp-correction-${{ github.ref }}
   cancel-in-progress: true
+defaults:
+  run:
+    # Limit execution-policy override to each CI process; do not change machine policy.
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
 jobs:
-  hosted-backend-regression:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Runtime versions
-        run: |
-          php --version
-          python3 --version
-          php -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);'
-      - name: PHP lint and 24 regression cases
-        working-directory: backend/excel-herbal-erp-v7
-        run: |
-          set -euo pipefail
-          while IFS= read -r -d '' file; do
-            php -l "$file"
-          done < <(find src tests -type f -name '*.php' -print0)
-          php -l excel-herbal-erp-v7.php
-          php tests/regression.php
-      - name: Route and contract checks
-        run: python3 backend/excel-herbal-erp-v7/tests/static_checks.py
-
   php-regression:
     if: github.ref == 'refs/heads/codex/erp735-document-integration'
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
-    defaults:
-      run:
-        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Set up verified portable PHP 8.3.33
@@ -95,14 +73,10 @@ jobs:
           Expand-Archive -LiteralPath $archive -DestinationPath $pythonDir -Force
           & (Join-Path $pythonDir 'python.exe') backend/excel-herbal-erp-v7/tests/static_checks.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
   flutter-integration:
     if: github.ref == 'refs/heads/codex/erp735-document-integration'
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 90
-    defaults:
-      run:
-        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Locate existing Flutter toolchain
