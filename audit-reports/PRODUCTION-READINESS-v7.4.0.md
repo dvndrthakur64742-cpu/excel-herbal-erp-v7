@@ -21,7 +21,9 @@ Required before merge/release:
 - Release-mode web compile passes.
 - PR remains draft until these checks are green.
 
-The correction verification workflow is GitHub-hosted so routine certification does not depend on the office Windows runner being online.
+### Runner constraint verified 2026-09-17
+
+A GitHub-hosted Ubuntu verification attempt failed before any job step was allocated (`runner_id=0`, no recorded steps; job log blob unavailable). Because hosted capacity is not currently usable for this repository/account, correction verification remains on the approved Windows self-hosted runner. The self-hosted runner must therefore run as a Windows service so CI does not depend on an open PowerShell window.
 
 ## Gate 2 — Feature exposure
 
@@ -29,22 +31,43 @@ Production must expose only implemented server-authorised features.
 
 - Existing backend capabilities are the authority for visible modules/actions.
 - Advanced salary structure, rewards/incentives and promotion workspaces remain hidden unless the backend explicitly advertises their exact capabilities.
-- Do not add `salary.*`, `rewards.*` or `promotion.*` capabilities to the production backend until the corresponding backend workflows, maker-checker rules, persistence, audit and regression tests are complete.
+- The current 7.3.5 backend capability list does not advertise `salary.*`, `rewards.*` or `promotion.*`; the Flutter Compensation tab is therefore fail-closed with the current server.
+- Do not add those capabilities until the corresponding backend workflows, maker-checker rules, persistence, audit and regression tests are complete.
 - Do not describe CRM, manufacturing, offline sync, advanced compensation or PO/GRN as production-complete unless separately implemented and certified.
 
 ## Gate 3 — WordPress staging prerequisites
 
-Current office environment audit baseline (2026-09-17):
+### Office environment baseline verified 2026-09-17
 
 - WordPress: 7.1
 - PHP: 8.3.33
-- ERP plugin: 7.3.5-rc1
+- ERP plugin health endpoint: 7.3.5-rc1
+- API contract: 7.3.5-contract-1
+- Installed schema: `7.3.5-business-fixes-1`
+- Private document encryption-key option: present (value must never be exposed in logs/reports)
 - Setup Assistant: 1.7.1
 - WordPress core checksums: verified
 - WP-Cron spawn test: PASS
+- Database: MariaDB 11.8.9
+- Default storage engine: InnoDB
+- `max_allowed_packet`: 1,073,741,824 bytes (1 GB)
 - `WP_DEBUG`: false
 - `WP_ENVIRONMENT_TYPE`: not explicitly defined
 - `DISALLOW_FILE_EDIT`: not explicitly defined
+
+### ERP diagnostics baseline
+
+Read-only administration diagnostics returned `healthy`:
+
+- employees: 27 total / 27 active
+- employees without login: 9 (operational review item, not automatically an error)
+- duplicate normalized mobiles: 0
+- unbalanced journals: 0
+- orphan journal lines: 0
+- negative stock balances: 0
+- active employees without open branch history: 0
+- orphan sessions: 0
+- stale completed idempotency records: 0
 
 Before production:
 
@@ -53,9 +76,9 @@ Before production:
 3. Prove restore on a staging copy before production cutover.
 4. Define `WP_ENVIRONMENT_TYPE` appropriately for each environment (`staging` on staging, `production` only at final production cutover).
 5. Set `DISALLOW_FILE_EDIT` to true for production after confirming operational access for controlled deployments.
-6. Confirm PHP OpenSSL + fileinfo, InnoDB, upload limits and `max_allowed_packet` are suitable for private documents; target at least 32 MB packet headroom for the current representation.
-7. Confirm schema version `7.3.5-business-fixes-1` after staging migration and inspect migration errors.
-8. Verify the private document encryption key is created and recoverable only with the matching backup.
+6. Confirm PHP OpenSSL + fileinfo and upload limits for private documents. Database engine and packet headroom are already above the documented minimum baseline.
+7. Re-confirm schema `7.3.5-business-fixes-1` after any staging migration and inspect migration errors.
+8. Verify the private document encryption key is recoverable only with the matching backup.
 
 No WordPress configuration write should be made directly on the production site before backup/restore proof.
 
@@ -105,7 +128,9 @@ Update sequence:
 
 ## Gate 7 — Web production artifact
 
-The production web workflow must:
+The production web workflow now targets `v740-business-completion` instead of the stale hierarchy branch and watches the full `flutter-app/**` source tree.
+
+It must:
 
 - run from `v740-business-completion` or explicit manual dispatch,
 - use Flutter 3.44.9,
@@ -116,7 +141,7 @@ The production web workflow must:
 - verify `<html lang="en">` and the ERP meta description in the generated artifact,
 - publish SHA-256 manifests with the artifact.
 
-The WordPress wrapper page is audited separately from the Flutter artifact. A Lighthouse issue on the wrapper must not be incorrectly attributed to `flutter-app/web/index.html` when the generated Flutter source already contains the required metadata.
+The WordPress wrapper page is audited separately from the Flutter artifact. The Flutter source already contains `lang="en"`, an ERP meta description and `noindex`; Lighthouse wrapper issues must not be incorrectly attributed to the generated Flutter source.
 
 ## Gate 8 — Android production artifact
 
