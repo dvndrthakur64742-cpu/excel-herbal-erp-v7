@@ -176,9 +176,36 @@ class ExcelBrand {
         labelColor: primaryDark,
         unselectedLabelColor: muted,
         indicatorColor: primary,
+        indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: border,
+        labelPadding: EdgeInsets.symmetric(horizontal: 16),
         labelStyle: TextStyle(fontWeight: FontWeight.w800),
         unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      dataTableTheme: DataTableThemeData(
+        headingRowColor: WidgetStateProperty.all(primarySoft),
+        headingTextStyle: const TextStyle(
+          color: primaryDark,
+          fontWeight: FontWeight.w800,
+        ),
+        dataTextStyle: const TextStyle(color: ink),
+        dividerThickness: 1,
+        horizontalMargin: 16,
+        columnSpacing: 24,
+        decoration: BoxDecoration(
+          color: surface,
+          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thickness: WidgetStateProperty.all(6),
+        radius: const Radius.circular(999),
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.dragged)
+              ? primaryDark
+              : const Color(0xFF9AA79F),
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
