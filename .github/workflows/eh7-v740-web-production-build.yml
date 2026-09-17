@@ -3,11 +3,10 @@ name: EH7 v7.4.0 Web Production Build
 on:
   workflow_dispatch:
   push:
-    branches: [v7-hierarchy-gps-reporting-dashboard]
+    branches: [v740-business-completion]
     paths:
       - '.github/workflows/eh7-v740-web-production-build.yml'
-      - 'flutter-app/lib/core/app_config.dart'
-      - 'flutter-app/lib/screens/auth/login_screen.dart'
+      - 'flutter-app/**'
 
 concurrency:
   group: eh7-v740-web-production-${{ github.ref }}
@@ -16,125 +15,77 @@ concurrency:
 permissions:
   contents: read
 
-defaults:
-  run:
-    shell: cmd
-
 jobs:
   web-production:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      FLUTTER_VERSION: 3.44.9
     steps:
-      - name: Enable Windows long paths for runner Git
-        run: git config --global core.longpaths true
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Bootstrap Flutter 3.44.9 from persistent cache
+      - name: Install pinned Flutter SDK
         run: |
-          set CACHE=C:\actions-runner\eh7-toolcache
-          set FLUTTERZIP=C:\actions-runner\eh7-toolcache\flutter_windows_3.44.9-stable.zip
-          set FLUTTERROOT=C:\actions-runner\eh7-toolcache\flutter-3.44.9
-          if not exist "%CACHE%" mkdir "%CACHE%"
-          if exist "%FLUTTERROOT%\flutter\bin\flutter.bat" goto flutter_ready
-          if exist "%FLUTTERZIP%.complete" goto flutter_downloaded
-          curl.exe -fL -C - --retry 100 --retry-all-errors --retry-delay 3 "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.44.9-stable.zip" -o "%FLUTTERZIP%"
-          if errorlevel 1 exit /b 1
-          echo complete>"%FLUTTERZIP%.complete"
-          :flutter_downloaded
-          if exist "%FLUTTERROOT%" rmdir /s /q "%FLUTTERROOT%"
-          mkdir "%FLUTTERROOT%"
-          tar.exe -xf "%FLUTTERZIP%" -C "%FLUTTERROOT%"
-          if errorlevel 1 exit /b 1
-          :flutter_ready
-          git config --global --add safe.directory "%FLUTTERROOT%\flutter"
-          echo %FLUTTERROOT%\flutter\bin>>"%GITHUB_PATH%"
-          "%FLUTTERROOT%\flutter\bin\flutter.bat" --version
-          "%FLUTTERROOT%\flutter\bin\flutter.bat" config --no-analytics
-          "%FLUTTERROOT%\flutter\bin\flutter.bat" config --enable-web
+          set -euo pipefail
+          archive="$RUNNER_TEMP/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+          sdk_root="$RUNNER_TEMP/flutter-sdk"
+          curl --fail --location --retry 5 --retry-delay 3 \
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
+            --output "$archive"
+          mkdir -p "$sdk_root"
+          tar -xf "$archive" -C "$sdk_root"
+          echo "$sdk_root/flutter/bin" >> "$GITHUB_PATH"
+          "$sdk_root/flutter/bin/flutter" config --no-analytics
+          "$sdk_root/flutter/bin/flutter" config --enable-web
+          "$sdk_root/flutter/bin/flutter" --version
 
       - name: Dependencies
         working-directory: flutter-app
-        run: flutter.bat pub get
+        run: flutter pub get
 
       - name: Analyze clean source
         working-directory: flutter-app
-        run: flutter.bat analyze
+        run: flutter analyze
 
       - name: Test
         working-directory: flutter-app
-        run: flutter.bat test
+        run: flutter test
 
       - name: Build production desktop web
         working-directory: flutter-app
-        run: |
-          set WEB_TRY=0
-          :retry_web
-          set /a WEB_TRY+=1
-          echo Production web build attempt %WEB_TRY% of 3
-          call flutter.bat build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
-          if not errorlevel 1 goto web_ok
-          if %WEB_TRY% GEQ 3 exit /b 1
-          timeout /t 10 /nobreak >nul
-          goto retry_web
-          :web_ok
-          echo Production web build completed.
+        run: >-
+          flutter build web --release
+          --base-href /wp-content/uploads/eh7-flutter-web/
+          --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          --dart-define=EH7_ENVIRONMENT=production
 
       - name: Verify production web invariants
         run: |
-          if not exist "flutter-app\build\web\index.html" exit /b 1
-          if not exist "flutter-app\build\web\flutter_bootstrap.js" exit /b 1
-          if not exist "flutter-app\build\web\main.dart.js" exit /b 1
-          findstr /c:"<base href=\"/wp-content/uploads/eh7-flutter-web/\">" "flutter-app\build\web\index.html" >nul
-          if errorlevel 1 exit /b 1
-          findstr /c:"office.excelherbal.in/wp-json/excel-herbal-erp/v7" "flutter-app\build\web\main.dart.js" >nul
-          if errorlevel 1 exit /b 1
-          findstr /c:"UAT BUILD" "flutter-app\build\web\main.dart.js" >nul
-          if not errorlevel 1 exit /b 1
-          echo Production web invariants verified.
-          exit /b 0
+          set -euo pipefail
+          test -f flutter-app/build/web/index.html
+          test -f flutter-app/build/web/flutter_bootstrap.js
+          test -f flutter-app/build/web/main.dart.js
+          grep -F '<base href="/wp-content/uploads/eh7-flutter-web/">' flutter-app/build/web/index.html
+          grep -F 'office.excelherbal.in/wp-json/excel-herbal-erp/v7' flutter-app/build/web/main.dart.js
+          if grep -Fq 'UAT BUILD' flutter-app/build/web/main.dart.js; then
+            echo 'Production build unexpectedly contains UAT BUILD marker.' >&2
+            exit 1
+          fi
+          grep -F '<html lang="en">' flutter-app/build/web/index.html
+          grep -F 'Excel Herbal ERP operations portal' flutter-app/build/web/index.html
 
-      - name: Persist and package production web
+      - name: Package production web
         run: |
-          set RELEASE_ROOT=%USERPROFILE%\ERP7-Releases\v7.4.0
-          set WEB_RELEASE_DIR=%USERPROFILE%\ERP7-Releases\v7.4.0\web-production
-          set WEB_ZIP=%USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Web-Production.zip
-          if not exist "%RELEASE_ROOT%" mkdir "%RELEASE_ROOT%"
-          if exist "%WEB_RELEASE_DIR%" rmdir /s /q "%WEB_RELEASE_DIR%"
-          mkdir "%WEB_RELEASE_DIR%"
-          xcopy /e /i /y "flutter-app\build\web\*" "%WEB_RELEASE_DIR%\" >nul
-          if exist "%WEB_ZIP%" del /q "%WEB_ZIP%"
-          tar.exe -a -c -f "%WEB_ZIP%" -C "%WEB_RELEASE_DIR%" .
-          if errorlevel 1 exit /b 1
-          if not exist "%WEB_ZIP%" exit /b 1
-          certutil -hashfile "%WEB_RELEASE_DIR%\main.dart.js" SHA256 > "%RELEASE_ROOT%\WEB-PRODUCTION-MAIN-SHA256.txt"
-          certutil -hashfile "%WEB_ZIP%" SHA256 > "%RELEASE_ROOT%\WEB-PRODUCTION-ZIP-SHA256.txt"
-          type "%RELEASE_ROOT%\WEB-PRODUCTION-MAIN-SHA256.txt"
-          type "%RELEASE_ROOT%\WEB-PRODUCTION-ZIP-SHA256.txt"
-
-      - name: Stage workflow artifact
-        run: |
-          if not exist "dist\flutter-v7.4.0" mkdir "dist\flutter-v7.4.0"
-          copy /y "%USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Web-Production.zip" "dist\flutter-v7.4.0\Excel-Herbal-ERP-v7.4.0-Web-Production.zip"
-          copy /y "%USERPROFILE%\ERP7-Releases\v7.4.0\WEB-PRODUCTION-MAIN-SHA256.txt" "dist\flutter-v7.4.0\WEB-PRODUCTION-MAIN-SHA256.txt"
-          copy /y "%USERPROFILE%\ERP7-Releases\v7.4.0\WEB-PRODUCTION-ZIP-SHA256.txt" "dist\flutter-v7.4.0\WEB-PRODUCTION-ZIP-SHA256.txt"
+          set -euo pipefail
+          mkdir -p dist/flutter-v7.4.0
+          (cd flutter-app/build/web && zip -qr "$GITHUB_WORKSPACE/dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Web-Production.zip" .)
+          sha256sum flutter-app/build/web/main.dart.js > dist/flutter-v7.4.0/WEB-PRODUCTION-MAIN-SHA256.txt
+          sha256sum dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Web-Production.zip > dist/flutter-v7.4.0/WEB-PRODUCTION-ZIP-SHA256.txt
+          printf 'commit=%s\nenvironment=production\n' "$GITHUB_SHA" > dist/flutter-v7.4.0/WEB-PRODUCTION-STATUS.txt
 
       - name: Upload workflow artifact
-        continue-on-error: true
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Excel-Herbal-ERP-v7.4.0-Web-Production
-          path: |
-            dist/flutter-v7.4.0/Excel-Herbal-ERP-v7.4.0-Web-Production.zip
-            dist/flutter-v7.4.0/WEB-PRODUCTION-MAIN-SHA256.txt
-            dist/flutter-v7.4.0/WEB-PRODUCTION-ZIP-SHA256.txt
+          path: dist/flutter-v7.4.0/*
           if-no-files-found: error
-
-      - name: Production web certification summary
-        run: |
-          if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\web-production\index.html" exit /b 1
-          if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\web-production\main.dart.js" exit /b 1
-          if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Web-Production.zip" exit /b 1
-          echo ERP7 v7.4.0 production desktop web certification gates passed.
-          echo Folder: %USERPROFILE%\ERP7-Releases\v7.4.0\web-production
-          echo ZIP: %USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Web-Production.zip
