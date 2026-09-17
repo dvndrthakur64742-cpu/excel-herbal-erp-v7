@@ -16,10 +16,23 @@ Required before merge/release:
 - 24 backend regression cases pass.
 - Route/contract static checks pass.
 - `flutter pub get` passes.
+- Pinned Flutter dependency resolution remains stable after `flutter pub get`.
 - `flutter analyze` passes with no blocking issues.
 - Full Flutter test suite passes.
 - Release-mode web compile passes.
 - PR remains draft until these checks are green.
+
+### P1 source/CI evidence — 2026-09-17
+
+`ERP correction verification` run `35209886816` completed successfully on source head `4609bb0d3ce0426706ac4a2861e16336e4327cad` before this evidence-only documentation update:
+
+- pinned Flutter 3.44.9 dependency lockfile stability: PASS
+- Flutter analyze: PASS
+- full Flutter test suite (126 tests): PASS
+- production Web compile + metadata/API/UAT-marker invariants: PASS
+- PHP 8.3.33 source lint: PASS
+- 24 backend regression cases: PASS
+- route/contract static checks: PASS
 
 ### Runner constraint verified 2026-09-17
 
@@ -46,13 +59,16 @@ Production must expose only implemented server-authorised features.
 - Installed schema: `7.3.5-business-fixes-1`
 - Private document encryption-key option: present (value must never be exposed in logs/reports)
 - Setup Assistant: 1.7.1
-- WordPress core checksums: verified
-- WP-Cron spawn test: PASS
+- WordPress core checksums: verified across 3,338 core files
+- WP-Cron spawn test: PASS (HTTP 200)
 - Database: MariaDB 11.8.9
+- Transaction isolation: `READ-COMMITTED`
 - Default storage engine: InnoDB
+- ERP tables: 73 total / 73 InnoDB / 0 non-InnoDB
 - `max_allowed_packet`: 1,073,741,824 bytes (1 GB)
 - `WP_DEBUG`: false
 - `WP_ENVIRONMENT_TYPE`: not explicitly defined
+- WordPress therefore currently reports the runtime environment as `production` by default; this does **not** mean the ERP project is production/live. The ERP remains in build/UAT stage.
 - `DISALLOW_FILE_EDIT`: not explicitly defined
 
 ### ERP diagnostics baseline
@@ -69,18 +85,24 @@ Read-only administration diagnostics returned `healthy`:
 - orphan sessions: 0
 - stale completed idempotency records: 0
 
+### P2 hardening blockers confirmed 2026-09-17
+
+- No connected WordPress backup plugin is present. Host-level/database backup and restore proof is still required before plugin/config changes.
+- The WordPress connector can read but cannot write `wp-config.php`; `WP_ENVIRONMENT_TYPE` and `DISALLOW_FILE_EDIT` therefore require a controlled host-level configuration change after backup/restore proof.
+- WordPress 7.1 Abilities API exposes only core site/user/environment read abilities; no Hostinger backup or staging ability is available through the connected API.
+
 Before production:
 
 1. Create a fresh full database backup and plugin/files backup.
 2. Keep an independent protected backup of the `eh7_document_key` option with the matching database backup.
 3. Prove restore on a staging copy before production cutover.
-4. Define `WP_ENVIRONMENT_TYPE` appropriately for each environment (`staging` on staging, `production` only at final production cutover).
+4. Define `WP_ENVIRONMENT_TYPE` appropriately for each environment (`staging` during controlled UAT, `production` only at final production cutover).
 5. Set `DISALLOW_FILE_EDIT` to true for production after confirming operational access for controlled deployments.
 6. Confirm PHP OpenSSL + fileinfo and upload limits for private documents. Database engine and packet headroom are already above the documented minimum baseline.
 7. Re-confirm schema `7.3.5-business-fixes-1` after any staging migration and inspect migration errors.
 8. Verify the private document encryption key is recoverable only with the matching backup.
 
-No WordPress configuration write should be made directly on the production site before backup/restore proof.
+No WordPress configuration write should be made directly on the production-classified site before backup/restore proof.
 
 ## Gate 4 — Staging business/data validation
 
@@ -98,6 +120,15 @@ Must be executed against a controlled staging database:
 - Payroll editor cannot approve a payroll they edited.
 - Approved/paid historical payroll is never silently recalculated.
 
+### P2 runtime evidence — 2026-09-17
+
+- Real authenticated branch-scope check: PASS. A read against branch `999999`, outside the current actor's effective authority, returned HTTP 403 with `branch_forbidden`.
+- Real idempotency replay check: PASS using the transfer-accounting repair path only after its read-only preview reported `repairable=0` and `blocked=0`.
+- The same payload and idempotency key were submitted twice; both returned the same zero-repair result and the idempotency ledger contains a single new completed, payload-bound, cached record for the operation.
+- No stock, journal or transfer record was repaired by this test.
+- Real concurrent-connection race tests and failed-transaction rollback proof are **not yet executed**; the connected WordPress CLI emulator does not provide a safe parallel-session transaction harness.
+- Zero-authorised-branch runtime proof is **not yet executed** because doing so safely requires a dedicated staging test identity rather than altering a real employee's authority.
+
 ## Gate 5 — Private HR document migration/recovery
 
 Before production HR-document cutover:
@@ -109,6 +140,19 @@ Before production HR-document cutover:
 - Legacy originals are re-uploaded through private document endpoints and content verified before retirement.
 - Old media originals/thumbnails/CDN copies are removed only after usage review and explicit deletion approval.
 - Old public URLs are retested without authentication after retirement.
+
+### P2 document inventory — 2026-09-17
+
+Read-only database inventory currently reports:
+
+- `eh7_document_key`: present and non-empty (value not read or exposed)
+- private encrypted blobs: 0
+- employee documents: 0
+- active legacy employee documents without private storage: 0
+- candidate documents: 0
+- active legacy candidate documents without private storage: 0
+
+There is therefore no legacy HR-document migration backlog in the current database. The encrypted restore/download/revocation drill remains pending because there is no existing private document sample to recover; do not fabricate business HR data just to satisfy the gate. Use a controlled staging test document when the backup/restore environment is available.
 
 ## Gate 6 — WordPress/plugin maintenance
 
@@ -126,6 +170,8 @@ Update sequence:
 4. Re-run PageSpeed/basic browser checks.
 5. Apply to production only after staging verification and explicit approval.
 
+No plugin update was applied during the P2 preflight because backup/restore proof is still missing.
+
 ## Gate 7 — Web production artifact
 
 The production web workflow now targets `v740-business-completion` instead of the stale hierarchy branch and watches the full `flutter-app/**` source tree.
@@ -141,7 +187,19 @@ It must:
 - verify `<html lang="en">` and the ERP meta description in the generated artifact,
 - publish SHA-256 manifests with the artifact.
 
-The WordPress wrapper page is audited separately from the Flutter artifact. The Flutter source already contains `lang="en"`, an ERP meta description and `noindex`; Lighthouse wrapper issues must not be incorrectly attributed to the generated Flutter source.
+### P2 browser baseline — 2026-09-17
+
+Fresh mobile Lighthouse against the public WordPress wrapper returned:
+
+- Accessibility: 84
+- Best Practices: 81
+- SEO: 91
+- Performance: unavailable from this lab run; diagnostics still reported roughly 3.3 MiB transfer, 3.6 s JavaScript execution and 4.2 s main-thread work.
+- Wrapper issues: missing `<html lang>` and missing meta description; one deprecated-API warning and missing source maps were also reported.
+
+The rendered WordPress root page is an outer frame generated from page `1194` with shortcode `[eh7_desktop_app]`; its iframe points to the deployed Flutter web artifact. The outer wrapper HTML lacks `lang` and a meta description. The iframe artifact itself was separately verified to contain `<html lang="en">`, the `Excel Herbal ERP operations portal` meta description and `noindex,nofollow,noarchive`.
+
+The WordPress wrapper page is therefore audited separately from the Flutter artifact. Wrapper Lighthouse issues must not be incorrectly attributed to the generated Flutter source.
 
 ## Gate 8 — Android production artifact
 
@@ -156,6 +214,19 @@ Required:
 - release APK signature verifies,
 - signed AAB is produced when signing material is present,
 - SHA-256 manifests captured for release APK/AAB.
+
+### P2 workflow inspection — 2026-09-17
+
+The Android production workflow is fail-closed by design:
+
+- uses the approved Windows/X64 self-hosted runner and pinned Flutter 3.44.9 toolchain,
+- reads signing configuration only from runner-local paths outside the repository,
+- builds/tests before release packaging,
+- verifies APK signature state,
+- emits a signed APK/AAB only when approved signing material is staged,
+- otherwise preserves only an unsigned release-mode compile artifact and exits the production-readiness summary as blocked.
+
+This workflow has been inspected but a newly signed production APK/AAB has **not** been produced or approved in P2.
 
 Recommended runner service setup after the runner is already configured:
 
