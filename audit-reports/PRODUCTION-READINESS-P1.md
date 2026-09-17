@@ -34,8 +34,9 @@ Status: BUILD/STAGING CANDIDATE. Do not deploy or merge to a production release 
 - [ ] Define `DISALLOW_FILE_EDIT` as `true` before final go-live, after confirming the operational update process.
 - [ ] Review pending plugin updates on staging before applying them to the ERP host.
 - [ ] Confirm OpenSSL and fileinfo extensions are available in the actual PHP runtime.
-- [ ] Confirm all ERP tables use InnoDB.
-- [ ] Confirm PHP upload limits and MySQL `max_allowed_packet` provide adequate headroom for private HR document storage.
+- [x] Confirm all ERP tables use InnoDB. Verified 73 ERP tables on 2026-09-17.
+- [x] Confirm MySQL `max_allowed_packet` provides adequate headroom for private HR document storage. Verified 1,073,741,824 bytes (1 GiB) on 2026-09-17.
+- [ ] Confirm PHP upload/post limits provide adequate headroom for private HR document storage.
 
 ### 3. Backup and recovery
 
@@ -47,11 +48,12 @@ Status: BUILD/STAGING CANDIDATE. Do not deploy or merge to a production release 
 
 ### 4. Schema and migration
 
-- [ ] Confirm schema version `7.3.5-business-fixes-1` on staging.
-- [ ] Confirm `salary_revisions`, `payroll_editors`, and `private_documents` tables exist.
-- [ ] Confirm payroll calculation/version columns and HR private-file references exist.
-- [ ] Run migration twice to prove idempotency.
-- [ ] Inspect migration errors and verify document-key creation/preservation.
+- [x] Confirm schema version `7.3.5-business-fixes-1` on the connected office ERP host.
+- [x] Confirm `salary_revisions`, `payroll_editors`, and `private_documents` tables exist.
+- [x] Confirm payroll calculation/version columns and employee/candidate HR private-file references exist.
+- [x] Confirm `eh7_document_key` exists and is non-empty without reading or exposing its value.
+- [ ] Run migration twice on a staging clone to prove idempotency.
+- [ ] Inspect migration errors and verify document-key preservation through a restore/migration drill.
 
 ### 5. Business logic and concurrency
 
@@ -97,10 +99,10 @@ Status: BUILD/STAGING CANDIDATE. Do not deploy or merge to a production release 
 
 Do not expose a feature as production-ready merely because route constants or UI shells exist.
 
-- [ ] Advanced salary-structure APIs are either completed and certified or production-hidden.
-- [ ] Reward/incentive/penalty workflows are either completed and certified or production-hidden.
-- [ ] Promotion workflow is either completed and certified or production-hidden.
-- [ ] Any unimplemented CRM / PO-GRN / manufacturing / offline-sync functionality is clearly outside the v7.4.0 production scope and not represented as complete.
+- [x] Advanced salary-structure APIs are production-hidden. `CompensationWorkspace` is compile-time UAT-only.
+- [x] Reward/incentive/penalty workflows are production-hidden. `CompensationWorkspace` is compile-time UAT-only.
+- [x] Promotion workflow is production-hidden. `CompensationWorkspace` is compile-time UAT-only.
+- [ ] Any unimplemented CRM / PO-GRN / manufacturing / offline-sync functionality is clearly outside the v7.4.0 production scope and not represented as complete in release notes/user-facing navigation.
 
 ### 10. Pilot and release approval
 
@@ -115,6 +117,7 @@ Do not expose a feature as production-ready merely because route constants or UI
 ## Current known non-blocking web findings
 
 - ERP web source includes `<html lang="en">`, a production meta description and `noindex,nofollow,noarchive`.
+- Production web workflow targets `v740-business-completion` and watches `flutter-app/**`.
 - Lighthouse/browser audit should be repeated on the newly compiled production web artifact; current deployed page results may reflect an older web bundle.
 - Large Flutter JavaScript payload and main-thread execution should be tracked as a performance optimization item after correctness/security gates, unless pilot-device performance is unacceptable.
 
