@@ -376,44 +376,50 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     final app = ref.read(appStateProvider);
     if (!app.can('performance.manage')) return;
     final id = int.parse('${row['id']}');
-    final newPoints = TextEditingController(text: '${row['target_points'] ?? ''}');
+    final status = '${row['status'] ?? ''}'.trim().toLowerCase();
+    if (status != 'draft') {
+      if (mounted) {
+        setState(() => message = 'Target #$id is already ${status.isEmpty ? 'processed' : status}.');
+      }
+      return;
+    }
+
+    final employee = '${row['employee_name'] ?? 'Employee #${row['employee_id'] ?? '—'}'}';
+    final points = '${row['target_points'] ?? '0'}';
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Update Target #$id'),
-        content: TextField(
-          controller: newPoints,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Target Points'),
+        title: Text('Approve Target #$id'),
+        content: Text(
+          '$employee\nTarget Points: $points\n\nApproval is maker-checker protected. The creator cannot approve the same target.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          FilledButton(
+          FilledButton.icon(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Update'),
+            icon: const Icon(Icons.approval_outlined),
+            label: const Text('Approve'),
           ),
         ],
       ),
     );
-    if (ok == true) {
-      try {
-        await ref.read(apiClientProvider).put(
-          ApiPaths.performanceTarget(id),
-          data: {'target_points': double.parse(newPoints.text.trim())},
-        );
-        if (mounted) {
-          setState(() {
-            message = 'Target #$id updated.';
-            refresh++;
-          });
-        }
-      } catch (e) {
-        if (mounted) setState(() => message = UiError.message(e));
+    if (ok != true) return;
+
+    try {
+      await ref
+          .read(apiClientProvider)
+          .post(ApiPaths.targetApprove(id), data: const {});
+      if (mounted) {
+        setState(() {
+          message = 'Target #$id approved.';
+          refresh++;
+        });
       }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
     }
-    newPoints.dispose();
   }
 }
