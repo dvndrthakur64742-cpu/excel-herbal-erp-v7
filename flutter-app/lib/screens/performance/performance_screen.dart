@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/app_config.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -86,18 +87,23 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
         ),
       ));
     }
-    if (app.canAny(const [
-      'salary.view',
-      'salary.manage',
-      'salary.approve',
-      'rewards.view',
-      'rewards.manage',
-      'rewards.approve',
-      'rewards.pay',
-      'promotion.view',
-      'promotion.request',
-      'promotion.approve',
-    ])) {
+    // Advanced compensation APIs are contract-stage in 7.3.5. Keep the
+    // workspace available for UAT builds only; production must not expose an
+    // incomplete workflow even if an external/misconfigured capability string
+    // is present in bootstrap data.
+    if (AppConfig.isUat &&
+        app.canAny(const [
+          'salary.view',
+          'salary.manage',
+          'salary.approve',
+          'rewards.view',
+          'rewards.manage',
+          'rewards.approve',
+          'rewards.pay',
+          'promotion.view',
+          'promotion.request',
+          'promotion.approve',
+        ])) {
       tabs.add((
         'Compensation',
         const CompensationWorkspace(),
@@ -220,89 +226,59 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
       if (!mounted) return;
-
       await showModalBottomSheet<void>(
         context: context,
+        useSafeArea: true,
         isScrollControlled: true,
-        builder: (sheetContext) => SafeArea(
-          child: SizedBox(
-            height: MediaQuery.of(sheetContext).size.height * .82,
-            child: Column(
-              children: [
-                ListTile(
-                  title: Text('Payroll #$id · ${run['status']}'),
-                  subtitle: Text(
-                    '${run['period_start']} → ${run['period_end']} · Net ₹${run['net_total']}',
+        builder: (context) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: .9,
+          maxChildSize: .96,
+          builder: (_, controller) => ListView(
+            controller: controller,
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                'Payroll #$id · ${run['period_start']} to ${run['period_end']}',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text('Status: ${run['status']}'),
+              const SizedBox(height: 12),
+              ...items.map(
+                (item) => Card(
+                  child: ListTile(
+                    title: Text(
+                      '${item['employee_name'] ?? 'Employee #${item['employee_id']}'}',
+                    ),
+                    subtitle: Text(
+                      'Gross: ${item['gross_total']} · Net: ${item['net_total']}',
+                    ),
                   ),
                 ),
-                const Divider(height: 1),
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, index) {
-                      final item = items[index];
-                      return Card(
-                        child: ListTile(
-                          title: Text('${item['full_name']}'),
-                          subtitle: Text(
-                            'Paid ${item['paid_days']}/${item['working_days']} · Attendance ₹${item['attendance_salary']} · Fund ₹${item['salary_fund_earning']}\n'
-                            'Bonus ₹${item['bonus']} · Allowance ₹${item['allowances']} · Deduction ₹${item['deductions']} · Net ₹${item['net_salary']}',
-                          ),
-                          trailing:
-                              run['status'] == 'draft' &&
-                                  app.can('payroll.generate')
-                              ? const Icon(Icons.edit_outlined)
-                              : null,
-                          onTap:
-                              run['status'] == 'draft' &&
-                                  app.can('payroll.generate')
-                              ? () async {
-                                  Navigator.pop(sheetContext);
-                                  await _editPayrollItem(id, item);
-                                  if (mounted) await _showPayroll(row);
-                                }
-                              : null,
-                        ),
-                      );
-                    },
-                  ),
+              ),
+              const SizedBox(height: 12),
+              if ('${run['status']}' == 'draft' && app.can('payroll.approve'))
+                FilledButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _payrollAction(id, 'approve');
+                  },
+                  icon: const Icon(Icons.approval_outlined),
+                  label: const Text('Approve Payroll'),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (run['status'] == 'draft' &&
-                          app.can('payroll.approve'))
-                        FilledButton.icon(
-                          onPressed: () async {
-                            Navigator.pop(sheetContext);
-                            await _postAction(ApiPaths.payrollApprove(id));
-                          },
-                          icon: const Icon(Icons.check_circle_outline),
-                          label: const Text('Approve Payroll'),
-                        ),
-                      if (run['status'] == 'approved' && app.can('payroll.pay'))
-                        FilledButton.icon(
-                          onPressed: () async {
-                            Navigator.pop(sheetContext);
-                            await _payPayroll(id);
-                          },
-                          icon: const Icon(Icons.payments_outlined),
-                          label: const Text('Pay Payroll'),
-                        ),
-                      OutlinedButton(
-                        onPressed: () => Navigator.pop(sheetContext),
-                        child: const Text('Close'),
-                      ),
-                    ],
-                  ),
+              if ('${run['status']}' == 'approved' && app.can('payroll.pay')) ...[
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _payrollAction(id, 'pay');
+                  },
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text('Mark Paid'),
                 ),
               ],
-            ),
+            ],
           ),
         ),
       );
@@ -311,41 +287,49 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     }
   }
 
-  Future<void> _editPayrollItem(int runId, Map<String, dynamic> item) async {
-    final bonus = TextEditingController(text: '${item['bonus'] ?? 0}');
-    final allowance = TextEditingController(text: '${item['allowances'] ?? 0}');
-    final deduction = TextEditingController(text: '${item['deductions'] ?? 0}');
+  Future<void> _payrollAction(int id, String action) async {
+    try {
+      final path = action == 'approve'
+          ? ApiPaths.payrollApprove(id)
+          : ApiPaths.payrollPay(id);
+      await ref.read(apiClientProvider).post(path, data: const {});
+      if (mounted) {
+        setState(() {
+          message = action == 'approve'
+              ? 'Payroll #$id approved.'
+              : 'Payroll #$id marked paid.';
+          refresh++;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _createTarget() async {
+    final app = ref.read(appStateProvider);
+    if (app.currentBranchId == null) return;
+    final employee = TextEditingController();
+    final points = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Review · ${item['full_name']}'),
+        title: const Text('New Performance Target'),
         content: SizedBox(
-          width: 480,
+          width: 440,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: bonus,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'Bonus'),
+                controller: employee,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Employee ID'),
               ),
               const SizedBox(height: 10),
               TextField(
-                controller: allowance,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'Allowances'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: deduction,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'Deductions'),
+                controller: points,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Target Points'),
               ),
             ],
           ),
@@ -357,276 +341,79 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save Review'),
+            child: const Text('Create'),
           ),
         ],
       ),
     );
-    try {
-      if (ok == true) {
-        await ref
-            .read(apiClientProvider)
-            .post(
-              ApiPaths.payrollItemUpdate(runId, int.parse('${item['id']}')),
-              data: {
-                'bonus': double.tryParse(bonus.text.trim()) ?? 0,
-                'allowances': double.tryParse(allowance.text.trim()) ?? 0,
-                'deductions': double.tryParse(deduction.text.trim()) ?? 0,
-              },
-            );
-        if (mounted) {
-          setState(() {
-            message = 'Payroll item reviewed.';
-            refresh++;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
-    } finally {
-      bonus.dispose();
-      allowance.dispose();
-      deduction.dispose();
-    }
-  }
-
-  Future<void> _payPayroll(int id) async {
-    final app = ref.read(appStateProvider);
-    try {
-      final raw = await ref
-          .read(apiClientProvider)
-          .get(ApiPaths.financeBootstrap);
-      final data = Map<String, dynamic>.from(raw as Map);
-      final accounts = (data['accounts'] as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .where(
-            (e) =>
-                '${e['type']}' == 'asset' &&
-                const {
-                  'cash',
-                  'bank',
-                  'upi',
-                }.contains('${e['subtype']}'.toLowerCase()),
-          )
-          .toList();
-      if (!mounted) return;
-      int? accountId;
-      final date = TextEditingController(text: app.businessDate);
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: Text('Pay Payroll #$id'),
-            content: SizedBox(
-              width: 500,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<int>(
-                    initialValue: accountId,
-                    decoration: const InputDecoration(
-                      labelText: 'Cash / Bank / UPI Account',
-                    ),
-                    items: accounts
-                        .map(
-                          (e) => DropdownMenuItem<int>(
-                            value: int.parse('${e['id']}'),
-                            child: Text('${e['code']} · ${e['name']}'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setLocal(() => accountId = value),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: date,
-                    decoration: const InputDecoration(
-                      labelText: 'Payment Date YYYY-MM-DD',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, accountId != null),
-                child: const Text('Post Payment'),
-              ),
-            ],
-          ),
-        ),
-      );
-      if (ok == true && accountId != null) {
-        final result = await ref
-            .read(apiClientProvider)
-            .post(
-              ApiPaths.payrollPay(id),
-              data: {
-                'payment_account_id': accountId,
-                'payment_date': date.text.trim(),
-              },
-            );
-        if (mounted) {
-          setState(() {
-            message = 'Payroll paid: $result';
-            refresh++;
-          });
-        }
-      }
-      date.dispose();
-    } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
-    }
-  }
-
-  Future<void> _createTarget() async {
-    final app = ref.read(appStateProvider);
-    final api = ref.read(apiClientProvider);
-    try {
-      final employees = (await api.get(
-        ApiPaths.employees,
-        query: {'branch_id': app.currentBranchId},
-      ) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      int? employeeId;
-      final points = TextEditingController();
-      final from = TextEditingController(text: app.businessMonthStart);
-      final to = TextEditingController(text: app.businessDate);
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: const Text('Performance Target'),
-            content: SizedBox(
-              width: 520,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<int>(
-                    initialValue: employeeId,
-                    decoration: const InputDecoration(labelText: 'Employee'),
-                    items: employees
-                        .map(
-                          (e) => DropdownMenuItem<int>(
-                            value: int.parse('${e['id']}'),
-                            child: Text(
-                              '${e['full_name']} · ${e['designation_code']}',
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setLocal(() => employeeId = value),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: from,
-                    decoration: const InputDecoration(
-                      labelText: 'Period Start YYYY-MM-DD',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: to,
-                    decoration: const InputDecoration(
-                      labelText: 'Period End YYYY-MM-DD',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: points,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Target Points',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, employeeId != null),
-                child: const Text('Create Draft'),
-              ),
-            ],
-          ),
-        ),
-      );
-      if (ok == true) {
-        await api.post(
+    if (ok == true) {
+      try {
+        await ref.read(apiClientProvider).post(
           ApiPaths.performanceTargets,
           data: {
             'branch_id': app.currentBranchId,
-            'employee_id': employeeId,
-            'period_start': from.text.trim(),
-            'period_end': to.text.trim(),
-            'target_points': double.tryParse(points.text) ?? 0,
+            'employee_id': int.parse(employee.text.trim()),
+            'target_points': double.parse(points.text.trim()),
+            'from_date': app.businessMonthStart,
+            'to_date': app.businessDate,
           },
         );
         if (mounted) {
           setState(() {
-            message = 'Performance target draft created.';
+            message = 'Performance target created.';
             refresh++;
           });
         }
+      } catch (e) {
+        if (mounted) setState(() => message = UiError.message(e));
       }
-      points.dispose();
-      from.dispose();
-      to.dispose();
-    } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
     }
+    employee.dispose();
+    points.dispose();
   }
 
-  void _targetAction(Map<String, dynamic> row) {
+  Future<void> _targetAction(Map<String, dynamic> row) async {
     final app = ref.read(appStateProvider);
-    if ('${row['status']}' != 'draft' || !app.can('performance.manage')) return;
+    if (!app.can('performance.manage')) return;
     final id = int.parse('${row['id']}');
-    showModalBottomSheet<void>(
+    final newPoints = TextEditingController(text: '${row['target_points'] ?? ''}');
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              title: Text(
-                '${row['employee_name']} · Target ${row['target_points']} points',
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.check_circle_outline),
-              title: const Text('Approve Target'),
-              onTap: () {
-                Navigator.pop(context);
-                _postAction(ApiPaths.targetApprove(id));
-              },
-            ),
-          ],
+      builder: (context) => AlertDialog(
+        title: Text('Update Target #$id'),
+        content: TextField(
+          controller: newPoints,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Target Points'),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Update'),
+          ),
+        ],
       ),
     );
-  }
-
-  Future<void> _postAction(String path) async {
-    try {
-      final result = await ref
-          .read(apiClientProvider)
-          .post(path, data: const {});
-      if (mounted) {
-        setState(() {
-          message = 'Done: $result';
-          refresh++;
-        });
+    if (ok == true) {
+      try {
+        await ref.read(apiClientProvider).put(
+          ApiPaths.performanceTarget(id),
+          data: {'target_points': double.parse(newPoints.text.trim())},
+        );
+        if (mounted) {
+          setState(() {
+            message = 'Target #$id updated.';
+            refresh++;
+          });
+        }
+      } catch (e) {
+        if (mounted) setState(() => message = UiError.message(e));
       }
-    } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
     }
+    newPoints.dispose();
   }
 }
