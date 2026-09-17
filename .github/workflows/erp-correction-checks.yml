@@ -10,7 +10,8 @@ concurrency:
   cancel-in-progress: true
 defaults:
   run:
-    shell: powershell
+    # Limit execution-policy override to each CI process; do not change machine policy.
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
 jobs:
   php-regression:
     if: github.ref == 'refs/heads/codex/erp735-document-integration'
