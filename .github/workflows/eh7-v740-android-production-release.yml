@@ -6,6 +6,7 @@ on:
     branches: [v740-business-completion]
     paths:
       - '.github/workflows/eh7-v740-android-production-release.yml'
+      - 'flutter-app/**'
 
 concurrency:
   group: eh7-v740-android-production-${{ github.ref }}
@@ -20,7 +21,7 @@ defaults:
 
 jobs:
   android-production:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 180
     steps:
       - name: Enable Windows long paths

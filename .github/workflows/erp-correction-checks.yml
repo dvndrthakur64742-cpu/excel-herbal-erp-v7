@@ -106,8 +106,17 @@ jobs:
         run: |
           & $env:EH7_FLUTTER_EXE test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Development web compile
+      - name: Production web compile and invariants
         working-directory: flutter-app
         run: |
-          & $env:EH7_FLUTTER_EXE build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=development
+          $ErrorActionPreference = 'Stop'
+          & $env:EH7_FLUTTER_EXE build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $index = 'build/web/index.html'
+          $main = 'build/web/main.dart.js'
+          if (-not (Test-Path -LiteralPath $index -PathType Leaf)) { throw 'Production web index.html was not generated.' }
+          if (-not (Test-Path -LiteralPath $main -PathType Leaf)) { throw 'Production web main.dart.js was not generated.' }
+          if (-not (Select-String -LiteralPath $index -SimpleMatch '<html lang="en">' -Quiet)) { throw 'Production web lang metadata is missing.' }
+          if (-not (Select-String -LiteralPath $index -SimpleMatch 'Excel Herbal ERP operations portal' -Quiet)) { throw 'Production web meta description is missing.' }
+          if (-not (Select-String -LiteralPath $main -SimpleMatch 'office.excelherbal.in/wp-json/excel-herbal-erp/v7' -Quiet)) { throw 'Production API base URL is missing from compiled web output.' }
+          if (Select-String -LiteralPath $main -SimpleMatch 'UAT BUILD' -Quiet) { throw 'UAT marker leaked into production web output.' }
