@@ -15,4 +15,18 @@ void main() {
     expect(theme.dataTableTheme.dividerThickness, 1);
     expect(theme.dataTableTheme.horizontalMargin, 16);
   });
+
+  test('ERP theme keeps dialogs menus and sheets inside shared surfaces', () {
+    final theme = ExcelBrand.lightTheme();
+
+    expect(
+      theme.dialogTheme.insetPadding,
+      const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+    );
+    expect(theme.popupMenuTheme.color, ExcelBrand.surface);
+    expect(theme.popupMenuTheme.surfaceTintColor, Colors.transparent);
+    expect(theme.bottomSheetTheme.showDragHandle, isTrue);
+    expect(theme.bottomSheetTheme.clipBehavior, Clip.antiAlias);
+    expect(theme.bottomSheetTheme.modalBackgroundColor, ExcelBrand.surface);
+  });
 }
