@@ -19,27 +19,21 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Provision portable PowerShell for PHP setup
+      - name: Set up verified portable PHP 8.3.33
         run: |
           $ErrorActionPreference = 'Stop'
-          $psDir = Join-Path $env:RUNNER_TEMP 'eh7-pwsh-7.6.6'
-          $archive = Join-Path $env:RUNNER_TEMP 'eh7-pwsh-7.6.6.zip'
-          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/PowerShell/PowerShell/releases/download/v7.6.6/PowerShell-7.6.6-win-x64.zip' -OutFile $archive
-          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '02fe458be20493fbdf43f61ea20610b811ee6c738ab1676c61b9cfcd1a33c860') {
-            throw 'PowerShell archive checksum mismatch.'
+          $ProgressPreference = 'SilentlyContinue'
+          $phpDir = Join-Path $env:RUNNER_TEMP 'eh7-php-8.3.33'
+          $archive = Join-Path $env:RUNNER_TEMP 'eh7-php-8.3.33.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://downloads.php.net/~windows/releases/archives/php-8.3.33-nts-Win32-vs16-x64.zip' -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '534399107056313246f424adbbb7937337e40fbbf6aa7bc26287ba9cfd2e4a2a') {
+            throw 'PHP archive checksum mismatch.'
           }
-          Expand-Archive -LiteralPath $archive -DestinationPath $psDir -Force
-          & (Join-Path $psDir 'pwsh.exe') -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $psDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      - name: Set up PHP 8.3 for backend checks
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
-        with:
-          php-version: '8.3'
-          coverage: none
-          tools: none
-        env:
-          runner: self-hosted
+          Expand-Archive -LiteralPath $archive -DestinationPath $phpDir -Force
+          $phpExe = Join-Path $phpDir 'php.exe'
+          & $phpExe -n --version
+          if ($LASTEXITCODE -ne 0) { throw 'Portable PHP failed to start. Check the Visual C++ runtime on the runner.' }
+          "EH7_PHP_EXE=$phpExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Locate PHP 8.1 or newer
         run: |
           $ErrorActionPreference = 'Stop'
