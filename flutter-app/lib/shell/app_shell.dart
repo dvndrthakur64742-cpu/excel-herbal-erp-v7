@@ -288,7 +288,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         dense: true,
         leading: Icon(icon, size: 21),
         title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-        onTap: () => setState(() => desktopRoute = id),
+        onTap: () => _selectDesktopRoute(id),
       ),
     );
   }
@@ -297,7 +297,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (!_routeAllowed(app, desktopRoute)) desktopRoute = 'home';
     final child = switch (desktopRoute) {
       'home' => HomeScreen(
-          openMyWork: () => setState(() => desktopRoute = 'my_work'),
+          openMyWork: () => _selectDesktopRoute('my_work'),
         ),
       'my_work' => const MyWorkScreen(),
       'quick_actions' => ActionsScreen(
@@ -809,7 +809,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 _showQuickActions(app);
                 return;
               }
-              setState(() => mobileIndex = v);
+              _selectMobileRoute(app, id);
             },
             destinations: items
                 .map(
@@ -836,10 +836,24 @@ class _AppShellState extends ConsumerState<AppShell> {
         _ => Icons.circle_outlined,
       };
 
+  void _selectDesktopRoute(String id) {
+    final app = ref.read(appStateProvider);
+    final index = app.bottomNav.indexWhere((item) => '${item['id']}' == id);
+    setState(() {
+      desktopRoute = id;
+      if (index >= 0) mobileIndex = index;
+    });
+  }
+
   void _selectMobileRoute(AppState app, String id) {
     final items = app.bottomNav;
     final index = items.indexWhere((item) => '${item['id']}' == id);
-    if (index >= 0) setState(() => mobileIndex = index);
+    if (index >= 0) {
+      setState(() {
+        mobileIndex = index;
+        desktopRoute = id;
+      });
+    }
   }
 
   IconData _icon(String id) => switch (id) {
@@ -865,7 +879,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final app = ref.read(appStateProvider);
     if (!_routeAllowed(app, id)) return;
     if (ShellLayout.isDesktopWidth(MediaQuery.sizeOf(context).width)) {
-      setState(() => desktopRoute = id);
+      _selectDesktopRoute(id);
       return;
     }
     if (const {'home', 'my_work', 'actions', 'tasks', 'profile'}.contains(id)) {
