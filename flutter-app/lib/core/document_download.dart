@@ -29,7 +29,14 @@ String documentFilename(String? contentDisposition, String mimeType) {
       .firstMatch(contentDisposition ?? '')?.group(1);
   String name = '';
   if (encoded != null) {
-    try { name = Uri.decodeComponent(encoded); } on FormatException { name = ''; }
+    try {
+      name = Uri.decodeComponent(encoded);
+    } on FormatException {
+      name = '';
+    } on ArgumentError {
+      // Invalid percent escapes can throw ArgumentError in Dart.
+      name = '';
+    }
   }
   name = name.replaceAll(RegExp(r'[/\\\x00-\x1f\x7f]'), '_').trim();
   if (name.isNotEmpty && name != '.' && name != '..') return name;
