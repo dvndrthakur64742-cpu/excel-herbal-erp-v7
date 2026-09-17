@@ -1,113 +1,87 @@
 name: ERP correction verification
+
 on:
   push:
     branches: [codex/erp735-document-integration]
+  pull_request:
+    branches: [v740-business-completion]
   workflow_dispatch:
+
 permissions:
   contents: read
+
 concurrency:
   group: erp-correction-${{ github.ref }}
   cancel-in-progress: true
-defaults:
-  run:
-    # Limit execution-policy override to each CI process; do not change machine policy.
-    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+
 jobs:
   php-regression:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration'
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Set up verified portable PHP 8.3.33
+
+      - name: Verify PHP runtime and required extensions
         run: |
-          $ErrorActionPreference = 'Stop'
-          $ProgressPreference = 'SilentlyContinue'
-          $phpDir = Join-Path $env:RUNNER_TEMP 'eh7-php-8.3.33'
-          $archive = Join-Path $env:RUNNER_TEMP 'eh7-php-8.3.33.zip'
-          Invoke-WebRequest -UseBasicParsing -Uri 'https://downloads.php.net/~windows/releases/archives/php-8.3.33-nts-Win32-vs16-x64.zip' -OutFile $archive
-          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '534399107056313246f424adbbb7937337e40fbbf6aa7bc26287ba9cfd2e4a2a') {
-            throw 'PHP archive checksum mismatch.'
-          }
-          Expand-Archive -LiteralPath $archive -DestinationPath $phpDir -Force
-          $phpExe = Join-Path $phpDir 'php.exe'
-          & $phpExe -n --version
-          if ($LASTEXITCODE -ne 0) { throw 'Portable PHP failed to start. Check the Visual C++ runtime on the runner.' }
-          "EH7_PHP_EXE=$phpExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Locate PHP 8.1 or newer
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $phpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
-          $candidates = @($env:EH7_PHP_EXE)
-          if ($phpCommand) { $candidates += $phpCommand.Source }
-          $candidates += @('C:\php\php.exe', 'C:\xampp\php\php.exe', 'C:\actions-runner\eh7-toolcache\php\php.exe')
-          $phpExe = $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
-          if (-not $phpExe) { throw 'PHP 8.1+ was not found. Install PHP CLI on ERP-PC and set EH7_PHP_EXE or add php.exe to the runner PATH, then restart the runner.' }
-          & $phpExe --version
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & $phpExe -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);'
-          if ($LASTEXITCODE -ne 0) { throw 'PHP 8.1+ is required.' }
-          "EH7_PHP_EXE=$phpExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          set -euo pipefail
+          php --version
+          php -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);'
+          php -m | grep -qi '^openssl$'
+          php -m | grep -qi '^fileinfo$'
+
       - name: PHP lint and 24 regression cases
         working-directory: backend/excel-herbal-erp-v7
         run: |
-          $ErrorActionPreference = 'Stop'
-          $files = @(Get-ChildItem src,tests -Recurse -Filter *.php -File)
-          $files += Get-Item excel-herbal-erp-v7.php
-          foreach ($file in $files) {
-            & $env:EH7_PHP_EXE -l $file.FullName
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          & $env:EH7_PHP_EXE tests/regression.php
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          set -euo pipefail
+          find src tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l excel-herbal-erp-v7.php
+          php tests/regression.php
+
       - name: Route and contract checks
         run: |
-          $ErrorActionPreference = 'Stop'
-          $ProgressPreference = 'SilentlyContinue'
-          $pythonDir = Join-Path $env:RUNNER_TEMP 'eh7-python-3.13.7'
-          $archive = Join-Path $env:RUNNER_TEMP 'eh7-python-3.13.7.zip'
-          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-amd64.zip' -OutFile $archive
-          if ((Get-FileHash -LiteralPath $archive -Algorithm MD5).Hash -ne '77f294ec267596827a2ab06e8fa3f18c') {
-            throw 'Python archive checksum mismatch.'
-          }
-          Expand-Archive -LiteralPath $archive -DestinationPath $pythonDir -Force
-          & (Join-Path $pythonDir 'python.exe') backend/excel-herbal-erp-v7/tests/static_checks.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          set -euo pipefail
+          python3 --version
+          python3 backend/excel-herbal-erp-v7/tests/static_checks.py
+
   flutter-integration:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration'
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      FLUTTER_VERSION: 3.44.9
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Locate existing Flutter toolchain
+
+      - name: Install pinned Flutter SDK
         run: |
-          $ErrorActionPreference = 'Stop'
-          $flutterExe = 'C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat'
-          if (-not (Test-Path -LiteralPath $flutterExe -PathType Leaf)) {
-            $flutter = Get-Command flutter.bat -ErrorAction SilentlyContinue
-            if (-not $flutter) { throw 'Flutter is not available. Start ERP-PC with its existing Flutter toolcache or add flutter.bat to the runner PATH.' }
-            $flutterExe = $flutter.Source
-          }
-          & $flutterExe --version
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          "EH7_FLUTTER_EXE=$flutterExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          set -euo pipefail
+          archive="$RUNNER_TEMP/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+          sdk_root="$RUNNER_TEMP/flutter-sdk"
+          curl --fail --location --retry 5 --retry-delay 3 \
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
+            --output "$archive"
+          mkdir -p "$sdk_root"
+          tar -xf "$archive" -C "$sdk_root"
+          echo "$sdk_root/flutter/bin" >> "$GITHUB_PATH"
+          "$sdk_root/flutter/bin/flutter" config --no-analytics
+          "$sdk_root/flutter/bin/flutter" config --enable-web
+          "$sdk_root/flutter/bin/flutter" --version
+
       - name: Dependencies
         working-directory: flutter-app
-        run: |
-          & $env:EH7_FLUTTER_EXE pub get
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: flutter pub get
+
       - name: Analyze
         working-directory: flutter-app
-        run: |
-          & $env:EH7_FLUTTER_EXE analyze
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: flutter analyze
+
       - name: Tests
         working-directory: flutter-app
-        run: |
-          & $env:EH7_FLUTTER_EXE test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: flutter test
+
       - name: Development web compile
         working-directory: flutter-app
-        run: |
-          & $env:EH7_FLUTTER_EXE build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=development
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: >-
+          flutter build web --release
+          --base-href /wp-content/uploads/eh7-flutter-web/
+          --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          --dart-define=EH7_ENVIRONMENT=development
