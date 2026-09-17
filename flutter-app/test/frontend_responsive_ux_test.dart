@@ -19,7 +19,7 @@ void main() {
         'status': 'issue_pending',
       },
     ];
-    for (final width in <double>[360, 390, 768]) {
+    for (final width in <double>[360, 390, 768, 900, 959]) {
       await tester.binding.setSurfaceSize(Size(width, 800));
       await tester.pumpWidget(
         MaterialApp(
@@ -30,23 +30,28 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(Card), findsWidgets);
+      expect(find.byType(DataTable), findsNothing);
       expect(
         find.textContaining('Head Office Store Custodian'),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
     }
-    await tester.binding.setSurfaceSize(const Size(1366, 900));
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: RecordsList(rows: rows, recordType: 'stock'),
+
+    for (final width in <double>[960, 1366]) {
+      await tester.binding.setSurfaceSize(Size(width, 900));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RecordsList(rows: rows, recordType: 'stock'),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(DataTable), findsOneWidget);
-    expect(tester.takeException(), isNull);
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(DataTable), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+
     await tester.binding.setSurfaceSize(null);
   });
 
