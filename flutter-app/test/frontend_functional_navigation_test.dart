@@ -38,6 +38,7 @@ void main() {
     expect(workspace, contains("title: 'My Work'"));
     expect(workspace, contains('ModuleWorkspaceHeader('));
     expect(workspace, contains('app.currentBranchName.trim()'));
-    expect(workspace, contains('child: MyWorkScreen('));
+    expect(workspace, contains('final screen = MyWorkScreen('));
+    expect(workspace, contains('child: screen,'));
   });
 }
