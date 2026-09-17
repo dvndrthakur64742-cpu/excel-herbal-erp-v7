@@ -63,13 +63,15 @@ jobs:
       - name: Route and contract checks
         run: |
           $ErrorActionPreference = 'Stop'
-          $py = Get-Command py.exe -ErrorAction SilentlyContinue
-          if ($py) {
-            & $py.Source -3 backend/excel-herbal-erp-v7/tests/static_checks.py
-          } else {
-            $python = Get-Command python.exe -ErrorAction Stop
-            & $python.Source backend/excel-herbal-erp-v7/tests/static_checks.py
+          $ProgressPreference = 'SilentlyContinue'
+          $pythonDir = Join-Path $env:RUNNER_TEMP 'eh7-python-3.13.7'
+          $archive = Join-Path $env:RUNNER_TEMP 'eh7-python-3.13.7.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-amd64.zip' -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive -Algorithm MD5).Hash -ne '77f294ec267596827a2ab06e8fa3f18c') {
+            throw 'Python archive checksum mismatch.'
           }
+          Expand-Archive -LiteralPath $archive -DestinationPath $pythonDir -Force
+          & (Join-Path $pythonDir 'python.exe') backend/excel-herbal-erp-v7/tests/static_checks.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   flutter-integration:
     if: github.ref == 'refs/heads/codex/erp735-document-integration'
