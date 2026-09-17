@@ -15,4 +15,13 @@ void main() {
     expect(source, contains('ShellLayout.isDesktopWidth(MediaQuery.sizeOf(context).width)'));
     expect(source, isNot(contains('>= 1100')));
   });
+
+  test('shared shell routes stay synchronized across responsive changes', () {
+    final source = File('lib/shell/app_shell.dart').readAsStringSync();
+
+    expect(source, contains('void _selectDesktopRoute(String id)'));
+    expect(source, contains('desktopRoute = id;'));
+    expect(source, contains('if (index >= 0) mobileIndex = index;'));
+    expect(source, contains('mobileIndex = index;\n        desktopRoute = id;'));
+  });
 }
