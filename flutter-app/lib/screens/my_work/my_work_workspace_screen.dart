@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shell/shell_layout.dart';
 import '../../state/app_state.dart';
 import '../../widgets/module_workspace.dart';
 import 'my_work_screen.dart';
@@ -14,6 +15,11 @@ class MyWorkWorkspaceScreen extends ConsumerWidget {
 
   final String initialSection;
   final String? initialAction;
+
+  // MyWorkScreen still owns a legacy 820px Daily Order table switch. Until
+  // that large workflow file is split, keep tablet widths below that switch
+  // so the shell and the business list do not disagree about layout mode.
+  static const double _tabletCardWidth = 819;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,9 +45,25 @@ class MyWorkWorkspaceScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 2),
         Expanded(
-          child: MyWorkScreen(
-            initialSection: initialSection,
-            initialAction: initialAction,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final screen = MyWorkScreen(
+                initialSection: initialSection,
+                initialAction: initialAction,
+              );
+              if (ShellLayout.isDesktopWidth(constraints.maxWidth) ||
+                  constraints.maxWidth < 820) {
+                return screen;
+              }
+              return Align(
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  width: _tabletCardWidth,
+                  height: constraints.maxHeight,
+                  child: screen,
+                ),
+              );
+            },
           ),
         ),
       ],
