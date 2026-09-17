@@ -96,6 +96,15 @@ jobs:
         run: |
           & $env:EH7_FLUTTER_EXE pub get
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify pinned dependency lockfile
+        working-directory: flutter-app
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git diff -- pubspec.lock
+          git diff --quiet -- pubspec.lock
+          if ($LASTEXITCODE -ne 0) {
+            throw 'pubspec.lock changes under pinned Flutter 3.44.9. Regenerate and commit the lockfile before production certification.'
+          }
       - name: Analyze
         working-directory: flutter-app
         run: |
