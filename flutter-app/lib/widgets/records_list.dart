@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/business_format.dart';
 import '../screens/common/record_detail_screen.dart';
+import '../shell/shell_layout.dart';
 
 class RecordsList extends StatefulWidget {
   const RecordsList({
@@ -70,7 +71,9 @@ class _RecordsListState extends State<RecordsList> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth >= 820) return _desktopTable(context);
+        if (ShellLayout.isDesktopWidth(constraints.maxWidth)) {
+          return _desktopTable(context);
+        }
         return _mobileCards(context);
       },
     );
@@ -196,7 +199,7 @@ class _RecordsListState extends State<RecordsList> {
         );
         return;
       }
-      if (MediaQuery.sizeOf(context).width >= 820) {
+      if (ShellLayout.isDesktopWidth(MediaQuery.sizeOf(context).width)) {
         await showDialog<void>(
           context: context,
           builder: (context) => Dialog(
@@ -281,17 +284,20 @@ class _RecordsListState extends State<RecordsList> {
     final available = <String, dynamic>{};
     for (final entry in row.entries) {
       if (BusinessFormat.isTechnicalKey(entry.key) ||
-          hidden.contains(entry.key))
+          hidden.contains(entry.key)) {
         continue;
+      }
       if (entry.value == null ||
           entry.value is Map ||
           entry.value is List ||
           '${entry.value}'.trim().isEmpty ||
-          '${entry.value}' == 'null')
+          '${entry.value}' == 'null') {
         continue;
+      }
       if ((entry.key == 'batch_no' || entry.key == 'custodian_name') &&
-          '${entry.value}'.trim().isEmpty)
+          '${entry.value}'.trim().isEmpty) {
         continue;
+      }
       available[entry.key] = entry.value;
     }
 
