@@ -10,7 +10,7 @@ import '../screens/home/enterprise_hub_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/home/profile_screen.dart';
 import '../screens/inventory/inventory_screen.dart';
-import '../screens/my_work/my_work_screen.dart';
+import '../screens/my_work/my_work_workspace_screen.dart';
 import '../screens/organization/organization_screen.dart';
 import '../screens/organization/team_screen.dart';
 import '../screens/performance/performance_screen.dart';
@@ -299,7 +299,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       'home' => HomeScreen(
           openMyWork: () => _selectDesktopRoute('my_work'),
         ),
-      'my_work' => const MyWorkScreen(),
+      'my_work' => const MyWorkWorkspaceScreen(),
       'quick_actions' => ActionsScreen(
           openConnectedAction: _openConnectedAction,
         ),
@@ -612,7 +612,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget _mobilePage(AppState app, String id) => switch (id) {
         'home' =>
           HomeScreen(openMyWork: () => _selectMobileRoute(app, 'my_work')),
-        'my_work' => const MyWorkScreen(),
+        'my_work' => const MyWorkWorkspaceScreen(),
         'actions' => ActionsScreen(
             openConnectedAction: _openConnectedAction,
           ),
@@ -724,28 +724,28 @@ class _AppShellState extends ConsumerState<AppShell> {
     Widget? screen;
     switch (id) {
       case 'attendance':
-        screen = const MyWorkScreen(initialSection: 'attendance');
+        screen = const MyWorkWorkspaceScreen(initialSection: 'attendance');
         break;
       case 'daily_create':
-        screen = const MyWorkScreen(
+        screen = const MyWorkWorkspaceScreen(
           initialSection: 'daily',
           initialAction: 'new_order',
         );
         break;
       case 'evening':
-        screen = const MyWorkScreen(
+        screen = const MyWorkWorkspaceScreen(
           initialSection: 'daily',
           initialAction: 'evening',
         );
         break;
       case 'field_visit':
-        screen = const MyWorkScreen(
+        screen = const MyWorkWorkspaceScreen(
           initialSection: 'leave_visit',
           initialAction: 'field_visit',
         );
         break;
       case 'leave':
-        screen = const MyWorkScreen(
+        screen = const MyWorkWorkspaceScreen(
           initialSection: 'leave_visit',
           initialAction: 'leave',
         );
@@ -770,7 +770,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         break;
     }
     if (screen != null) {
-      final routedScreen = screen is MyWorkScreen
+      final routedScreen = screen is MyWorkWorkspaceScreen
           ? Scaffold(
               appBar: AppBar(title: const Text('My Work')),
               body: SafeArea(child: screen),
