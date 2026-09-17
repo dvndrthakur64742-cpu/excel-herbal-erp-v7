@@ -21,6 +21,7 @@ import '../screens/tools/erp_tools_screen.dart';
 import '../core/overlay_transition.dart';
 import '../state/app_state.dart';
 import '../theme/excel_brand.dart';
+import 'shell_layout.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -38,7 +39,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final app = ref.watch(appStateProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final desktop = constraints.maxWidth >= 960;
+        final desktop = ShellLayout.isDesktopWidth(constraints.maxWidth);
         if (desktop) {
           return Scaffold(
             body: SafeArea(
@@ -863,7 +864,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   void _openModule(String id) {
     final app = ref.read(appStateProvider);
     if (!_routeAllowed(app, id)) return;
-    if (MediaQuery.sizeOf(context).width >= 1100) {
+    if (ShellLayout.isDesktopWidth(MediaQuery.sizeOf(context).width)) {
       setState(() => desktopRoute = id);
       return;
     }
