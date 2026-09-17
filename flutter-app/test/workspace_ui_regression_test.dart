@@ -22,7 +22,10 @@ void main() {
     expect(shell, contains('screen is MyWorkWorkspaceScreen'));
     expect(workspace, contains('ModuleWorkspaceHeader('));
     expect(workspace, contains('app.currentBranchName.trim()'));
-    expect(workspace, contains('child: MyWorkScreen('));
+    expect(workspace, contains('MyWorkScreen('));
+    expect(workspace, contains('ShellLayout.isDesktopWidth(constraints.maxWidth)'));
+    expect(workspace, contains('constraints.maxWidth < 820'));
+    expect(workspace, contains('_tabletCardWidth = 819'));
   });
 
   test('ERP modal surfaces use shared presentation styling', () {
