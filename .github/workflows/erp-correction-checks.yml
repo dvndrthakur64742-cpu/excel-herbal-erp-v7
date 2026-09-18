@@ -105,7 +105,12 @@ jobs:
               $fileEndpoint = 'https://downloads.mariadb.org/rest-api/mariadb/11.8.9/mariadb-11.8.9-winx64.zip'
               $checksum = Invoke-RestMethod -UseBasicParsing -Uri ($fileEndpoint + '/checksum')
               $expected = ([string]$checksum.response.checksum.sha256sum).ToLowerInvariant()
-              if ($expected -notmatch '^[0-9a-f]{64}              $extractRoot = Join-Path $env:RUNNER_TEMP 'eh7-mariadb-extract'
+              if ($expected.Length -ne 64 -or $expected -notmatch '^[0-9a-f]+$') { throw 'MariaDB SHA-256 metadata is missing or invalid.' }
+              $archive = Join-Path $env:RUNNER_TEMP 'mariadb-11.8.9-winx64.zip'
+              Invoke-WebRequest -UseBasicParsing -Uri $fileEndpoint -OutFile $archive
+              $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -ne $expected) { throw 'MariaDB archive checksum mismatch.' }
+              $extractRoot = Join-Path $env:RUNNER_TEMP 'eh7-mariadb-extract'
               if (Test-Path -LiteralPath $extractRoot) { Remove-Item -LiteralPath $extractRoot -Recurse -Force }
               Expand-Archive -LiteralPath $archive -DestinationPath $extractRoot -Force
               $found = Get-ChildItem -LiteralPath $extractRoot -Recurse -Filter mariadbd.exe -File | Select-Object -First 1
