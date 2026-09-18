@@ -219,7 +219,9 @@ class AppController extends StateNotifier<AppState> {
       );
       final me = Map<String, dynamic>.from(data['me'] as Map);
       final ids = ((me['branch_ids'] as List?) ?? const [])
-          .map((e) => int.parse('$e'))
+          .map((e) => int.tryParse('$e'))
+          .whereType<int>()
+          .toSet()
           .toList();
       final assigned = int.tryParse('${me['assigned_branch_id'] ?? ''}');
       final current =
@@ -261,7 +263,10 @@ class AppController extends StateNotifier<AppState> {
   }
 
   void selectBranch(int id) {
-    final ids = state.branches.map((e) => int.parse('${e['id']}')).toList();
+    final ids = state.branches
+        .map((e) => int.tryParse('${e['id']}'))
+        .whereType<int>()
+        .toSet();
     if (ids.contains(id)) {
       state = state.copyWith(currentBranchId: id, clearError: true);
     }
