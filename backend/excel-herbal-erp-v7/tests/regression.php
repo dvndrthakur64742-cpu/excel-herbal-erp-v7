@@ -114,4 +114,24 @@ try{
     echo "PASS idempotency_persist_response\n";
 }catch(\Throwable $e){$failed++;echo "FAIL idempotency_persist_response: {$e->getMessage()}\n";}
 
+
+// Verify bearer header compatibility across common FastCGI/proxy server variables.
+try{
+    $headerMethod=new \ReflectionMethod(\ExcelHerbal\ERP7\Security\MobileAuth::class,'authorizationHeader');
+    $headerMethod->setAccessible(true);
+    $serverBackup=$_SERVER;
+    $headerCases=[
+        ['HTTP_AUTHORIZATION','Bearer primary-token','auth_header_http_authorization'],
+        ['REDIRECT_HTTP_AUTHORIZATION','Bearer redirect-token','auth_header_redirect_authorization'],
+        ['Authorization','Bearer direct-token','auth_header_direct_authorization'],
+    ];
+    foreach($headerCases as[$key,$value,$name]){
+        unset($_SERVER['HTTP_AUTHORIZATION'],$_SERVER['REDIRECT_HTTP_AUTHORIZATION'],$_SERVER['Authorization']);
+        $_SERVER[$key]=$value;
+        $actual=$headerMethod->invoke(null);
+        if($actual!==$value){$failed++;echo "FAIL {$name}: header fallback mismatch\n";}else echo "PASS {$name}\n";
+    }
+    $_SERVER=$serverBackup;
+}catch(\Throwable $e){$failed++;echo "FAIL auth_header_fallbacks: {$e->getMessage()}\n";}
+
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
