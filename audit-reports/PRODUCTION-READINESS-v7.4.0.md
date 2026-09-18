@@ -312,6 +312,24 @@ Coverage II exposed and fixed a real Balance Sheet projection defect: `Reporting
 
 Remaining manual/controlled staging gates are: physical-device Android testing, real web/mobile HTTP forwarding and 401/403 behaviour, real GPS device lifecycle, real multipart HR upload, host-level backup/files restore, and operational pilot sign-off. The newly automated Sales/Purchase/Inventory/Finance/Reporting flows must still be exercised by business owners on controlled staging as part of that pilot; CI evidence does not replace human operational acceptance.
 
+### P6 staging pilot / release-gate control evidence — 2026-09-18
+
+Release engineering is now fail-closed on the working branch. Commit `9e96fb2071377b5bee38b0a6de883c47304bc569`, CI run `35335931529`, passed the complete correction pipeline after adding:
+
+- machine-readable `release-gates/v7.4.0.json`,
+- `.github/scripts/verify-release-gates.ps1`,
+- production Web and Android pre-build gate enforcement,
+- a separate manual Android Staging Pilot workflow that requires an HTTPS staging API and blocks `office.excelherbal.in` by default unless explicitly acknowledged,
+- an operational staging/pilot runbook.
+
+The release-gate policy is intentionally `production_approved=false`. Ordinary correction CI validates this fail-closed state and remains green; production build workflows fail before artifact creation until every required manual gate is passed with evidence and final approval metadata exists.
+
+A read-only office audit reconfirmed WordPress 7.1, PHP 8.3.33 and MariaDB 11.8.9; ERP health/schema are installed without a migration-error option; maintenance mode is off; `eh7_document_key` is present without exposing its value; and no private HR documents currently exist. Runtime still reports `production` while `WP_ENVIRONMENT_TYPE` and `DISALLOW_FILE_EDIT` are not explicitly defined. No connected host backup capability is available. MariaDB `max_allowed_packet` is 1 GiB; PHP upload/post limits still need host-level evidence.
+
+No live session, business row, plugin, theme, configuration, PR merge or production deployment was mutated by this audit.
+
+Remaining required manual gates are tracked in `release-gates/v7.4.0.json`: host backup/restore, environment hardening, real HTTPS Bearer/401/403, physical Android/GPS, real multipart HR private-document drill, business report review, and operational/HR/Accounts pilot sign-off.
+
 ## Release decision
 
 Production release is allowed only when Gates 1-9 have evidence and the final production deployment receives explicit approval. Until then the PR stays draft and no production deployment/database mutation is authorised.
