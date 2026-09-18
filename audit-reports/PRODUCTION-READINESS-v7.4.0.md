@@ -13,7 +13,7 @@ Required before merge/release:
 - `ERP correction verification` completes successfully on the exact release commit.
 - PHP 8.1+ runtime check passes with OpenSSL and fileinfo available.
 - PHP lint passes for backend source and tests.
-- 24 backend regression cases pass.
+- 30 backend regression cases pass (21 payroll fixtures + 3 payroll service guards + 6 transaction/idempotency primitive checks).
 - Route/contract static checks pass.
 - `flutter pub get` passes.
 - Pinned Flutter dependency resolution remains stable after `flutter pub get`.
@@ -111,8 +111,8 @@ Must be executed against a controlled staging database:
 - Payroll working-day policy confirmed by HR/Accounts.
 - Exact paid/unpaid leave type configuration confirmed.
 - Historical salary baseline/revisions reviewed through independent maker-checker.
-- 21 payroll calculator cases + 3 service guard cases pass.
-- Real MySQL concurrency tests pass for overlapping payroll generation, concurrent transfers, transfer vs payroll generation, and salary approval vs generation.
+- 21 payroll calculator cases + 3 service guard cases + 6 transaction/idempotency primitive checks pass in CI.
+- Real MySQL concurrency tests pass for overlapping payroll generation, concurrent transfers, transfer vs payroll generation, and salary approval vs generation. CI primitive tests do **not** replace this multi-session MariaDB staging gate.
 - Failed SQL transaction rollback verified.
 - REST authentication, branch scoping and idempotency verified.
 - Zero-authorised-branch state remains fail-closed.
