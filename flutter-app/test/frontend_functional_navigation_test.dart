@@ -40,5 +40,12 @@ void main() {
     expect(workspace, contains('app.currentBranchName.trim()'));
     expect(workspace, contains('final screen = MyWorkScreen('));
     expect(workspace, contains('child: screen,'));
+    final home = File('lib/screens/home/home_screen.dart').readAsStringSync();
+    expect(
+      home,
+      contains("import '../my_work/my_work_workspace_screen.dart';"),
+    );
+    expect(home, contains('SafeArea(child: MyWorkWorkspaceScreen())'));
+    expect(home, isNot(contains("import '../my_work/my_work_screen.dart';")));
   });
 }
