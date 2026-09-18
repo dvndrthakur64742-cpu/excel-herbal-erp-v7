@@ -75,7 +75,7 @@ function e2_seed(Eh7IntegrationWpdb $db): void {
     ]);
     e2_insert($db,'stock_balances',[
         'id'=>1,'company_id'=>1,'branch_id'=>1,'product_id'=>100,'batch_key'=>0,'custodian_key'=>0,
-        'quantity'=>100,'average_unit_cost'=>50,'updated_at'=>'2026-01-01 00:00:00',
+        'quantity'=>0,'average_unit_cost'=>0,'updated_at'=>'2026-01-01 00:00:00',
     ]);
 
     $accounts=[
@@ -91,20 +91,13 @@ function e2_seed(Eh7IntegrationWpdb $db): void {
         [10,'PAYROLL_PAYABLE','Payroll Payable','liability','payroll_payable'],
         [11,'AR','Accounts Receivable','asset','receivable'],
         [12,'AP','Accounts Payable','liability','payable'],
-        [13,'OPENING_EQUITY','Opening Equity','equity','opening_equity'],
     ];
     foreach($accounts as[$id,$code,$name,$type,$subtype]){
         e2_insert($db,'accounts',['id'=>$id,'company_id'=>1,'code'=>$code,'name'=>$name,'type'=>$type,'subtype'=>$subtype,'active'=>1]);
     }
     e2_insert($db,'expense_heads',['id'=>1,'company_id'=>1,'code'=>'TRAVEL','name'=>'Travel Expense','expense_account_id'=>8,'active'=>1]);
 
-    e2_insert($db,'journal_entries',[
-        'id'=>1,'company_id'=>1,'branch_id'=>1,'entry_no'=>'OPEN-0000001','entry_date'=>'2026-01-01 00:00:00',
-        'source_type'=>'opening','source_id'=>1,'status'=>'posted','memo'=>'Coverage opening inventory',
-        'created_by'=>20,'created_at'=>'2026-01-01 00:00:00',
-    ]);
-    e2_insert($db,'journal_lines',['id'=>1,'journal_entry_id'=>1,'account_id'=>5,'debit'=>5000,'credit'=>0]);
-    e2_insert($db,'journal_lines',['id'=>2,'journal_entry_id'=>1,'account_id'=>13,'debit'=>0,'credit'=>5000]);
+
 }
 
 $wpdb=eh7_setup_global_db();
@@ -130,6 +123,24 @@ function e2_case(string $name, callable $fn):void{
     catch(Throwable $e){$failed++;echo "FAIL {$name}: ".get_class($e).' '.$e->getMessage()."\n";}
 }
 
+e2_case('e2_purchase_bill_and_supplier_payment',function()use($maker,$approver,$wpdb,&$state){
+    $supplier=e2_dispatch('purchase.supplier_create',$maker,['name'=>'Coverage Supplier','mobile'=>'9000000002','gstin'=>'22AAAAA0000A1Z5']);
+    $bill=e2_dispatch('purchase.bill',$maker,[
+        'branch_id'=>1,'supplier_id'=>(int)$supplier['id'],'bill_no'=>'E2E-BILL-001','bill_date'=>e2_date(),
+        'lines'=>[['product_id'=>100,'quantity'=>10,'unit_cost'=>40]],
+    ]);
+    if(abs((float)$bill['total_amount']-400)>0.005||abs((float)$bill['outstanding_amount']-400)>0.005)throw new RuntimeException('purchase bill amounts mismatch');
+    $payment=e2_dispatch('purchase.payment',$approver,[
+        'purchase_bill_id'=>(int)$bill['id'],'amount'=>150,'payment_account_id'=>1,
+    ]);
+    if(($payment['status']??'')!=='posted')throw new RuntimeException('supplier payment did not post');
+    $out=(float)$wpdb->get_var('SELECT outstanding_amount FROM '.Db::table('purchase_bills').' WHERE id='.(int)$bill['id']);
+    $qty=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    if(abs($out-250)>0.005||abs($qty-10)>0.001)throw new RuntimeException("purchase controls mismatch outstanding={$out} stock={$qty}");
+    $state['bill_id']=(int)$bill['id'];$state['supplier_id']=(int)$supplier['id'];
+});
+
+
 e2_case('e2_sales_credit_and_customer_receipt',function()use($maker,$approver,$wpdb,&$state){
     $customer=e2_dispatch('sales.customer_create',$maker,[
         'branch_id'=>1,'name'=>'Coverage Customer','mobile'=>'9000000001','email'=>'customer@example.test','address'=>'Disposable fixture',
@@ -146,25 +157,8 @@ e2_case('e2_sales_credit_and_customer_receipt',function()use($maker,$approver,$w
     $open=e2_dispatch('sales.open_sales',$approver,['branch_id'=>1,'customer_id'=>(int)$customer['id']]);
     if(count($open)!==1||abs((float)$open[0]['outstanding_amount']-150)>0.005)throw new RuntimeException('open sales control mismatch');
     $qty=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
-    if(abs($qty-96)>0.001)throw new RuntimeException('sale stock movement mismatch');
+    if(abs($qty-6)>0.001)throw new RuntimeException('sale stock movement mismatch');
     $state['sale_id']=(int)$sale['id'];$state['receipt_id']=(int)$receipt['id'];$state['customer_id']=(int)$customer['id'];
-});
-
-e2_case('e2_purchase_bill_and_supplier_payment',function()use($maker,$approver,$wpdb,&$state){
-    $supplier=e2_dispatch('purchase.supplier_create',$maker,['name'=>'Coverage Supplier','mobile'=>'9000000002','gstin'=>'22AAAAA0000A1Z5']);
-    $bill=e2_dispatch('purchase.bill',$maker,[
-        'branch_id'=>1,'supplier_id'=>(int)$supplier['id'],'bill_no'=>'E2E-BILL-001','bill_date'=>e2_date(),
-        'lines'=>[['product_id'=>100,'quantity'=>10,'unit_cost'=>40]],
-    ]);
-    if(abs((float)$bill['total_amount']-400)>0.005||abs((float)$bill['outstanding_amount']-400)>0.005)throw new RuntimeException('purchase bill amounts mismatch');
-    $payment=e2_dispatch('purchase.payment',$approver,[
-        'purchase_bill_id'=>(int)$bill['id'],'amount'=>150,'payment_account_id'=>1,
-    ]);
-    if(($payment['status']??'')!=='posted')throw new RuntimeException('supplier payment did not post');
-    $out=(float)$wpdb->get_var('SELECT outstanding_amount FROM '.Db::table('purchase_bills').' WHERE id='.(int)$bill['id']);
-    $qty=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
-    if(abs($out-250)>0.005||abs($qty-106)>0.001)throw new RuntimeException("purchase controls mismatch outstanding={$out} stock={$qty}");
-    $state['bill_id']=(int)$bill['id'];$state['supplier_id']=(int)$supplier['id'];
 });
 
 e2_case('e2_inventory_adjustment_maker_checker',function()use($maker,$approver,$wpdb,&$state){
@@ -178,7 +172,7 @@ e2_case('e2_inventory_adjustment_maker_checker',function()use($maker,$approver,$
         $approved=e2_dispatch('inventory.adjustment_decision',$approver,['id'=>(int)$adj['id'],'approve'=>true]);
         if(($approved['status']??'')!=='approved'||(int)($approved['journal_entry_id']??0)<1)throw new RuntimeException('adjustment approval/journal mismatch');
         $qty=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
-        if(abs($qty-108)>0.001)throw new RuntimeException('adjustment stock movement mismatch');
+        if(abs($qty-8)>0.001)throw new RuntimeException('adjustment stock movement mismatch');
         $state['adjustment_id']=(int)$adj['id'];
         return;
     }
@@ -220,7 +214,7 @@ e2_case('e2_reports_and_subledger_reconciliation',function()use($approver,$wpdb)
     if(count($sales)!==1||abs((float)$sales[0]['outstanding_amount']-150)>0.005)throw new RuntimeException('sales report mismatch');
     if(count($purchase)!==1||abs((float)$purchase[0]['outstanding_amount']-250)>0.005)throw new RuntimeException('purchase report mismatch');
     $stockQty=0.0;foreach($stock as$r)if((int)$r['product_id']===100&&(int)$r['custodian_key']===0)$stockQty+=(float)$r['quantity'];
-    if(abs($stockQty-108)>0.001)throw new RuntimeException('stock report mismatch');
+    if(abs($stockQty-8)>0.001)throw new RuntimeException('stock report mismatch');
     foreach($finance as$r)if(abs((float)$r['debit']-(float)$r['credit'])>0.005)throw new RuntimeException('finance report contains unbalanced journal');
 
     $receivables=e2_dispatch('reports.receivables',$approver,['branch_id'=>1]);
@@ -234,7 +228,7 @@ e2_case('e2_reports_and_subledger_reconciliation',function()use($approver,$wpdb)
 
     $pl=e2_dispatch('reports.profit_loss',$approver,['from'=>$date,'to'=>$date,'branch_id'=>1]);
     $plBy=[];foreach($pl as$r)$plBy[(string)$r['code']]=(float)$r['amount'];
-    if(abs(($plBy['SALES']??0)-400)>0.01||abs(($plBy['COGS']??0)-200)>0.01||abs(($plBy['STOCK_VARIANCE']??0)+80)>0.01||abs($plBy['OFFICE_EXPENSE']??0)>0.01){
+    if(abs(($plBy['SALES']??0)-400)>0.01||abs(($plBy['COGS']??0)-160)>0.01||abs(($plBy['STOCK_VARIANCE']??0)+80)>0.01||abs($plBy['OFFICE_EXPENSE']??0)>0.01){
         throw new RuntimeException('profit/loss account values mismatch: '.json_encode($plBy));
     }
 
