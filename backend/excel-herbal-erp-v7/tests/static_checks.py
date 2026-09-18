@@ -30,6 +30,10 @@ rows=re.findall(r"\['(GET|POST)','([^']+)','([^']+)',(true|false)\]",s)
 assert len(rows)==len(set((r[0],r[1]) for r in rows)),'duplicate routes'
 api=(root/'src/Http/Api.php').read_text()+(root/'src/Http/ApiDispatch.php').read_text()
 assert all("'"+handler+"'=>" in api for _,_,handler,_ in rows),'missing dispatch handler'
+dispatch=(root/'src/Http/ApiDispatch.php').read_text()
+dispatch_defs=set(re.findall(r"function\s+([A-Za-z0-9_]+)\s*\(",dispatch))
+dispatch_calls=set(re.findall(r"self::([A-Za-z0-9_]+)\s*\(",dispatch))
+assert dispatch_calls<=dispatch_defs,('dispatcher self-call helper missing',sorted(dispatch_calls-dispatch_defs))
 print(f'PASS {len(rows)} unique route definitions and dispatch mappings')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
