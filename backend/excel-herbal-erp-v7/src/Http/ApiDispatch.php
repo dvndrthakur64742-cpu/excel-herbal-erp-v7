@@ -37,4 +37,5 @@ private static function ni(mixed $v):?int{return($v===null||$v==='')?null:(int)$
 private static function nf(mixed $v):?float{return($v===null||$v==='')?null:(float)$v;}
 private static function boolParam($r,string $key):bool{$v=$r->get_param($key);if(is_bool($v))return $v;if(is_int($v)||is_float($v)){if((int)$v===1)return true;if((int)$v===0)return false;}if(is_string($v)){if(in_array(strtolower(trim($v)),['true','1'],true))return true;if(in_array(strtolower(trim($v)),['false','0',''],true))return false;}if($v===null)return false;throw new DomainException('Invalid boolean value for '.$key.'.','boolean_invalid',422);}
 
+ private static function arrBody($r):array{$v=$r->get_json_params();return is_array($v)?$v:[];}
 }
