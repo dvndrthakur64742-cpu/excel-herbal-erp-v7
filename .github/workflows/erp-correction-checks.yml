@@ -19,6 +19,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate fail-closed release gate policy
+        run: |
+          & '.github/scripts/verify-release-gates.ps1' -Mode ci -GateFile 'release-gates/v7.4.0.json'
       - name: Locate or install verified PHP 8.3.33 toolcache
         run: |
           $ErrorActionPreference = 'Stop'

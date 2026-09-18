@@ -1,0 +1,104 @@
+name: EH7 v7.4.0 Android Staging Pilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_api_base_url:
+        description: 'HTTPS ERP API base URL for a controlled staging/UAT site'
+        required: true
+        type: string
+      allow_office_target:
+        description: 'Explicitly allow office.excelherbal.in as the pilot target (not recommended until backup/restore proof exists)'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+
+jobs:
+  android-staging-pilot:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate controlled staging target
+        env:
+          PILOT_API: ${{ inputs.staging_api_base_url }}
+          ALLOW_OFFICE: ${{ inputs.allow_office_target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $uri = [Uri]$env:PILOT_API
+          if ($uri.Scheme -ne 'https') { throw 'Pilot API must use HTTPS.' }
+          if (-not $uri.AbsolutePath.TrimEnd('/').EndsWith('/wp-json/excel-herbal-erp/v7')) {
+            throw 'Pilot API must point to /wp-json/excel-herbal-erp/v7.'
+          }
+          if ($uri.Host -ieq 'office.excelherbal.in' -and $env:ALLOW_OFFICE -ne 'true') {
+            throw 'Office target is blocked by default. Use a controlled staging URL, or explicitly acknowledge the office target.'
+          }
+          "EH7_PILOT_API=$($uri.AbsoluteUri.TrimEnd('/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Pilot target validated: $($uri.Host)"
+
+      - name: Configure cached JDK Android SDK and Flutter
+        run: |
+          $jdkRoot = 'C:\actions-runner\eh7-toolcache\jdk17'
+          $sdk = 'C:\actions-runner\eh7-toolcache\android-sdk'
+          $flutterRoot = 'C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter'
+          $jdk = Get-ChildItem -LiteralPath $jdkRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'bin\javac.exe') } |
+            Select-Object -First 1
+          if (-not $jdk) { throw 'Cached JDK 17 not found.' }
+          if (-not (Test-Path -LiteralPath (Join-Path $sdk 'platform-tools\adb.exe'))) { throw 'Cached Android SDK not found.' }
+          if (-not (Test-Path -LiteralPath (Join-Path $flutterRoot 'bin\flutter.bat'))) { throw 'Pinned Flutter 3.44.9 not found.' }
+          "JAVA_HOME=$($jdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          (Join-Path $jdk.FullName 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          (Join-Path $sdk 'platform-tools') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          (Join-Path $flutterRoot 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $flutterRoot 'bin\flutter.bat') --version
+
+      - name: Dependencies and lockfile check
+        working-directory: flutter-app
+        run: |
+          flutter.bat pub get
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --quiet -- pubspec.lock
+          if ($LASTEXITCODE -ne 0) { throw 'pubspec.lock drifted under pinned Flutter 3.44.9.' }
+
+      - name: Build installable UAT debug APK
+        working-directory: flutter-app
+        run: |
+          flutter.bat build apk --debug --dart-define=EH7_API_BASE_URL=$env:EH7_PILOT_API --dart-define=EH7_ENVIRONMENT=uat
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Stage pilot artifact and metadata
+        run: |
+          $apk = 'flutter-app\build\app\outputs\flutter-apk\app-debug.apk'
+          if (-not (Test-Path -LiteralPath $apk -PathType Leaf)) { throw 'Pilot APK was not produced.' }
+          $out = 'dist\android-staging-pilot'
+          if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Recurse -Force }
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          Copy-Item -LiteralPath $apk -Destination (Join-Path $out 'Excel-Herbal-ERP-v7.4.0-Staging-Pilot.apk')
+          $hash = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "commit=$env:GITHUB_SHA",
+            "environment=uat",
+            "api_base_url=$env:EH7_PILOT_API",
+            "sha256=$hash",
+            'production_signed=false',
+            'purpose=physical-device staging/UAT only'
+          ) | Set-Content -LiteralPath (Join-Path $out 'PILOT-METADATA.txt') -Encoding ascii
+          Get-Content -LiteralPath (Join-Path $out 'PILOT-METADATA.txt')
+
+      - name: Upload Android staging pilot artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Excel-Herbal-ERP-v7.4.0-Android-Staging-Pilot
+          path: dist/android-staging-pilot/*
+          if-no-files-found: error

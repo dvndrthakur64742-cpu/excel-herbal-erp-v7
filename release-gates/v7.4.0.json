@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "release_version": "7.4.0",
+  "production_approved": false,
+  "automated_certification": {
+    "status": "passed",
+    "evidence": [
+      "github-actions:35335003194"
+    ],
+    "baseline_head": "402bb718c1b5bd57988d6a0744594165abc98cce",
+    "note": "P5 full-green source/CI baseline. Any later code change must be re-certified before production approval."
+  },
+  "manual_gates": [
+    {
+      "id": "host_backup_restore",
+      "required": true,
+      "status": "blocked",
+      "evidence": [],
+      "note": "No connected host-level backup/staging capability. Require full database + plugin/files backup, independent protected eh7_document_key backup, and proved restore on controlled staging."
+    },
+    {
+      "id": "environment_hardening",
+      "required": true,
+      "status": "blocked",
+      "evidence": [],
+      "note": "WP_ENVIRONMENT_TYPE and DISALLOW_FILE_EDIT are not explicitly defined. Apply only after backup/restore proof and according to actual staging/production role."
+    },
+    {
+      "id": "real_http_bearer_401_403",
+      "required": true,
+      "status": "pending",
+      "evidence": [],
+      "note": "Need dedicated UAT identity over real HTTPS: login, Bearer GET, refresh rotation, invalid/expired 401, insufficient-scope 403, logout/revocation."
+    },
+    {
+      "id": "android_physical_gps",
+      "required": true,
+      "status": "pending",
+      "evidence": [],
+      "note": "Need physical Android device pilot on a controlled staging API: install, login, permission states, check-in, GPS points, resume, checkout/auto-stop."
+    },
+    {
+      "id": "hr_multipart_private_document",
+      "required": true,
+      "status": "pending",
+      "evidence": [],
+      "note": "Need controlled staging multipart HR upload, authenticated download/hash check, deactivation/revocation, and recovery with matching document key."
+    },
+    {
+      "id": "business_report_review",
+      "required": true,
+      "status": "pending",
+      "evidence": [],
+      "note": "Business owner/Accounts must reconcile Sales, Purchase, Stock, Trial Balance, P&L, Balance Sheet, AR and AP against controlled staging transactions."
+    },
+    {
+      "id": "pilot_signoff",
+      "required": true,
+      "status": "pending",
+      "evidence": [],
+      "note": "Operational owner plus HR and Accounts sign-off required. CI evidence does not replace human acceptance."
+    }
+  ],
+  "approval": {
+    "approved_by": "",
+    "approved_at": "",
+    "change_ticket": ""
+  }
+}

@@ -29,6 +29,11 @@ jobs:
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
+      - name: Enforce approved production release gates
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        run: |
+          & '.github/scripts/verify-release-gates.ps1' -Mode production -GateFile 'release-gates/v7.4.0.json'
+
       - name: Verify runner is installed as a Windows service
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
         run: |
