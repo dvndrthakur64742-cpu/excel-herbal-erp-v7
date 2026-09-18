@@ -195,12 +195,12 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
           },
         );
         if (mounted)
-          setState(() {
+          _setFeatureState(() {
             refresh++;
             message = 'Leave request submitted.';
           });
       } catch (e) {
-        if (mounted) setState(() => message = UiError.message(e));
+        if (mounted) _setFeatureState(() => message = UiError.message(e));
       }
     }
     type.dispose();
@@ -217,20 +217,20 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
         data: {'lat': p.latitude, 'lng': p.longitude},
       );
       if (mounted) {
-        setState(() {
+        _setFeatureState(() {
           refresh++;
           message = 'Field Visit #$id completed.';
         });
       }
     } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
+      if (mounted) _setFeatureState(() => message = UiError.message(e));
     }
   }
 
   Future<void> _startVisit() async {
     final app = ref.read(appStateProvider);
     if (app.currentBranchId == null) {
-      setState(() => message = 'Branch select karein.');
+      _setFeatureState(() => message = 'Branch select karein.');
       return;
     }
     final purpose = TextEditingController();
@@ -272,12 +272,12 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
           ) as Map,
         );
         if (mounted)
-          setState(() {
+          _setFeatureState(() {
             refresh++;
             message = 'Field Visit #${r['id']} started.';
           });
       } catch (e) {
-        if (mounted) setState(() => message = UiError.message(e));
+        if (mounted) _setFeatureState(() => message = UiError.message(e));
       }
     }
     purpose.dispose();
