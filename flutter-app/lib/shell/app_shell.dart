@@ -294,8 +294,10 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _desktopContent(AppState app) {
-    if (!_routeAllowed(app, desktopRoute)) desktopRoute = 'home';
-    final child = switch (desktopRoute) {
+    final effectiveRoute = _routeAllowed(app, desktopRoute)
+        ? desktopRoute
+        : 'home';
+    final child = switch (effectiveRoute) {
       'home' => HomeScreen(
           openMyWork: () => _selectDesktopRoute('my_work'),
         ),
