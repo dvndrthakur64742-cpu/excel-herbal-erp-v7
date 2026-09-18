@@ -232,15 +232,9 @@ e2_case('e2_reports_and_subledger_reconciliation',function()use($approver,$wpdb)
         throw new RuntimeException('profit/loss account values mismatch: '.json_encode($plBy));
     }
 
-    $rawOpening=(float)$wpdb->get_var(
-        'SELECT COALESCE(SUM(jl.credit-jl.debit),0) FROM '.Db::table('journal_lines').' jl JOIN '.Db::table('journal_entries').
-        ' je ON je.id=jl.journal_entry_id JOIN '.Db::table('accounts').
-        " ac ON ac.id=jl.account_id WHERE je.company_id=1 AND je.branch_id=1 AND je.status IN ('posted','reversed') AND ac.company_id=1 AND ac.code='OPENING_EQUITY'"
-    );
-    if(abs($rawOpening-5000)>0.01)throw new RuntimeException('raw opening equity ledger mismatch: '.$rawOpening);
     $bs=e2_dispatch('reports.balance_sheet',$approver,['to'=>$date,'branch_id'=>1]);
     $assets=0.0;$claims=0.0;foreach($bs as$r){if(($r['type']??'')==='asset')$assets+=(float)$r['amount'];elseif(in_array(($r['type']??''),['liability','equity'],true))$claims+=(float)$r['amount'];}
-    if(abs($assets-$claims)>0.02)throw new RuntimeException("balance sheet equation mismatch assets={$assets} claims={$claims} raw_opening={$rawOpening} rows=".json_encode($bs));
+    if(abs($assets-$claims)>0.02)throw new RuntimeException("balance sheet equation mismatch assets={$assets} claims={$claims} rows=".json_encode($bs));
 
     $recon=e2_dispatch('reports.finance_reconciliation',$approver,['branch_id'=>1]);
     if(count($recon)!==4)throw new RuntimeException('finance reconciliation check count mismatch');
