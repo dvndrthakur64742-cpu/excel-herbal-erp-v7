@@ -87,6 +87,15 @@ final class Eh7IntegrationWpdb {
         return $row ? $row[0] : null;
     }
 
+    public function get_col(string $sql): array {
+        $result = $this->result($sql);
+        if (!$result) return [];
+        $values = [];
+        while ($row = $result->fetch_row()) $values[] = $row[0];
+        $result->free();
+        return $values;
+    }
+
     public function get_results(string $sql, $mode = ARRAY_A): array {
         $result = $this->result($sql);
         if (!$result) return [];
@@ -229,6 +238,8 @@ function eh7_worker(): never {
 }
 
 if (($argv[1] ?? '') === 'worker') eh7_worker();
+
+if (defined('EH7_INTEGRATION_LIBRARY_ONLY') && EH7_INTEGRATION_LIBRARY_ONLY) return;
 
 $failed = 0;
 function pass_case(string $name): void { echo "PASS {$name}\n"; }
