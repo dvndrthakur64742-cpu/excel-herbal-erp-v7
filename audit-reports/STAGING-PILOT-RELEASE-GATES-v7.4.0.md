@@ -4,7 +4,7 @@ Status: **BLOCKED FOR PRODUCTION**. This document is an operational runbook, not
 
 ## P6 read-only office audit — 2026-09-18
 
-Automated source baseline before this batch: commit `402bb718c1b5bd57988d6a0744594165abc98cce`, CI run `35335003194`, FULL GREEN.
+Automated source baseline before this batch: commit `402bb718c1b5bd57988d6a0744594165abc98cce`, CI run `35335003194`, FULL GREEN. P6 release-gate implementation was then certified FULL GREEN on commit `9e96fb2071377b5bee38b0a6de883c47304bc569`, CI run `35335931529`.
 
 Connected office environment was inspected read-only:
 
@@ -15,6 +15,7 @@ Connected office environment was inspected read-only:
 - Runtime environment reports `production`, but `WP_ENVIRONMENT_TYPE` is not explicitly defined.
 - `DISALLOW_FILE_EDIT` is not explicitly defined.
 - No connected backup plugin/Abilities API backup capability is available.
+- MariaDB `max_allowed_packet` is `1073741824` bytes (1 GiB), comfortably above the earlier 32 MiB recommendation; PHP upload/post limits still require host-level evidence.
 - `eh7_document_key` is present and non-empty without reading or exposing its value.
 - Current private/employee/candidate document counts are zero.
 - Existing active mobile sessions are present; no session was created, refreshed, revoked or mutated by this audit.
