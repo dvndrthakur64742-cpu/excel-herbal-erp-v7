@@ -28,7 +28,22 @@ extension _FinanceBooksFeature on _FinanceScreenState {
             ),
           Expanded(
             child: AsyncPanel(
-              key: ValueKey('tb-${app.currentBranchId}
+              key: ValueKey('tb-${app.currentBranchId}-$refresh'),
+              future: api.get(
+                ApiPaths.trialBalance,
+                query: {
+                  'to': app.businessDate,
+                  if (app.currentBranchId != null)
+                    'branch_id': app.currentBranchId,
+                },
+              ),
+              builder: (context, data) =>
+                  RecordsList(recordType: 'trial_balance', rows: _rows(data)),
+            ),
+          ),
+        ],
+      );
+
   Future<void> _newLedger() async {
     final code = TextEditingController();
     final name = TextEditingController();
