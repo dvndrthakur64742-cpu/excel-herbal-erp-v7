@@ -129,3 +129,22 @@ jobs:
           if (-not (Select-String -LiteralPath $index -SimpleMatch 'Excel Herbal ERP operations portal' -Quiet)) { throw 'Production web meta description is missing.' }
           if (-not (Select-String -LiteralPath $main -SimpleMatch 'office.excelherbal.in/wp-json/excel-herbal-erp/v7' -Quiet)) { throw 'Production API base URL is missing from compiled web output.' }
           if (Select-String -LiteralPath $main -SimpleMatch 'UAT BUILD' -Quiet) { throw 'UAT marker leaked into production web output.' }
+      - name: Create production web SHA-256 manifest
+        working-directory: flutter-app
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = (Resolve-Path 'build/web').Path
+          $lines = Get-ChildItem -LiteralPath $root -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $relative = $_.FullName.Substring($root.Length + 1).Replace('\\','/')
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $relative"
+          }
+          $lines | Set-Content -LiteralPath 'build/web/SHA256SUMS.txt' -Encoding ascii
+          if (-not (Test-Path -LiteralPath 'build/web/SHA256SUMS.txt' -PathType Leaf)) { throw 'Web SHA-256 manifest was not created.' }
+      - name: Upload exact-head production web candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Excel-Herbal-ERP-v7.4.0-Web-Candidate
+          path: flutter-app/build/web/**
+          if-no-files-found: error
+          retention-days: 14
