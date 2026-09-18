@@ -13,14 +13,22 @@ void main() {
     final leaveVisit = File(
       'lib/screens/my_work/my_work_leave_visit.dart',
     ).readAsStringSync();
+    final daily = File(
+      'lib/screens/my_work/my_work_daily.dart',
+    ).readAsStringSync();
 
     expect(main, contains("part 'my_work_attendance.dart';"));
     expect(main, contains("part 'my_work_leave_visit.dart';"));
+    expect(main, contains("part 'my_work_daily.dart';"));
     expect(main, isNot(contains('Widget _attendance()')));
     expect(main, isNot(contains('Widget _leaveVisit()')));
     expect(main, isNot(contains('Future<void> _attendanceAction(')));
     expect(main, isNot(contains('Future<void> _applyLeave()')));
     expect(main, isNot(contains('Future<void> _startVisit()')));
+    expect(main, isNot(contains('Widget _daily()')));
+    expect(main, isNot(contains('Future<void> _newDailyOrder()')));
+    expect(main, isNot(contains('Future<void> _editEvening(')));
+    expect(main, isNot(contains('Future<void> _finalPost(')));
 
     expect(attendance, contains('extension _MyWorkAttendance'));
     expect(attendance, contains('Widget _attendance()'));
@@ -31,5 +39,11 @@ void main() {
     expect(leaveVisit, contains('Future<void> _applyLeave()'));
     expect(leaveVisit, contains('Future<void> _completeVisit('));
     expect(leaveVisit, contains('Future<void> _startVisit()'));
+
+    expect(daily, contains('extension _MyWorkDaily'));
+    expect(daily, contains('Widget _daily()'));
+    expect(daily, contains('Future<void> _newDailyOrder()'));
+    expect(daily, contains('Future<void> _editEvening('));
+    expect(daily, contains('Future<void> _finalPost('));
   });
 }
