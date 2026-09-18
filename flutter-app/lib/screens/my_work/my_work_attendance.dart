@@ -53,7 +53,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
   Future<void> _attendanceAction(bool checkIn) async {
     final app = ref.read(appStateProvider);
     if (checkIn && app.currentBranchId == null) {
-      setState(() => message = 'Authorised Branch select karein.');
+      _setFeatureState(() => message = 'Authorised Branch select karein.');
       return;
     }
     try {
@@ -80,7 +80,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
         ref.read(gpsTrackingProvider).stop();
       }
       if (mounted) {
-        setState(() {
+        _setFeatureState(() {
           refresh++;
           message = checkIn
               ? (gpsStarted
@@ -90,7 +90,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
+      if (mounted) _setFeatureState(() => message = UiError.message(e));
     }
   }
 
