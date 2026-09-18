@@ -370,6 +370,12 @@ UAT no longer depends on copying the office database. The preferred target is a 
 
 The controlled-staging preflight now requires the fresh-synthetic seed marker and both synthetic identities in addition to exact source head, staging environment and staging-safety checks. Office data is not needed for Auth, HR-document, report or Android/GPS UAT.
 
+### P6.5 fresh isolated UAT certification — 2026-09-18
+
+Commit `44f7a35afbf2ad276dde6052b858e4265439d0bc` passed the complete correction pipeline in GitHub Actions run `35344527684`. New evidence includes `runtime_metadata_health_environment_source_head_staging_safety_and_fresh_uat`, `fresh_uat_safe_target`, `fresh_uat_seed_marker`, `fresh_uat_refuses_office_host`, and `fresh_uat_refuses_non_staging`; all passed. Existing recovery/concurrency/P4/P5, Flutter Analyze/tests, production Web compile/invariants, SHA manifest and exact-head persistence also re-passed.
+
+This is the certified runtime baseline for the fresh-UAT approach. Office cloning is no longer part of the UAT prerequisite sequence.
+
 ## Release decision
 
 Production release is allowed only when Gates 1-9 have evidence and the final production deployment receives explicit approval. Until then the PR stays draft and no production deployment/database mutation is authorised.

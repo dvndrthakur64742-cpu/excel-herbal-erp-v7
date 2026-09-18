@@ -201,3 +201,8 @@ The bootstrap refuses `office.excelherbal.in`, refuses any non-staging environme
 After seeding it runs the staging-safety sanitizer automatically. No real employee/customer/supplier/office transaction data is copied.
 
 For Gate 1, take and restore a backup of this fresh UAT after the private-document fixture exists, and verify the matching `eh7_document_key` recovers the encrypted document. This proves recovery mechanics without touching office data. A separate current production backup is still required immediately before any eventual production deployment.
+
+
+### P6.5 certification
+
+Fresh isolated UAT source head `44f7a35afbf2ad276dde6052b858e4265439d0bc` is FULL GREEN in GitHub Actions run `35344527684`. This supersedes the earlier office-copy staging recommendation. The remaining external requirement is to provision a fresh isolated WordPress+MariaDB UAT target and execute the prepared exact-head package/bootstrap/preflight sequence.

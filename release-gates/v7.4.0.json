@@ -5,10 +5,10 @@
   "automated_certification": {
     "status": "passed",
     "evidence": [
-      "github-actions:35342295850"
+      "github-actions:35344527684"
     ],
-    "baseline_head": "887420975bffda4d9b2ae0e732888c3157e2cdd3",
-    "note": "P6.4 staging-safety baseline FULL GREEN. Fresh isolated UAT bootstrap additions require a new exact-head CI run before use."
+    "baseline_head": "44f7a35afbf2ad276dde6052b858e4265439d0bc",
+    "note": "P6.5 fresh isolated synthetic UAT strategy is FULL GREEN. Later evidence-only documentation commits do not change the certified runtime source."
   },
   "manual_gates": [
     {
