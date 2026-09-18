@@ -162,3 +162,8 @@ The branch now contains the remaining reusable staging tools needed once the con
 The correction CI now parses all `.github/scripts/*.ps1` files with the PowerShell AST parser so syntax errors in staging/release utilities fail the main branch certification.
 
 These tools **do not make any production call by themselves**. All staging workflows block `office.excelherbal.in` by default unless explicitly overridden, and the production gate remains fail-closed.
+
+
+### P6.2 CI certification
+
+Toolkit implementation head `20bab162794c587ec30b9575ac4d48150f2d3508` passed GitHub Actions run `35339053206` FULL GREEN, including the new fail-closed policy check and AST parsing of all release/staging PowerShell utilities. A small follow-up hardens report date parsing before final exact-head certification.

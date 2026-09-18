@@ -346,6 +346,12 @@ Exact-head staging execution is now reproducible rather than ad-hoc. The branch 
 
 These additions still require a controlled staging copy before execution and do not change the production gate state.
 
+### P6.2 source certification — 2026-09-18
+
+Controlled-staging toolkit implementation commit `20bab162794c587ec30b9575ac4d48150f2d3508` passed the complete correction pipeline in GitHub Actions run `35339053206`: fail-closed release policy validation, PowerShell AST parsing, PHP lint/regressions, route/contract checks, disposable MariaDB recovery/concurrency/P4/P5 E2E, Flutter analyze/tests, production Web compile/invariants and exact-head candidate persistence.
+
+A follow-up runtime-hardening change replaces temporary-reference date parsing in the staging report snapshot with explicit invariant-culture DateTime variables. That follow-up must pass the same exact-head CI before the toolkit is considered final.
+
 ## Release decision
 
 Production release is allowed only when Gates 1-9 have evidence and the final production deployment receives explicit approval. Until then the PR stays draft and no production deployment/database mutation is authorised.

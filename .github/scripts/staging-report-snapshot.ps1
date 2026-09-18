@@ -13,9 +13,13 @@ Add-Type -AssemblyName System.Net.Http
 $ApiBase = $ApiBase.TrimEnd('/')
 $uri=[Uri]$ApiBase
 if ($uri.Scheme -ne 'https') { throw 'Staging API must use HTTPS.' }
-if (-not [DateTime]::TryParseExact($From,'yyyy-MM-dd',$null,[Globalization.DateTimeStyles]::None,[ref]([datetime]$tmpFrom))) { throw 'from must be yyyy-MM-dd.' }
-if (-not [DateTime]::TryParseExact($To,'yyyy-MM-dd',$null,[Globalization.DateTimeStyles]::None,[ref]([datetime]$tmpTo))) { throw 'to must be yyyy-MM-dd.' }
-if ($tmpFrom -gt $tmpTo) { throw 'from must be on/before to.' }
+[DateTime]$fromDate = [DateTime]::MinValue
+[DateTime]$toDate = [DateTime]::MinValue
+$culture = [Globalization.CultureInfo]::InvariantCulture
+$style = [Globalization.DateTimeStyles]::None
+if (-not [DateTime]::TryParseExact($From,'yyyy-MM-dd',$culture,$style,[ref]$fromDate)) { throw 'from must be yyyy-MM-dd.' }
+if (-not [DateTime]::TryParseExact($To,'yyyy-MM-dd',$culture,$style,[ref]$toDate)) { throw 'to must be yyyy-MM-dd.' }
+if ($fromDate -gt $toDate) { throw 'from must be on/before to.' }
 
 $client=[Net.Http.HttpClient]::new()
 $client.Timeout=[TimeSpan]::FromSeconds(60)

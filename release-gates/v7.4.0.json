@@ -5,10 +5,10 @@
   "automated_certification": {
     "status": "passed",
     "evidence": [
-      "github-actions:35337667036"
+      "github-actions:35339053206"
     ],
-    "baseline_head": "58dd7397f386715ffd9b15eb745df231c8e4d293",
-    "note": "P6.1 release-gate/auth-smoke source and full correction CI baseline. Later staging-tooling commits must be re-certified before use."
+    "baseline_head": "20bab162794c587ec30b9575ac4d48150f2d3508",
+    "note": "P6.2 controlled-staging toolkit source and full correction CI baseline. A subsequent small runtime-hardening commit only adjusts report-date parsing and must re-pass the same CI before use."
   },
   "manual_gates": [
     {
