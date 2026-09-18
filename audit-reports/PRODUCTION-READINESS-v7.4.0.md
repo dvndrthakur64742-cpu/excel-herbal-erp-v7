@@ -13,7 +13,7 @@ Required before merge/release:
 - `ERP correction verification` completes successfully on the exact release commit.
 - PHP 8.1+ runtime check passes with OpenSSL and fileinfo available.
 - PHP lint passes for backend source and tests.
-- 30 backend regression cases pass (21 payroll fixtures + 3 payroll service guards + 6 transaction/idempotency primitive checks).
+- 33 backend regression cases pass (21 payroll fixtures + 3 payroll service guards + 6 transaction/idempotency primitive checks + 3 bearer-header compatibility checks).
 - Route/contract static checks pass.
 - `flutter pub get` passes.
 - Pinned Flutter dependency resolution remains stable after `flutter pub get`.
@@ -70,6 +70,7 @@ Production must expose only implemented server-authorised features.
 - `WP_ENVIRONMENT_TYPE`: not explicitly defined
 - WordPress therefore currently reports the runtime environment as `production` by default; this does **not** mean the ERP project is production/live. The ERP remains in build/UAT stage.
 - `DISALLOW_FILE_EDIT`: not explicitly defined
+- WordPress Site Health reports the Authorization header as invalid/recommended; backend bearer parsing now supports `HTTP_AUTHORIZATION`, `REDIRECT_HTTP_AUTHORIZATION`, direct `Authorization`, and `getallheaders()` fallbacks, but a real mobile Bearer login/refresh test is still required.
 
 ### ERP diagnostics baseline
 
@@ -111,7 +112,7 @@ Must be executed against a controlled staging database:
 - Payroll working-day policy confirmed by HR/Accounts.
 - Exact paid/unpaid leave type configuration confirmed.
 - Historical salary baseline/revisions reviewed through independent maker-checker.
-- 21 payroll calculator cases + 3 service guard cases + 6 transaction/idempotency primitive checks pass in CI.
+- 21 payroll calculator cases + 3 service guard cases + 6 transaction/idempotency primitive checks + 3 bearer-header compatibility checks pass in CI.
 - Real MySQL concurrency tests pass for overlapping payroll generation, concurrent transfers, transfer vs payroll generation, and salary approval vs generation. CI primitive tests do **not** replace this multi-session MariaDB staging gate.
 - Failed SQL transaction rollback verified.
 - REST authentication, branch scoping and idempotency verified.
