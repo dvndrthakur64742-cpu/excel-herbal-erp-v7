@@ -19,6 +19,10 @@ import '../../widgets/branch_selector.dart';
 part 'my_work_attendance.dart';
 part 'my_work_leave_visit.dart';
 part 'my_work_daily.dart';
+part 'my_work_daily_overview.dart';
+part 'my_work_daily_order.dart';
+part 'my_work_daily_closing.dart';
+part 'my_work_daily_detail.dart';
 
 class MyWorkScreen extends ConsumerStatefulWidget {
   const MyWorkScreen({
