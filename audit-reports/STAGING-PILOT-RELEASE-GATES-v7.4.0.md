@@ -172,3 +172,14 @@ Toolkit implementation head `20bab162794c587ec30b9575ac4d48150f2d3508` passed Gi
 ### P6.3 certification
 
 Exact staging identity source head `9292c8df0fe8bedcc333e9064b40af343ab47216` is FULL GREEN in GitHub Actions run `35340932652`. This is the certified runtime baseline for staging package provenance. The next required evidence is external: current host backup, controlled Hostinger copy, explicit staging environment, exact-head package installation, then the prepared staging preflight/auth/document/report/Android pilot workflows.
+
+
+## P6.4 staging clone sanitizer
+
+After the Hostinger copy is created, install the exact-head staging backend, set `WP_ENVIRONMENT_TYPE=staging`, then execute the packaged WP-CLI-only sanitizer:
+
+`wp eval-file wp-content/plugins/excel-herbal-erp-v7/tools/staging-sanitize.php`
+
+The sanitizer refuses the office production host and any non-staging environment. On the clone it revokes copied active mobile sessions, deactivates copied push-device registrations, sets WordPress search indexing off, and records a source-head-bound sanitizer marker. The controlled staging preflight will fail until all of those checks are true.
+
+Do not run this sanitizer on production. Its runtime guard is intentionally fail-closed.

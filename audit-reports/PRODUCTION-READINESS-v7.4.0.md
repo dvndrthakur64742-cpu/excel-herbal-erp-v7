@@ -358,6 +358,12 @@ Commit `9292c8df0fe8bedcc333e9064b40af343ab47216` passed the complete correction
 
 The staging backend package can now embed its Git commit in `build-meta.php`; the public ERP health response exposes non-secret `environment` and `source_head` fields. Controlled staging preflight rejects the office host, rejects targets not reporting `staging`, rejects source-head mismatch, and verifies schema/setup/API-contract consistency.
 
+### P6.4 production-clone sanitization — prepared
+
+A controlled staging copy may contain live mobile-session tokens and push-device registrations copied from production. The new `StagingSafety` service refuses non-staging environments and refuses `office.excelherbal.in`; on a real staging clone it revokes every copied active mobile session, deactivates every copied push device, disables search indexing, and records the exact packaged source head and sanitation timestamp.
+
+The public health projection exposes only staging-safety booleans/marker state. Controlled staging preflight now refuses to pass until clone sanitization is proven and matched to the installed source head.
+
 ## Release decision
 
 Production release is allowed only when Gates 1-9 have evidence and the final production deployment receives explicit approval. Until then the PR stays draft and no production deployment/database mutation is authorised.

@@ -75,7 +75,7 @@ jobs:
         working-directory: backend/excel-herbal-erp-v7
         run: |
           $ErrorActionPreference = 'Stop'
-          $files = @(Get-ChildItem src,tests -Recurse -Filter *.php -File)
+          $files = @(Get-ChildItem src,tests,tools -Recurse -Filter *.php -File -ErrorAction SilentlyContinue)
           $files += Get-Item excel-herbal-erp-v7.php
           foreach ($file in $files) {
             & $env:EH7_PHP_EXE -l $file.FullName
@@ -84,6 +84,8 @@ jobs:
           & $env:EH7_PHP_EXE tests/regression.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $env:EH7_PHP_EXE tests/runtime_metadata.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:EH7_PHP_EXE tests/staging_safety.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Route and contract checks
         run: |

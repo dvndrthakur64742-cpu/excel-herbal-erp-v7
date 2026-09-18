@@ -5,10 +5,10 @@
   "automated_certification": {
     "status": "passed",
     "evidence": [
-      "github-actions:35340932652"
+      "github-actions:35341322068"
     ],
-    "baseline_head": "9292c8df0fe8bedcc333e9064b40af343ab47216",
-    "note": "P6.3 exact controlled-staging identity source baseline is FULL GREEN. Later evidence-only documentation commits do not change the certified runtime source."
+    "baseline_head": "8df4e4a8a22c5543fc15e349e5cb1947aa279106",
+    "note": "P6.3 exact-head evidence baseline FULL GREEN. Staging-clone sanitization additions require a new exact-head CI run before controlled staging."
   },
   "manual_gates": [
     {
@@ -37,9 +37,10 @@
         "office-audit:background-updates-critical-disabled",
         "office-audit:wordpress-7.1.1-update-available",
         "office-audit:mariadb-read-committed-max-packet-1GiB",
-        "repo-workflow:eh7-v740-staging-target-preflight.yml"
+        "repo-workflow:eh7-v740-staging-target-preflight.yml",
+        "repo-service:StagingSafety"
       ],
-      "note": "Office still lacks explicit WP_ENVIRONMENT_TYPE and DISALLOW_FILE_EDIT. Controlled staging preflight requires the clone to report environment=staging and the exact embedded source_head before UAT evidence is accepted. Production hardening remains blocked on host backup/restore proof."
+      "note": "Controlled staging now requires explicit environment=staging, exact source provenance, clone sanitization (all copied mobile sessions revoked, push devices deactivated, search indexing disabled) and a matching sanitizer/source marker before UAT evidence is accepted. Production config hardening remains blocked on host backup/restore proof."
     },
     {
       "id": "real_http_bearer_401_403",
