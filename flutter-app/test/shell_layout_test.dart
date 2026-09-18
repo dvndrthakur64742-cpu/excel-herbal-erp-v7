@@ -14,6 +14,12 @@ void main() {
     expect(source, contains('ShellLayout.isDesktopWidth(constraints.maxWidth)'));
     expect(source, contains('ShellLayout.isDesktopWidth(MediaQuery.sizeOf(context).width)'));
     expect(source, isNot(contains('>= 1100')));
+    expect(source, contains('final effectiveRoute = _routeAllowed(app, desktopRoute)'));
+    expect(source, contains('final child = switch (effectiveRoute)'));
+    expect(
+      source,
+      isNot(contains("if (!_routeAllowed(app, desktopRoute)) desktopRoute = 'home';")),
+    );
   });
 
   test('shared shell routes stay synchronized across responsive changes', () {
