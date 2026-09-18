@@ -20,7 +20,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                 FilledButton.icon(
                   onPressed: app.currentBranchId == null || _dailyOrderOpening
                       ? null
-                      : _newDailyOrder,
+                      : _MyWorkDaily(this)._newDailyOrder,
                   icon: _dailyOrderOpening
                       ? const SizedBox(
                           width: 18,
