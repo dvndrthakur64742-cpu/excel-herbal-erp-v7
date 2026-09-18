@@ -288,7 +288,29 @@ A disposable MariaDB 11.8.9 database is rebuilt from the full current ERP schema
 
 The same exact-head run also passed Flutter analyze, 137 Flutter tests, production Web compile/invariants, PHP lint, 33 backend regressions, 211 route/dispatch checks, transaction/idempotency tests, business-concurrency tests, mobile-auth security tests and encrypted-document backup/restore simulation.
 
-This is **automated disposable UAT evidence**, not operational pilot sign-off. The following remain manual/controlled staging gates: physical-device Android testing, real web/mobile HTTP forwarding and 401/403 behaviour, GPS device lifecycle, Sales receipt, Purchase/supplier payment, Finance closing/reversal, inventory adjustment, reporting review, real HR multipart upload, and business-owner/HR/Accounts pilot sign-off.
+This is **automated disposable UAT evidence**, not operational pilot sign-off.
+
+### P5 business E2E coverage II evidence — 2026-09-18
+
+`ERP correction verification` run `35332732346` completed successfully on exact source head `4a25ac1cf8e8d41f44f111f2d4aa1876e87c0df8`.
+
+The disposable full-schema MariaDB gate now additionally passes:
+
+- credit Counter Sale -> customer receipt -> open receivable control,
+- Purchase Bill -> supplier payment -> open payable control,
+- stock adjustment maker-checker approval with stock and journal effects,
+- Finance expense -> reversal request -> independent approval -> reversal execution,
+- Sales, Purchase, Stock and Finance reports,
+- Receivables and Payables subledgers,
+- Trial Balance zero-net check,
+- Profit & Loss account-value checks,
+- Balance Sheet accounting-equation check,
+- AR/AP/Inventory finance reconciliation checks,
+- Branch Closing preflight -> maker-checker close -> closed-day posting denial -> controlled reopen.
+
+Coverage II exposed and fixed a real Balance Sheet projection defect: `ReportingService::balanceSheet()` retained a by-reference `foreach` variable and reused it in the subsequent P&L loop, overwriting the last equity row. The loop reference is now explicitly released before Current Earnings is calculated, and the E2E suite verifies the opening-equity row plus the full Balance Sheet equation.
+
+Remaining manual/controlled staging gates are: physical-device Android testing, real web/mobile HTTP forwarding and 401/403 behaviour, real GPS device lifecycle, real multipart HR upload, host-level backup/files restore, and operational pilot sign-off. The newly automated Sales/Purchase/Inventory/Finance/Reporting flows must still be exercised by business owners on controlled staging as part of that pilot; CI evidence does not replace human operational acceptance.
 
 ## Release decision
 
