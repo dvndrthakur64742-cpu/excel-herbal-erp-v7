@@ -271,6 +271,25 @@ Before production deployment:
 - HR document upload/download/revocation.
 - Pilot branch sign-off by operational owner plus HR/Accounts for payroll-sensitive functions.
 
+### P4 automated UAT smoke evidence — 2026-09-18
+
+`ERP correction verification` run `35330241571` completed successfully on exact source head `3256f3d968c5d37c993856b327718b606f4ade4e`.
+
+A disposable MariaDB 11.8.9 database is rebuilt from the full current ERP schema and exercised through the internal API dispatch layer. The automated smoke suite passed:
+
+- cross-branch attendance mutation fails closed with HTTP-domain `branch_forbidden`,
+- attendance check-in -> current attendance -> check-out lifecycle,
+- Daily Order full morning draft -> submit -> independent approval -> issue -> evening settlement -> independent final post,
+- inventory transfer create -> pack -> dispatch -> destination receive with stock/accounting invariants,
+- finance expense create -> independent approval with balanced journal,
+- payroll generate -> independent approval -> payment with both journals present,
+- encrypted employee HR document authenticated download -> deactivate -> subsequent download denied,
+- final invariant check confirms zero negative stock balances and zero unbalanced journals in the disposable UAT database.
+
+The same exact-head run also passed Flutter analyze, 137 Flutter tests, production Web compile/invariants, PHP lint, 33 backend regressions, 211 route/dispatch checks, transaction/idempotency tests, business-concurrency tests, mobile-auth security tests and encrypted-document backup/restore simulation.
+
+This is **automated disposable UAT evidence**, not operational pilot sign-off. The following remain manual/controlled staging gates: physical-device Android testing, real web/mobile HTTP forwarding and 401/403 behaviour, GPS device lifecycle, Sales receipt, Purchase/supplier payment, Finance closing/reversal, inventory adjustment, reporting review, real HR multipart upload, and business-owner/HR/Accounts pilot sign-off.
+
 ## Release decision
 
 Production release is allowed only when Gates 1-9 have evidence and the final production deployment receives explicit approval. Until then the PR stays draft and no production deployment/database mutation is authorised.
