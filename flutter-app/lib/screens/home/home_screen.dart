@@ -8,7 +8,7 @@ import '../../core/providers.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
 import '../../widgets/branch_selector.dart';
-import '../my_work/my_work_screen.dart';
+import '../my_work/my_work_workspace_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key, this.openMyWork});
@@ -52,7 +52,7 @@ class HomeScreen extends ConsumerWidget {
                     () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => const Scaffold(
-                              body: SafeArea(child: MyWorkScreen()),
+                              body: SafeArea(child: MyWorkWorkspaceScreen()),
                             ),
                           ),
                         ),
