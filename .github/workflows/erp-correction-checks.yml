@@ -106,10 +106,18 @@ jobs:
               $checksum = Invoke-RestMethod -UseBasicParsing -Uri ($fileEndpoint + '/checksum')
               $expected = ([string]$checksum.response.checksum.sha256sum).ToLowerInvariant()
               if ($expected.Length -ne 64 -or $expected -notmatch '^[0-9a-f]+$') { throw 'MariaDB SHA-256 metadata is missing or invalid.' }
-              $archive = Join-Path $env:RUNNER_TEMP 'mariadb-11.8.9-winx64.zip'
-              Invoke-WebRequest -UseBasicParsing -Uri $fileEndpoint -OutFile $archive
+              $downloadDir = Join-Path $toolRoot 'downloads'
+              New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
+              $archive = Join-Path $downloadDir 'mariadb-11.8.9-winx64.zip'
+              $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+              if (-not $curl) { throw 'curl.exe is required for resumable MariaDB toolcache download.' }
+              & $curl.Source --fail --location --retry 6 --retry-delay 5 --retry-all-errors --connect-timeout 30 --continue-at - --output $archive $fileEndpoint
+              if ($LASTEXITCODE -ne 0) { throw 'MariaDB resumable download failed.' }
               $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-              if ($actual -ne $expected) { throw 'MariaDB archive checksum mismatch.' }
+              if ($actual -ne $expected) {
+                Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+                throw 'MariaDB archive checksum mismatch; cached partial archive was removed.'
+              }
               $extractRoot = Join-Path $env:RUNNER_TEMP 'eh7-mariadb-extract'
               if (Test-Path -LiteralPath $extractRoot) { Remove-Item -LiteralPath $extractRoot -Recurse -Force }
               Expand-Archive -LiteralPath $archive -DestinationPath $extractRoot -Force
