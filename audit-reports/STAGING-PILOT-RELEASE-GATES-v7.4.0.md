@@ -167,3 +167,8 @@ These tools **do not make any production call by themselves**. All staging workf
 ### P6.2 CI certification
 
 Toolkit implementation head `20bab162794c587ec30b9575ac4d48150f2d3508` passed GitHub Actions run `35339053206` FULL GREEN, including the new fail-closed policy check and AST parsing of all release/staging PowerShell utilities. A small follow-up hardens report date parsing before final exact-head certification.
+
+
+### P6.3 certification
+
+Exact staging identity source head `9292c8df0fe8bedcc333e9064b40af343ab47216` is FULL GREEN in GitHub Actions run `35340932652`. This is the certified runtime baseline for staging package provenance. The next required evidence is external: current host backup, controlled Hostinger copy, explicit staging environment, exact-head package installation, then the prepared staging preflight/auth/document/report/Android pilot workflows.

@@ -352,6 +352,12 @@ Controlled-staging toolkit implementation commit `20bab162794c587ec30b9575ac4d48
 
 A follow-up runtime-hardening change replaces temporary-reference date parsing in the staging report snapshot with explicit invariant-culture DateTime variables. That follow-up must pass the same exact-head CI before the toolkit is considered final.
 
+### P6.3 exact staging identity certification — 2026-09-18
+
+Commit `9292c8df0fe8bedcc333e9064b40af343ab47216` passed the complete correction pipeline in GitHub Actions run `35340932652`. The run includes the new runtime metadata probe `runtime_metadata_health_environment_and_source_head`, PowerShell parsing for `staging-target-preflight.ps1`, all existing backend regressions/route checks, disposable MariaDB recovery/concurrency/P4/P5 suites, Flutter analyze/tests, production Web compile/invariants, SHA manifest and exact-head candidate persistence.
+
+The staging backend package can now embed its Git commit in `build-meta.php`; the public ERP health response exposes non-secret `environment` and `source_head` fields. Controlled staging preflight rejects the office host, rejects targets not reporting `staging`, rejects source-head mismatch, and verifies schema/setup/API-contract consistency.
+
 ## Release decision
 
 Production release is allowed only when Gates 1-9 have evidence and the final production deployment receives explicit approval. Until then the PR stays draft and no production deployment/database mutation is authorised.

@@ -5,10 +5,10 @@
   "automated_certification": {
     "status": "passed",
     "evidence": [
-      "github-actions:35339522863"
+      "github-actions:35340932652"
     ],
-    "baseline_head": "dfd9570824e6df7311205ad523a86da8c39119f5",
-    "note": "P6.2 runtime-hardened staging toolkit full-green baseline. Exact staging identity additions require a new exact-head CI run before staging use."
+    "baseline_head": "9292c8df0fe8bedcc333e9064b40af343ab47216",
+    "note": "P6.3 exact controlled-staging identity source baseline is FULL GREEN. Later evidence-only documentation commits do not change the certified runtime source."
   },
   "manual_gates": [
     {
