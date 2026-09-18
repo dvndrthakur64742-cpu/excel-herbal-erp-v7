@@ -135,16 +135,24 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = (Resolve-Path 'build/web').Path
           $lines = Get-ChildItem -LiteralPath $root -Recurse -File | Sort-Object FullName | ForEach-Object {
-            $relative = $_.FullName.Substring($root.Length + 1).Replace('\\','/')
+            $relative = $_.FullName.Substring($root.Length + 1).Replace('\','/')
             $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $relative"
           }
           $lines | Set-Content -LiteralPath 'build/web/SHA256SUMS.txt' -Encoding ascii
           if (-not (Test-Path -LiteralPath 'build/web/SHA256SUMS.txt' -PathType Leaf)) { throw 'Web SHA-256 manifest was not created.' }
-      - name: Upload exact-head production web candidate
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: Excel-Herbal-ERP-v7.4.0-Web-Candidate
-          path: flutter-app/build/web/**
-          if-no-files-found: error
-          retention-days: 14
+      - name: Persist exact-head production web candidate on runner
+        working-directory: flutter-app
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\candidates\\' + $env:GITHUB_SHA)
+          $candidateDir = Join-Path $releaseRoot 'web'
+          $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
+          if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $candidateDir -Force | Out-Null
+          Copy-Item -Path 'build/web/*' -Destination $candidateDir -Recurse -Force
+          Compress-Archive -Path (Join-Path $candidateDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
+          if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw 'Local production web candidate ZIP was not created.' }
+          $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$zipHash  Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip" | Set-Content -LiteralPath (Join-Path $releaseRoot 'WEB-CANDIDATE-ZIP-SHA256.txt') -Encoding ascii
+          Write-Host "Exact-head web candidate preserved at $releaseRoot"
