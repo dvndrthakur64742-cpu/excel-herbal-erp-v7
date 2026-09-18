@@ -180,10 +180,12 @@ jobs:
             $phpIni = Join-Path $env:RUNNER_TEMP 'eh7-mariadb-php.ini'
             @(
               ('extension_dir="' + $extensionDir + '"'),
-              'extension=mysqli'
+              'extension=mysqli',
+              'extension=openssl',
+              'extension=fileinfo'
             ) | Set-Content -LiteralPath $phpIni -Encoding ascii
             $env:PHPRC = $phpIni
-            & $env:EH7_PHP_EXE -r "if (!extension_loaded('mysqli')) { fwrite(STDERR, 'mysqli extension unavailable'); exit(7); }"
+            & $env:EH7_PHP_EXE -r "if (!extension_loaded('mysqli')) { fwrite(STDERR, 'mysqli extension unavailable'); exit(7); } if (!function_exists('openssl_encrypt') || !function_exists('openssl_decrypt')) { fwrite(STDERR, 'OpenSSL extension unavailable'); exit(8); } if (!class_exists('finfo')) { fwrite(STDERR, 'fileinfo extension unavailable'); exit(9); }"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
             & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_mariadb.php
