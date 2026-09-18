@@ -80,6 +80,11 @@ final class MobileAuth{
   return['access_token'=>$access,'refresh_token'=>$refresh,'token_type'=>'Bearer','expires_in'=>self::ACCESS_TTL];
  }
 
+ private static function authorizationHeader():string{
+  foreach(['HTTP_AUTHORIZATION','REDIRECT_HTTP_AUTHORIZATION','Authorization'] as$key){$value=trim((string)($_SERVER[$key]??''));if($value!=='')return$value;}
+  if(function_exists('getallheaders')){foreach((array)getallheaders() as$name=>$value)if(strcasecmp((string)$name,'Authorization')===0&&trim((string)$value)!=='')return trim((string)$value);}
+  return'';
+ }
  private static function deviceKey(string $deviceId):?string{$deviceId=trim($deviceId);if($deviceId==='')return null;if(strlen($deviceId)>190)throw new DomainException('Device identity is invalid.','device_identity_invalid',422);return hash('sha256',$deviceId);}
  private static function normaliseMobile(string $mobile):string{return preg_replace('/\D+/','',$mobile)?:'';}
  private static function clientIp():string{return substr((string)($_SERVER['REMOTE_ADDR']??'unknown'),0,64);}
