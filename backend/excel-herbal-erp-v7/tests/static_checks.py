@@ -35,6 +35,27 @@ dispatch_defs=set(re.findall(r"function\s+([A-Za-z0-9_]+)\s*\(",dispatch))
 dispatch_calls=set(re.findall(r"self::([A-Za-z0-9_]+)\s*\(",dispatch))
 assert dispatch_calls<=dispatch_defs,('dispatcher self-call helper missing',sorted(dispatch_calls-dispatch_defs))
 print(f'PASS {len(rows)} unique route definitions and dispatch mappings')
+org_facade=(root/'src/Organization/OrganizationService.php').read_text()
+fin_facade=(root/'src/Finance/FinanceService.php').read_text()
+assert 'Db::' not in org_facade and 'Transaction::' not in org_facade,'Organization facade contains database/business implementation'
+assert 'Db::' not in fin_facade and 'Transaction::' not in fin_facade,'Finance facade contains database/business implementation'
+for rel in [
+ 'src/Organization/OrganizationBranchService.php',
+ 'src/Organization/OrganizationEmployeeService.php',
+ 'src/Organization/OrganizationProductService.php',
+ 'src/Organization/OrganizationMasterDataService.php',
+ 'src/Finance/FinanceAccountService.php',
+ 'src/Finance/FinanceExpenseService.php',
+ 'src/Finance/FinanceClosingService.php',
+ 'src/Finance/FinancePeriodService.php',
+ 'src/Finance/FinanceBankService.php',
+ 'src/Finance/FinanceReversalService.php',
+ 'src/Http/ApiDispatch.php',
+]:
+ assert (root/rel).is_file(),('missing extracted backend service',rel)
+assert "return ApiDispatch::dispatch(" in (root/'src/Http/Api.php').read_text(),'Api transport does not delegate to ApiDispatch'
+assert "return match($h)" in (root/'src/Http/ApiDispatch.php').read_text(),'ApiDispatch handler map missing'
+print('PASS backend facade boundaries and extracted service files')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
