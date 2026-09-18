@@ -19,20 +19,25 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Set up verified portable PHP 8.3.33
+      - name: Locate or install verified PHP 8.3.33 toolcache
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $phpDir = Join-Path $env:RUNNER_TEMP 'eh7-php-8.3.33'
-          $archive = Join-Path $env:RUNNER_TEMP 'eh7-php-8.3.33.zip'
-          Invoke-WebRequest -UseBasicParsing -Uri 'https://downloads.php.net/~windows/releases/archives/php-8.3.33-nts-Win32-vs16-x64.zip' -OutFile $archive
-          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '534399107056313246f424adbbb7937337e40fbbf6aa7bc26287ba9cfd2e4a2a') {
-            throw 'PHP archive checksum mismatch.'
-          }
-          Expand-Archive -LiteralPath $archive -DestinationPath $phpDir -Force
+          $toolRoot = 'C:\actions-runner\eh7-toolcache'
+          $phpDir = Join-Path $toolRoot 'php-8.3.33'
           $phpExe = Join-Path $phpDir 'php.exe'
+          if (-not (Test-Path -LiteralPath $phpExe -PathType Leaf)) {
+            New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
+            if (Test-Path -LiteralPath $phpDir) { Remove-Item -LiteralPath $phpDir -Recurse -Force }
+            $archive = Join-Path $env:RUNNER_TEMP 'eh7-php-8.3.33.zip'
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://downloads.php.net/~windows/releases/archives/php-8.3.33-nts-Win32-vs16-x64.zip' -OutFile $archive
+            if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '534399107056313246f424adbbb7937337e40fbbf6aa7bc26287ba9cfd2e4a2a') {
+              throw 'PHP archive checksum mismatch.'
+            }
+            Expand-Archive -LiteralPath $archive -DestinationPath $phpDir -Force
+          }
           & $phpExe -n --version
-          if ($LASTEXITCODE -ne 0) { throw 'Portable PHP failed to start. Check the Visual C++ runtime on the runner.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Cached PHP failed to start. Check the Visual C++ runtime on the runner.' }
           "EH7_PHP_EXE=$phpExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Locate PHP 8.1 or newer
         run: |
@@ -40,7 +45,7 @@ jobs:
           $phpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
           $candidates = @($env:EH7_PHP_EXE)
           if ($phpCommand) { $candidates += $phpCommand.Source }
-          $candidates += @('C:\php\php.exe', 'C:\xampp\php\php.exe', 'C:\actions-runner\eh7-toolcache\php\php.exe')
+          $candidates += @('C:\actions-runner\eh7-toolcache\php-8.3.33\php.exe', 'C:\php\php.exe', 'C:\xampp\php\php.exe')
           $phpExe = $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
           if (-not $phpExe) { throw 'PHP 8.1+ was not found. Install PHP CLI on ERP-PC and set EH7_PHP_EXE or add php.exe to the runner PATH, then restart the runner.' }
           & $phpExe --version
@@ -64,14 +69,22 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $pythonDir = Join-Path $env:RUNNER_TEMP 'eh7-python-3.13.7'
-          $archive = Join-Path $env:RUNNER_TEMP 'eh7-python-3.13.7.zip'
-          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-amd64.zip' -OutFile $archive
-          if ((Get-FileHash -LiteralPath $archive -Algorithm MD5).Hash -ne '77f294ec267596827a2ab06e8fa3f18c') {
-            throw 'Python archive checksum mismatch.'
+          $toolRoot = 'C:\actions-runner\eh7-toolcache'
+          $pythonDir = Join-Path $toolRoot 'python-3.13.7-embed'
+          $pythonExe = Join-Path $pythonDir 'python.exe'
+          if (-not (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
+            New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
+            if (Test-Path -LiteralPath $pythonDir) { Remove-Item -LiteralPath $pythonDir -Recurse -Force }
+            $archive = Join-Path $env:RUNNER_TEMP 'eh7-python-3.13.7.zip'
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-amd64.zip' -OutFile $archive
+            if ((Get-FileHash -LiteralPath $archive -Algorithm MD5).Hash -ne '77f294ec267596827a2ab06e8fa3f18c') {
+              throw 'Python archive checksum mismatch.'
+            }
+            Expand-Archive -LiteralPath $archive -DestinationPath $pythonDir -Force
           }
-          Expand-Archive -LiteralPath $archive -DestinationPath $pythonDir -Force
-          & (Join-Path $pythonDir 'python.exe') backend/excel-herbal-erp-v7/tests/static_checks.py
+          & $pythonExe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Cached Python failed to start.' }
+          & $pythonExe backend/excel-herbal-erp-v7/tests/static_checks.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   flutter-integration:
     if: github.ref == 'refs/heads/codex/erp735-document-integration'
