@@ -2,7 +2,7 @@ import 'package:excel_herbal_erp/screens/organization/hr_api_paths.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('HR lifecycle paths match backend v7.3.4 contract', () {
+  test('HR lifecycle paths match backend v7.3.5 contract', () {
     expect(HrApiPaths.candidates, '/organization/candidates');
     expect(HrApiPaths.separations, '/organization/separations');
     expect(HrApiPaths.candidate(7), '/organization/candidates/7');
