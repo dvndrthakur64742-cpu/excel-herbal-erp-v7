@@ -1,0 +1,56 @@
+name: EH7 v7.4.0 Staging Backend Package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+
+jobs:
+  staging-backend-package:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration'
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate source and fail-closed release policy
+        run: |
+          & '.github/scripts/verify-release-gates.ps1' -Mode ci -GateFile 'release-gates/v7.4.0.json'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $main='backend\excel-herbal-erp-v7\excel-herbal-erp-v7.php'
+          if(-not(Test-Path -LiteralPath $main -PathType Leaf)){throw 'Backend plugin entrypoint missing.'}
+
+      - name: Build exact-head staging plugin ZIP
+        run: |
+          $out='dist\staging-backend'
+          if(Test-Path -LiteralPath $out){Remove-Item -LiteralPath $out -Recurse -Force}
+          New-Item -ItemType Directory -Path $out -Force|Out-Null
+          $zip=Join-Path $out 'Excel-Herbal-ERP-v7.4.0-Staging-Backend.zip'
+          Compress-Archive -Path 'backend\excel-herbal-erp-v7' -DestinationPath $zip -CompressionLevel Optimal
+          $verify=Join-Path $env:RUNNER_TEMP ('eh7-stage-verify-'+[Guid]::NewGuid().ToString('N'))
+          Expand-Archive -LiteralPath $zip -DestinationPath $verify -Force
+          if(-not(Test-Path -LiteralPath (Join-Path $verify 'excel-herbal-erp-v7\excel-herbal-erp-v7.php'))){throw 'Staging ZIP root is invalid.'}
+          Remove-Item -LiteralPath $verify -Recurse -Force
+          $zipHash=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $mainHash=(Get-FileHash -LiteralPath 'backend\excel-herbal-erp-v7\excel-herbal-erp-v7.php' -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "commit=$env:GITHUB_SHA",
+            "ref=$env:GITHUB_REF",
+            "purpose=controlled-staging-only",
+            "production_approved=false",
+            "plugin_zip_sha256=$zipHash",
+            "plugin_entrypoint_sha256=$mainHash"
+          )|Set-Content -LiteralPath (Join-Path $out 'STAGING-BACKEND-MANIFEST.txt') -Encoding ascii
+          Get-Content -LiteralPath (Join-Path $out 'STAGING-BACKEND-MANIFEST.txt')
+
+      - name: Upload exact-head staging backend
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-v7.4.0-Staging-Backend
+          path: dist/staging-backend/*
+          if-no-files-found: error

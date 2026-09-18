@@ -147,3 +147,18 @@ Only after Gates 1–7 are evidenced may `production_approved` be changed to `tr
 - WordPress 7.1.1 is available while the site currently runs 7.1.
 - WordPress Site Health marks background updates critical because the automatic-updater filter/all automatic updates are disabled. `WP_AUTO_UPDATE_CORE` is configured as `minor`, so the effective disablement is coming from another filter/host policy. Do not change update policy before backup/restore proof; document the final patch-management policy.
 - All plugin auto-update toggles are currently disabled. No plugin/core update was performed.
+
+
+## P6.2 staging execution toolkit — prepared
+
+The branch now contains the remaining reusable staging tools needed once the controlled copy exists:
+
+- `.github/workflows/eh7-v740-staging-backend-package.yml` packages the exact working-branch backend as a controlled-staging-only WordPress plugin ZIP with SHA-256 manifest. It refuses non-working-branch refs and records `production_approved=false`.
+- `.github/workflows/eh7-v740-staging-private-document-smoke.yml` performs a real multipart employee-document upload using a generated 1x1 PNG fixture, requires `attachment_id=0` and authenticated REST download, compares SHA-256 after decrypt/download, deactivates the document, verifies later download is rejected, and logs out.
+- `.github/workflows/eh7-v740-staging-report-snapshot.yml` captures Sales, Purchase, Stock, Stock Reconciliation, Finance, Trial Balance, Profit & Loss, Balance Sheet, Receivables, Payables and Finance Reconciliation into a SHA-256-manifested artifact for Accounts/operations review.
+- `release-gates/templates/android-gps-pilot-evidence.json` standardises physical-device GPS evidence.
+- `release-gates/templates/pilot-signoff.json` standardises operational-owner, HR and Accounts sign-off.
+
+The correction CI now parses all `.github/scripts/*.ps1` files with the PowerShell AST parser so syntax errors in staging/release utilities fail the main branch certification.
+
+These tools **do not make any production call by themselves**. All staging workflows block `office.excelherbal.in` by default unless explicitly overridden, and the production gate remains fail-closed.

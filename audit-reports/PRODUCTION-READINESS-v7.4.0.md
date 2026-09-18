@@ -340,6 +340,12 @@ A new manual workflow, `EH7 v7.4.0 Staging HTTPS Auth Smoke`, is prepared to cer
 
 Application-password introspection succeeds on office and Hostinger does not disable application-password authentication. A Site Health “authorization header is invalid” response observed through the already-authenticated WPVibe connection is not treated as a Bearer failure: WordPress distinguishes that from a missing header, and the WPVibe request supplies its own credentials. The real Bearer gate remains pending until the dedicated staging workflow runs.
 
+### P6.2 staging execution toolkit — prepared
+
+Exact-head staging execution is now reproducible rather than ad-hoc. The branch packages its own backend for staging, includes a real private-document multipart/decrypt/deactivate smoke, captures SHA-manifested accounting/report snapshots for human review, and provides structured Android/GPS and pilot sign-off evidence templates. The correction CI also syntax-parses every staging/release PowerShell script.
+
+These additions still require a controlled staging copy before execution and do not change the production gate state.
+
 ## Release decision
 
 Production release is allowed only when Gates 1-9 have evidence and the final production deployment receives explicit approval. Until then the PR stays draft and no production deployment/database mutation is authorised.

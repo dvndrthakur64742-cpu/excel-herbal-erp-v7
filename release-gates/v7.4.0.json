@@ -5,10 +5,10 @@
   "automated_certification": {
     "status": "passed",
     "evidence": [
-      "github-actions:35335931529"
+      "github-actions:35337667036"
     ],
-    "baseline_head": "9e96fb2071377b5bee38b0a6de883c47304bc569",
-    "note": "P6 release-gate infrastructure source/CI baseline. Full correction CI, P4 UAT and P5 business E2E suites passed. Evidence-only commits after this baseline do not authorize production."
+    "baseline_head": "58dd7397f386715ffd9b15eb745df231c8e4d293",
+    "note": "P6.1 release-gate/auth-smoke source and full correction CI baseline. Later staging-tooling commits must be re-certified before use."
   },
   "manual_gates": [
     {
@@ -54,28 +54,37 @@
       "id": "android_physical_gps",
       "required": true,
       "status": "pending",
-      "evidence": [],
+      "evidence": [
+        "repo-workflow:eh7-v740-staging-pilot-android.yml",
+        "repo-template:android-gps-pilot-evidence.json"
+      ],
       "note": "Need physical Android device pilot on a controlled staging API: install, login, permission states, check-in, GPS points, resume, checkout/auto-stop."
     },
     {
       "id": "hr_multipart_private_document",
       "required": true,
       "status": "pending",
-      "evidence": [],
-      "note": "Need controlled staging multipart HR upload, authenticated download/hash check, deactivation/revocation, and recovery with matching document key."
+      "evidence": [
+        "repo-workflow:eh7-v740-staging-private-document-smoke.yml"
+      ],
+      "note": "Automated controlled-staging workflow is prepared: real multipart PNG upload, attachment_id=0/auth-only URL assertion, authenticated SHA-256 download check, deactivation, inactive-download 404 and session logout. Matching-key backup/restore recovery still requires the host restore drill."
     },
     {
       "id": "business_report_review",
       "required": true,
       "status": "pending",
-      "evidence": [],
-      "note": "Business owner/Accounts must reconcile Sales, Purchase, Stock, Trial Balance, P&L, Balance Sheet, AR and AP against controlled staging transactions."
+      "evidence": [
+        "repo-workflow:eh7-v740-staging-report-snapshot.yml"
+      ],
+      "note": "A read-only authenticated staging snapshot workflow is prepared for Sales, Purchase, Stock, Stock Reconciliation, Finance, Trial Balance, P&L, Balance Sheet, Receivables, Payables and Finance Reconciliation. The artifact provides SHA-256 manifests for Accounts review; human reconciliation/sign-off remains required."
     },
     {
       "id": "pilot_signoff",
       "required": true,
       "status": "pending",
-      "evidence": [],
+      "evidence": [
+        "repo-template:pilot-signoff.json"
+      ],
       "note": "Operational owner plus HR and Accounts sign-off required. CI evidence does not replace human acceptance."
     }
   ],

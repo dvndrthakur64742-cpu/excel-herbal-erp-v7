@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "gate": "android_physical_gps",
+  "status": "pending",
+  "staging_api_base_url": "",
+  "backend_source_head": "",
+  "android_pilot_workflow_run": "",
+  "apk_sha256": "",
+  "device": {
+    "manufacturer_model": "",
+    "android_version": ""
+  },
+  "checks": {
+    "install_and_login": "pending",
+    "location_service_off_state": "pending",
+    "permission_denied_state": "pending",
+    "permission_denied_forever_state": "pending",
+    "permission_granted_checkin": "pending",
+    "gps_point_accepted": "pending",
+    "background_resume_sync": "pending",
+    "checkout_stops_tracking": "pending",
+    "server_cutoff_stops_tracking": "pending",
+    "logout_stops_local_tracking": "pending"
+  },
+  "tested_by": "",
+  "tested_at": "",
+  "notes": ""
+}
