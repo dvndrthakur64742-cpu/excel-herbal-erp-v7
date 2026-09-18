@@ -5,10 +5,10 @@
   "automated_certification": {
     "status": "passed",
     "evidence": [
-      "github-actions:35335003194"
+      "github-actions:35335931529"
     ],
-    "baseline_head": "402bb718c1b5bd57988d6a0744594165abc98cce",
-    "note": "P5 full-green source/CI baseline. Any later code change must be re-certified before production approval."
+    "baseline_head": "9e96fb2071377b5bee38b0a6de883c47304bc569",
+    "note": "P6 release-gate infrastructure source/CI baseline. Full correction CI, P4 UAT and P5 business E2E suites passed. Evidence-only commits after this baseline do not authorize production."
   },
   "manual_gates": [
     {
