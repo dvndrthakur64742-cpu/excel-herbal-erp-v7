@@ -3,6 +3,23 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+
+  test('Organization uses the shared workspace shell', () {
+    final source = File(
+      'lib/screens/organization/organization_screen.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('ModuleWorkspaceHeader('));
+    expect(source, contains('ModuleMessageBanner(message: message!)'));
+    expect(source, contains('ModuleSectionHeader('));
+    expect(source, contains('contextLabel: app.currentBranchName'));
+    expect(
+      source.split('BranchSelector()').length - 1,
+      1,
+      reason: 'Organization should have one shared branch selector.',
+    );
+  });
+
   test('workspace section headers stack actions on narrow widths', () {
     final source = File('lib/widgets/module_workspace.dart').readAsStringSync();
 
