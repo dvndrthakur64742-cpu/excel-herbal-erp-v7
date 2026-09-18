@@ -70,7 +70,7 @@ Production must expose only implemented server-authorised features.
 - `WP_ENVIRONMENT_TYPE`: not explicitly defined
 - WordPress therefore currently reports the runtime environment as `production` by default; this does **not** mean the ERP project is production/live. The ERP remains in build/UAT stage.
 - `DISALLOW_FILE_EDIT`: not explicitly defined
-- WordPress Site Health reports the Authorization header as invalid/recommended; backend bearer parsing now supports `HTTP_AUTHORIZATION`, `REDIRECT_HTTP_AUTHORIZATION`, direct `Authorization`, and `getallheaders()` fallbacks, but a real mobile Bearer login/refresh test is still required.
+- WordPress Site Health reports the Authorization header as invalid/recommended. The security batch found that the fallback parser existed but `MobileAuth::user()` and `logout()` still read only `HTTP_AUTHORIZATION`; the branch now routes both through the shared parser and the disposable MariaDB gate exercises redirect/direct header paths plus login, refresh rotation and logout revocation. A real staging/mobile HTTP forwarding smoke test is still required before production.
 
 ### ERP diagnostics baseline
 
@@ -85,6 +85,19 @@ Read-only administration diagnostics returned `healthy`:
 - active employees without open branch history: 0
 - orphan sessions: 0
 - stale completed idempotency records: 0
+
+### P3 read-only security recheck — 2026-09-18
+
+The connected office environment was rechecked without writes:
+
+- WordPress 7.1 / PHP 8.3.33 / MariaDB 11.8.9.
+- Runtime environment still reports `production` because `WP_ENVIRONMENT_TYPE` is not explicitly defined.
+- `DISALLOW_FILE_EDIT` is still not explicitly defined.
+- Abilities API exposes only three core read-only abilities; no backup or staging ability is available.
+- `eh7_document_key` is present and non-empty without reading or exposing its value.
+- Schema remains `7.3.5-business-fixes-1`; no schema migration error option is present.
+- Private encrypted blobs: 0; employee documents: 0; candidate documents: 0.
+- Active mobile sessions: 15. No real session was mutated by this audit.
 
 ### P2 hardening blockers confirmed 2026-09-17
 
@@ -127,7 +140,7 @@ Must be executed against a controlled staging database:
 - Real idempotency replay check: PASS using the transfer-accounting repair path only after its read-only preview reported `repairable=0` and `blocked=0`.
 - The same payload and idempotency key were submitted twice; both returned the same zero-repair result and the idempotency ledger contains a single new completed, payload-bound, cached record for the operation.
 - No stock, journal or transfer record was repaired by this test.
-- Real concurrent-connection race tests and failed-transaction rollback proof are **not yet executed**; the connected WordPress CLI emulator does not provide a safe parallel-session transaction harness.
+- Disposable MariaDB 11.8.9 multi-process business concurrency is PASS on head `6f361a1a039f87953703ccc943ce75e36d1bcfee`, CI run `35318834495`: concurrent payroll generation, concurrent stock-transfer state transition, employee transfer vs payroll, and salary approval vs payroll all preserve their invariants. Transaction rollback/savepoint proof is also PASS. This is strong isolated CI evidence; it does not replace a later controlled staging-host smoke test.
 - Zero-authorised-branch runtime proof is **not yet executed** because doing so safely requires a dedicated staging test identity rather than altering a real employee's authority.
 
 ## Gate 5 — Private HR document migration/recovery
@@ -153,7 +166,7 @@ Read-only database inventory currently reports:
 - candidate documents: 0
 - active legacy candidate documents without private storage: 0
 
-There is therefore no legacy HR-document migration backlog in the current database. The encrypted restore/download/revocation drill remains pending because there is no existing private document sample to recover; do not fabricate business HR data just to satisfy the gate. Use a controlled staging test document when the backup/restore environment is available.
+There is therefore no legacy HR-document migration backlog in the current database. The security batch adds a fail-closed disposable recovery gate that creates a synthetic encrypted HR document, exports the disposable MariaDB database, drops it, restores the SQL backup, verifies decryption with the restored matching `eh7_document_key`, rejects a wrong key, and rejects an inactive document. This is a CI recovery simulation only; host-level backup/files restore on a controlled staging copy remains required before production.
 
 ## Gate 6 — WordPress/plugin maintenance
 

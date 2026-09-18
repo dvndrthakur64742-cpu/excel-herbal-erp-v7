@@ -15,7 +15,7 @@ final class MobileAuth{
 
  public static function user($current){
   if($current)return$current;
-  $h=$_SERVER['HTTP_AUTHORIZATION']??'';
+  $h=self::authorizationHeader();
   if(!preg_match('/^Bearer\s+(.+)$/i',$h,$m))return$current;
   $hash=hash('sha256',trim($m[1]));$db=Db::wpdb();$t=Db::table('mobile_sessions');$e=Db::table('employees');$now=gmdate('Y-m-d H:i:s');
   $row=$db->get_row($db->prepare("SELECT s.id,s.wp_user_id FROM {$t} s JOIN {$e} e ON e.id=s.employee_id AND e.wp_user_id=s.wp_user_id AND e.status='active' WHERE s.access_hash=%s AND s.revoked_at IS NULL AND s.access_expires_at>%s LIMIT 1",$hash,$now),ARRAY_A);
@@ -54,7 +54,7 @@ final class MobileAuth{
  }
 
  public static function logout():array{
-  $h=$_SERVER['HTTP_AUTHORIZATION']??'';
+  $h=self::authorizationHeader();
   if(preg_match('/^Bearer\s+(.+)$/i',$h,$m)){
    $updated=Db::wpdb()->update(Db::table('mobile_sessions'),['revoked_at'=>gmdate('Y-m-d H:i:s')],['access_hash'=>hash('sha256',trim($m[1]))]);
    if($updated===false)throw new DomainException('Logout could not revoke the mobile session.','logout_revoke_failed',500);

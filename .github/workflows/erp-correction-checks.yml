@@ -134,7 +134,8 @@ jobs:
             ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
             $clientExe = Join-Path $mariaRoot 'bin\mariadb.exe'
             $adminExe = Join-Path $mariaRoot 'bin\mariadb-admin.exe'
-            if (-not $installExe -or -not (Test-Path -LiteralPath $clientExe) -or -not (Test-Path -LiteralPath $adminExe)) {
+            $dumpExe = Join-Path $mariaRoot 'bin\mariadb-dump.exe'
+            if (-not $installExe -or -not (Test-Path -LiteralPath $clientExe) -or -not (Test-Path -LiteralPath $adminExe) -or -not (Test-Path -LiteralPath $dumpExe)) {
               throw 'MariaDB portable tools are incomplete.'
             }
 
@@ -189,12 +190,70 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_business_concurrency.php
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_recovery_security.php auth
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_recovery_security.php seed-document-recovery
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            $backupFile = Join-Path $env:RUNNER_TEMP ('eh7-recovery-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '.sql')
+            $backupErr = Join-Path $env:RUNNER_TEMP 'eh7-recovery-dump.stderr.log'
+            $restoreErr = Join-Path $env:RUNNER_TEMP 'eh7-recovery-restore.stderr.log'
+            $dumpProcess = Start-Process -FilePath $dumpExe -ArgumentList @(
+              '--host=127.0.0.1',
+              "--port=$port",
+              '--user=root',
+              "--password=$rootPassword",
+              '--single-transaction',
+              '--quick',
+              '--skip-lock-tables',
+              '--default-character-set=utf8mb4',
+              '--databases',
+              $database
+            ) -Wait -PassThru -NoNewWindow -RedirectStandardOutput $backupFile -RedirectStandardError $backupErr
+            if ($dumpProcess.ExitCode -ne 0) {
+              if (Test-Path -LiteralPath $backupErr) { Get-Content -LiteralPath $backupErr -Tail 80 }
+              throw 'Disposable recovery backup export failed.'
+            }
+            if (-not (Test-Path -LiteralPath $backupFile -PathType Leaf) -or (Get-Item -LiteralPath $backupFile).Length -lt 1024) {
+              throw 'Disposable recovery backup is missing or unexpectedly small.'
+            }
+            $backupHash = (Get-FileHash -LiteralPath $backupFile -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Host "INFO recovery_backup_sha256=$backupHash"
+
+            & $clientExe --host=127.0.0.1 "--port=$port" --user=root "--password=$rootPassword" -e "DROP DATABASE $database;"
+            if ($LASTEXITCODE -ne 0) { throw 'Disposable recovery database drop failed.' }
+
+            $restoreProcess = Start-Process -FilePath $clientExe -ArgumentList @(
+              '--host=127.0.0.1',
+              "--port=$port",
+              '--user=root',
+              "--password=$rootPassword",
+              '--default-character-set=utf8mb4'
+            ) -Wait -PassThru -NoNewWindow -RedirectStandardInput $backupFile -RedirectStandardError $restoreErr
+            if ($restoreProcess.ExitCode -ne 0) {
+              if (Test-Path -LiteralPath $restoreErr) { Get-Content -LiteralPath $restoreErr -Tail 80 }
+              throw 'Disposable recovery backup restore failed.'
+            }
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_recovery_security.php verify-document-recovery
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host 'PASS mariadb_backup_restore_roundtrip'
           }
           finally {
             $env:PHPRC = $previousPhpRc
             if ($serverProcess -and -not $serverProcess.HasExited) {
               Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
               Wait-Process -Id $serverProcess.Id -ErrorAction SilentlyContinue
+            }
+            if ($backupFile -and (Test-Path -LiteralPath $backupFile)) {
+              Remove-Item -LiteralPath $backupFile -Force -ErrorAction SilentlyContinue
+            }
+            if ($backupErr -and (Test-Path -LiteralPath $backupErr)) {
+              Remove-Item -LiteralPath $backupErr -Force -ErrorAction SilentlyContinue
+            }
+            if ($restoreErr -and (Test-Path -LiteralPath $restoreErr)) {
+              Remove-Item -LiteralPath $restoreErr -Force -ErrorAction SilentlyContinue
             }
             if (Test-Path -LiteralPath $dataDir) {
               Remove-Item -LiteralPath $dataDir -Recurse -Force -ErrorAction SilentlyContinue
