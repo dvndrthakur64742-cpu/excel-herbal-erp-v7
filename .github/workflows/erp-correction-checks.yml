@@ -244,6 +244,9 @@ jobs:
 
             & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_business_e2e_coverage2.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           finally {
             $env:PHPRC = $previousPhpRc
