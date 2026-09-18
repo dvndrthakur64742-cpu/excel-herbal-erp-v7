@@ -10,6 +10,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/module_workspace.dart';
 import '../common/record_detail_screen.dart';
 
 class OrganizationScreen extends ConsumerStatefulWidget {
@@ -57,17 +58,41 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
           ),
         ),
-        body: Column(
-          children: [
-            if (message != null)
+        body: SafeArea(
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: Text(message!),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: ModuleWorkspaceHeader(
+                  title: 'Organization & Masters',
+                  subtitle:
+                      'Branches, employees and product masters in one authorised workspace.',
+                  icon: Icons.corporate_fare_outlined,
+                  contextLabel: app.currentBranchName,
+                ),
               ),
-            Expanded(
-              child: TabBarView(children: [for (final tab in tabs) tab.$2]),
-            ),
-          ],
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: BranchSelector(),
+              ),
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: ModuleMessageBanner(message: message!),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: ModuleSectionHeader(
+                  title: 'Master Data Workspace',
+                  subtitle:
+                      'Use the tabs below to manage authorised organization records.',
+                ),
+              ),
+              Expanded(
+                child: TabBarView(children: [for (final tab in tabs) tab.$2]),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -170,7 +195,6 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
   Widget _employeesTab(AppState app, dynamic api) {
     return Column(
       children: [
-        const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
         if (app.can('organization.employee.manage'))
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
