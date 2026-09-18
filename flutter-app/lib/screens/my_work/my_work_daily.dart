@@ -361,13 +361,13 @@ extension _MyWorkDaily on _MyWorkScreenState {
     final api = ref.read(apiClientProvider);
     if (app.currentBranchId == null) {
       if (mounted) {
-        setState(() => message = 'Authorised Branch select karein.');
+        _setFeatureState(() => message = 'Authorised Branch select karein.');
       }
       return;
     }
     if (!app.can('daily_order.self') && !app.can('daily_order.others')) {
       if (mounted) {
-        setState(
+        _setFeatureState(
           () => message =
               'Daily Order create karne ki permission aapke role mein nahi hai.',
         );
@@ -375,7 +375,7 @@ extension _MyWorkDaily on _MyWorkScreenState {
       return;
     }
     if (mounted) {
-      setState(() {
+      _setFeatureState(() {
         _dailyOrderOpening = true;
         message = 'Daily Order form load ho raha hai...';
       });
@@ -557,7 +557,7 @@ extension _MyWorkDaily on _MyWorkScreenState {
       if (mode == null) {
         for (final c in qty.values) c.dispose();
         if (mounted) {
-          setState(() => message = null);
+          _setFeatureState(() => message = null);
         }
         return;
       }
@@ -589,7 +589,7 @@ extension _MyWorkDaily on _MyWorkScreenState {
         );
       }
       if (mounted) {
-        setState(() {
+        _setFeatureState(() {
           refresh++;
           message = mode == 'submit'
               ? 'Daily Order submitted for approval.'
@@ -597,10 +597,10 @@ extension _MyWorkDaily on _MyWorkScreenState {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
+      if (mounted) _setFeatureState(() => message = UiError.message(e));
     } finally {
       if (mounted && _dailyOrderOpening) {
-        setState(() => _dailyOrderOpening = false);
+        _setFeatureState(() => _dailyOrderOpening = false);
       }
     }
   }
@@ -662,9 +662,9 @@ extension _MyWorkDaily on _MyWorkScreenState {
         await _finalPost(id);
         return;
       }
-      if (mounted) setState(() => refresh++);
+      if (mounted) _setFeatureState(() => refresh++);
     } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
+      if (mounted) _setFeatureState(() => message = UiError.message(e));
     }
   }
 
@@ -830,7 +830,7 @@ extension _MyWorkDaily on _MyWorkScreenState {
         }
         await api.post(ApiPaths.dailyAdditional(id), data: {'lines': lines});
         if (mounted) {
-          setState(() {
+          _setFeatureState(() {
             refresh++;
             message = 'Additional requirement submitted for approval.';
           });
@@ -1026,7 +1026,7 @@ extension _MyWorkDaily on _MyWorkScreenState {
         data: {'allocations': allocations},
       );
       if (mounted) {
-        setState(() {
+        _setFeatureState(() {
           refresh++;
           message = 'Stock issued successfully. Evening Closing is pending.';
         });
@@ -1676,7 +1676,7 @@ extension _MyWorkDaily on _MyWorkScreenState {
         await api.post(ApiPaths.eveningSubmit(id), data: const {});
       }
       if (mounted) {
-        setState(() {
+        _setFeatureState(() {
           refresh++;
           message = mode == 'submit'
               ? 'Evening submitted. Final Post pending.'
@@ -2051,7 +2051,7 @@ extension _MyWorkDaily on _MyWorkScreenState {
         }
         await api.post(ApiPaths.finalPost(id), data: {'cash': c, 'upi': u});
         if (mounted) {
-          setState(() {
+          _setFeatureState(() {
             refresh++;
             message = 'Daily Order completed and posted.';
           });
@@ -2345,7 +2345,7 @@ extension _MyWorkDaily on _MyWorkScreenState {
         ),
       );
     } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
+      if (mounted) _setFeatureState(() => message = UiError.message(e));
     }
   }
 
@@ -2383,12 +2383,6 @@ extension _MyWorkDaily on _MyWorkScreenState {
         ],
       );
 
-  String _requestTypeText(String type) => switch (type) {
-        'initial' => 'Morning Order',
-        'additional' => 'Additional Order',
-        'replacement' => 'Replacement Order',
-        _ => BusinessFormat.displayName(type.replaceAll('_', ' ')),
-      }
   String _requestTypeText(String type) => switch (type) {
         'initial' => 'Morning Order',
         'additional' => 'Additional Order',
