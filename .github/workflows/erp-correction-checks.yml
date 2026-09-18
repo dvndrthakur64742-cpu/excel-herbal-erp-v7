@@ -16,7 +16,7 @@ jobs:
   php-regression:
     if: github.ref == 'refs/heads/codex/erp735-document-integration'
     runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Locate or install verified PHP 8.3.33 toolcache
@@ -86,6 +86,112 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Cached Python failed to start.' }
           & $pythonExe backend/excel-herbal-erp-v7/tests/static_checks.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Disposable MariaDB 11.8.9 integration
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $toolRoot = 'C:\actions-runner\eh7-toolcache'
+          $mariaRoot = Join-Path $toolRoot 'mariadb-11.8.9'
+          $serverExe = Join-Path $mariaRoot 'bin\mariadbd.exe'
+          $serverProcess = $null
+          $dataDir = Join-Path $env:RUNNER_TEMP ('eh7-mariadb-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          $serverOut = Join-Path $env:RUNNER_TEMP 'eh7-mariadb.stdout.log'
+          $serverErr = Join-Path $env:RUNNER_TEMP 'eh7-mariadb.stderr.log'
+          $previousPhpRc = $env:PHPRC
+          try {
+            if (-not (Test-Path -LiteralPath $serverExe -PathType Leaf)) {
+              New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
+              if (Test-Path -LiteralPath $mariaRoot) { Remove-Item -LiteralPath $mariaRoot -Recurse -Force }
+              $metadata = Invoke-RestMethod -UseBasicParsing -Uri 'https://downloads.mariadb.org/rest-api/mariadb/11.8.9/'
+              $release = $metadata.releases.'11.8.9'
+              if (-not $release) { throw 'MariaDB 11.8.9 metadata was not returned by the official download API.' }
+              $file = $release.files | Where-Object { $_.file_name -eq 'mariadb-11.8.9-winx64.zip' } | Select-Object -First 1
+              if (-not $file -or -not $file.checksum.sha256sum) { throw 'MariaDB Windows ZIP or SHA-256 metadata is missing.' }
+              $archive = Join-Path $env:RUNNER_TEMP 'mariadb-11.8.9-winx64.zip'
+              Invoke-WebRequest -UseBasicParsing -Uri 'https://downloads.mariadb.org/rest-api/mariadb/11.8.9/mariadb-11.8.9-winx64.zip' -OutFile $archive
+              $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+              $expected = ([string]$file.checksum.sha256sum).ToLowerInvariant()
+              if ($actual -ne $expected) { throw 'MariaDB archive checksum mismatch.' }
+              $extractRoot = Join-Path $env:RUNNER_TEMP 'eh7-mariadb-extract'
+              if (Test-Path -LiteralPath $extractRoot) { Remove-Item -LiteralPath $extractRoot -Recurse -Force }
+              Expand-Archive -LiteralPath $archive -DestinationPath $extractRoot -Force
+              $found = Get-ChildItem -LiteralPath $extractRoot -Recurse -Filter mariadbd.exe -File | Select-Object -First 1
+              if (-not $found) { throw 'mariadbd.exe was not found in the verified MariaDB archive.' }
+              $expandedRoot = Split-Path (Split-Path $found.FullName -Parent) -Parent
+              Move-Item -LiteralPath $expandedRoot -Destination $mariaRoot
+              $serverExe = Join-Path $mariaRoot 'bin\mariadbd.exe'
+            }
+
+            $installExe = @(
+              (Join-Path $mariaRoot 'bin\mariadb-install-db.exe'),
+              (Join-Path $mariaRoot 'bin\mysql_install_db.exe')
+            ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+            $clientExe = Join-Path $mariaRoot 'bin\mariadb.exe'
+            $adminExe = Join-Path $mariaRoot 'bin\mariadb-admin.exe'
+            if (-not $installExe -or -not (Test-Path -LiteralPath $clientExe) -or -not (Test-Path -LiteralPath $adminExe)) {
+              throw 'MariaDB portable tools are incomplete.'
+            }
+
+            if (Test-Path -LiteralPath $dataDir) { Remove-Item -LiteralPath $dataDir -Recurse -Force }
+            $port = Get-Random -Minimum 34000 -Maximum 34999
+            $rootPassword = [guid]::NewGuid().ToString('N')
+            & $installExe "--datadir=$dataDir" "--password=$rootPassword" "--port=$port" --allow-remote-root-access
+            if ($LASTEXITCODE -ne 0) { throw 'MariaDB temporary data directory initialization failed.' }
+            $defaultsFile = Join-Path $dataDir 'my.ini'
+            if (-not (Test-Path -LiteralPath $defaultsFile -PathType Leaf)) { throw 'MariaDB temporary my.ini was not generated.' }
+
+            $serverProcess = Start-Process -FilePath $serverExe -ArgumentList @(
+              "--defaults-file=$defaultsFile",
+              '--console',
+              '--bind-address=127.0.0.1'
+            ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $serverOut -RedirectStandardError $serverErr
+
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 60; $attempt++) {
+              Start-Sleep -Seconds 1
+              if ($serverProcess.HasExited) { break }
+              & $adminExe --host=127.0.0.1 "--port=$port" --user=root "--password=$rootPassword" ping --silent 2>$null
+              if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+            }
+            if (-not $ready) {
+              if (Test-Path -LiteralPath $serverErr) { Get-Content -LiteralPath $serverErr -Tail 80 }
+              throw 'Disposable MariaDB server did not become ready.'
+            }
+
+            $database = 'eh7_integration_' + $env:GITHUB_RUN_ID + '_' + $env:GITHUB_RUN_ATTEMPT
+            & $clientExe --host=127.0.0.1 "--port=$port" --user=root "--password=$rootPassword" -e "CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+            if ($LASTEXITCODE -ne 0) { throw 'Disposable integration database could not be created.' }
+
+            $env:EH7_MARIADB_HOST = '127.0.0.1'
+            $env:EH7_MARIADB_PORT = [string]$port
+            $env:EH7_MARIADB_USER = 'root'
+            $env:EH7_MARIADB_PASSWORD = $rootPassword
+            $env:EH7_MARIADB_DATABASE = $database
+
+            $phpDir = Split-Path $env:EH7_PHP_EXE -Parent
+            $extensionDir = (Join-Path $phpDir 'ext').Replace('\','/')
+            $phpIni = Join-Path $env:RUNNER_TEMP 'eh7-mariadb-php.ini'
+            @(
+              ('extension_dir="' + $extensionDir + '"'),
+              'extension=mysqli'
+            ) | Set-Content -LiteralPath $phpIni -Encoding ascii
+            $env:PHPRC = $phpIni
+            & $env:EH7_PHP_EXE -r "if (!extension_loaded('mysqli')) { fwrite(STDERR, 'mysqli extension unavailable'); exit(7); }"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_mariadb.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          finally {
+            $env:PHPRC = $previousPhpRc
+            if ($serverProcess -and -not $serverProcess.HasExited) {
+              Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
+              Wait-Process -Id $serverProcess.Id -ErrorAction SilentlyContinue
+            }
+            if (Test-Path -LiteralPath $dataDir) {
+              Remove-Item -LiteralPath $dataDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
   flutter-integration:
     if: github.ref == 'refs/heads/codex/erp735-document-integration'
     runs-on: [self-hosted, Windows, X64]
