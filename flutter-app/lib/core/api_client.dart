@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'api_paths.dart';
 import 'app_config.dart';
 import 'document_download.dart';
+import 'mutation_fingerprint.dart';
 import 'secure_session.dart';
 
 class ApiException implements Exception {
@@ -264,7 +265,12 @@ class ApiClient {
     String? fingerprint;
     String? mutationKey;
     if (idempotent && method != 'GET') {
-      fingerprint = _mutationFingerprint(method, path, data);
+      fingerprint = buildMutationFingerprint(
+        method,
+        path,
+        query: query,
+        data: data,
+      );
       final retained = retainedMutationKey == null
           ? await _loadRetainedMutation(fingerprint)
           : null;
@@ -446,24 +452,6 @@ class ApiClient {
 
   String _mutationJournalKey(String fingerprint) =>
       sha256.convert(utf8.encode(fingerprint)).toString();
-
-  String _mutationFingerprint(
-    String method,
-    String path,
-    Map<String, dynamic>? data,
-  ) =>
-      '$method|$path|${jsonEncode(_canonical(data ?? const <String, dynamic>{}))}';
-
-  dynamic _canonical(dynamic value) {
-    if (value is Map) {
-      final keys = value.keys.map((key) => '$key').toList()..sort();
-      return {for (final key in keys) key: _canonical(value[key])};
-    }
-    if (value is List) {
-      return value.map(_canonical).toList(growable: false);
-    }
-    return value;
-  }
 
   String _requestKey() =>
       '${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 31)}';
