@@ -241,6 +241,9 @@ jobs:
             & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_recovery_security.php verify-document-recovery
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             Write-Host 'PASS mariadb_backup_restore_roundtrip'
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           finally {
             $env:PHPRC = $previousPhpRc
