@@ -28,7 +28,7 @@ print(f'PASS lexical delimiter scan: {len(files)} PHP files (NOT PHP lint)')
 s=(root/'src/Http/RouteRegistry.php').read_text()
 rows=re.findall(r"\['(GET|POST)','([^']+)','([^']+)',(true|false)\]",s)
 assert len(rows)==len(set((r[0],r[1]) for r in rows)),'duplicate routes'
-api=(root/'src/Http/Api.php').read_text()
+api=(root/'src/Http/Api.php').read_text()+(root/'src/Http/ApiDispatch.php').read_text()
 assert all("'"+handler+"'=>" in api for _,_,handler,_ in rows),'missing dispatch handler'
 print(f'PASS {len(rows)} unique route definitions and dispatch mappings')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
