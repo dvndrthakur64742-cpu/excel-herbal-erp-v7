@@ -321,12 +321,6 @@ extension _MyWorkDailyDetailImpl on _MyWorkScreenState {
         ],
       );
 
-  String _MyWorkDaily(this)._requestTypeText(String type) => switch (type) {
-        'initial' => 'Morning Order',
-        'additional' => 'Additional Order',
-        'replacement' => 'Replacement Order',
-        _ => BusinessFormat.displayName(type.replaceAll('_', ' ')),
-      }
   String _requestTypeTextImpl(String type) => switch (type) {
         'initial' => 'Morning Order',
         'additional' => 'Additional Order',
