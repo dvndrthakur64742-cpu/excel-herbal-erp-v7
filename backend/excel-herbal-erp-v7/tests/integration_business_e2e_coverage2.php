@@ -112,8 +112,8 @@ e2_rebuild($wpdb);
 e2_seed($wpdb);
 
 $maker=e2_actor(30,[
-    Capabilities::SALES_CREATE,Capabilities::PURCHASE_CREATE,Capabilities::ADJ_CREATE,
-    Capabilities::EXPENSE_CREATE,Capabilities::REVERSAL_CREATE,Capabilities::BRANCH_CLOSE,
+    Capabilities::SALES_CREATE,Capabilities::PURCHASE_CREATE,Capabilities::ADJ_CREATE,Capabilities::ADJ_APPROVE,
+    Capabilities::EXPENSE_CREATE,Capabilities::REVERSAL_CREATE,Capabilities::REVERSAL_APPROVE,Capabilities::BRANCH_CLOSE,
 ]);
 $approver=e2_actor(20,[
     Capabilities::RECEIPT_CREATE,Capabilities::SUPPLIER_PAYMENT,Capabilities::ADJ_APPROVE,
