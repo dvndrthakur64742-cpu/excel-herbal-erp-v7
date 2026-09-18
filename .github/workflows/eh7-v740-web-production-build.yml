@@ -29,6 +29,14 @@ jobs:
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
+      - name: Verify runner is installed as a Windows service
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        run: |
+          $services = @(Get-Service 'actions.runner.*' -ErrorAction SilentlyContinue)
+          if ($services.Count -eq 0) { throw 'Production web runner must be installed as a Windows service.' }
+          if (-not ($services | Where-Object Status -eq 'Running')) { throw 'Production web runner Windows service is not running.' }
+          $services | Select-Object Name,Status,StartType | Format-Table -AutoSize
+
       - name: Bootstrap Flutter 3.44.9 from persistent cache
         run: |
           set CACHE=C:\actions-runner\eh7-toolcache
@@ -55,6 +63,14 @@ jobs:
       - name: Dependencies
         working-directory: flutter-app
         run: flutter.bat pub get
+
+      - name: Verify pinned dependency lockfile
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        working-directory: flutter-app
+        run: |
+          git diff -- pubspec.lock
+          git diff --quiet -- pubspec.lock
+          if ($LASTEXITCODE -ne 0) { throw 'pubspec.lock drifted under pinned Flutter 3.44.9.' }
 
       - name: Analyze clean source
         working-directory: flutter-app
