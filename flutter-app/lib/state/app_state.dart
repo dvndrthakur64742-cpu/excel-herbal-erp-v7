@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api_client.dart';
 import '../core/api_paths.dart';
 import '../core/app_config.dart';
+import '../core/bootstrap_projection.dart';
 import '../core/providers.dart';
 import '../core/secure_session.dart';
 import '../core/ui_error.dart';
@@ -22,34 +23,29 @@ class AppState {
   final int? currentBranchId;
   final String? error;
 
+  BootstrapProjection get projection => BootstrapProjection.fromMap(bootstrap);
+
   List<Map<String, dynamic>> get branches =>
-      ((bootstrap?['branches'] as List?) ?? const [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      projection.branches.map((branch) => branch.raw).toList(growable: false);
 
-  Map<String, dynamic> get me =>
-      Map<String, dynamic>.from((bootstrap?['me'] as Map?) ?? const {});
+  Map<String, dynamic> get me => projection.identity.raw;
 
-  Map<String, dynamic> get employee =>
-      Map<String, dynamic>.from((me['employee'] as Map?) ?? const {});
+  Map<String, dynamic> get employee => projection.identity.employee.raw;
 
-  Map<String, dynamic> get company =>
-      Map<String, dynamic>.from((bootstrap?['company'] as Map?) ?? const {});
+  Map<String, dynamic> get company => projection.company.raw;
 
-  String get companyName => '${company['name'] ?? 'ERP Company'}'.trim().isEmpty
-      ? 'ERP Company'
-      : '${company['name']}'.trim();
+  String get companyName => projection.company.name;
 
   String get employeeName {
-    final name = '${employee['full_name'] ?? ''}'.trim();
+    final name = projection.identity.employee.fullName;
     return name.isEmpty ? 'ERP User' : name;
   }
 
   String get primaryDesignationCode =>
-      '${employee['designation_code'] ?? ''}'.trim();
+      projection.identity.employee.designationCode;
 
   String get primaryDesignationName {
-    final name = '${employee['designation_name'] ?? ''}'.trim();
+    final name = projection.identity.employee.designationName;
     return name.isNotEmpty ? name : primaryDesignationCode;
   }
 
@@ -64,7 +60,7 @@ class AppState {
   /// Reporting category is a dashboard/reporting grouping only. It must never
   /// be treated as a permission or branch-authority source on the client.
   String get reportingCategory =>
-      '${employee['reporting_category'] ?? ''}'.trim();
+      projection.identity.employee.reportingCategory;
 
   List<Map<String, dynamic>> get additionalDesignations =>
       ((employee['additional_designations'] as List?) ?? const [])
@@ -75,8 +71,7 @@ class AppState {
   bool get additionalDesignationAuthorityInherited =>
       employee['additional_designations_authority_inherited'] == true;
 
-  bool get businessAccessBlocked =>
-      ((me['branch_ids'] as List?) ?? const []).isEmpty;
+  bool get businessAccessBlocked => projection.identity.branchIds.isEmpty;
 
   /// A management summary is only appropriate when the server projected the
   /// Team workspace and the actor also has report authority. reports.view by
@@ -98,11 +93,8 @@ class AppState {
   String get currentBranchName {
     if (businessAccessBlocked) return 'No Authorised Branch';
     if (currentBranchId == null) return 'All Authorised Branches';
-    for (final branch in branches) {
-      if (int.tryParse('${branch['id']}') == currentBranchId) {
-        final name = '${branch['name'] ?? branch['code'] ?? ''}'.trim();
-        if (name.isNotEmpty) return name;
-      }
+    for (final branch in projection.branches) {
+      if (branch.id == currentBranchId) return branch.label;
     }
     return 'Authorised Branch';
   }
@@ -138,8 +130,7 @@ class AppState {
   }
 
   String get businessMonthStart => '${businessDate.substring(0, 8)}01';
-  List<String> get capabilities =>
-      ((me['capabilities'] as List?) ?? const []).map((e) => '$e').toList();
+  List<String> get capabilities => projection.identity.capabilities;
 
   /// No branch authority means no business capability may be exercised on the
   /// client. The raw server projection remains inspectable through
@@ -175,7 +166,8 @@ class AppState {
   }
 
   bool get branchSelectorVisible =>
-      branches.length > 1 && me['branch_selector_visible'] == true;
+      projection.branches.length > 1 &&
+      projection.identity.branchSelectorVisible;
 
   List<Map<String, dynamic>> get sections {
     final projected =
@@ -236,13 +228,9 @@ class AppController extends StateNotifier<AppState> {
       final data = Map<String, dynamic>.from(
         await api.get(ApiPaths.bootstrap) as Map,
       );
-      final me = Map<String, dynamic>.from(data['me'] as Map);
-      final ids = ((me['branch_ids'] as List?) ?? const [])
-          .map((e) => int.tryParse('$e'))
-          .whereType<int>()
-          .toSet()
-          .toList();
-      final assigned = int.tryParse('${me['assigned_branch_id'] ?? ''}');
+      final projection = BootstrapProjection.fromMap(data);
+      final ids = projection.identity.branchIds;
+      final assigned = projection.identity.assignedBranchId;
       final current =
           state.currentBranchId != null && ids.contains(state.currentBranchId)
           ? state.currentBranchId
@@ -282,10 +270,7 @@ class AppController extends StateNotifier<AppState> {
   }
 
   void selectBranch(int id) {
-    final ids = state.branches
-        .map((e) => int.tryParse('${e['id']}'))
-        .whereType<int>()
-        .toSet();
+    final ids = state.projection.branches.map((branch) => branch.id).toSet();
     if (ids.contains(id)) {
       state = state.copyWith(currentBranchId: id, clearError: true);
     }
