@@ -134,97 +134,248 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     );
   }
 
--$refresh'),
-              future: api.get(
-                ApiPaths.trialBalance,
-                query: {
-                  'to': app.businessDate,
-                  if (app.currentBranchId != null)
-                    'branch_id': app.currentBranchId,
-                },
+
+  Widget _expenses(AppState app, dynamic api) {
+    if (app.currentBranchId == null)
+      return const Center(child: Text('Branch select karein.'));
+    return Column(
+      children: [
+        if (app.can('finance.expense.create'))
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: _expense,
+                icon: const Icon(Icons.add_card_outlined),
+                label: const Text('New Expense'),
               ),
-              builder: (context, data) =>
-                  RecordsList(recordType: 'trial_balance', rows: _rows(data)),
             ),
           ),
-        ],
+        Expanded(
+          child: AsyncPanel(
+            key: ValueKey('expenses-${app.currentBranchId}-$refresh'),
+            future: api.get(
+              ApiPaths.expenses,
+              query: {'branch_id': app.currentBranchId},
+            ),
+            emptyMessage: 'Koi expense record nahi hai.',
+            builder: (context, data) => RecordsList(
+              recordType: 'expense',
+              rows: _rows(data),
+              onTap: _expenseAction,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _closing(AppState app, dynamic api) {
+    if (app.currentBranchId == null)
+      return const Center(child: Text('Branch select karein.'));
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (app.can('finance.bra
+    if (!app.can('finance.period.manage'))
+      return const Center(
+        child: Text(
+          'Accounting Period control aapke role ke liye authorised nahi hai.',
+        ),
       );
-
-
-
-
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              onPressed: _closePeriod,
+              icon: const Icon(Icons.calendar_month_outlined),
+              label: const Text('Close Accounting Period'),
+            ),
+          ),
+        ),
+        Expanded(
+          child: AsyncPanel(
+            key: ValueKey('periods-$refresh'),
+            future: api.get(ApiPaths.periods),
+            emptyMessage: 'Koi accounting period record nahi hai.',
+            builder: (context, data) => RecordsList(
+              recordType: 'accounting_period',
+              rows: _rows(data),
+              onTap: _periodAction,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   List<Map<String, dynamic>> _rows(dynamic data) =>
-      (data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  Future<void> _reasonPost(String path, String title) async {
-    final reason = await _askReason(title);
-    if (reason == null) return;
-    await _post(path, {'reason': reason}, closeSheet: false);
+      (data as List).map((e) => Map<String, dy Head',
+                    ),
+                    items: heads
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: int.parse('${e['id']}'),
+                            child: Text('${e['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setLocal(() => head = v),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<int>(
+                    initialValue: account,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment Account',
+                    ),
+                    items: accounts
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: int.parse('${e['id']}'),
+                            child: Text('${e['code']} · ${e['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setLocal(() => account = v),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: amount,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Amount'),
+                    if (guardError != null) throw Exception(guardError);
+        await api.post(
+          ApiPaths.expenses,
+          data: {
+            'branch_id': app.currentBranchId,
+            'expense_head_id': head,
+            'amount': expenseAmount,
+            'payment_account_id': account,
+            'expense_date': app.businessDate,
+            'description': desc.text.trim(),
+          },
+        );
+        if (mounted)
+          setState(() {
+            message = 'Expense approval ke liye submit ho gaya.';
+            refresh++;
+          });
+      }
+      amount.dispose();
+      desc.dispose();
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
   }
 
-  Future<String?> _askReason(String title) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
+  void _expenseAction(Map<String, dynamic> row) {
+    final app = ref.read(appStateProvider);
+    if ('${row['status']}' != 'pending' || !app.can('finance.expense.approve'))
+      return;
+    final id = int.parse('${row['id']}');
+    showModalBottomSheet<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          minLines: 2,
-          maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Reason'),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(title: Text('${row['expense_head']} · ₹${row['amount']}')),
+            ListTile(subtitle: Text('${row['description'] ?? ''}')),
+            ListTile(
+              leading: const Icon(Icons.check_circle_outline),
+              title: const Text('Approve'),
+              onTap: () =>
+                  _post(ApiPaths.expenseDecision(id), {'approve': true}),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel_outlined),
+              title: const Text('Reject'),
+              onTap: () =>
+                  _post(ApiPaths.expenseDecision(id), {'approve': false}),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final v = controller.text.trim();
-              if (v.length >= 5) Navigator.pop(context, v);
-            },
-            child: const Text('Confirm'),
-          ),
-        ],
       ),
     );
-    controller.dispose();
-    return result;
   }
 
-  Future<void> _post(
-    String path,
-    Map<String, dynamic> data, {
-    bool closeSheet = true,
-  }) async {
-    if (closeSheet) {
-      final closed = await OverlayTransition.closeAndSettle(context);
-      if (!closed || !mounted) return;
-    }
+  Future<void> _preflight() async {
+    final app = ref.read(appStateProvider);
     try {
-      final r = await ref.read(apiClientProvider).post(path, data: data);
+      final r = await ref.read(apiClientProvider).get(
+        ApiPaths.closingPreflight,
+        query: {
+          'branch_id': app.currentBranchId,
+          'business_date': app.businessDate,
+        },
+      );
+      if (mounted) setState(() => message = 'Preflight: $r');
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _closingDraft() async {
+    final app = ref.read(appStateProvider);
+    try {
+      final r = await ref.read(apiClientProvider).post(
+        ApiPaths.branchClosing,
+        data: {
+          'branch_id': app.currentBranchId,
+          'business_date': app.businessDate,
+        },
+      );
       if (mounted)
         setState(() {
-          message = 'Done: $r';
+          message = 'Closing draft #${(r as Map)['id']} created.';
           refresh++;
         });
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
   }
-}
+
+  void _closingAction(Map<String, dynamic> row) {
+    final app = ref.read(appStateProvider);
+    final id = int.parse('${row['id']}');
+    final status = '${row['status']}';
+    if (status == 'draft' && app.can('finance.branch_close')) {
+      showModalBottomSheet<void>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(title: Text('Closing #$id · ${row['business_date']}')),
+              ListTile(
+                leading: const Icon(Icons.lock_outline),
+                title: const Text('Close Branch Day'),
+                onTap: () => _post(ApiPaths.closingClose(id), const {}),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (status == 'closed' && app.can('finance.branch_reopen')) {
+      _reasonPost(ApiPaths.closingReopen(id), 'Branch reopen reason');
+    }
+  }
+
+
+
+
+
+  Future<void> _closePeriod() async {
+    final app = ref.read(appStateProvider);
+    final from = TextEditingController(text: app.businessMonthStart);
+    final to = TextEditingController(text: app.businessDate);
+    final ok = await showDia
