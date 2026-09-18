@@ -143,7 +143,7 @@ final class Eh7IntegrationWpdb {
 
     private function ident(string $value): string {
         if (!preg_match('/^[A-Za-z0-9_]+$/', $value)) throw new RuntimeException('Unsafe SQL identifier.');
-        return '\`'.$value.'\`';
+        return '`'.$value.'`';
     }
 }
 
@@ -168,7 +168,7 @@ function eh7_setup_global_db(): Eh7IntegrationWpdb {
 
 function eh7_schema(Eh7IntegrationWpdb $db): void {
     foreach (['wp_eh7_integration_probe', 'wp_eh7_idempotency_keys'] as $table) {
-        if ($db->query('DROP TABLE IF EXISTS \`'.$table.'\`') === false) throw new RuntimeException($db->last_error);
+        if ($db->query('DROP TABLE IF EXISTS `'.$table.'`') === false) throw new RuntimeException($db->last_error);
     }
     $sql = [
         "CREATE TABLE wp_eh7_idempotency_keys (
