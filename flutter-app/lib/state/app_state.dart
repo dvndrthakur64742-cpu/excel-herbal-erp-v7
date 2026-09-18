@@ -111,7 +111,7 @@ class AppState {
   /// Invalid calendar dates are rejected instead of silently normalised.
   String? get serverBusinessDate {
     final raw = '${bootstrap?['business_date'] ?? ''}'.trim();
-    if (!RegExp(r'^\\d{4}-\\d{2}-\\d{2}$').hasMatch(raw)) return null;
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(raw)) return null;
     final parsed = DateTime.tryParse('${raw}T00:00:00Z');
     if (parsed == null) return null;
     final normalized =
