@@ -165,6 +165,8 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
 
 
 
+  void _setFeatureState(VoidCallback update) => setState(update);
+
   Widget _feedbackBanner(String text) {
     final lower = text.toLowerCase();
     final isError = lower.contains('required') ||
@@ -243,10 +245,4 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     }
     return null;
   }
-
-
-
-
-
-
-
+}
