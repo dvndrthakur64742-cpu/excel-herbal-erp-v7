@@ -13,7 +13,8 @@ void main() {
     expect(performance, contains('if (AppConfig.isUat &&'));
     expect(performance, contains("'Compensation'"));
     expect(config, contains("defaultValue: 'uat'"));
-    expect(config, contains("static const bool isUat = environment != 'production';"));
+    expect(config, contains("static const bool isProduction = environment == 'production';"));
+    expect(config, contains('static const bool isUat = !isProduction;'));
   });
 
   test('performance target action follows create then approve backend contract', () {
