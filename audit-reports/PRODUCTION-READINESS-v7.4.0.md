@@ -330,6 +330,16 @@ No live session, business row, plugin, theme, configuration, PR merge or product
 
 Remaining required manual gates are tracked in `release-gates/v7.4.0.json`: host backup/restore, environment hardening, real HTTPS Bearer/401/403, physical Android/GPS, real multipart HR private-document drill, business report review, and operational/HR/Accounts pilot sign-off.
 
+### P6.1 controlled-staging/auth-smoke preparation — 2026-09-18
+
+Further read-only host evidence confirms Hostinger Premium Web Hosting, a 277.62 MB WordPress footprint with a 68.36 MB database, clean WordPress core checksums, healthy cron/loopback/HTTPS, MariaDB READ-COMMITTED and 1 GiB max_allowed_packet. WordPress 7.1.1 is available; automatic background updates are effectively disabled and require an explicit patch-management decision after backup proof.
+
+Premium does not include Hostinger's built-in one-click WordPress staging tool, so the controlled UAT plan is to use Hostinger Copy Website to a fresh subdomain/temporary domain after a current full backup is confirmed. No copy or backup mutation was performed from this audit.
+
+A new manual workflow, `EH7 v7.4.0 Staging HTTPS Auth Smoke`, is prepared to certify missing/invalid-token 401, real Bearer `/me`, refresh rotation, old-token rejection, limited-user 403 and logout revocation on that controlled staging copy. It blocks the office target by default and uses GitHub secrets for UAT credentials.
+
+Application-password introspection succeeds on office and Hostinger does not disable application-password authentication. A Site Health “authorization header is invalid” response observed through the already-authenticated WPVibe connection is not treated as a Bearer failure: WordPress distinguishes that from a missing header, and the WPVibe request supplies its own credentials. The real Bearer gate remains pending until the dedicated staging workflow runs.
+
 ## Release decision
 
 Production release is allowed only when Gates 1-9 have evidence and the final production deployment receives explicit approval. Until then the PR stays draft and no production deployment/database mutation is authorised.

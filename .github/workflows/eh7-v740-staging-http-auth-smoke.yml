@@ -1,0 +1,78 @@
+name: EH7 v7.4.0 Staging HTTPS Auth Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_api_base_url:
+        description: 'Controlled staging ERP API base URL ending in /wp-json/excel-herbal-erp/v7'
+        required: true
+        type: string
+      forbidden_probe_path:
+        description: 'GET route that the limited UAT identity must be forbidden from accessing'
+        required: true
+        default: '/finance/bootstrap'
+        type: string
+      allow_office_target:
+        description: 'Explicitly allow office.excelherbal.in (keep false until backup/restore proof exists)'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+
+jobs:
+  staging-https-auth:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate staging target and required secrets
+        env:
+          STAGING_API: ${{ inputs.staging_api_base_url }}
+          ALLOW_OFFICE: ${{ inputs.allow_office_target }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+          LIMITED_MOBILE: ${{ secrets.EH7_STAGING_LIMITED_MOBILE }}
+          LIMITED_PASSWORD: ${{ secrets.EH7_STAGING_LIMITED_PASSWORD }}
+        run: |
+          $uri = [Uri]$env:STAGING_API
+          if ($uri.Scheme -ne 'https') { throw 'Staging API must use HTTPS.' }
+          if (-not $uri.AbsolutePath.TrimEnd('/').EndsWith('/wp-json/excel-herbal-erp/v7')) { throw 'Invalid staging API path.' }
+          if ($uri.Host -ieq 'office.excelherbal.in' -and $env:ALLOW_OFFICE -ne 'true') {
+            throw 'Office target is blocked by default. Use a controlled staging copy.'
+          }
+          foreach ($name in @('UAT_MOBILE','UAT_PASSWORD','LIMITED_MOBILE','LIMITED_PASSWORD')) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) { throw "Required GitHub secret is missing: $name" }
+          }
+          "EH7_STAGING_API=$($uri.AbsoluteUri.TrimEnd('/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Real HTTPS Bearer 401/403/rotation/revocation smoke
+        env:
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+          LIMITED_MOBILE: ${{ secrets.EH7_STAGING_LIMITED_MOBILE }}
+          LIMITED_PASSWORD: ${{ secrets.EH7_STAGING_LIMITED_PASSWORD }}
+          FORBIDDEN_PATH: ${{ inputs.forbidden_probe_path }}
+        run: |
+          & '.github/scripts/staging-http-auth-smoke.ps1' `
+            -ApiBase $env:EH7_STAGING_API `
+            -Mobile $env:UAT_MOBILE `
+            -Password $env:UAT_PASSWORD `
+            -LimitedMobile $env:LIMITED_MOBILE `
+            -LimitedPassword $env:LIMITED_PASSWORD `
+            -ForbiddenProbePath $env:FORBIDDEN_PATH
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload auth-smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-v7.4.0-Staging-HTTPS-Auth-Evidence
+          path: dist/staging-http-auth-smoke/EVIDENCE.json
+          if-no-files-found: warn

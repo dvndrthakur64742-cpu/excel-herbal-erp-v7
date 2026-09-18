@@ -15,22 +15,40 @@
       "id": "host_backup_restore",
       "required": true,
       "status": "blocked",
-      "evidence": [],
-      "note": "No connected host-level backup/staging capability. Require full database + plugin/files backup, independent protected eh7_document_key backup, and proved restore on controlled staging."
+      "evidence": [
+        "office-audit:hostinger-premium-plan",
+        "office-audit:site-total-277.62MB-db-68.36MB",
+        "hostinger-docs:backups-available",
+        "hostinger-docs:copy-website-premium-supported",
+        "hostinger-docs:built-in-staging-business-plus"
+      ],
+      "note": "Connected host is Hostinger Premium Web Hosting. Built-in one-click WordPress staging requires Business or higher; use Hostinger Copy Website to a new subdomain/temporary domain after downloading/confirming a full files+database backup. Prove restore and protect eh7_document_key with the matching database snapshot."
     },
     {
       "id": "environment_hardening",
       "required": true,
       "status": "blocked",
-      "evidence": [],
-      "note": "WP_ENVIRONMENT_TYPE and DISALLOW_FILE_EDIT are not explicitly defined. Apply only after backup/restore proof and according to actual staging/production role."
+      "evidence": [
+        "office-audit:wp-environment-type-undefined",
+        "office-audit:disallow-file-edit-undefined",
+        "office-audit:core-checksums-pass-3338-files",
+        "office-audit:cron-spawn-200",
+        "office-audit:background-updates-critical-disabled",
+        "office-audit:wordpress-7.1.1-update-available",
+        "office-audit:mariadb-read-committed-max-packet-1GiB"
+      ],
+      "note": "WP_ENVIRONMENT_TYPE and DISALLOW_FILE_EDIT are not explicitly defined. WordPress core checksums pass and loopback/cron are healthy, but Site Health reports background automatic updates disabled and WordPress 7.1.1 is available. After backup/restore proof, explicitly set environment/file-edit policy and document the intentional patch/update process."
     },
     {
       "id": "real_http_bearer_401_403",
       "required": true,
       "status": "pending",
-      "evidence": [],
-      "note": "Need dedicated UAT identity over real HTTPS: login, Bearer GET, refresh rotation, invalid/expired 401, insufficient-scope 403, logout/revocation."
+      "evidence": [
+        "office-audit:application-password-introspection-success",
+        "office-audit:disable-authentication-password=false",
+        "repo-workflow:eh7-v740-staging-http-auth-smoke.yml"
+      ],
+      "note": "Real Bearer behavior still requires controlled staging. WordPress Application Password introspection succeeds and Hostinger's disable-application-password setting is false, proving the connected Basic-auth path works; this does not certify mobile Bearer forwarding. Run EH7 v7.4.0 Staging HTTPS Auth Smoke with dedicated full and limited UAT identities."
     },
     {
       "id": "android_physical_gps",

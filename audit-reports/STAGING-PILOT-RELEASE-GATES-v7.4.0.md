@@ -21,7 +21,7 @@ Connected office environment was inspected read-only:
 - Existing active mobile sessions are present; no session was created, refreshed, revoked or mutated by this audit.
 - No production/office database write, plugin update, theme publish, merge or deployment was performed.
 
-The connected WPVibe REST client authenticates through its WordPress connection. It can prove that protected ERP routes are reachable for an authorised WordPress identity, but it **cannot** prove real mobile Bearer forwarding or unauthenticated/expired-token 401 behaviour. That gate remains pending.
+The connected WPVibe REST client authenticates through a WordPress Application Password. Application-password introspection succeeds and Hostinger Tools reports application-password authentication is enabled. WordPress Site Health returned “authorization header is invalid” when called through WPVibe; WordPress core defines **invalid** as credentials being present but different from its synthetic `user:pwd` test credentials, whereas **missing** is the header-forwarding failure. Therefore that WPVibe call is not evidence of Bearer failure or success. Real mobile Bearer forwarding and unauthenticated/expired-token behavior still require the dedicated staging smoke.
 
 ## Machine-enforced release policy
 
@@ -37,6 +37,10 @@ Both production Web and Android workflows must run the verifier in `production` 
 ## Gate sequence
 
 ### 1. Host backup + restore proof — BLOCKED
+
+Current host plan is **Hostinger Premium Web Hosting**. Hostinger's built-in one-click WordPress staging tool requires Business or higher, but the **Copy Website** tool supports Premium or higher and can copy a WordPress site to another domain/subdomain on the same plan. Use that copy as the controlled UAT target only after a current downloadable backup is confirmed.
+
+Current read-only size baseline: WordPress 67.48 MB, themes 45.59 MB, plugins 88.14 MB, uploads 8.05 MB, database 68.36 MB, total 277.62 MB.
 
 Required evidence:
 
@@ -60,6 +64,8 @@ After backup/restore proof:
 - confirm OpenSSL and fileinfo.
 
 ### 3. Real HTTPS Bearer / 401 / 403 — PENDING
+
+Automation is ready in `.github/workflows/eh7-v740-staging-http-auth-smoke.yml`. It requires four GitHub secrets: `EH7_STAGING_UAT_MOBILE`, `EH7_STAGING_UAT_PASSWORD`, `EH7_STAGING_LIMITED_MOBILE`, and `EH7_STAGING_LIMITED_PASSWORD`. The workflow blocks the office host by default and records a JSON evidence artifact without printing tokens or passwords.
 
 Use a dedicated UAT employee and controlled staging database.
 
@@ -127,3 +133,17 @@ Automated P5 E2E checks are supporting evidence, not business acceptance.
 Required sign-off: operational owner + HR + Accounts. Record names/roles, date, tested build/run, known accepted limitations, and change ticket.
 
 Only after Gates 1–7 are evidenced may `production_approved` be changed to `true`. That change itself requires explicit final production deployment approval. PR merge and production deployment remain separate decisions.
+
+
+## Additional P6 host-health evidence — 2026-09-18
+
+- WordPress core checksum verification: PASS, 3338 files checked, no mismatch/missing/unexpected core files.
+- WP-Cron spawn test: PASS, HTTP 200.
+- WordPress loopback test: good.
+- HTTPS Site Health test: good.
+- WordPress.org communication: good.
+- MariaDB transaction isolation: READ-COMMITTED.
+- MariaDB max_allowed_packet: 1 GiB.
+- WordPress 7.1.1 is available while the site currently runs 7.1.
+- WordPress Site Health marks background updates critical because the automatic-updater filter/all automatic updates are disabled. `WP_AUTO_UPDATE_CORE` is configured as `minor`, so the effective disablement is coming from another filter/host policy. Do not change update policy before backup/restore proof; document the final patch-management policy.
+- All plugin auto-update toggles are currently disabled. No plugin/core update was performed.
