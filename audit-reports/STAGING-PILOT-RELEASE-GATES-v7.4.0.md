@@ -183,3 +183,21 @@ After the Hostinger copy is created, install the exact-head staging backend, set
 The sanitizer refuses the office production host and any non-staging environment. On the clone it revokes copied active mobile sessions, deactivates copied push-device registrations, sets WordPress search indexing off, and records a source-head-bound sanitizer marker. The controlled staging preflight will fail until all of those checks are true.
 
 Do not run this sanitizer on production. Its runtime guard is intentionally fail-closed.
+
+
+## P6.5 fresh isolated UAT — preferred path
+
+**Office copy is not required.** Create a fresh WordPress site with a fresh MariaDB database, install the exact-head staging backend package, and set `WP_ENVIRONMENT_TYPE=staging`.
+
+Create one dedicated WordPress administrator on that fresh site, then supply synthetic credentials only through environment variables listed in `release-gates/templates/fresh-uat-bootstrap.example.env`. Execute:
+
+`wp eval-file wp-content/plugins/excel-herbal-erp-v7/tools/fresh-uat-bootstrap.php`
+
+The bootstrap refuses `office.excelherbal.in`, refuses any non-staging environment, refuses stale/non-packaged source trees, and refuses an already-initialized ERP database unless it already carries the matching fresh-UAT seed marker. It creates:
+- canonical synthetic company + UAT branch + accounting setup through the existing SetupService,
+- `UAT-ADMIN` bound to the dedicated staging WordPress administrator,
+- `UAT-FIELD` with normal employee capabilities, mobile login and salary baseline for attendance/GPS/403/payroll-oriented UAT.
+
+After seeding it runs the staging-safety sanitizer automatically. No real employee/customer/supplier/office transaction data is copied.
+
+For Gate 1, take and restore a backup of this fresh UAT after the private-document fixture exists, and verify the matching `eh7_document_key` recovers the encrypted document. This proves recovery mechanics without touching office data. A separate current production backup is still required immediately before any eventual production deployment.

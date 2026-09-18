@@ -11,9 +11,14 @@ $options=[
  'eh7_staging_sanitized_source_head'=>EH7_SOURCE_HEAD,
  'eh7_staging_sanitized_at'=>'2026-09-18 12:00:00',
  'blog_public'=>'0',
+ 'eh7_uat_seed_source_head'=>EH7_SOURCE_HEAD,
+ 'eh7_uat_seeded_at'=>'2026-09-18 12:00:00',
+ 'eh7_uat_seed_mode'=>'fresh_synthetic',
+ 'eh7_uat_admin_employee_id'=>1,
+ 'eh7_uat_limited_employee_id'=>2,
 ];
 function get_option($key,$default=''){global $options;return array_key_exists($key,$options)?$options[$key]:$default;}
-final class RuntimeMetadataDb {public string $prefix='wp_';public function get_var($sql){return 0;}}
+final class RuntimeMetadataDb {public string $prefix='wp_';public function prepare($q,...$args){return $q.'|'.implode('|',$args);}public function get_var($sql){return str_contains($sql,'eh7_employees')?1:0;}}
 $wpdb=new RuntimeMetadataDb();
 
 $result=\ExcelHerbal\ERP7\Http\ApiDispatch::dispatch('health',null,null);
@@ -21,4 +26,6 @@ $expected=['version'=>EH7_VERSION,'source_head'=>EH7_SOURCE_HEAD,'environment'=>
 foreach($expected as$key=>$value){if(!array_key_exists($key,$result)||$result[$key]!==$value){fwrite(STDERR,'FAIL runtime_metadata '.$key.PHP_EOL);exit(1);}}
 $safety=$result['staging_safety']??[];
 if(($safety['sanitized']??false)!==true||($safety['active_mobile_sessions_zero']??false)!==true||($safety['active_push_devices_zero']??false)!==true){fwrite(STDERR,'FAIL runtime_metadata staging_safety'.PHP_EOL);exit(1);}
-echo 'PASS runtime_metadata_health_environment_source_head_and_staging_safety'.PHP_EOL;
+$uat=$result['uat_bootstrap']??[];
+if(($uat['seeded']??false)!==true||($uat['synthetic_only']??false)!==true){fwrite(STDERR,'FAIL runtime_metadata fresh_uat'.PHP_EOL);exit(1);}
+echo 'PASS runtime_metadata_health_environment_source_head_staging_safety_and_fresh_uat'.PHP_EOL;

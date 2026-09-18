@@ -5,30 +5,27 @@
   "automated_certification": {
     "status": "passed",
     "evidence": [
-      "github-actions:35341322068"
+      "github-actions:35342295850"
     ],
-    "baseline_head": "8df4e4a8a22c5543fc15e349e5cb1947aa279106",
-    "note": "P6.3 exact-head evidence baseline FULL GREEN. Staging-clone sanitization additions require a new exact-head CI run before controlled staging."
+    "baseline_head": "887420975bffda4d9b2ae0e732888c3157e2cdd3",
+    "note": "P6.4 staging-safety baseline FULL GREEN. Fresh isolated UAT bootstrap additions require a new exact-head CI run before use."
   },
   "manual_gates": [
     {
       "id": "host_backup_restore",
       "required": true,
-      "status": "blocked",
+      "status": "pending",
       "evidence": [
-        "office-audit:hostinger-premium-plan",
-        "office-audit:site-total-277.62MB-db-68.36MB",
-        "hostinger-docs:backups-available",
-        "hostinger-docs:copy-website-premium-supported",
-        "hostinger-docs:built-in-staging-business-plus",
-        "repo-workflow:eh7-v740-staging-backend-package.yml"
+        "repo-workflow:eh7-v740-staging-backend-package.yml",
+        "repo-tool:fresh-uat-bootstrap.php",
+        "ci-proof:disposable-mariadb-backup-restore"
       ],
-      "note": "After a current full files+database backup is confirmed/downloaded, use Hostinger Copy Website to a fresh target. Install the exact-head staging backend package (embedded Git SHA), then run controlled staging preflight. Actual host restore proof and protected matching eh7_document_key backup remain required."
+      "note": "Office cloning is not required for UAT. Provision a fresh isolated WordPress+MariaDB UAT target, install the exact-head backend and synthetic seed only. Then prove backup/restore and eh7_document_key recovery on that UAT dataset. A current production backup remains a separate final deployment prerequisite, not a staging prerequisite."
     },
     {
       "id": "environment_hardening",
       "required": true,
-      "status": "blocked",
+      "status": "pending",
       "evidence": [
         "office-audit:wp-environment-type-undefined",
         "office-audit:disallow-file-edit-undefined",
@@ -38,9 +35,10 @@
         "office-audit:wordpress-7.1.1-update-available",
         "office-audit:mariadb-read-committed-max-packet-1GiB",
         "repo-workflow:eh7-v740-staging-target-preflight.yml",
-        "repo-service:StagingSafety"
+        "repo-service:StagingSafety",
+        "repo-tool:fresh-uat-bootstrap.php"
       ],
-      "note": "Controlled staging now requires explicit environment=staging, exact source provenance, clone sanitization (all copied mobile sessions revoked, push devices deactivated, search indexing disabled) and a matching sanitizer/source marker before UAT evidence is accepted. Production config hardening remains blocked on host backup/restore proof."
+      "note": "Fresh UAT may proceed independently: explicitly set WP_ENVIRONMENT_TYPE=staging, install exact source head, run fresh synthetic bootstrap and staging safety sanitizer, then pass controlled-staging preflight. Production DISALLOW_FILE_EDIT/update-policy hardening remains a final deployment task."
     },
     {
       "id": "real_http_bearer_401_403",

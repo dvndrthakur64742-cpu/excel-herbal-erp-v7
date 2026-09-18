@@ -38,12 +38,18 @@ try{
     if(([string]$health.source_head).ToLowerInvariant() -ne $ExpectedSourceHead.ToLowerInvariant()){throw "Installed source_head '$($health.source_head)' does not match expected '$ExpectedSourceHead'."}
     $evidence.checks['exact_source_head']='passed'
     if($health.staging_safety.required -ne $true){throw 'Health does not require staging safety on this target.'}
-    if($health.staging_safety.sanitized -ne $true){throw 'Staging clone has not been sanitized.'}
+    if($health.staging_safety.sanitized -ne $true){throw 'Staging safety sanitization has not been completed.'}
     if($health.staging_safety.source_head_match -ne $true){throw 'Staging sanitizer marker does not match installed source head.'}
-    if($health.staging_safety.active_mobile_sessions_zero -ne $true){throw 'Cloned active mobile sessions remain on staging.'}
-    if($health.staging_safety.active_push_devices_zero -ne $true){throw 'Cloned active push devices remain on staging.'}
+    if($health.staging_safety.active_mobile_sessions_zero -ne $true){throw 'Active mobile sessions remain before UAT preflight.'}
+    if($health.staging_safety.active_push_devices_zero -ne $true){throw 'Active push devices remain before UAT preflight.'}
     if($health.staging_safety.search_indexing_disabled -ne $true){throw 'Staging search indexing is not disabled.'}
-    $evidence.checks['staging_clone_sanitized']='passed'
+    $evidence.checks['staging_safety_sanitized']='passed'
+    if($health.uat_bootstrap.required -ne $true){throw 'Fresh UAT bootstrap is not required on this target; environment identity is inconsistent.'}
+    if($health.uat_bootstrap.seeded -ne $true){throw 'Fresh synthetic UAT identities have not been seeded.'}
+    if($health.uat_bootstrap.synthetic_only -ne $true){throw 'UAT seed mode is not fresh_synthetic.'}
+    if($health.uat_bootstrap.source_head_match -ne $true){throw 'UAT seed marker does not match installed source head.'}
+    if($health.uat_bootstrap.admin_employee_present -ne $true -or $health.uat_bootstrap.limited_employee_present -ne $true){throw 'Required synthetic UAT identities are missing.'}
+    $evidence.checks['fresh_uat_seeded']='passed'
     if($health.schema_installed -ne $true){throw 'Health reports schema_installed=false.'}
     if($setup.schema_installed -ne $true -or $setup.initialized -ne $true){throw 'Setup is not installed and initialized.'}
     if([string]$health.schema -ne [string]$setup.schema_version){throw 'Health/setup schema versions differ.'}
@@ -59,7 +65,8 @@ try{
     $evidence['status']='passed'
     Write-Host 'PASS staging_environment'
     Write-Host 'PASS exact_source_head'
-    Write-Host 'PASS staging_clone_sanitized'
+    Write-Host 'PASS staging_safety_sanitized'
+    Write-Host 'PASS fresh_uat_seeded'
     Write-Host 'PASS schema_initialized'
     Write-Host 'PASS api_contract_consistent'
 } finally {

@@ -344,7 +344,7 @@ Application-password introspection succeeds on office and Hostinger does not dis
 
 Exact-head staging execution is now reproducible rather than ad-hoc. The branch packages its own backend for staging, includes a real private-document multipart/decrypt/deactivate smoke, captures SHA-manifested accounting/report snapshots for human review, and provides structured Android/GPS and pilot sign-off evidence templates. The correction CI also syntax-parses every staging/release PowerShell script.
 
-These additions still require a controlled staging copy before execution and do not change the production gate state.
+These additions require a controlled isolated staging/UAT site before execution; copying office data is not required and do not change the production gate state.
 
 ### P6.2 source certification — 2026-09-18
 
@@ -363,6 +363,12 @@ The staging backend package can now embed its Git commit in `build-meta.php`; th
 A controlled staging copy may contain live mobile-session tokens and push-device registrations copied from production. The new `StagingSafety` service refuses non-staging environments and refuses `office.excelherbal.in`; on a real staging clone it revokes every copied active mobile session, deactivates every copied push device, disables search indexing, and records the exact packaged source head and sanitation timestamp.
 
 The public health projection exposes only staging-safety booleans/marker state. Controlled staging preflight now refuses to pass until clone sanitization is proven and matched to the installed source head.
+
+### P6.5 fresh isolated UAT strategy — prepared
+
+UAT no longer depends on copying the office database. The preferred target is a fresh WordPress + fresh MariaDB environment containing only synthetic test identities/data. `FreshUatBootstrap` uses the existing SetupService to create the canonical company/branch/accounts, binds a dedicated staging WordPress administrator as `UAT-ADMIN`, creates a least-privilege `UAT-FIELD` employee for 403/attendance/GPS testing, records exact-source seed provenance, and then runs staging safety sanitation. Passwords and mobile values are supplied through environment variables and are never returned by the bootstrap result.
+
+The controlled-staging preflight now requires the fresh-synthetic seed marker and both synthetic identities in addition to exact source head, staging environment and staging-safety checks. Office data is not needed for Auth, HR-document, report or Android/GPS UAT.
 
 ## Release decision
 
