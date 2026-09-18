@@ -292,7 +292,7 @@ This is **automated disposable UAT evidence**, not operational pilot sign-off.
 
 ### P5 business E2E coverage II evidence — 2026-09-18
 
-`ERP correction verification` run `35332732346` completed successfully on exact source head `4a25ac1cf8e8d41f44f111f2d4aa1876e87c0df8`.
+`ERP correction verification` run `35334687336` completed successfully on exact source head `16b1174a920d8ed59faf685b9f657f5179d8f7ae`.
 
 The disposable full-schema MariaDB gate now additionally passes:
 
@@ -308,7 +308,7 @@ The disposable full-schema MariaDB gate now additionally passes:
 - AR/AP/Inventory finance reconciliation checks,
 - Branch Closing preflight -> maker-checker close -> closed-day posting denial -> controlled reopen.
 
-Coverage II exposed and fixed a real Balance Sheet projection defect: `ReportingService::balanceSheet()` retained a by-reference `foreach` variable and reused it in the subsequent P&L loop, overwriting the last equity row. The loop reference is now explicitly released before Current Earnings is calculated, and the E2E suite verifies the opening-equity row plus the full Balance Sheet equation.
+Coverage II exposed and fixed a real Balance Sheet projection defect: `ReportingService::balanceSheet()` retained a by-reference `foreach` variable and reused it in the subsequent P&L loop, overwriting the last equity row. The loop reference is now explicitly released before Current Earnings is calculated. The final canonical transaction-funded E2E fixture avoids fabricated opening balances and verifies the full Balance Sheet equation from Purchase, Sales, Receipt, Supplier Payment, Stock Adjustment and Reversal postings.
 
 Remaining manual/controlled staging gates are: physical-device Android testing, real web/mobile HTTP forwarding and 401/403 behaviour, real GPS device lifecycle, real multipart HR upload, host-level backup/files restore, and operational pilot sign-off. The newly automated Sales/Purchase/Inventory/Finance/Reporting flows must still be exercised by business owners on controlled staging as part of that pilot; CI evidence does not replace human operational acceptance.
 
