@@ -12,7 +12,7 @@ void main() {
     expect(performance, contains("import '../../core/app_config.dart';"));
     expect(performance, contains('if (AppConfig.isUat &&'));
     expect(performance, contains("'Compensation'"));
-    expect(config, contains("defaultValue: 'production'"));
+    expect(config, contains("defaultValue: 'uat'"));
     expect(config, contains("static const bool isUat = environment != 'production';"));
   });
 
