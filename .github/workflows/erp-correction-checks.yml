@@ -48,7 +48,7 @@ jobs:
           & $phpExe -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);'
           if ($LASTEXITCODE -ne 0) { throw 'PHP 8.1+ is required.' }
           "EH7_PHP_EXE=$phpExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: PHP lint and 30 regression cases
+      - name: PHP lint and 33 regression cases
         working-directory: backend/excel-herbal-erp-v7
         run: |
           $ErrorActionPreference = 'Stop'
