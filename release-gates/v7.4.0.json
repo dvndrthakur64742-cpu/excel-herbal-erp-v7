@@ -5,10 +5,10 @@
   "automated_certification": {
     "status": "passed",
     "evidence": [
-      "github-actions:35339053206"
+      "github-actions:35339522863"
     ],
-    "baseline_head": "20bab162794c587ec30b9575ac4d48150f2d3508",
-    "note": "P6.2 controlled-staging toolkit source and full correction CI baseline. A subsequent small runtime-hardening commit only adjusts report-date parsing and must re-pass the same CI before use."
+    "baseline_head": "dfd9570824e6df7311205ad523a86da8c39119f5",
+    "note": "P6.2 runtime-hardened staging toolkit full-green baseline. Exact staging identity additions require a new exact-head CI run before staging use."
   },
   "manual_gates": [
     {
@@ -20,9 +20,10 @@
         "office-audit:site-total-277.62MB-db-68.36MB",
         "hostinger-docs:backups-available",
         "hostinger-docs:copy-website-premium-supported",
-        "hostinger-docs:built-in-staging-business-plus"
+        "hostinger-docs:built-in-staging-business-plus",
+        "repo-workflow:eh7-v740-staging-backend-package.yml"
       ],
-      "note": "Connected host is Hostinger Premium Web Hosting. Built-in one-click WordPress staging requires Business or higher; use Hostinger Copy Website to a new subdomain/temporary domain after downloading/confirming a full files+database backup. Prove restore and protect eh7_document_key with the matching database snapshot."
+      "note": "After a current full files+database backup is confirmed/downloaded, use Hostinger Copy Website to a fresh target. Install the exact-head staging backend package (embedded Git SHA), then run controlled staging preflight. Actual host restore proof and protected matching eh7_document_key backup remain required."
     },
     {
       "id": "environment_hardening",
@@ -35,9 +36,10 @@
         "office-audit:cron-spawn-200",
         "office-audit:background-updates-critical-disabled",
         "office-audit:wordpress-7.1.1-update-available",
-        "office-audit:mariadb-read-committed-max-packet-1GiB"
+        "office-audit:mariadb-read-committed-max-packet-1GiB",
+        "repo-workflow:eh7-v740-staging-target-preflight.yml"
       ],
-      "note": "WP_ENVIRONMENT_TYPE and DISALLOW_FILE_EDIT are not explicitly defined. WordPress core checksums pass and loopback/cron are healthy, but Site Health reports background automatic updates disabled and WordPress 7.1.1 is available. After backup/restore proof, explicitly set environment/file-edit policy and document the intentional patch/update process."
+      "note": "Office still lacks explicit WP_ENVIRONMENT_TYPE and DISALLOW_FILE_EDIT. Controlled staging preflight requires the clone to report environment=staging and the exact embedded source_head before UAT evidence is accepted. Production hardening remains blocked on host backup/restore proof."
     },
     {
       "id": "real_http_bearer_401_403",

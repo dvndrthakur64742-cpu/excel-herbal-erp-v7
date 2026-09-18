@@ -83,6 +83,8 @@ jobs:
           }
           & $env:EH7_PHP_EXE tests/regression.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:EH7_PHP_EXE tests/runtime_metadata.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Route and contract checks
         run: |
           $ErrorActionPreference = 'Stop'

@@ -30,21 +30,37 @@ jobs:
           $out='dist\staging-backend'
           if(Test-Path -LiteralPath $out){Remove-Item -LiteralPath $out -Recurse -Force}
           New-Item -ItemType Directory -Path $out -Force|Out-Null
+          $work=Join-Path $env:RUNNER_TEMP ('eh7-stage-package-'+[Guid]::NewGuid().ToString('N'))
+          $pluginDir=Join-Path $work 'excel-herbal-erp-v7'
+          New-Item -ItemType Directory -Path $pluginDir -Force|Out-Null
+          Copy-Item -Path 'backend\excel-herbal-erp-v7\*' -Destination $pluginDir -Recurse -Force
+          $buildMeta=Join-Path $pluginDir 'build-meta.php'
+          @(
+            '<?php',
+            "if(!defined('ABSPATH'))exit;",
+            "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');"
+          )|Set-Content -LiteralPath $buildMeta -Encoding ascii
           $zip=Join-Path $out 'Excel-Herbal-ERP-v7.4.0-Staging-Backend.zip'
-          Compress-Archive -Path 'backend\excel-herbal-erp-v7' -DestinationPath $zip -CompressionLevel Optimal
+          Compress-Archive -Path $pluginDir -DestinationPath $zip -CompressionLevel Optimal
           $verify=Join-Path $env:RUNNER_TEMP ('eh7-stage-verify-'+[Guid]::NewGuid().ToString('N'))
           Expand-Archive -LiteralPath $zip -DestinationPath $verify -Force
-          if(-not(Test-Path -LiteralPath (Join-Path $verify 'excel-herbal-erp-v7\excel-herbal-erp-v7.php'))){throw 'Staging ZIP root is invalid.'}
-          Remove-Item -LiteralPath $verify -Recurse -Force
+          $verifiedRoot=Join-Path $verify 'excel-herbal-erp-v7'
+          if(-not(Test-Path -LiteralPath (Join-Path $verifiedRoot 'excel-herbal-erp-v7.php'))){throw 'Staging ZIP root is invalid.'}
+          $metaText=Get-Content -LiteralPath (Join-Path $verifiedRoot 'build-meta.php') -Raw
+          if($metaText -notmatch [regex]::Escape($env:GITHUB_SHA)){throw 'Staging ZIP source-head metadata mismatch.'}
           $zipHash=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          $mainHash=(Get-FileHash -LiteralPath 'backend\excel-herbal-erp-v7\excel-herbal-erp-v7.php' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $mainHash=(Get-FileHash -LiteralPath (Join-Path $pluginDir 'excel-herbal-erp-v7.php') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $metaHash=(Get-FileHash -LiteralPath $buildMeta -Algorithm SHA256).Hash.ToLowerInvariant()
+          Remove-Item -LiteralPath $verify -Recurse -Force
+          Remove-Item -LiteralPath $work -Recurse -Force
           @(
             "commit=$env:GITHUB_SHA",
             "ref=$env:GITHUB_REF",
             "purpose=controlled-staging-only",
             "production_approved=false",
             "plugin_zip_sha256=$zipHash",
-            "plugin_entrypoint_sha256=$mainHash"
+            "plugin_entrypoint_sha256=$mainHash",
+            "build_meta_sha256=$metaHash"
           )|Set-Content -LiteralPath (Join-Path $out 'STAGING-BACKEND-MANIFEST.txt') -Encoding ascii
           Get-Content -LiteralPath (Join-Path $out 'STAGING-BACKEND-MANIFEST.txt')
 

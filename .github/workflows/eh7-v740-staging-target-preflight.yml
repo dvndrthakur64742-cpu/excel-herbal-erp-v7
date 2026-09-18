@@ -1,0 +1,44 @@
+name: EH7 v7.4.0 Controlled Staging Target Preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_api_base_url:
+        description: 'Controlled staging ERP API base URL'
+        required: true
+        type: string
+      expected_source_head:
+        description: '40-char commit SHA embedded in the installed staging backend package'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+
+jobs:
+  controlled-staging-preflight:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Controlled staging identity preflight
+        env:
+          STAGING_API: ${{ inputs.staging_api_base_url }}
+          EXPECTED_SOURCE_HEAD: ${{ inputs.expected_source_head }}
+        run: |
+          & '.github/scripts/staging-target-preflight.ps1' `
+            -ApiBase $env:STAGING_API `
+            -ExpectedSourceHead $env:EXPECTED_SOURCE_HEAD
+
+      - name: Upload staging-target evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-v7.4.0-Controlled-Staging-Preflight
+          path: dist/staging-target-preflight/EVIDENCE.json
+          if-no-files-found: warn
