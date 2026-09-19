@@ -48,7 +48,30 @@ jobs:
             "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');"
           )|Set-Content -LiteralPath $buildMeta -Encoding ascii
           $zip=Join-Path $out 'excel-herbal-erp-v7.zip'
-          Compress-Archive -Path (Join-Path $pluginDir '*') -DestinationPath $zip -CompressionLevel Optimal
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          if(Test-Path -LiteralPath $zip){Remove-Item -LiteralPath $zip -Force}
+          $root=(Resolve-Path -LiteralPath $pluginDir).Path
+          $archive=[System.IO.Compression.ZipFile]::Open($zip,[System.IO.Compression.ZipArchiveMode]::Create)
+          try{
+            Get-ChildItem -LiteralPath $pluginDir -Recurse -File | ForEach-Object {
+              $relative=$_.FullName.Substring($root.Length).TrimStart([char[]]@('\\','/'))
+              $entryName=$relative -replace '\\\\','/'
+              $entry=$archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
+              $entryStream=$entry.Open()
+              $fileStream=[System.IO.File]::OpenRead($_.FullName)
+              try{$fileStream.CopyTo($entryStream)}
+              finally{$fileStream.Dispose();$entryStream.Dispose()}
+            }
+          }finally{$archive.Dispose()}
+          $zipCheck=[System.IO.Compression.ZipFile]::OpenRead($zip)
+          try{
+            $entryNames=@($zipCheck.Entries|ForEach-Object{$_.FullName})
+            if($entryNames|Where-Object{$_ -match '\\\\'}){throw 'Staging ZIP contains Windows backslash path entries.'}
+            foreach($required in @('excel-herbal-erp-v7.php','build-meta.php','src/Core/Autoloader.php','src/Http/ApiDispatch.php','src/Administration/StagingSafety.php','src/Administration/FreshUatBootstrap.php')){
+              if($entryNames -notcontains $required){throw ('Staging ZIP missing required entry: '+$required)}
+            }
+          }finally{$zipCheck.Dispose()}
           $verify=Join-Path $env:RUNNER_TEMP ('eh7-stage-verify-'+[Guid]::NewGuid().ToString('N'))
           Expand-Archive -LiteralPath $zip -DestinationPath $verify -Force
           $verifiedRoot=$verify
