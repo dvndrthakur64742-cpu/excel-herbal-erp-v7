@@ -48,10 +48,10 @@ jobs:
             "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');"
           )|Set-Content -LiteralPath $buildMeta -Encoding ascii
           $zip=Join-Path $out 'excel-herbal-erp-v7.zip'
-          Compress-Archive -Path $pluginDir -DestinationPath $zip -CompressionLevel Optimal
+          Compress-Archive -Path (Join-Path $pluginDir '*') -DestinationPath $zip -CompressionLevel Optimal
           $verify=Join-Path $env:RUNNER_TEMP ('eh7-stage-verify-'+[Guid]::NewGuid().ToString('N'))
           Expand-Archive -LiteralPath $zip -DestinationPath $verify -Force
-          $verifiedRoot=Join-Path $verify 'excel-herbal-erp-v7'
+          $verifiedRoot=$verify
           if(-not(Test-Path -LiteralPath (Join-Path $verifiedRoot 'excel-herbal-erp-v7.php'))){throw 'Staging ZIP root is invalid.'}
           $metaText=Get-Content -LiteralPath (Join-Path $verifiedRoot 'build-meta.php') -Raw
           if($metaText -notmatch [regex]::Escape($env:GITHUB_SHA)){throw 'Staging ZIP source-head metadata mismatch.'}
