@@ -15,12 +15,12 @@ permissions:
 
 defaults:
   run:
-    shell: pwsh
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
 
 jobs:
   staging-backend-package:
     if: github.ref == 'refs/heads/codex/erp735-document-integration'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -29,18 +29,18 @@ jobs:
         run: |
           & '.github/scripts/verify-release-gates.ps1' -Mode ci -GateFile 'release-gates/v7.4.0.json'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $main='backend/excel-herbal-erp-v7/excel-herbal-erp-v7.php'
+          $main='backend\excel-herbal-erp-v7\excel-herbal-erp-v7.php'
           if(-not(Test-Path -LiteralPath $main -PathType Leaf)){throw 'Backend plugin entrypoint missing.'}
 
       - name: Build exact-head staging plugin ZIP
         run: |
-          $out='dist/staging-backend'
+          $out='dist\staging-backend'
           if(Test-Path -LiteralPath $out){Remove-Item -LiteralPath $out -Recurse -Force}
           New-Item -ItemType Directory -Path $out -Force|Out-Null
           $work=Join-Path $env:RUNNER_TEMP ('eh7-stage-package-'+[Guid]::NewGuid().ToString('N'))
           $pluginDir=Join-Path $work 'excel-herbal-erp-v7'
           New-Item -ItemType Directory -Path $pluginDir -Force|Out-Null
-          Copy-Item -Path 'backend/excel-herbal-erp-v7/*' -Destination $pluginDir -Recurse -Force
+          Copy-Item -Path 'backend\excel-herbal-erp-v7\*' -Destination $pluginDir -Recurse -Force
           $buildMeta=Join-Path $pluginDir 'build-meta.php'
           @(
             '<?php',
