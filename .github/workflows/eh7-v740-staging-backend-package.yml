@@ -71,7 +71,25 @@ jobs:
           )|Set-Content -LiteralPath (Join-Path $out 'STAGING-BACKEND-MANIFEST.txt') -Encoding ascii
           Get-Content -LiteralPath (Join-Path $out 'STAGING-BACKEND-MANIFEST.txt')
 
+      - name: Persist exact-head staging backend on runner Desktop
+        run: |
+          $source='dist\staging-backend'
+          $root=Join-Path $env:USERPROFILE 'Desktop\EH7-UAT-Packages'
+          $dest=Join-Path $root $env:GITHUB_SHA
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          Copy-Item -Path (Join-Path $source '*') -Destination $dest -Force
+          $zip=Join-Path $dest 'Excel-Herbal-ERP-v7.4.0-Staging-Backend.zip'
+          $manifest=Join-Path $dest 'STAGING-BACKEND-MANIFEST.txt'
+          if(-not(Test-Path -LiteralPath $zip -PathType Leaf)){throw 'Persisted staging ZIP missing.'}
+          if(-not(Test-Path -LiteralPath $manifest -PathType Leaf)){throw 'Persisted staging manifest missing.'}
+          $persistedHash=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected=(Select-String -LiteralPath $manifest -Pattern '^plugin_zip_sha256=(.+)$').Matches.Groups[1].Value
+          if($persistedHash -ne $expected){throw 'Persisted staging ZIP hash mismatch.'}
+          Write-Host "PERSISTED_PACKAGE_DIR=$dest"
+          Write-Host "PERSISTED_ZIP_SHA256=$persistedHash"
+
       - name: Upload exact-head staging backend
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: EH7-v7.4.0-Staging-Backend
