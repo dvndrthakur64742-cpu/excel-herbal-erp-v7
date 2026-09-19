@@ -134,4 +134,25 @@ try{
     $_SERVER=$serverBackup;
 }catch(\Throwable $e){$failed++;echo "FAIL auth_header_fallbacks: {$e->getMessage()}\n";}
 
+
+// Verify read-only branch-scoped routes default to the actor's assigned branch.
+try{
+    $branchMethod=new \ReflectionMethod(\ExcelHerbal\ERP7\Http\ApiDispatch::class,'readBranch');
+    $branchMethod->setAccessible(true);
+    $branchActor=new \ExcelHerbal\ERP7\Security\Actor(10,10,1,9,[9,13],[],'BM');
+    $missingBranchRequest=new class {
+        public function get_param($key){return null;}
+    };
+    $explicitBranchRequest=new class {
+        public function get_param($key){return $key==='branch_id'?13:null;}
+    };
+    $zeroBranchRequest=new class {
+        public function get_param($key){return $key==='branch_id'?0:null;}
+    };
+    if($branchMethod->invoke(null,$missingBranchRequest,$branchActor)!==9)throw new \RuntimeException('missing branch did not default to actor branch');
+    if($branchMethod->invoke(null,$explicitBranchRequest,$branchActor)!==13)throw new \RuntimeException('explicit branch was changed');
+    if($branchMethod->invoke(null,$zeroBranchRequest,$branchActor)!==0)throw new \RuntimeException('explicit zero branch was silently rewritten');
+    echo "PASS read_branch_default\n";
+}catch(\Throwable $e){$failed++;echo "FAIL read_branch_default: {$e->getMessage()}\n";}
+
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
