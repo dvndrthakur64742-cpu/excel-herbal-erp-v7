@@ -47,7 +47,7 @@ jobs:
             "if(!defined('ABSPATH'))exit;",
             "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');"
           )|Set-Content -LiteralPath $buildMeta -Encoding ascii
-          $zip=Join-Path $out 'Excel-Herbal-ERP-v7.4.0-Staging-Backend.zip'
+          $zip=Join-Path $out 'excel-herbal-erp-v7.zip'
           Compress-Archive -Path $pluginDir -DestinationPath $zip -CompressionLevel Optimal
           $verify=Join-Path $env:RUNNER_TEMP ('eh7-stage-verify-'+[Guid]::NewGuid().ToString('N'))
           Expand-Archive -LiteralPath $zip -DestinationPath $verify -Force
@@ -78,7 +78,7 @@ jobs:
           $dest=Join-Path $root $env:GITHUB_SHA
           New-Item -ItemType Directory -Path $dest -Force | Out-Null
           Copy-Item -Path (Join-Path $source '*') -Destination $dest -Force
-          $zip=Join-Path $dest 'Excel-Herbal-ERP-v7.4.0-Staging-Backend.zip'
+          $zip=Join-Path $dest 'excel-herbal-erp-v7.zip'
           $manifest=Join-Path $dest 'STAGING-BACKEND-MANIFEST.txt'
           if(-not(Test-Path -LiteralPath $zip -PathType Leaf)){throw 'Persisted staging ZIP missing.'}
           if(-not(Test-Path -LiteralPath $manifest -PathType Leaf)){throw 'Persisted staging manifest missing.'}
