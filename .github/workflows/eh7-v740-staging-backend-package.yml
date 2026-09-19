@@ -55,8 +55,8 @@ jobs:
           $archive=[System.IO.Compression.ZipFile]::Open($zip,[System.IO.Compression.ZipArchiveMode]::Create)
           try{
             Get-ChildItem -LiteralPath $pluginDir -Recurse -File | ForEach-Object {
-              $relative=$_.FullName.Substring($root.Length).TrimStart([char[]]@('\\','/'))
-              $entryName=$relative -replace '\\\\','/'
+              $relative=$_.FullName.Substring($root.Length).TrimStart([char[]]@([char]92,[char]47))
+              $entryName=$relative -replace '\\','/'
               $entry=$archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
               $entryStream=$entry.Open()
               $fileStream=[System.IO.File]::OpenRead($_.FullName)
@@ -67,7 +67,7 @@ jobs:
           $zipCheck=[System.IO.Compression.ZipFile]::OpenRead($zip)
           try{
             $entryNames=@($zipCheck.Entries|ForEach-Object{$_.FullName})
-            if($entryNames|Where-Object{$_ -match '\\\\'}){throw 'Staging ZIP contains Windows backslash path entries.'}
+            if($entryNames|Where-Object{$_.Contains([char]92)}){throw 'Staging ZIP contains Windows backslash path entries.'}
             foreach($required in @('excel-herbal-erp-v7.php','build-meta.php','src/Core/Autoloader.php','src/Http/ApiDispatch.php','src/Administration/StagingSafety.php','src/Administration/FreshUatBootstrap.php')){
               if($entryNames -notcontains $required){throw ('Staging ZIP missing required entry: '+$required)}
             }
