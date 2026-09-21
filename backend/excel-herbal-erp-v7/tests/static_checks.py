@@ -67,6 +67,29 @@ for metric in [
  assert metric in maintenance,('missing operational diagnostics metric',metric)
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
 print('PASS operational diagnostics anomaly coverage')
+schema=(root/'src/Database/Schema.php').read_text()
+assert "7.3.5-business-fixes-2" in schema,'schema version was not advanced for checkout exception migration'
+for token in [
+ 'checkout_exception',
+ 'checkout_exception_reason',
+ 'checkout_exception_by',
+ 'checkout_exception_at',
+]:
+ assert token in schema,('missing attendance checkout exception schema field',token)
+maintenance=(root/'src/Administration/MaintenanceService.php').read_text()
+for token in [
+ 'resolve_uat_anomalies',
+ 'RESOLVE_UAT_ANOMALIES',
+ 'daily_cancel_return',
+ 'attendance.checkout_missing_acknowledged',
+ 'access.role_deactivate_duplicate',
+ 'organization.designation_deactivate_duplicate',
+]:
+ assert token in maintenance,('missing safe UAT cleanup invariant',token)
+assert "checkout_exception=0" in maintenance,'acknowledged missing checkout still counted as unresolved'
+dispatch=(root/'src/Http/ApiDispatch.php').read_text()
+assert "MaintenanceService::cleanup($a,self::arrBody($r))" in dispatch,'maintenance cleanup payload is not dispatched'
+print('PASS safe UAT anomaly cleanup wiring')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
