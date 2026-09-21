@@ -71,4 +71,17 @@ void main() {
     expect(screen, contains('calculation version missing'));
   });
 
+  test('administration exposes one-shot safe UAT cleanup', () {
+    final source = File(
+      'lib/screens/administration/administration_screen.dart',
+    ).readAsStringSync();
+
+    expect(source, contains("'System Health'"));
+    expect(source, contains('Resolve Safe UAT Anomalies'));
+    expect(source, contains("'operation': 'resolve_uat_anomalies'"));
+    expect(source, contains("'confirmation': 'RESOLVE_UAT_ANOMALIES'"));
+    expect(source, contains('checkout times'));
+    expect(source, contains('stock custody'));
+  });
+
 }
