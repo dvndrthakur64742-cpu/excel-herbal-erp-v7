@@ -464,7 +464,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                   ),
                   if (validation != null) ...[
                     const SizedBox(height: 8),
-                    Text(validation),
+                    Text(validation!),
                   ],
                 ],
               ),
