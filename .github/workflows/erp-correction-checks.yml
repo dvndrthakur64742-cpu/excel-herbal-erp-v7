@@ -369,8 +369,131 @@ jobs:
           if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
           New-Item -ItemType Directory -Path $candidateDir -Force | Out-Null
           Copy-Item -Path 'build/web/*' -Destination $candidateDir -Recurse -Force
-          Compress-Archive -Path (Join-Path $candidateDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+          $root = (Resolve-Path -LiteralPath $candidateDir).Path
+          $archive = [System.IO.Compression.ZipFile]::Open($zipPath,[System.IO.Compression.ZipArchiveMode]::Create)
+          try {
+            Get-ChildItem -LiteralPath $candidateDir -Recurse -File | ForEach-Object {
+              $relative = $_.FullName.Substring($root.Length).TrimStart([char[]]@([char]92,[char]47))
+              $entryName = $relative -replace '\\','/'
+              $entry = $archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
+              $entryStream = $entry.Open()
+              $fileStream = [System.IO.File]::OpenRead($_.FullName)
+              try { $fileStream.CopyTo($entryStream) }
+              finally { $fileStream.Dispose(); $entryStream.Dispose() }
+            }
+          } finally { $archive.Dispose() }
+          $check = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          try {
+            $names = @($check.Entries | ForEach-Object { $_.FullName })
+            if ($names | Where-Object { $_.Contains([char]92) }) { throw 'Web candidate ZIP contains Windows backslash entries.' }
+            foreach ($required in @('index.html','main.dart.js','flutter_bootstrap.js','SHA256SUMS.txt')) {
+              if ($names -notcontains $required) { throw ('Web candidate ZIP missing required entry: ' + $required) }
+            }
+          } finally { $check.Dispose() }
           if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw 'Local production web candidate ZIP was not created.' }
           $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
           "$zipHash  Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip" | Set-Content -LiteralPath (Join-Path $releaseRoot 'WEB-CANDIDATE-ZIP-SHA256.txt') -Encoding ascii
           Write-Host "Exact-head web candidate preserved at $releaseRoot"
+
+  final-uat-bundle:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration'
+    needs: [php-regression, flutter-integration]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Build single-upload exact-head UAT deployment bundle
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $sourceWeb = Join-Path $env:USERPROFILE ('ERP7-Releases\candidates\' + $env:GITHUB_SHA + '\web')
+          if (-not (Test-Path -LiteralPath (Join-Path $sourceWeb 'index.html') -PathType Leaf)) { throw 'Exact-head web candidate directory is missing.' }
+          $work = Join-Path $env:RUNNER_TEMP ('eh7-final-bundle-' + [Guid]::NewGuid().ToString('N'))
+          $payload = Join-Path $work 'eh7-uat-deploy'
+          $plugin = Join-Path $payload 'plugin\excel-herbal-erp-v7'
+          $web = Join-Path $payload 'web\eh7-flutter-web'
+          New-Item -ItemType Directory -Path $plugin -Force | Out-Null
+          New-Item -ItemType Directory -Path $web -Force | Out-Null
+          Copy-Item -Path 'backend\excel-herbal-erp-v7\*' -Destination $plugin -Recurse -Force
+          Copy-Item -Path (Join-Path $sourceWeb '*') -Destination $web -Recurse -Force
+          @(
+            '<?php',
+            "if(!defined('ABSPATH'))exit;",
+            "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');"
+          ) | Set-Content -LiteralPath (Join-Path $plugin 'build-meta.php') -Encoding ascii
+          $schemaLine = Select-String -LiteralPath (Join-Path $plugin 'src\Database\Schema.php') -Pattern "public const VERSION='([^']+)'" | Select-Object -First 1
+          if (-not $schemaLine) { throw 'Schema version could not be read.' }
+          $schemaVersion = $schemaLine.Matches.Groups[1].Value
+          $pluginMainHash = (Get-FileHash -LiteralPath (Join-Path $plugin 'excel-herbal-erp-v7.php') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $webMainHash = (Get-FileHash -LiteralPath (Join-Path $web 'main.dart.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "commit=$env:GITHUB_SHA",
+            "schema=$schemaVersion",
+            "plugin_entrypoint_sha256=$pluginMainHash",
+            "web_main_sha256=$webMainHash",
+            "purpose=office-build-uat-final-bundle",
+            "production_approved=false"
+          ) | Set-Content -LiteralPath (Join-Path $payload 'FINAL-MANIFEST.txt') -Encoding ascii
+          @(
+            'ONE-UPLOAD UAT DEPLOYMENT BUNDLE',
+            '',
+            '1. Keep the current office backup and rollback plugin folder.',
+            '2. Upload this bundle to Hostinger File Manager and extract to a temporary folder.',
+            '3. Replace wp-content/plugins/excel-herbal-erp-v7 with plugin/excel-herbal-erp-v7.',
+            '4. Replace wp-content/uploads/eh7-flutter-web with web/eh7-flutter-web.',
+            '5. Do not activate any duplicate ERP plugin copy.',
+            '6. Verify /excel-herbal-erp/v7/health source_head matches FINAL-MANIFEST.txt.',
+            '7. Open Administration > System Health and run Resolve Safe UAT Anomalies once.',
+            '8. PR remains draft; this bundle is not production approval.'
+          ) | Set-Content -LiteralPath (Join-Path $payload 'DEPLOY-INSTRUCTIONS.txt') -Encoding utf8
+          foreach ($required in @(
+            (Join-Path $plugin 'excel-herbal-erp-v7.php'),
+            (Join-Path $plugin 'build-meta.php'),
+            (Join-Path $plugin 'src\Core\Autoloader.php'),
+            (Join-Path $web 'index.html'),
+            (Join-Path $web 'main.dart.js'),
+            (Join-Path $web 'flutter_bootstrap.js'),
+            (Join-Path $web 'SHA256SUMS.txt')
+          )) { if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw ('Final bundle missing required file: ' + $required) } }
+          $desktopRoot = Join-Path $env:USERPROFILE ('Desktop\EH7-UAT-Final\' + $env:GITHUB_SHA)
+          if (Test-Path -LiteralPath $desktopRoot) { Remove-Item -LiteralPath $desktopRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $desktopRoot -Force | Out-Null
+          $zipPath = Join-Path $desktopRoot 'EH7-UAT-Final-Bundle.zip'
+          $root = (Resolve-Path -LiteralPath $payload).Path
+          $archive = [System.IO.Compression.ZipFile]::Open($zipPath,[System.IO.Compression.ZipArchiveMode]::Create)
+          try {
+            Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object {
+              $relative = $_.FullName.Substring($root.Length).TrimStart([char[]]@([char]92,[char]47))
+              $entryName = $relative -replace '\\','/'
+              $entry = $archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
+              $entryStream = $entry.Open()
+              $fileStream = [System.IO.File]::OpenRead($_.FullName)
+              try { $fileStream.CopyTo($entryStream) }
+              finally { $fileStream.Dispose(); $entryStream.Dispose() }
+            }
+          } finally { $archive.Dispose() }
+          $verify = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          try {
+            $names = @($verify.Entries | ForEach-Object { $_.FullName })
+            if ($names | Where-Object { $_.Contains([char]92) }) { throw 'Final bundle contains Windows backslash entries.' }
+            foreach ($required in @(
+              'plugin/excel-herbal-erp-v7/excel-herbal-erp-v7.php',
+              'plugin/excel-herbal-erp-v7/build-meta.php',
+              'plugin/excel-herbal-erp-v7/src/Core/Autoloader.php',
+              'web/eh7-flutter-web/index.html',
+              'web/eh7-flutter-web/main.dart.js',
+              'FINAL-MANIFEST.txt',
+              'DEPLOY-INSTRUCTIONS.txt'
+            )) { if ($names -notcontains $required) { throw ('Final bundle ZIP missing required entry: ' + $required) } }
+          } finally { $verify.Dispose() }
+          $bundleHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$bundleHash  EH7-UAT-Final-Bundle.zip" | Set-Content -LiteralPath (Join-Path $desktopRoot 'FINAL-BUNDLE-SHA256.txt') -Encoding ascii
+          Copy-Item -LiteralPath (Join-Path $payload 'FINAL-MANIFEST.txt') -Destination $desktopRoot -Force
+          Write-Host "FINAL_BUNDLE_DIR=$desktopRoot"
+          Write-Host "FINAL_BUNDLE_SHA256=$bundleHash"
+          Remove-Item -LiteralPath $work -Recurse -Force
+
