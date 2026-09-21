@@ -464,7 +464,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                   ),
                   if (validation != null) ...[
                     const SizedBox(height: 8),
-                    Text(validation!),
+                    Text(validation),
                   ],
                 ],
               ),
@@ -477,7 +477,47 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
               FilledButton(
                 onPressed: () {
                   final date = paymentDate.text.trim();
-                  final validDate = RegExp(r'^\\d{4}-\\d{2}-\\d{2}
+                  final validDate =
+                      RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date) &&
+                      DateTime.tryParse(date) != null;
+                  if (paymentAccountId == null) {
+                    setLocal(() => validation = 'Payment account is required.');
+                  } else if (!validDate) {
+                    setLocal(
+                      () => validation =
+                          'Payment date must be a valid YYYY-MM-DD date.',
+                    );
+                  } else {
+                    Navigator.pop(context, true);
+                  }
+                },
+                child: const Text('Mark Paid'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (ok != true || paymentAccountId == null) return;
+
+      await ref.read(apiClientProvider).post(
+        ApiPaths.payrollPay(id),
+        data: {
+          'payment_account_id': paymentAccountId,
+          'payment_date': paymentDate.text.trim(),
+        },
+      );
+      if (mounted) {
+        setState(() {
+          message = 'Payroll #$id marked paid.';
+          refresh++;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      paymentDate.dispose();
+    }
+  }
 
   Future<void> _createTarget() async {
     final app = ref.read(appStateProvider);
