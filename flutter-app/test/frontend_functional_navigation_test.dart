@@ -48,4 +48,27 @@ void main() {
     expect(home, contains('SafeArea(child: MyWorkWorkspaceScreen())'));
     expect(home, isNot(contains("import '../my_work/my_work_screen.dart';")));
   });
+  test('payroll UI matches backend mutation contract', () {
+    final screen = File(
+      'lib/screens/performance/performance_screen.dart',
+    ).readAsStringSync();
+    final paths = File('lib/core/api_paths.dart').readAsStringSync();
+
+    expect(
+      paths,
+      contains("'/payroll/runs/\$id/discard'"),
+    );
+    expect(screen, contains('ApiPaths.payrollDiscard(id)'));
+    expect(screen, contains("'payment_account_id': paymentAccountId"));
+    expect(screen, contains("'payment_date': paymentDate.text.trim()"));
+    expect(screen, contains("'period_start': app.businessMonthStart"));
+    expect(screen, contains("'period_end': app.businessDate"));
+    expect(screen, isNot(contains("'from_date': app.businessMonthStart")));
+    expect(screen, isNot(contains("'to_date': app.businessDate")));
+    expect(screen, contains("item['full_name']"));
+    expect(screen, contains("item['net_salary']"));
+    expect(screen, contains('Discard Draft'));
+    expect(screen, contains('calculation version missing'));
+  });
+
 }
