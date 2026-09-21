@@ -57,6 +57,12 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         ),
       ));
     }
+    if (app.canAny(const [
+      'administration.audit.view',
+      'administration.access.manage',
+    ])) {
+      tabs.add(('System Health', _systemHealthTab()));
+    }
     if (tabs.isEmpty) {
       return const Scaffold(
         body: Center(child: Text('No authorised administration functions.')),
@@ -104,6 +110,191 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         ),
       ),
     );
+  }
+
+  Widget _systemHealthTab() {
+    final app = ref.watch(appStateProvider);
+    final api = ref.watch(apiClientProvider);
+    return AsyncPanel(
+      key: ValueKey('system-health-$refresh'),
+      future: api.get(ApiPaths.diagnostics),
+      builder: (context, data) {
+        final d = Map<String, dynamic>.from(data as Map);
+        final attendance =
+            Map<String, dynamic>.from((d['attendance'] as Map?) ?? const {});
+        final daily =
+            Map<String, dynamic>.from((d['daily_order'] as Map?) ?? const {});
+        final payroll =
+            Map<String, dynamic>.from((d['payroll'] as Map?) ?? const {});
+        final access =
+            Map<String, dynamic>.from((d['access'] as Map?) ?? const {});
+        final organization =
+            Map<String, dynamic>.from((d['organization'] as Map?) ?? const {});
+        final accounting =
+            Map<String, dynamic>.from((d['accounting'] as Map?) ?? const {});
+        final stock =
+            Map<String, dynamic>.from((d['stock'] as Map?) ?? const {});
+        final status = '${d['status'] ?? 'unknown'}';
+        final attention = status == 'attention';
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: ListTile(
+                leading: Icon(
+                  attention ? Icons.warning_amber_rounded : Icons.verified_outlined,
+                ),
+                title: Text(
+                  attention ? 'Operational attention required' : 'System healthy',
+                ),
+                subtitle: Text('Checked at ${d['checked_at'] ?? '—'}'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _healthMetric(
+              'Historical attendance without checkout',
+              attendance['open_past_without_checkout'],
+            ),
+            _healthMetric(
+              'Acknowledged missing checkout records',
+              attendance['acknowledged_missing_checkout'],
+            ),
+            _healthMetric(
+              'Stale Daily Order cycles',
+              daily['stale_non_completed_cycles'],
+            ),
+            _healthMetric('Legacy payroll drafts', payroll['legacy_draft_runs']),
+            _healthMetric(
+              'Duplicate active role names',
+              access['duplicate_active_role_names'],
+            ),
+            _healthMetric(
+              'Duplicate active designation names',
+              organization['duplicate_active_designation_names'],
+            ),
+            _healthMetric(
+              'Unbalanced journals',
+              accounting['unbalanced_journals'],
+            ),
+            _healthMetric('Negative stock balances', stock['negative_balances']),
+            if (app.can('administration.access.manage')) ...[
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: attention ? _resolveSafeUatAnomalies : null,
+                icon: const Icon(Icons.auto_fix_high_outlined),
+                label: const Text('Resolve Safe UAT Anomalies'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This does not invent checkout times. Missing historical checkouts '
+                'are acknowledged as audited exceptions. Unposted stale Daily Orders '
+                'are cancelled only when stock custody can be fully proven and returned.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _healthMetric(String label, dynamic value) => Card(
+        child: ListTile(
+          dense: true,
+          title: Text(label),
+          trailing: Text(
+            '${value ?? 0}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      );
+
+  Future<void> _resolveSafeUatAnomalies() async {
+    final reason = TextEditingController(
+      text: 'UAT cleanup after verified diagnostics review',
+    );
+    String? validation;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Resolve safe UAT anomalies?'),
+          content: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'The backend will only resolve anomalies that pass strict safety '
+                  'checks. Unsafe records are skipped rather than forced.',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reason,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Audit reason'),
+                ),
+                if (validation != null) ...[
+                  const SizedBox(height: 8),
+                  Text(validation!),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (reason.text.trim().length < 10) {
+                  setLocal(
+                    () => validation =
+                        'Audit reason must contain at least 10 characters.',
+                  );
+                } else {
+                  Navigator.pop(context, true);
+                }
+              },
+              child: const Text('Resolve Safe Anomalies'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) {
+      reason.dispose();
+      return;
+    }
+    try {
+      final raw = await ref.read(apiClientProvider).post(
+        ApiPaths.maintenanceCleanup,
+        data: {
+          'operation': 'resolve_uat_anomalies',
+          'confirmation': 'RESOLVE_UAT_ANOMALIES',
+          'reason': reason.text.trim(),
+        },
+      );
+      final result = Map<String, dynamic>.from(raw as Map);
+      if (mounted) {
+        setState(() {
+          message =
+              'UAT cleanup complete · Attendance ${result['attendance_acknowledged'] ?? 0}, '
+              'Daily ${result['daily_cycles_cancelled'] ?? 0}, '
+              'Payroll ${result['payroll_drafts_discarded'] ?? 0}, '
+              'Roles ${result['roles_deactivated'] ?? 0}, '
+              'Designations ${result['designations_deactivated'] ?? 0}, '
+              'Skipped ${result['daily_cycles_skipped'] ?? 0}.';
+          refresh++;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      reason.dispose();
+    }
   }
 
   Widget _accessTab(int? branchId) {
