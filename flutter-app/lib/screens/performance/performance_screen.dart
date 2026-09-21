@@ -225,6 +225,10 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
       final items = (data['items'] as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
+      final calculationVersion = '${run['calculation_version'] ?? ''}'.trim();
+      final isLegacyDraft =
+          '${run['status']}'.toLowerCase() == 'draft' &&
+          calculationVersion.isEmpty;
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
@@ -244,35 +248,61 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
               ),
               const SizedBox(height: 8),
               Text('Status: ${run['status']}'),
+              if (calculationVersion.isNotEmpty)
+                Text('Calculation version: $calculationVersion'),
+              if (isLegacyDraft) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Legacy payroll draft: calculation version missing. '
+                  'Discard and regenerate before approval.',
+                ),
+              ],
               const SizedBox(height: 12),
               ...items.map(
                 (item) => Card(
                   child: ListTile(
                     title: Text(
-                      '${item['employee_name'] ?? 'Employee #${item['employee_id']}'}',
+                      '${item['full_name'] ?? item['employee_name'] ?? 'Employee #${item['employee_id']}'}',
                     ),
                     subtitle: Text(
-                      'Gross: ${item['gross_total']} · Net: ${item['net_total']}',
+                      'Paid days: ${item['paid_days'] ?? '0'} · '
+                      'Attendance: ${item['attendance_salary'] ?? '0'} · '
+                      'Fund: ${item['salary_fund_earning'] ?? '0'} · '
+                      'Net: ${item['net_salary'] ?? '0'}',
                     ),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
-              if ('${run['status']}' == 'draft' && app.can('payroll.approve'))
+              if ('${run['status']}' == 'draft' &&
+                  app.can('payroll.generate'))
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _discardPayroll(id);
+                  },
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Discard Draft'),
+                ),
+              if ('${run['status']}' == 'draft' &&
+                  !isLegacyDraft &&
+                  app.can('payroll.approve')) ...[
+                const SizedBox(height: 8),
                 FilledButton.icon(
                   onPressed: () async {
                     Navigator.pop(context);
-                    await _payrollAction(id, 'approve');
+                    await _approvePayroll(id);
                   },
                   icon: const Icon(Icons.approval_outlined),
                   label: const Text('Approve Payroll'),
                 ),
+              ],
               if ('${run['status']}' == 'approved' && app.can('payroll.pay')) ...[
                 const SizedBox(height: 8),
                 FilledButton.icon(
                   onPressed: () async {
                     Navigator.pop(context);
-                    await _payrollAction(id, 'pay');
+                    await _payPayroll(id);
                   },
                   icon: const Icon(Icons.payments_outlined),
                   label: const Text('Mark Paid'),
@@ -287,22 +317,323 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     }
   }
 
-  Future<void> _payrollAction(int id, String action) async {
+  Future<void> _approvePayroll(int id) async {
     try {
-      final path = action == 'approve'
-          ? ApiPaths.payrollApprove(id)
-          : ApiPaths.payrollPay(id);
-      await ref.read(apiClientProvider).post(path, data: const {});
+      await ref
+          .read(apiClientProvider)
+          .post(ApiPaths.payrollApprove(id), data: const {});
       if (mounted) {
         setState(() {
-          message = action == 'approve'
-              ? 'Payroll #$id approved.'
-              : 'Payroll #$id marked paid.';
+          message = 'Payroll #$id approved.';
           refresh++;
         });
       }
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _discardPayroll(int id) async {
+    final reason = TextEditingController(
+      text: 'UAT cleanup: legacy or invalid payroll draft',
+    );
+    String? validation;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text('Discard Payroll #$id?'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Only an unposted draft can be discarded. '
+                  'The backend records a full audit snapshot before deletion.',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reason,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Reason'),
+                ),
+                if (validation != null) ...[
+                  const SizedBox(height: 8),
+                  Text(validation!),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (reason.text.trim().length < 5) {
+                  setLocal(() => validation = 'Reason is required.');
+                } else {
+                  Navigator.pop(context, true);
+                }
+              },
+              child: const Text('Discard Draft'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) {
+      reason.dispose();
+      return;
+    }
+    try {
+      await ref.read(apiClientProvider).post(
+        ApiPaths.payrollDiscard(id),
+        data: {'reason': reason.text.trim()},
+      );
+      if (mounted) {
+        setState(() {
+          message = 'Payroll #$id discarded.';
+          refresh++;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      reason.dispose();
+    }
+  }
+
+  Future<void> _payPayroll(int id) async {
+    final app = ref.read(appStateProvider);
+    final paymentDate = TextEditingController(text: app.businessDate);
+    int? paymentAccountId;
+    String? validation;
+    try {
+      final raw = await ref
+          .read(apiClientProvider)
+          .get(ApiPaths.financeBootstrap);
+      final data = Map<String, dynamic>.from(raw as Map);
+      final accounts = ((data['accounts'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((account) {
+            final subtype = '${account['subtype'] ?? ''}'.toLowerCase();
+            return {'cash', 'bank', 'upi'}.contains(subtype);
+          })
+          .toList();
+
+      if (!mounted) return;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: Text('Pay Payroll #$id'),
+            content: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: paymentAccountId,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment Account',
+                    ),
+                    items: accounts
+                        .map(
+                          (account) => DropdownMenuItem<int>(
+                            value: int.tryParse('${account['id']}'),
+                            child: Text(
+                              '${account['code'] ?? ''} · ${account['name'] ?? ''}',
+                            ),
+                          ),
+                        )
+                        .where((item) => item.value != null)
+                        .toList(),
+                    onChanged: (value) =>
+                        setLocal(() => paymentAccountId = value),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: paymentDate,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment Date (YYYY-MM-DD)',
+                    ),
+                  ),
+                  if (validation != null) ...[
+                    const SizedBox(height: 8),
+                    Text(validation!),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final date = paymentDate.text.trim();
+                  final validDate = RegExp(r'^\\d{4}-\\d{2}-\\d{2}
+
+  Future<void> _createTarget() async {
+    final app = ref.read(appStateProvider);
+    if (app.currentBranchId == null) return;
+    final employee = TextEditingController();
+    final points = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('New Performance Target'),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: employee,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Employee ID'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: points,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Target Points'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      try {
+        await ref.read(apiClientProvider).post(
+          ApiPaths.performanceTargets,
+          data: {
+            'branch_id': app.currentBranchId,
+            'employee_id': int.parse(employee.text.trim()),
+            'target_points': double.parse(points.text.trim()),
+            'period_start': app.businessMonthStart,
+            'period_end': app.businessDate,
+          },
+        );
+        if (mounted) {
+          setState(() {
+            message = 'Performance target created.';
+            refresh++;
+          });
+        }
+      } catch (e) {
+        if (mounted) setState(() => message = UiError.message(e));
+      }
+    }
+    employee.dispose();
+    points.dispose();
+  }
+
+  Future<void> _targetAction(Map<String, dynamic> row) async {
+    final app = ref.read(appStateProvider);
+    if (!app.can('performance.manage')) return;
+    final id = int.parse('${row['id']}');
+    final status = '${row['status'] ?? ''}'.trim().toLowerCase();
+    if (status != 'draft') {
+      if (mounted) {
+        setState(() => message = 'Target #$id is already ${status.isEmpty ? 'processed' : status}.');
+      }
+      return;
+    }
+
+    final employee = '${row['employee_name'] ?? 'Employee #${row['employee_id'] ?? '—'}'}';
+    final points = '${row['target_points'] ?? '0'}';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Approve Target #$id'),
+        content: Text(
+          '$employee\nTarget Points: $points\n\nApproval is maker-checker protected. The creator cannot approve the same target.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.approval_outlined),
+            label: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      await ref
+          .read(apiClientProvider)
+          .post(ApiPaths.targetApprove(id), data: const {});
+      if (mounted) {
+        setState(() {
+          message = 'Target #$id approved.';
+          refresh++;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+})
+                          .hasMatch(date) &&
+                      DateTime.tryParse(date) != null;
+                  if (paymentAccountId == null) {
+                    setLocal(() => validation = 'Payment account is required.');
+                  } else if (!validDate) {
+                    setLocal(
+                      () => validation =
+                          'Payment date must be a valid YYYY-MM-DD date.',
+                    );
+                  } else {
+                    Navigator.pop(context, true);
+                  }
+                },
+                child: const Text('Mark Paid'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (ok != true || paymentAccountId == null) return;
+
+      await ref.read(apiClientProvider).post(
+        ApiPaths.payrollPay(id),
+        data: {
+          'payment_account_id': paymentAccountId,
+          'payment_date': paymentDate.text.trim(),
+        },
+      );
+      if (mounted) {
+        setState(() {
+          message = 'Payroll #$id marked paid.';
+          refresh++;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      paymentDate.dispose();
     }
   }
 
