@@ -184,6 +184,7 @@ abstract final class ApiPaths {
       '/payroll/runs/$id/items/$itemId';
   static String payrollApprove(int id) => '/payroll/runs/$id/approve';
   static String payrollPay(int id) => '/payroll/runs/$id/pay';
+  static String payrollDiscard(int id) => '/payroll/runs/$id/discard';
   static String salaryStructureApprove(int id) =>
       '/payroll/salary-structures/$id/approve';
   static String targetApprove(int id) => '/performance/targets/$id/approve';
