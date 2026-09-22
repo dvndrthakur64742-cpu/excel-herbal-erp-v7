@@ -90,6 +90,18 @@ assert "checkout_exception=0" in maintenance,'acknowledged missing checkout stil
 dispatch=(root/'src/Http/ApiDispatch.php').read_text()
 assert "MaintenanceService::cleanup($a,self::arrBody($r))" in dispatch,'maintenance cleanup payload is not dispatched'
 print('PASS safe UAT anomaly cleanup wiring')
+admin_cleanup=(root/'src/Administration/UatCleanupAdmin.php').read_text()
+for token in [
+ "current_user_can('manage_options')",
+ "check_admin_referer(self::ACTION)",
+ "ActorResolver::current()",
+ "MaintenanceService::cleanup($actor",
+ "'confirmation'=>'RESOLVE_UAT_ANOMALIES'",
+]:
+ assert token in admin_cleanup,('unsafe or incomplete WordPress admin UAT cleanup bridge',token)
+plugin=(root/'src/Core/Plugin.php').read_text()
+assert 'UatCleanupAdmin::boot();' in plugin,'WordPress admin UAT cleanup bridge is not booted'
+print('PASS nonce-protected WordPress admin UAT cleanup bridge')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
