@@ -386,10 +386,8 @@ class ApiClient {
       if (error.response?.statusCode == 400 ||
           error.response?.statusCode == 401 ||
           error.response?.statusCode == 403) {
-        final latestRefresh = await session.refreshToken();
-        if (refreshTokenWasRotated(refresh, latestRefresh)) {
-          final latestAccess = await session.accessToken();
-          return latestAccess != null && latestAccess.isNotEmpty;
+        if (await _adoptPeerRefresh(refresh)) {
+          return true;
         }
         await session.clear();
       }
@@ -397,6 +395,23 @@ class ApiClient {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<bool> _adoptPeerRefresh(String attemptedRefresh) async {
+    // A successful peer tab writes access first and refresh second. Give that
+    // shared write a short window to become visible before treating the
+    // rejection as a genuine session expiry.
+    for (var attempt = 0; attempt < 7; attempt++) {
+      final latestRefresh = await session.refreshToken();
+      if (refreshTokenWasRotated(attemptedRefresh, latestRefresh)) {
+        final latestAccess = await session.accessToken();
+        return latestAccess != null && latestAccess.isNotEmpty;
+      }
+      if (attempt < 6) {
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      }
+    }
+    return false;
   }
 
   @visibleForTesting
