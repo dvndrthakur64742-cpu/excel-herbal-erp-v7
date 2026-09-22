@@ -38,14 +38,41 @@ function Get-LiveMainHash {
   }
 }
 
-function Get-ChromeWindow {
+function Get-ChromeWindow([string]$TitlePattern = '') {
   $windows = @(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
   if ($windows.Count -eq 0) {
     throw 'Visible Chrome window was not found on the runner desktop.'
   }
+  if ($TitlePattern) {
+    $matched = $windows | Where-Object { $_.MainWindowTitle -match $TitlePattern } | Select-Object -First 1
+    if ($matched) { return $matched }
+    return $null
+  }
   $preferred = $windows | Where-Object { $_.MainWindowTitle -match 'office|EH7|Excel Herbal|WordPress' } | Select-Object -First 1
   if ($preferred) { return $preferred }
   return $windows | Select-Object -First 1
+}
+
+function Open-SetupAssistantWindow([string]$Url) {
+  $chromeExe = @(
+    (Get-Command chrome.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1),
+    'C:\Program Files\Google\Chrome\Application\chrome.exe',
+    'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
+  ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
+
+  if (-not $chromeExe) {
+    throw 'Chrome executable was not found on the runner desktop.'
+  }
+
+  Start-Process -FilePath $chromeExe -ArgumentList @('--new-window', $Url) | Out-Null
+
+  for ($attempt = 0; $attempt -lt 30; $attempt++) {
+    Start-Sleep -Milliseconds 500
+    $window = Get-ChromeWindow -TitlePattern 'EH7 Setup Assistant|office.*WordPress'
+    if ($window) { return $window }
+  }
+
+  throw 'Dedicated WordPress Setup Assistant Chrome window did not appear.'
 }
 
 function Get-AutomationRoot([System.Diagnostics.Process]$Chrome) {
@@ -87,19 +114,12 @@ if ($beforeHash -eq $expectedMainHash) {
   exit 0
 }
 
-$chrome = Get-ChromeWindow
+$setupUrl = 'https://office.excelherbal.in/wp-admin/admin.php?page=eh7-setup-assistant&tab=desktop'
+$chrome = Open-SetupAssistantWindow -Url $setupUrl
 $shell = New-Object -ComObject WScript.Shell
 if (-not $shell.AppActivate($chrome.Id)) {
-  throw 'Could not activate the visible Chrome window.'
+  throw 'Could not activate the dedicated WordPress Setup Assistant Chrome window.'
 }
-Start-Sleep -Milliseconds 500
-
-$setupUrl = 'https://office.excelherbal.in/wp-admin/admin.php?page=eh7-setup-assistant&tab=desktop'
-[System.Windows.Forms.SendKeys]::SendWait('^l')
-Start-Sleep -Milliseconds 150
-[System.Windows.Forms.Clipboard]::SetText($setupUrl)
-[System.Windows.Forms.SendKeys]::SendWait('^v')
-[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
 Start-Sleep -Seconds 6
 
 $chrome = Get-Process -Id $chrome.Id -ErrorAction Stop
