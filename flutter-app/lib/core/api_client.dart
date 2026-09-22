@@ -379,16 +379,33 @@ class ApiClient {
       );
       return true;
     } on DioException catch (error) {
-      // Only an explicit refresh-token rejection invalidates the local session.
+      // A second browser tab can refresh the shared web session first. In that
+      // case this request may be rejected because it used the now-rotated
+      // refresh token. Never clear the newer shared tokens written by the
+      // winning tab; let the original API request retry with them instead.
       if (error.response?.statusCode == 400 ||
           error.response?.statusCode == 401 ||
           error.response?.statusCode == 403) {
+        final latestRefresh = await session.refreshToken();
+        if (refreshTokenWasRotated(refresh, latestRefresh)) {
+          final latestAccess = await session.accessToken();
+          return latestAccess != null && latestAccess.isNotEmpty;
+        }
         await session.clear();
       }
       return false;
     } catch (_) {
       return false;
     }
+  }
+
+  @visibleForTesting
+  static bool refreshTokenWasRotated(
+    String attemptedRefresh,
+    String? latestRefresh,
+  ) {
+    final latest = latestRefresh?.trim() ?? '';
+    return latest.isNotEmpty && latest != attemptedRefresh;
   }
 
   bool _isUncertainNetworkFailure(DioException error) =>
@@ -481,4 +498,3 @@ class ApiClient {
     return 'Server se response nahi mila. Retry karein.';
   }
 }
-
