@@ -404,7 +404,15 @@ jobs:
           if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw 'Local production web candidate ZIP was not created.' }
           $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
           "$zipHash  Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip" | Set-Content -LiteralPath (Join-Path $releaseRoot 'WEB-CANDIDATE-ZIP-SHA256.txt') -Encoding ascii
+          Copy-Item -LiteralPath $zipPath -Destination (Join-Path $env:RUNNER_TEMP 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip') -Force
           Write-Host "Exact-head web candidate preserved at $releaseRoot"
+      - name: Publish exact-head web candidate for controlled UAT deployment
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: eh7-web-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}\\Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip
+          if-no-files-found: error
+          retention-days: 1
 
   final-uat-bundle:
     if: github.ref == 'refs/heads/codex/erp735-document-integration'
