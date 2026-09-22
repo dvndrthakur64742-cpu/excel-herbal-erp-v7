@@ -300,6 +300,14 @@ jobs:
       - name: Locate existing Flutter toolchain
         run: |
           $ErrorActionPreference = 'Stop'
+          if (-not ${env:ProgramFiles(x86)}) {
+            $pf86 = 'C:\Program Files (x86)'
+            if (-not (Test-Path -LiteralPath $pf86 -PathType Container)) {
+              throw 'Standard Program Files (x86) directory is unavailable on the Windows runner.'
+            }
+            "ProgramFiles(x86)=$pf86" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            ${env:ProgramFiles(x86)} = $pf86
+          }
           $flutterExe = 'C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat'
           if (-not (Test-Path -LiteralPath $flutterExe -PathType Leaf)) {
             $flutter = Get-Command flutter.bat -ErrorAction SilentlyContinue
@@ -496,4 +504,3 @@ jobs:
           Write-Host "FINAL_BUNDLE_DIR=$desktopRoot"
           Write-Host "FINAL_BUNDLE_SHA256=$bundleHash"
           Remove-Item -LiteralPath $work -Recurse -Force
-
