@@ -416,7 +416,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Deploy certified web candidate through local authenticated WordPress session
         run: |
-          & '.github/scripts/deploy-uat-web-via-local-wp-session.ps1' -SourceHead $env:GITHUB_SHA
+          & '.github/scripts/deploy-uat-web-via-visible-wp-session.ps1' -SourceHead $env:GITHUB_SHA
       - name: Verify live session-race build marker
         run: |
           $ErrorActionPreference = 'Stop'
