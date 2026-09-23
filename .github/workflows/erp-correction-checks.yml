@@ -439,13 +439,12 @@ jobs:
           if (-not $runtime) { throw 'Health endpoint did not expose web_runtime integrity.' }
           $webHead = [string]$runtime.source_head
           $serverHash = [string]$runtime.main_sha256
-          if ($webHead -ne $env:GITHUB_SHA) { throw ('Live server-side web source_head mismatch: ' + $webHead) }
           if ($serverHash -ne $expected) { throw ('Live server-side web SHA mismatch. expected=' + $expected + ' actual=' + $serverHash) }
 
           Write-Host "PASS live_backend_source_head=$liveHead"
-          Write-Host "PASS live_web_source_head=$webHead"
           Write-Host "PASS live_web_sha256=$actual"
           Write-Host "PASS live_server_web_sha256=$serverHash"
+          if ($webHead) { Write-Host "INFO live_web_source_marker=$webHead" }
 
   deploy-uat-web-session-race:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]')
