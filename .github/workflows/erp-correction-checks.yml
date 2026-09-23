@@ -407,6 +407,27 @@ jobs:
           Write-Host "Exact-head web candidate preserved at $releaseRoot"
 
 
+  deploy-uat-current-erp:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-current]')
+    needs: [php-regression, flutter-integration]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Deploy backend and certified web through current ERP workflow
+        run: |
+          & '.github/scripts/deploy-uat-current-erp-workflow.ps1' -SourceHead $env:GITHUB_SHA
+      - name: Verify live backend and web source markers
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $health = Invoke-RestMethod -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+          $liveHead = if ($health.data -and $health.data.source_head) { [string]$health.data.source_head } elseif ($health.source_head) { [string]$health.source_head } else { '' }
+          if ($liveHead -ne $env:GITHUB_SHA) { throw ('Live backend source_head mismatch: ' + $liveHead) }
+          $marker = (Invoke-WebRequest -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/EH7-SOURCE-HEAD.txt?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20).Content.Trim()
+          if ($marker -ne $env:GITHUB_SHA) { throw ('Live web source marker mismatch: ' + $marker) }
+          Write-Host "PASS live_backend_source_head=$liveHead"
+          Write-Host "PASS live_web_source_head=$marker"
+
   deploy-uat-web-session-race:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]')
     needs: [php-regression, flutter-integration]
