@@ -7,6 +7,16 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class EH7Mouse {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+  public const uint LEFTDOWN = 0x0002;
+  public const uint LEFTUP = 0x0004;
+}
+"@
 
 if ($SourceHead -notmatch '^[a-f0-9]{40}$') {
   throw 'SourceHead must be a 40-character lowercase commit SHA.'
@@ -193,13 +203,25 @@ if (-not $upload -or -not $upload.Current.IsEnabled) {
 }
 Write-Host ('INFO selected_candidate_zip=' + $zipPath)
 
-# Chrome's UIA InvokePattern can report success for an HTML submit control
-# without dispatching the form. Focus the real submit button and press Enter
-# so WordPress receives the multipart POST exactly as a user would submit it.
-$upload.SetFocus()
+# Chrome may expose an HTML submit button through UIA without firing the
+# page form for InvokePattern/keyboard activation. Click the actual rendered
+# button coordinates so WordPress receives the same multipart POST as a human.
+$shell = New-Object -ComObject WScript.Shell
+[void]$shell.AppActivate($chrome.Id)
 Start-Sleep -Milliseconds 300
-[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-Start-Sleep -Seconds 15
+$rect = $upload.Current.BoundingRectangle
+if ($rect.Width -le 0 -or $rect.Height -le 0) {
+  throw 'Upload Web Bundle button has no clickable screen rectangle.'
+}
+$x = [int]($rect.Left + ($rect.Width / 2))
+$y = [int]($rect.Top + ($rect.Height / 2))
+Write-Host ('INFO web_upload_click_x=' + $x + ' y=' + $y)
+[EH7Mouse]::SetCursorPos($x, $y) | Out-Null
+Start-Sleep -Milliseconds 200
+[EH7Mouse]::mouse_event([EH7Mouse]::LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+Start-Sleep -Milliseconds 80
+[EH7Mouse]::mouse_event([EH7Mouse]::LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+Start-Sleep -Seconds 18
 
 $root = Get-AutomationRoot $chrome
 $allAfterUpload = $root.FindAll(
