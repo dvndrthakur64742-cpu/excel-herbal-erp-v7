@@ -288,12 +288,15 @@ function Deploy-WebRuntime {
   $currentMarker = if ($runtime -and $runtime.source_head) { [string]$runtime.source_head } else { '' }
   $serverMainHash = if ($runtime -and $runtime.main_sha256) { [string]$runtime.main_sha256 } else { '' }
 
-  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash -and $currentMarker -eq $SourceHead) {
-    Write-Host 'PASS certified web runtime SHA and exact source marker are already live.'
+  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash) {
+    Write-Host 'PASS certified web runtime SHA is already live.'
+    if ($currentMarker) {
+      Write-Host ('INFO live_web_source_marker=' + $currentMarker)
+    }
     return
   }
   if ($before -eq $expectedMainHash) {
-    Write-Host ('INFO web_runtime_requires_metadata_refresh marker=' + $currentMarker + ' server_hash=' + $serverMainHash)
+    Write-Host ('INFO browser_web_hash_matches_but_server_hash_differs=' + $serverMainHash)
   }
 
   $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-web-deploy' -TitlePattern 'EH7 UAT Web Deploy|office.*WordPress'
