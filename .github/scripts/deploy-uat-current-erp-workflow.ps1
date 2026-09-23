@@ -301,14 +301,14 @@ function Deploy-WebRuntime {
   $currentMarker = if ($runtime -and $runtime.source_head) { [string]$runtime.source_head } else { '' }
   $serverMainHash = if ($runtime -and $runtime.main_sha256) { [string]$runtime.main_sha256 } else { '' }
 
-  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash) {
-    Write-Host 'PASS certified web runtime SHA is already live.'
-    if ($currentMarker) {
-      Write-Host ('INFO live_web_source_marker=' + $currentMarker)
-    }
+  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash -and $currentMarker -eq $SourceHead) {
+    Write-Host 'PASS certified web runtime SHA and source marker are already live.'
+    Write-Host ('INFO live_web_source_marker=' + $currentMarker)
     return
   }
-  if ($before -eq $expectedMainHash) {
+  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash -and $currentMarker -ne $SourceHead) {
+    Write-Host ('INFO web_binary_matches_but_source_marker_requires_refresh=' + $currentMarker)
+  } elseif ($before -eq $expectedMainHash) {
     Write-Host ('INFO browser_web_hash_matches_but_server_hash_differs=' + $serverMainHash)
   }
 
