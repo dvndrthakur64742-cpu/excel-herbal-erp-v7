@@ -420,7 +420,20 @@ jobs:
       - name: Verify live backend head and certified web artifact SHA
         run: |
           $ErrorActionPreference = 'Stop'
-          $health = Invoke-RestMethod -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+          $health = $null
+          $lastHealthError = ''
+          for ($attempt = 1; $attempt -le 6; $attempt++) {
+            try {
+              $health = Invoke-RestMethod -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+              break
+            } catch {
+              $lastHealthError = $_.Exception.Message
+              if ($attempt -lt 6) {
+                Start-Sleep -Seconds ([Math]::Min(10, $attempt * 2))
+              }
+            }
+          }
+          if (-not $health) { throw ('Live health verification failed after retries: ' + $lastHealthError) }
           $liveHead = if ($health.data -and $health.data.source_head) { [string]$health.data.source_head } elseif ($health.source_head) { [string]$health.source_head } else { '' }
           if ($liveHead -ne $env:GITHUB_SHA) { throw ('Live backend source_head mismatch: ' + $liveHead) }
 
