@@ -7,16 +7,6 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public static class EH7Mouse {
-  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
-  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
-  public const uint LEFTDOWN = 0x0002;
-  public const uint LEFTUP = 0x0004;
-}
-"@
 
 if ($SourceHead -notmatch '^[a-f0-9]{40}$') {
   throw 'SourceHead must be a 40-character lowercase commit SHA.'
@@ -203,25 +193,24 @@ if (-not $upload -or -not $upload.Current.IsEnabled) {
 }
 Write-Host ('INFO selected_candidate_zip=' + $zipPath)
 
-# Chrome may expose an HTML submit button through UIA without firing the
-# page form for InvokePattern/keyboard activation. Click the actual rendered
-# button coordinates so WordPress receives the same multipart POST as a human.
+# Submit the exact form that owns Upload Web Bundle. The file has already
+# been selected through the native chooser, so requestSubmit preserves the
+# multipart file payload and includes the submit button name/value expected by
+# the Setup Assistant handler.
 $shell = New-Object -ComObject WScript.Shell
 [void]$shell.AppActivate($chrome.Id)
 Start-Sleep -Milliseconds 300
-$rect = $upload.Current.BoundingRectangle
-if ($rect.Width -le 0 -or $rect.Height -le 0) {
-  throw 'Upload Web Bundle button has no clickable screen rectangle.'
-}
-$x = [int]($rect.Left + ($rect.Width / 2))
-$y = [int]($rect.Top + ($rect.Height / 2))
-Write-Host ('INFO web_upload_click_x=' + $x + ' y=' + $y)
-[EH7Mouse]::SetCursorPos($x, $y) | Out-Null
-Start-Sleep -Milliseconds 200
-[EH7Mouse]::mouse_event([EH7Mouse]::LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
-Start-Sleep -Milliseconds 80
-[EH7Mouse]::mouse_event([EH7Mouse]::LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+$submitScript = "script:(()=>{const all=[...document.querySelectorAll('button,input[type=submit],input[type=button]')];const b=all.find(e=>((e.value||e.textContent||'').trim()==='Upload Web Bundle'));if(!b){document.title='EH7SUBMIT-NOBUTTON';return;}const f=b.closest('form');if(!f){document.title='EH7SUBMIT-NOFORM';return;}document.title='EH7SUBMIT-FIRE';if(f.requestSubmit){f.requestSubmit(b)}else{f.submit()}})()"
+[System.Windows.Forms.SendKeys]::SendWait('^l')
+Start-Sleep -Milliseconds 120
+# Chrome strips a pasted javascript: prefix; type "java" and paste the rest.
+[System.Windows.Forms.SendKeys]::SendWait('java')
+[System.Windows.Forms.Clipboard]::SetText($submitScript)
+[System.Windows.Forms.SendKeys]::SendWait('^v')
+[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
 Start-Sleep -Seconds 18
+$chrome = Get-Process -Id $chrome.Id -ErrorAction Stop
+Write-Host ('INFO post_submit_browser_title=' + $chrome.MainWindowTitle)
 
 $root = Get-AutomationRoot $chrome
 $allAfterUpload = $root.FindAll(
