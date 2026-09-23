@@ -303,10 +303,57 @@ function Deploy-WebRuntime {
   Write-Host ('PASS live_web_sha256=' + $actual)
 }
 
+function Resolve-UatAnomalies {
+  $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup' -TitlePattern 'EH7 UAT Cleanup|office.*WordPress'
+  $shell = New-Object -ComObject WScript.Shell
+  $null = $shell.AppActivate($chrome.Id)
+  Start-Sleep -Seconds 5
+  if ((Get-Process -Id $chrome.Id).MainWindowTitle -match 'Log In|Login') {
+    throw 'WordPress admin session is not authenticated for UAT cleanup.'
+  }
+
+  $root = Root $chrome
+  $reason = Find-ById $root 'eh7_reason'
+  $confirm = Find-ByName $root '*confirm safe UAT anomaly resolution*' $true
+  $submit = Find-ByName $root 'Resolve Safe UAT Anomalies'
+  if (-not $reason -or -not $confirm -or -not $submit) {
+    try { Write-UiHints $root 'uat_cleanup_controls_missing' } catch {}
+    throw 'EH7 UAT Cleanup controls were not found.'
+  }
+
+  Set-ElementValue $reason 'Resolve verified post-deployment UAT anomalies after diagnostics review'
+  $toggle = $confirm.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+  if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) { $toggle.Toggle() }
+  Invoke-Element $submit
+  Start-Sleep -Seconds 8
+
+  $root = Root $chrome
+  $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+  $success = ''
+  $diag = ''
+  foreach ($element in $all) {
+    try {
+      $name = ([string]$element.Current.Name).Trim()
+      if ($name -like 'UAT cleanup complete:*') { $success = $name }
+      if ($name -like 'Current diagnostics:*') { $diag = $name }
+    } catch {}
+  }
+  if (-not $success) {
+    try { Write-UiHints $root 'uat_cleanup_result_missing' } catch {}
+    throw 'EH7 UAT Cleanup did not report a successful audited cleanup result.'
+  }
+  if ($diag -and $diag -notmatch 'Attendance\s+0(?:,|\b)') {
+    throw ('EH7 UAT Cleanup completed but attendance diagnostics are not clean: ' + $diag)
+  }
+  Write-Host ('PASS uat_cleanup_result=' + $success)
+  if ($diag) { Write-Host ('PASS uat_cleanup_diagnostics=' + $diag) }
+}
+
 $backendZip = New-BackendPluginZip
 try {
   Deploy-BackendPlugin $backendZip
   Deploy-WebRuntime
+  Resolve-UatAnomalies
 } finally {
   Remove-Item -LiteralPath $backendZip -Force -ErrorAction SilentlyContinue
 }
