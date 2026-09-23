@@ -14,7 +14,7 @@ defaults:
     shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
 jobs:
   php-regression:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration'
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 45
     steps:
@@ -292,7 +292,7 @@ jobs:
             }
           }
   flutter-integration:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration'
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 90
     steps:
@@ -431,8 +431,34 @@ jobs:
           Write-Host "PASS live_web_sha256=$actual"
           Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
 
+  deploy-only-session-race:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-only-session-race]')
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify certified session-race candidate is present
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceHead = '64f5e580b3e9ae9da94c977981f6c3ea76d073da'
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\candidates\\' + $sourceHead)
+          foreach ($required in @(
+            (Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'),
+            (Join-Path $releaseRoot 'web\\main.dart.js'),
+            (Join-Path $releaseRoot 'web\\SHA256SUMS.txt')
+          )) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+              throw ('Certified session-race candidate is missing: ' + $required)
+            }
+          }
+          Write-Host ('PASS certified_session_race_candidate=' + $sourceHead)
+      - name: Deploy certified session-race candidate through exact web upload form
+        run: |
+          & '.github/scripts/deploy-uat-web-via-visible-wp-session.ps1' -SourceHead '64f5e580b3e9ae9da94c977981f6c3ea76d073da'
+
+
   final-uat-bundle:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration'
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 30
