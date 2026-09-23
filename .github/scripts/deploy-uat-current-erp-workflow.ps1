@@ -78,6 +78,36 @@ function Find-ByName([System.Windows.Automation.AutomationElement]$Root,[string]
   return $null
 }
 
+function Write-UiHints([System.Windows.Automation.AutomationElement]$Root,[string]$Label) {
+  Write-Host ('INFO ui_hints_begin=' + $Label)
+  $seen = @{}
+  $all = $Root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($element in $all) {
+    try {
+      $name = ([string]$element.Current.Name).Trim()
+      if ($name -and $name.Length -lt 240 -and $name -match '(?i)replace|plugin|upload|install|update|error|failed|already|activate|return') {
+        if (-not $seen.ContainsKey($name)) {
+          $seen[$name] = $true
+          Write-Host ('INFO UI: ' + $name + ' [' + $element.Current.ControlType.ProgrammaticName + ']')
+        }
+      }
+    } catch {}
+  }
+  Write-Host ('INFO ui_hints_end=' + $Label)
+}
+
+function Wait-ForNamedElement([System.Diagnostics.Process]$Process,[string]$Name,[int]$Seconds=30) {
+  for ($attempt=0; $attempt -lt ($Seconds*2); $attempt++) {
+    Start-Sleep -Milliseconds 500
+    try {
+      $root = Root $Process
+      $element = Find-ByName $root $Name
+      if ($element) { return $element }
+    } catch {}
+  }
+  return $null
+}
+
 function Invoke-Element([System.Windows.Automation.AutomationElement]$Element) {
   if (-not $Element) { throw 'UI element is missing.' }
   $pattern = $Element.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
@@ -185,16 +215,30 @@ function Deploy-BackendPlugin([string]$ZipPath) {
   $install = Find-ById $root 'install-plugin-submit'
   if (-not $install -or -not $install.Current.IsEnabled) { throw 'Install Now is unavailable after choosing the backend ZIP.' }
   Invoke-Element $install
-  Start-Sleep -Seconds 8
+  Write-Host ('INFO backend_zip_submitted=' + $ZipPath)
 
-  $root = Root $chrome
-  $replace = Find-ByName $root 'Replace current with uploaded'
-  if ($replace) {
-    Invoke-Element $replace
-    Start-Sleep -Seconds 10
+  # WordPress shows an explicit replacement comparison for an existing plugin.
+  # Wait for it instead of assuming the navigation has completed after a fixed delay.
+  for ($attempt=0; $attempt -lt 60; $attempt++) {
+    Start-Sleep -Milliseconds 500
+    $current = Get-HealthSourceHead
+    if ($current -eq $SourceHead) {
+      Write-Host ('PASS backend_source_head=' + $current)
+      return
+    }
+    try {
+      $root = Root $chrome
+      $replace = Find-ByName $root 'Replace current with uploaded'
+      if ($replace) {
+        Write-Host 'INFO replacement_confirmation_found=true'
+        Invoke-Element $replace
+        Start-Sleep -Seconds 2
+        break
+      }
+    } catch {}
   }
 
-  for ($attempt=0; $attempt -lt 20; $attempt++) {
+  for ($attempt=0; $attempt -lt 30; $attempt++) {
     $current = Get-HealthSourceHead
     if ($current -eq $SourceHead) {
       Write-Host ('PASS backend_source_head=' + $current)
@@ -202,6 +246,8 @@ function Deploy-BackendPlugin([string]$ZipPath) {
     }
     Start-Sleep -Seconds 2
   }
+
+  try { Write-UiHints (Root $chrome) 'backend_replace_failure' } catch {}
   throw ('Backend replacement finished but live source_head is not ' + $SourceHead + '. Current: ' + $current)
 }
 
