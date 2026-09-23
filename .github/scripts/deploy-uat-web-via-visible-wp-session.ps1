@@ -193,7 +193,12 @@ if (-not $upload -or -not $upload.Current.IsEnabled) {
 }
 Write-Host ('INFO selected_candidate_zip=' + $zipPath)
 
-Invoke-Control $upload
+# Chrome's UIA InvokePattern can report success for an HTML submit control
+# without dispatching the form. Focus the real submit button and press Enter
+# so WordPress receives the multipart POST exactly as a user would submit it.
+$upload.SetFocus()
+Start-Sleep -Milliseconds 300
+[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
 Start-Sleep -Seconds 15
 
 $root = Get-AutomationRoot $chrome
