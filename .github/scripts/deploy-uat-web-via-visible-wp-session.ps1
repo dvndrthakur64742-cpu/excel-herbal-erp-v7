@@ -138,12 +138,32 @@ if ($desktopTab) {
   $root = Get-AutomationRoot $chrome
 }
 
-$choose = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName '' -NameLike 'Choose File:*'
 $upload = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Upload Web Bundle'
-
-if (-not $choose -or -not $upload) {
-  throw ('Setup Assistant upload controls were not found. Browser title: ' + $chrome.MainWindowTitle)
+if (-not $upload) {
+  throw ('Setup Assistant Upload Web Bundle control was not found. Browser title: ' + $chrome.MainWindowTitle)
 }
+
+# The page contains more than one file chooser. Resolve the chooser from the
+# smallest ancestor that contains the Upload Web Bundle button so we never
+# attach the web ZIP to the backend/other upload form by mistake.
+$walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+$container = $walker.GetParent($upload)
+$choose = $null
+for ($depth = 0; $depth -lt 14 -and $container; $depth++) {
+  $candidate = Find-ControlByName -Root $container -Type ([System.Windows.Automation.ControlType]::Button) -ExactName '' -NameLike 'Choose File:*'
+  if ($candidate) {
+    $choose = $candidate
+    break
+  }
+  $container = $walker.GetParent($container)
+}
+
+if (-not $choose) {
+  throw 'The file chooser belonging to Upload Web Bundle was not found.'
+}
+
+Write-Host ('INFO web_upload_control=' + [string]$upload.Current.Name + ' automation_id=' + [string]$upload.Current.AutomationId)
+Write-Host ('INFO web_choose_control=' + [string]$choose.Current.Name + ' automation_id=' + [string]$choose.Current.AutomationId)
 
 Invoke-Control $choose
 Start-Sleep -Seconds 2
@@ -171,6 +191,7 @@ $upload = Find-ControlByName -Root $root -Type ([System.Windows.Automation.Contr
 if (-not $upload -or -not $upload.Current.IsEnabled) {
   throw 'Upload Web Bundle button is missing or disabled after selecting the candidate ZIP.'
 }
+Write-Host ('INFO selected_candidate_zip=' + $zipPath)
 
 Invoke-Control $upload
 Start-Sleep -Seconds 15
