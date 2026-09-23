@@ -128,6 +128,16 @@ if ($chrome.MainWindowTitle -match 'Log In|Login') {
 }
 
 $root = Get-AutomationRoot $chrome
+$desktopTab = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Hyperlink) -ExactName 'Desktop Web'
+if (-not $desktopTab) {
+  $desktopTab = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Desktop Web'
+}
+if ($desktopTab) {
+  Invoke-Control $desktopTab
+  Start-Sleep -Seconds 3
+  $root = Get-AutomationRoot $chrome
+}
+
 $choose = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName '' -NameLike 'Choose File:*'
 $upload = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Upload Web Bundle'
 
