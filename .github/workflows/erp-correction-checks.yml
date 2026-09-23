@@ -435,13 +435,17 @@ jobs:
           Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
           if ($expected -ne $actual) { throw ('Live web artifact SHA mismatch. expected=' + $expected + ' actual=' + $actual) }
 
-          $marker = ''
-          try {
-            $marker = (Invoke-WebRequest -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/EH7-SOURCE-HEAD.txt?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20).Content.Trim()
-          } catch {}
+          $runtime = if ($health.data -and $health.data.web_runtime) { $health.data.web_runtime } elseif ($health.web_runtime) { $health.web_runtime } else { $null }
+          if (-not $runtime) { throw 'Health endpoint did not expose web_runtime integrity.' }
+          $webHead = [string]$runtime.source_head
+          $serverHash = [string]$runtime.main_sha256
+          if ($webHead -ne $env:GITHUB_SHA) { throw ('Live server-side web source_head mismatch: ' + $webHead) }
+          if ($serverHash -ne $expected) { throw ('Live server-side web SHA mismatch. expected=' + $expected + ' actual=' + $serverHash) }
+
           Write-Host "PASS live_backend_source_head=$liveHead"
+          Write-Host "PASS live_web_source_head=$webHead"
           Write-Host "PASS live_web_sha256=$actual"
-          if ($marker) { Write-Host "INFO live_web_source_marker=$marker" }
+          Write-Host "PASS live_server_web_sha256=$serverHash"
 
   deploy-uat-web-session-race:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]')
