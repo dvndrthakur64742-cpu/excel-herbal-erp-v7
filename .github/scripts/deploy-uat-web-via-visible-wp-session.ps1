@@ -175,10 +175,30 @@ if (-not $upload -or -not $upload.Current.IsEnabled) {
 Invoke-Control $upload
 Start-Sleep -Seconds 15
 
+$root = Get-AutomationRoot $chrome
+$allAfterUpload = $root.FindAll(
+  [System.Windows.Automation.TreeScope]::Descendants,
+  [System.Windows.Automation.Condition]::TrueCondition
+)
+$noticeNames = New-Object System.Collections.Generic.List[string]
+foreach ($element in $allAfterUpload) {
+  try {
+    $name = ([string]$element.Current.Name).Trim()
+    if ($name -and $name -match '(?i)upload|bundle|zip|error|failed|invalid|success|installed|deployed|too large|permission|nonce') {
+      if (-not $noticeNames.Contains($name)) { $noticeNames.Add($name) }
+    }
+  } catch {}
+}
+if ($noticeNames.Count -gt 0) {
+  Write-Host 'INFO post_upload_ui_notices_begin'
+  foreach ($name in $noticeNames) { Write-Host ('INFO UI: ' + $name) }
+  Write-Host 'INFO post_upload_ui_notices_end'
+}
+
 $liveHash = Get-LiveMainHash
 Write-Host ('INFO post_upload_live_main_sha256=' + $liveHash)
 if ($liveHash -ne $expectedMainHash) {
-  throw 'Upload finished but live main.dart.js does not match the exact-head certified candidate.'
+  throw 'Upload finished but live main.dart.js does not match the exact-head certified candidate. See post_upload_ui_notices for the WordPress response.'
 }
 
 Write-Host ('PASS exact-head web candidate deployed from visible authenticated WordPress session.')
