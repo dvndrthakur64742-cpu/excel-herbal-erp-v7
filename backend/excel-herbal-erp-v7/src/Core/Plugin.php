@@ -5,6 +5,7 @@ use ExcelHerbal\ERP7\Http\Api;
 use ExcelHerbal\ERP7\Security\MobileAuth;
 use ExcelHerbal\ERP7\Administration\MaintenanceService;
 use ExcelHerbal\ERP7\Administration\UatCleanupAdmin;
+use ExcelHerbal\ERP7\Administration\UatWebDeployAdmin;
 final class Plugin{
     public static function activate():void{Schema::maybeUpgrade();}
     public static function boot():void{
@@ -14,6 +15,7 @@ final class Plugin{
         MobileAuth::boot();
         MaintenanceService::boot();
         UatCleanupAdmin::boot();
+        UatWebDeployAdmin::boot();
         add_action('rest_api_init',[Api::class,'register']);
         if(!$schemaOk&&is_admin())add_action('admin_notices',[self::class,'schemaNotice']);
     }
