@@ -41,7 +41,8 @@ private static function boolParam($r,string $key):bool{$v=$r->get_param($key);if
  private static function arrBody($r):array{$v=$r->get_json_params();return is_array($v)?$v:[];}
 
  private static function webRuntimeStatus():array{
-  $uploads=wp_upload_dir();
+  if(!function_exists('wp_upload_dir'))return['present'=>false,'source_head'=>'','main_sha256'=>'','manifest_sha256'=>'','error'=>'wp_upload_dir_unavailable'];
+  $uploads=\wp_upload_dir();
   if(!empty($uploads['error']))return['present'=>false,'source_head'=>'','main_sha256'=>'','manifest_sha256'=>'','error'=>(string)$uploads['error']];
   $root=rtrim((string)$uploads['basedir'],'/\\').'/eh7-flutter-web';
   $main=$root.'/main.dart.js';$manifest=$root.'/SHA256SUMS.txt';$marker=$root.'/EH7-SOURCE-HEAD.txt';
