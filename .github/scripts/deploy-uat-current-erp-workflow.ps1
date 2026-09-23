@@ -331,13 +331,28 @@ function Deploy-WebRuntime {
   Choose-File $file $webZip
   $root = Root $chrome
   Set-ElementValue (Find-ById $root 'eh7_source_head') $SourceHead
-  Set-ElementValue (Find-ById $root 'eh7_reason') 'Deploy certified session-race fix to office BUILD/UAT'
+  Set-ElementValue (Find-ById $root 'eh7_reason') 'Deploy certified Phase 1 bootstrap recovery to office BUILD/UAT'
   $confirm = Find-ByName $root '*confirm this certified BUILD/UAT web deployment*' $true
   $toggle = $confirm.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
   if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) { $toggle.Toggle() }
-  $submit = Find-ByName $root 'Deploy Certified Web Bundle'
-  Invoke-Element $submit
-  Start-Sleep -Seconds 12
+
+  # Submit the exact multipart form from the page DOM. UIAutomation Invoke on
+  # Chrome can report success without dispatching the HTML form submit event.
+  $shell = New-Object -ComObject WScript.Shell
+  if (-not $shell.AppActivate($chrome.Id)) { throw 'Could not activate the UAT web deployment Chrome window.' }
+  Start-Sleep -Milliseconds 300
+  $submitScript = "script:(()=>{const all=[...document.querySelectorAll('button,input[type=submit],input[type=button]')];const b=all.find(e=>((e.value||e.textContent||'').trim()==='Deploy Certified Web Bundle'));if(!b){document.title='EH7WEB-NOBUTTON';return;}const f=b.closest('form');if(!f){document.title='EH7WEB-NOFORM';return;}document.title='EH7WEB-SUBMIT';if(f.requestSubmit){f.requestSubmit(b)}else{f.submit()}})()"
+  [System.Windows.Forms.SendKeys]::SendWait('^l')
+  Start-Sleep -Milliseconds 120
+  [System.Windows.Forms.SendKeys]::SendWait('java')
+  [System.Windows.Forms.Clipboard]::SetText($submitScript)
+  [System.Windows.Forms.SendKeys]::SendWait('^v')
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Start-Sleep -Seconds 18
+
+  $chrome = Get-Process -Id $chrome.Id -ErrorAction Stop
+  Write-Host ('INFO web_post_submit_browser_title=' + $chrome.MainWindowTitle)
+  try { Write-UiHints (Root $chrome) 'web_post_submit' } catch {}
 
   $actual = Get-LiveMainHash
   Write-Host ('INFO final_live_main_sha256=' + $actual)
