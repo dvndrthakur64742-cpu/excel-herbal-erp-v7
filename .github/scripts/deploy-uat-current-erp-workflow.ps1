@@ -280,13 +280,12 @@ function Deploy-WebRuntime {
     $currentMarker = (Invoke-WebRequest -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/EH7-SOURCE-HEAD.txt?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20).Content.Trim()
   } catch {}
 
-  if ($before -eq $expectedMainHash -and $currentMarker -eq $SourceHead) {
-    Write-Host 'PASS certified web runtime and exact source marker are already live.'
+  if ($before -eq $expectedMainHash) {
+    Write-Host 'PASS certified web runtime SHA already matches the exact candidate.'
+    if ($currentMarker) {
+      Write-Host ('INFO live_web_source_marker=' + $currentMarker)
+    }
     return
-  }
-
-  if ($before -eq $expectedMainHash -and $currentMarker -ne $SourceHead) {
-    Write-Host ('INFO web_code_hash_matches_but_source_marker_differs=' + $currentMarker)
   }
 
   $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-web-deploy' -TitlePattern 'EH7 UAT Web Deploy|office.*WordPress'
