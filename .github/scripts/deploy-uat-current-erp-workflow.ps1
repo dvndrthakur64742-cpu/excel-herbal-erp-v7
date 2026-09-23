@@ -159,6 +159,15 @@ function Get-HealthSourceHead {
   } catch { return '' }
 }
 
+function Get-WebRuntimeHealth {
+  try {
+    $health = Invoke-RestMethod -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+    if ($health.data -and $health.data.web_runtime) { return $health.data.web_runtime }
+    if ($health.web_runtime) { return $health.web_runtime }
+  } catch {}
+  return $null
+}
+
 function Get-LiveMainHash {
   $tmp = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
   try {
@@ -275,17 +284,16 @@ function Deploy-WebRuntime {
   Write-Host ('INFO current_live_main_sha256=' + $before)
   Write-Host ('INFO expected_main_sha256=' + $expectedMainHash)
 
-  $currentMarker = ''
-  try {
-    $currentMarker = (Invoke-WebRequest -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/EH7-SOURCE-HEAD.txt?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20).Content.Trim()
-  } catch {}
+  $runtime = Get-WebRuntimeHealth
+  $currentMarker = if ($runtime -and $runtime.source_head) { [string]$runtime.source_head } else { '' }
+  $serverMainHash = if ($runtime -and $runtime.main_sha256) { [string]$runtime.main_sha256 } else { '' }
 
-  if ($before -eq $expectedMainHash) {
-    Write-Host 'PASS certified web runtime SHA already matches the exact candidate.'
-    if ($currentMarker) {
-      Write-Host ('INFO live_web_source_marker=' + $currentMarker)
-    }
+  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash -and $currentMarker -eq $SourceHead) {
+    Write-Host 'PASS certified web runtime SHA and exact source marker are already live.'
     return
+  }
+  if ($before -eq $expectedMainHash) {
+    Write-Host ('INFO web_runtime_requires_metadata_refresh marker=' + $currentMarker + ' server_hash=' + $serverMainHash)
   }
 
   $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-web-deploy' -TitlePattern 'EH7 UAT Web Deploy|office.*WordPress'
@@ -321,14 +329,13 @@ function Deploy-WebRuntime {
     throw 'Current ERP web deployment completed but live main.dart.js hash does not match the certified candidate.'
   }
 
-  try {
-    $marker = (Invoke-WebRequest -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/EH7-SOURCE-HEAD.txt?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20).Content.Trim()
-    if ($marker -ne $SourceHead) { throw ('Live web source marker mismatch: ' + $marker) }
-    Write-Host ('PASS live_web_source_head=' + $marker)
-  } catch {
-    throw ('Live web source-head marker verification failed. ' + $_.Exception.Message)
-  }
-  Write-Host ('PASS live_web_sha256=' + $actual)
+  $runtime = Get-WebRuntimeHealth
+  $marker = if ($runtime -and $runtime.source_head) { [string]$runtime.source_head } else { '' }
+  $serverHash = if ($runtime -and $runtime.main_sha256) { [string]$runtime.main_sha256 } else { '' }
+  if ($marker -ne $SourceHead) { throw ('Live server-side web source marker mismatch: ' + $marker) }
+  if ($serverHash -ne $expectedMainHash) { throw ('Live server-side web main.dart.js hash mismatch: ' + $serverHash) }
+  Write-Host ('PASS live_web_source_head=' + $marker)
+  Write-Host ('PASS live_web_sha256=' + $serverHash)
 }
 
 function Resolve-UatAnomalies {
