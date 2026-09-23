@@ -153,6 +153,26 @@ function uat_case(string $name, callable $fn): void {
     catch (Throwable $e) { $failed++; echo "FAIL {$name}: ".get_class($e).' '.$e->getMessage()."\n"; }
 }
 
+uat_case('uat_bootstrap_contract_metadata', function () use ($self) {
+    $bootstrap = uat_dispatch('bootstrap', $self);
+    $date = (string)($bootstrap['business_date'] ?? '');
+    if (!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date) || $date !== Db::today()) {
+        throw new RuntimeException('bootstrap business_date is missing or not authoritative');
+    }
+    if (trim((string)($bootstrap['business_timezone'] ?? '')) === '') {
+        throw new RuntimeException('bootstrap business_timezone is missing');
+    }
+    $timestamp = (string)($bootstrap['server_timestamp'] ?? '');
+    if ($timestamp === '' || strtotime($timestamp) === false) {
+        throw new RuntimeException('bootstrap server_timestamp is missing or invalid');
+    }
+    $contract = trim((string)($bootstrap['api_contract'] ?? ''));
+    $featureContract = trim((string)(($bootstrap['features']['api_contract'] ?? '')));
+    if ($contract === '' || $featureContract === '' || $contract !== $featureContract) {
+        throw new RuntimeException('bootstrap api_contract metadata is missing or inconsistent');
+    }
+});
+
 uat_case('uat_branch_scope_fail_closed', function () use ($self) {
     try { uat_dispatch('work.check_in', $self, ['branch_id'=>2]); }
     catch (DomainException $e) { if ($e->codeKey === 'branch_forbidden' && $e->httpStatus === 403) return; throw $e; }
