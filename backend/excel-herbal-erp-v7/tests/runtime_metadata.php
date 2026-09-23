@@ -28,4 +28,6 @@ $safety=$result['staging_safety']??[];
 if(($safety['sanitized']??false)!==true||($safety['active_mobile_sessions_zero']??false)!==true||($safety['active_push_devices_zero']??false)!==true){fwrite(STDERR,'FAIL runtime_metadata staging_safety'.PHP_EOL);exit(1);}
 $uat=$result['uat_bootstrap']??[];
 if(($uat['seeded']??false)!==true||($uat['synthetic_only']??false)!==true){fwrite(STDERR,'FAIL runtime_metadata fresh_uat'.PHP_EOL);exit(1);}
-echo 'PASS runtime_metadata_health_environment_source_head_staging_safety_and_fresh_uat'.PHP_EOL;
+$web=$result['web_runtime']??null;
+if(!is_array($web)||($web['present']??true)!==false||($web['error']??'')!=='wp_upload_dir_unavailable'){fwrite(STDERR,'FAIL runtime_metadata web_runtime_cli_fallback'.PHP_EOL);exit(1);}
+echo 'PASS runtime_metadata_health_environment_source_head_staging_safety_fresh_uat_and_web_runtime_fallback'.PHP_EOL;
