@@ -102,6 +102,20 @@ for token in [
 plugin=(root/'src/Core/Plugin.php').read_text()
 assert 'UatCleanupAdmin::boot();' in plugin,'WordPress admin UAT cleanup bridge is not booted'
 print('PASS nonce-protected WordPress admin UAT cleanup bridge')
+web_deploy=(root/'src/Administration/UatWebDeployAdmin.php').read_text()
+for token in [
+ "current_user_can('manage_options')",
+ "check_admin_referer(self::ACTION)",
+ "ActorResolver::current()",
+ "Guard::cap($actor,Capabilities::ACCESS_MANAGE)",
+ "SHA256SUMS.txt",
+ "hash_file('sha256'",
+ "rename($target,$backup)",
+ "Audit::add($actor,'administration.uat_web_deploy'",
+]:
+ assert token in web_deploy,('unsafe or incomplete UAT web deployment workflow',token)
+assert 'UatWebDeployAdmin::boot();' in plugin,'UAT web deployment admin workflow is not booted'
+print('PASS audited rollback-safe UAT web deployment workflow')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
