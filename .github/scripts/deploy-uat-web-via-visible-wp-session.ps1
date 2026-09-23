@@ -27,9 +27,9 @@ function Get-LiveMainHash {
   $tmp = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
   try {
     $url = 'https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N')
-    & curl.exe --fail --location --silent --show-error --max-time 30 --output $tmp $url
+    & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 120 --retry 3 --retry-delay 2 --retry-all-errors --output $tmp $url
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tmp -PathType Leaf)) {
-      throw 'Live main.dart.js could not be downloaded for verification.'
+      throw 'Live main.dart.js could not be downloaded for verification after retries.'
     }
     return (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash.ToLowerInvariant()
   }
