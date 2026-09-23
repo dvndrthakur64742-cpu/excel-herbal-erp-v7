@@ -235,13 +235,26 @@ function Deploy-BackendPlugin([string]$ZipPath) {
 
   $root = Root $chrome
   $file = Find-ById $root 'pluginzip'
+  if (-not $file) { $file = Find-ByName $root 'Choose File*' $true }
+  if (-not $file) { $file = Find-ByName $root '*No file chosen*' $true }
+
   $install = Find-ById $root 'install-plugin-submit'
-  if (-not $file -or -not $install) { throw 'WordPress Upload Plugin controls were not found.' }
+  if (-not $install) { $install = Find-ByName $root 'Install Now' }
+  if (-not $file -or -not $install) {
+    Write-UiHints $root 'backend_upload_controls_missing'
+    throw 'WordPress Upload Plugin controls were not found.'
+  }
+  Write-Host ('INFO backend_choose_control=' + [string]$file.Current.Name + ' automation_id=' + [string]$file.Current.AutomationId)
+  Write-Host ('INFO backend_install_control=' + [string]$install.Current.Name + ' automation_id=' + [string]$install.Current.AutomationId)
   Choose-File $file $ZipPath
 
   $root = Root $chrome
   $install = Find-ById $root 'install-plugin-submit'
-  if (-not $install -or -not $install.Current.IsEnabled) { throw 'Install Now is unavailable after choosing the backend ZIP.' }
+  if (-not $install) { $install = Find-ByName $root 'Install Now' }
+  if (-not $install -or -not $install.Current.IsEnabled) {
+    Write-UiHints $root 'backend_install_unavailable'
+    throw 'Install Now is unavailable after choosing the backend ZIP.'
+  }
   Invoke-Element $install
   Write-Host ('INFO backend_zip_submitted=' + $ZipPath)
 
