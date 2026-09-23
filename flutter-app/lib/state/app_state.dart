@@ -115,6 +115,40 @@ class AppState {
 
   bool get usingFallbackBusinessDate => serverBusinessDate == null;
 
+  String get businessTimezone =>
+      '${bootstrap?['business_timezone'] ?? ''}'.trim();
+
+  String get serverTimestamp =>
+      '${bootstrap?['server_timestamp'] ?? ''}'.trim();
+
+  String get apiContractVersion =>
+      '${bootstrap?['api_contract'] ?? ''}'.trim();
+
+  String? get bootstrapCompatibilityError {
+    if (bootstrap == null) return 'ERP startup data is unavailable.';
+    if (serverBusinessDate == null) {
+      return 'ERP server business date is unavailable or invalid.';
+    }
+    if (businessTimezone.isEmpty) {
+      return 'ERP business timezone is unavailable.';
+    }
+    if (DateTime.tryParse(serverTimestamp) == null) {
+      return 'ERP server timestamp is unavailable or invalid.';
+    }
+    final features = bootstrap?['features'];
+    final featureContract = features is Map
+        ? '${features['api_contract'] ?? ''}'.trim()
+        : '';
+    if (apiContractVersion.isEmpty ||
+        featureContract.isEmpty ||
+        apiContractVersion != featureContract) {
+      return 'ERP API contract metadata is unavailable or incompatible.';
+    }
+    return null;
+  }
+
+  bool get bootstrapReady => bootstrapCompatibilityError == null;
+
   /// Production must never post ERP transactions using an untrusted device
   /// date. Local-date fallback is deliberately limited to build/UAT mode.
   String get businessDate {
@@ -239,12 +273,16 @@ class AppController extends StateNotifier<AppState> {
                 : (assigned != null && ids.contains(assigned)
                       ? assigned
                       : null));
-      state = AppState(
+      final next = AppState(
         loading: false,
         authenticated: true,
         bootstrap: data,
         currentBranchId: current,
       );
+      final compatibilityError = next.bootstrapCompatibilityError;
+      state = compatibilityError == null
+          ? next
+          : next.copyWith(error: compatibilityError);
     } on ApiException catch (e) {
       // 403 means authenticated but not authorised for that resource. It must
       // never destroy a valid employee session.
@@ -287,6 +325,11 @@ class AppController extends StateNotifier<AppState> {
       currentBranchId: null,
       error: null,
     );
+  }
+
+  Future<void> retryBootstrap() async {
+    state = state.copyWith(loading: true, clearError: true);
+    await refreshBootstrap();
   }
 
   Future<void> logout() async {
