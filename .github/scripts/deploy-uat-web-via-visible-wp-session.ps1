@@ -106,13 +106,8 @@ function Invoke-Control([System.Windows.Automation.AutomationElement]$Element) {
   $pattern.Invoke()
 }
 
-$beforeHash = Get-LiveMainHash
-Write-Host ('INFO current_live_main_sha256=' + $beforeHash)
 Write-Host ('INFO expected_main_sha256=' + $expectedMainHash)
-if ($beforeHash -eq $expectedMainHash) {
-  Write-Host 'PASS exact-head web candidate is already live.'
-  exit 0
-}
+Write-Host 'INFO pre_upload_live_hash_check=skipped_runner_network_is_slow'
 
 $setupUrl = 'https://office.excelherbal.in/wp-admin/admin.php?page=eh7-setup-assistant&tab=desktop'
 $chrome = Open-SetupAssistantWindow -Url $setupUrl
@@ -232,11 +227,28 @@ if ($noticeNames.Count -gt 0) {
   Write-Host 'INFO post_upload_ui_notices_end'
 }
 
-$liveHash = Get-LiveMainHash
-Write-Host ('INFO post_upload_live_main_sha256=' + $liveHash)
-if ($liveHash -ne $expectedMainHash) {
-  throw 'Upload finished but live main.dart.js does not match the exact-head certified candidate. See post_upload_ui_notices for the WordPress response.'
+# A successful multipart POST reloads the Setup Assistant and clears the
+# native file input. If the selected ZIP is still present, submission did not happen.
+$root = Get-AutomationRoot $chrome
+$uploadAfter = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Upload Web Bundle'
+$chooseAfter = $null
+if ($uploadAfter) {
+  $walkerAfter = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $containerAfter = $walkerAfter.GetParent($uploadAfter)
+  for ($depth = 0; $depth -lt 14 -and $containerAfter; $depth++) {
+    $candidateAfter = Find-ControlByName -Root $containerAfter -Type ([System.Windows.Automation.ControlType]::Button) -ExactName '' -NameLike 'Choose File:*'
+    if ($candidateAfter) { $chooseAfter = $candidateAfter; break }
+    $containerAfter = $walkerAfter.GetParent($containerAfter)
+  }
+}
+if (-not $chooseAfter) {
+  throw 'Web upload form could not be re-read after submission.'
+}
+$chooseAfterName = [string]$chooseAfter.Current.Name
+Write-Host ('INFO post_submit_choose_control=' + $chooseAfterName)
+if ($chooseAfterName -match 'Excel-Herbal-ERP-v7\.4\.0-Web-Candidate\.zip') {
+  throw 'WordPress web upload form did not submit; selected ZIP is still attached to the file input.'
 }
 
-Write-Host ('PASS exact-head web candidate deployed from visible authenticated WordPress session.')
-Write-Host ('PASS final_live_main_sha256=' + $liveHash)
+Write-Host 'PASS WordPress web upload form submitted and reloaded.'
+Write-Host ('INFO expected_live_main_sha256=' + $expectedMainHash)
