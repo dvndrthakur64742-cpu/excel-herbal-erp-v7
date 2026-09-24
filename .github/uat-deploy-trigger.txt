@@ -13,3 +13,5 @@ Runtime screen-smoke credential and Flutter semantics fixes certified at 77a1d90
 Supplier-payment concurrency gate added at 5523625e888558c32afcd990992959c5884d5589; certify and deploy exact head with authenticated runtime screens.
 
 WordPress admin navigation retry fix added at 3694bf3ac03280cf7711c2b441623bc96c059c0e; re-certify and deploy exact head.
+
+Authenticated runner-session fallback enabled at 3f42bd099bdad4d1771fe215d08761c512760fb2; certify exact head and execute runtime screen gate.
