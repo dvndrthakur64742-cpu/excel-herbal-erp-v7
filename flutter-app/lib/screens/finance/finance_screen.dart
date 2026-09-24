@@ -88,7 +88,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       initialIndex: initialIndex,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Finance'),
+          title: const Text('Finance & Accounts'),
           bottom: TabBar(
             isScrollable: true,
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
