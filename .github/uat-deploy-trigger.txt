@@ -17,3 +17,5 @@ WordPress admin navigation retry fix added at 3694bf3ac03280cf7711c2b441623bc96c
 Authenticated runner-session fallback enabled at 3f42bd099bdad4d1771fe215d08761c512760fb2; certify exact head and execute runtime screen gate.
 
 Desktop workspace context header added at 79e06ab40ca5a5a8ac3b3485be1210927361ca2a; certify and deploy visible UI update with runtime screen gate.
+
+Attendance action-state UX fixed and regression-locked at e98b79d75ea3632d1999c61a6043269c38c4643f; deploy visible My Work update to BUILD/UAT.
