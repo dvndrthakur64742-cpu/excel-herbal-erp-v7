@@ -21,3 +21,5 @@ Desktop workspace context header added at 79e06ab40ca5a5a8ac3b3485be1210927361ca
 Attendance action-state UX fixed and regression-locked at e98b79d75ea3632d1999c61a6043269c38c4643f; deploy visible My Work update to BUILD/UAT.
 
 Responsive desktop workspace header regression-locked at 257e18e744921db2a03d338c88cb5dea9e4739f0; certify and deploy latest visible UX changes to BUILD/UAT.
+
+Business module titles aligned with shell navigation at 01ed932f1c838fc6ac79737fb1660dbac6ec91d6; certify and deploy latest BUILD/UAT UX set.
