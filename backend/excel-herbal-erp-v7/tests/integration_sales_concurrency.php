@@ -112,7 +112,7 @@ function sc_worker(float $startAt): never {
     }
 }
 
-if (($argv[1] ?? '') === 'worker') {
+if (($argv[1] ?? '') === 'sales-worker') {
     sc_worker((float)($argv[2] ?? microtime(true)));
 }
 
@@ -125,7 +125,7 @@ function sc_parallel_two(): array {
     for ($i = 0; $i < 2; $i++) {
         $pipes = [];
         $process = proc_open(
-            [PHP_BINARY, __FILE__, 'worker', sprintf('%.6F', $startAt)],
+            [PHP_BINARY, __FILE__, 'sales-worker', sprintf('%.6F', $startAt)],
             $spec,
             $pipes
         );
