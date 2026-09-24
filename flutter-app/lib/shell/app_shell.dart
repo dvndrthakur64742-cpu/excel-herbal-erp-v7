@@ -362,58 +362,87 @@ class _AppShellState extends ConsumerState<AppShell> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: ExcelBrand.primarySoft,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              _icon(route),
-              size: 22,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 760;
+          final identity = Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: ExcelBrand.primarySoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  _icon(route),
+                  size: 22,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _desktopRouteLabel(route),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Current authorised workspace',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          final contextChips = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _WorkspaceContextChip(
+                icon: Icons.store_outlined,
+                label: branch.isEmpty ? 'Branch unavailable' : branch,
+              ),
+              _WorkspaceContextChip(
+                icon: Icons.event_outlined,
+                label: businessDate.isEmpty
+                    ? 'Business date unavailable'
+                    : 'Business date $businessDate',
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _desktopRouteLabel(route),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Current authorised workspace',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+                identity,
+                const SizedBox(height: 10),
+                contextChips,
               ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _WorkspaceContextChip(
-            icon: Icons.store_outlined,
-            label: branch.isEmpty ? 'Branch unavailable' : branch,
-          ),
-          const SizedBox(width: 8),
-          _WorkspaceContextChip(
-            icon: Icons.event_outlined,
-            label: businessDate.isEmpty
-                ? 'Business date unavailable'
-                : 'Business date $businessDate',
-          ),
-        ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: identity),
+              const SizedBox(width: 12),
+              Flexible(child: contextChips),
+            ],
+          );
+        },
       ),
     );
   }
