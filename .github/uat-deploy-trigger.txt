@@ -7,3 +7,5 @@ Scope: BUILD/UAT only; no production release.
 Authenticated screen-smoke gate enabled at branch head b2fbac1758187028296b2730ea067db6449dbd91.
 
 Business-safety receipt concurrency gate added at db4a481802bd6676fda62ffeb163d6ed7bb212be; deploy and run authenticated screen smoke on this exact head.
+
+Runtime screen-smoke credential and Flutter semantics fixes certified at 77a1d9083d105477e94150d4087cde61473110de.
