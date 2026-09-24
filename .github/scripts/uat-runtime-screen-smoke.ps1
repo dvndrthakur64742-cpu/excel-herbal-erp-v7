@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory = $true)][string]$AppUrl,
-  [Parameter(Mandatory = $true)][string]$Mobile,
-  [Parameter(Mandatory = $true)][string]$Password,
+  [string]$Mobile = '',
+  [string]$Password = '',
   [string]$EvidencePath = 'dist/uat-runtime-screen-smoke/EVIDENCE.json'
 )
 
@@ -9,10 +9,6 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
-
-if ([string]::IsNullOrWhiteSpace($Mobile) -or [string]::IsNullOrWhiteSpace($Password)) {
-  throw 'UAT runtime screen smoke requires a controlled UAT login.'
-}
 
 $uri = [Uri]$AppUrl
 if ($uri.Scheme -ne 'https' -or $uri.Host -ine 'office.excelherbal.in') {
@@ -209,6 +205,10 @@ try {
 
   $signIn = Wait-ForAnyName $chrome @('SIGN IN') 8
   if ($signIn) {
+    if ([string]::IsNullOrWhiteSpace($Mobile) -or [string]::IsNullOrWhiteSpace($Password)) {
+      Write-UiHints $chrome 'uat_login_required_but_credentials_missing'
+      throw 'ERP login screen is visible and controlled UAT credentials are not configured.'
+    }
     $mobileBox = Find-EditByLabel $chrome 'Mobile number'
     $passwordBox = Find-EditByLabel $chrome 'Password'
     if (-not $mobileBox -or -not $passwordBox) {
