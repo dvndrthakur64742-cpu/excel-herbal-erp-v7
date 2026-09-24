@@ -45,6 +45,19 @@ void main() {
     expect(workspace, contains('_tabletCardWidth = 819'));
   });
 
+  test('My Work attendance shows only the valid next action', () {
+    final source = File(
+      'lib/screens/my_work/my_work_attendance.dart',
+    ).readAsStringSync();
+
+    expect(source, contains("final checkedIn ="));
+    expect(source, contains("final checkedOut ="));
+    expect(source, contains("if (!checkedIn)"));
+    expect(source, contains("else if (!checkedOut)"));
+    expect(source, contains("Attendance complete"));
+    expect(source, contains("Check-Out: pending"));
+  });
+
   test('ERP modal surfaces use shared presentation styling', () {
     final source = File('lib/theme/excel_brand.dart').readAsStringSync();
 
