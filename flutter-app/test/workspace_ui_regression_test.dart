@@ -58,6 +58,16 @@ void main() {
     expect(source, contains("Check-Out: pending"));
   });
 
+  test('desktop workspace context header stacks safely at narrow desktop widths', () {
+    final source = File('lib/shell/app_shell.dart').readAsStringSync();
+
+    expect(source, contains("final compact = constraints.maxWidth < 760"));
+    expect(source, contains("final contextChips = Wrap("));
+    expect(source, contains("if (compact)"));
+    expect(source, contains("Business date unavailable"));
+    expect(source, contains("Branch unavailable"));
+  });
+
   test('ERP modal surfaces use shared presentation styling', () {
     final source = File('lib/theme/excel_brand.dart').readAsStringSync();
 
