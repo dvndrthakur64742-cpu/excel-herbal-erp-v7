@@ -5,3 +5,5 @@ Purpose: deploy and verify the current ERP UAT release identity on office.excelh
 Scope: BUILD/UAT only; no production release.
 
 Authenticated screen-smoke gate enabled at branch head b2fbac1758187028296b2730ea067db6449dbd91.
+
+Business-safety receipt concurrency gate added at db4a481802bd6676fda62ffeb163d6ed7bb212be; deploy and run authenticated screen smoke on this exact head.
