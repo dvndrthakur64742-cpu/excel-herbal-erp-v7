@@ -9,3 +9,5 @@ Authenticated screen-smoke gate enabled at branch head b2fbac1758187028296b2730e
 Business-safety receipt concurrency gate added at db4a481802bd6676fda62ffeb163d6ed7bb212be; deploy and run authenticated screen smoke on this exact head.
 
 Runtime screen-smoke credential and Flutter semantics fixes certified at 77a1d9083d105477e94150d4087cde61473110de.
+
+Supplier-payment concurrency gate added at 5523625e888558c32afcd990992959c5884d5589; certify and deploy exact head with authenticated runtime screens.
