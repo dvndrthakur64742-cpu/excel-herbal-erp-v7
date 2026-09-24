@@ -25,3 +25,5 @@ Responsive desktop workspace header regression-locked at 257e18e744921db2a03d338
 Business module titles aligned with shell navigation at 01ed932f1c838fc6ac79737fb1660dbac6ec91d6; certify and deploy latest BUILD/UAT UX set.
 
 Branch/capability mutation-boundary gate added at 6f52ac5e7c8e46eb0b70c600a838c8269686d777; certify and deploy exact BUILD/UAT head.
+
+Proxy-safe dual bearer transport added through a66f83495fabe0a0e5395ee894fb9d7dc6ce8e10 to fix repeated post-login session expiry behind stripped Authorization headers; certify and deploy exact BUILD/UAT head.
