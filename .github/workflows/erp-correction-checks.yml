@@ -218,6 +218,8 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_sales_concurrency.php
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_purchase_concurrency.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
             & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_recovery_security.php auth
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
