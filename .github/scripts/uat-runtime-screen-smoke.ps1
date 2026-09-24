@@ -194,7 +194,20 @@ try {
   [void]$shell.AppActivate($chrome.Id)
   Start-Sleep -Seconds 8
 
-  $signIn = Wait-ForAnyName $chrome @('SIGN IN') 4
+  # Flutter web hides the semantic accessibility tree until this Chrome/Flutter
+  # accessibility control is activated. Enable it before looking for the login
+  # fields or application navigation so the smoke test observes real Flutter
+  # semantics instead of only browser chrome.
+  $enableAccessibility = Wait-ForAnyName $chrome @('Enable accessibility') 6
+  if ($enableAccessibility) {
+    if (-not (Try-Invoke $enableAccessibility)) {
+      throw 'Flutter accessibility semantics could not be enabled.'
+    }
+    Start-Sleep -Seconds 2
+    Write-Host 'PASS flutter_accessibility_semantics_enabled'
+  }
+
+  $signIn = Wait-ForAnyName $chrome @('SIGN IN') 8
   if ($signIn) {
     $mobileBox = Find-EditByLabel $chrome 'Mobile number'
     $passwordBox = Find-EditByLabel $chrome 'Password'
