@@ -15,3 +15,5 @@ Supplier-payment concurrency gate added at 5523625e888558c32afcd990992959c5884d5
 WordPress admin navigation retry fix added at 3694bf3ac03280cf7711c2b441623bc96c059c0e; re-certify and deploy exact head.
 
 Authenticated runner-session fallback enabled at 3f42bd099bdad4d1771fe215d08761c512760fb2; certify exact head and execute runtime screen gate.
+
+Desktop workspace context header added at 79e06ab40ca5a5a8ac3b3485be1210927361ca2a; certify and deploy visible UI update with runtime screen gate.
