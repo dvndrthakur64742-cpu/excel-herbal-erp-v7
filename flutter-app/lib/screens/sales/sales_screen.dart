@@ -72,7 +72,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         ),
     ];
     return Scaffold(
-      appBar: AppBar(title: const Text('Sales')),
+      appBar: AppBar(title: const Text('Sales & Collections')),
       body: SafeArea(
         child: Column(
           children: [
