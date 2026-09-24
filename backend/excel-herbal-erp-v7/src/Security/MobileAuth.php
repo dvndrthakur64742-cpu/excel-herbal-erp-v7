@@ -81,8 +81,8 @@ final class MobileAuth{
  }
 
  private static function authorizationHeader():string{
-  foreach(['HTTP_AUTHORIZATION','REDIRECT_HTTP_AUTHORIZATION','Authorization'] as$key){$value=trim((string)($_SERVER[$key]??''));if($value!=='')return$value;}
-  if(function_exists('getallheaders')){foreach((array)getallheaders() as$name=>$value)if(strcasecmp((string)$name,'Authorization')===0&&trim((string)$value)!=='')return trim((string)$value);}
+  foreach(['HTTP_AUTHORIZATION','REDIRECT_HTTP_AUTHORIZATION','Authorization','HTTP_X_EH7_AUTHORIZATION'] as$key){$value=trim((string)($_SERVER[$key]??''));if($value!=='')return$value;}
+  if(function_exists('getallheaders')){foreach((array)getallheaders() as$name=>$value)if(in_array(strtolower((string)$name),['authorization','x-eh7-authorization'],true)&&trim((string)$value)!=='')return trim((string)$value);}
   return'';
  }
  private static function deviceKey(string $deviceId):?string{$deviceId=trim($deviceId);if($deviceId==='')return null;if(strlen($deviceId)>190)throw new DomainException('Device identity is invalid.','device_identity_invalid',422);return hash('sha256',$deviceId);}
