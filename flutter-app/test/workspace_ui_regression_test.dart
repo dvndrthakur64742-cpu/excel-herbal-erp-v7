@@ -68,6 +68,18 @@ void main() {
     expect(source, contains("Branch unavailable"));
   });
 
+  test('business module page titles match shell navigation labels', () {
+    final sales = File('lib/screens/sales/sales_screen.dart').readAsStringSync();
+    final purchase =
+        File('lib/screens/purchase/purchase_screen.dart').readAsStringSync();
+    final finance =
+        File('lib/screens/finance/finance_screen.dart').readAsStringSync();
+
+    expect(sales, contains("Text('Sales & Collections')"));
+    expect(purchase, contains("Text('Purchase & Suppliers')"));
+    expect(finance, contains("Text('Finance & Accounts')"));
+  });
+
   test('ERP modal surfaces use shared presentation styling', () {
     final source = File('lib/theme/excel_brand.dart').readAsStringSync();
 
