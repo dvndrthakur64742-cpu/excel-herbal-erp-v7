@@ -179,6 +179,23 @@ uat_case('uat_branch_scope_fail_closed', function () use ($self) {
     throw new RuntimeException('cross-branch attendance check-in was accepted');
 });
 
+uat_case('uat_sales_capability_fail_closed', function () use ($self) {
+    try {
+        uat_dispatch('sales.counter', $self, [
+            'branch_id'=>1,
+            'customer_id'=>null,
+            'paid_amount'=>100,
+            'payment_account_id'=>1,
+            'lines'=>[['product_id'=>100,'quantity'=>1]],
+        ]);
+    }
+    catch (DomainException $e) {
+        if ($e->codeKey === 'permission_denied' && $e->httpStatus === 403) return;
+        throw $e;
+    }
+    throw new RuntimeException('actor without SALES_CREATE capability posted a sale');
+});
+
 uat_case('uat_attendance_checkin_today_checkout', function () use ($self) {
     $in = uat_dispatch('work.check_in', $self, ['branch_id'=>1]);
     if (($in['status'] ?? '') !== 'present') throw new RuntimeException('check-in status mismatch');
