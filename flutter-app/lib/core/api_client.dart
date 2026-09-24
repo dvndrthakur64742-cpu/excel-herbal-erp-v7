@@ -132,7 +132,7 @@ class ApiClient {
     final headers = <String, dynamic>{};
     final token = await session.accessToken();
     if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
+      headers.addAll(bearerHeaders(token));
     }
     headers['X-Idempotency-Key'] = _requestKey();
 
@@ -155,7 +155,7 @@ class ApiClient {
       if (error.response?.statusCode == 401 && await _refresh()) {
         final refreshed = await session.accessToken();
         if (refreshed != null && refreshed.isNotEmpty) {
-          headers['Authorization'] = 'Bearer $refreshed';
+          headers.addAll(bearerHeaders(refreshed));
         }
         try {
           final response = await send();
@@ -182,7 +182,7 @@ class ApiClient {
           responseType: ResponseType.bytes,
           followRedirects: false,
           headers: {
-            'Authorization': 'Bearer $token',
+            ...bearerHeaders(token),
             'Accept': 'application/pdf,image/jpeg,image/png,image/webp',
           },
         ),
@@ -258,7 +258,7 @@ class ApiClient {
     if (authenticated) {
       final token = await session.accessToken();
       if (token != null && token.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $token';
+        headers.addAll(bearerHeaders(token));
       }
     }
 
@@ -413,6 +413,12 @@ class ApiClient {
     }
     return false;
   }
+
+  @visibleForTesting
+  static Map<String, String> bearerHeaders(String token) => {
+        'Authorization': 'Bearer $token',
+        'X-EH7-Authorization': 'Bearer $token',
+      };
 
   @visibleForTesting
   static bool refreshTokenWasRotated(
