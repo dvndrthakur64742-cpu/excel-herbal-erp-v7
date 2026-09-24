@@ -79,6 +79,20 @@ function Root([System.Diagnostics.Process]$Process) {
   return [System.Windows.Automation.AutomationElement]::FromHandle($fresh.MainWindowHandle)
 }
 
+function Navigate-ChromeWindow([System.Diagnostics.Process]$Process,[string]$Url,[int]$SettleSeconds=5) {
+  $shell = New-Object -ComObject WScript.Shell
+  if (-not $shell.AppActivate($Process.Id)) { throw 'Chrome window could not be activated.' }
+  Start-Sleep -Milliseconds 250
+  [System.Windows.Forms.SendKeys]::SendWait('^l')
+  Start-Sleep -Milliseconds 120
+  [System.Windows.Forms.Clipboard]::SetText($Url)
+  [System.Windows.Forms.SendKeys]::SendWait('^v')
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Start-Sleep -Seconds $SettleSeconds
+  $fresh = Get-Process -Id $Process.Id -ErrorAction Stop
+  Write-Host ('INFO chrome_page_title=' + $fresh.MainWindowTitle)
+}
+
 function Find-ById([System.Windows.Automation.AutomationElement]$Root,[string]$Id) {
   $condition = New-Object System.Windows.Automation.PropertyCondition(
     [System.Windows.Automation.AutomationElement]::AutomationIdProperty,$Id
@@ -234,15 +248,22 @@ function Deploy-BackendPlugin([string]$ZipPath) {
   if ((Get-Process -Id $chrome.Id).MainWindowTitle -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
 
   $root = Root $chrome
-  $file = Find-ById $root 'pluginzip'
-  if (-not $file) { $file = Find-ByName $root 'Choose File*' $true }
-  if (-not $file) { $file = Find-ByName $root '*No file chosen*' $true }
-
-  $install = Find-ById $root 'install-plugin-submit'
-  if (-not $install) { $install = Find-ByName $root 'Install Now' }
+  $file = $null
+  $install = $null
+  for ($pageAttempt=1; $pageAttempt -le 3; $pageAttempt++) {
+    $root = Root $chrome
+    $file = Find-ById $root 'pluginzip'
+    if (-not $file) { $file = Find-ByName $root 'Choose File*' $true }
+    if (-not $file) { $file = Find-ByName $root '*No file chosen*' $true }
+    $install = Find-ById $root 'install-plugin-submit'
+    if (-not $install) { $install = Find-ByName $root 'Install Now' }
+    if ($file -and $install) { break }
+    Write-Host ('INFO backend_upload_controls_retry=' + $pageAttempt)
+    try { Write-UiHints $root ('backend_upload_controls_missing_' + $pageAttempt) } catch {}
+    Navigate-ChromeWindow $chrome 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload' 5
+  }
   if (-not $file -or -not $install) {
-    Write-UiHints $root 'backend_upload_controls_missing'
-    throw 'WordPress Upload Plugin controls were not found.'
+    throw 'WordPress Upload Plugin controls were not found after explicit navigation retries.'
   }
   Write-Host ('INFO backend_choose_control=' + [string]$file.Current.Name + ' automation_id=' + [string]$file.Current.AutomationId)
   Write-Host ('INFO backend_install_control=' + [string]$install.Current.Name + ' automation_id=' + [string]$install.Current.AutomationId)
@@ -319,13 +340,25 @@ function Deploy-WebRuntime {
   if ((Get-Process -Id $chrome.Id).MainWindowTitle -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
 
   $root = Root $chrome
-  $file = Find-ById $root 'eh7_web_bundle'
-  $source = Find-ById $root 'eh7_source_head'
-  $reason = Find-ById $root 'eh7_reason'
-  $confirm = Find-ByName $root '*confirm this certified BUILD/UAT web deployment*' $true
-  $submit = Find-ByName $root 'Deploy Certified Web Bundle'
+  $file = $null
+  $source = $null
+  $reason = $null
+  $confirm = $null
+  $submit = $null
+  for ($pageAttempt=1; $pageAttempt -le 3; $pageAttempt++) {
+    $root = Root $chrome
+    $file = Find-ById $root 'eh7_web_bundle'
+    $source = Find-ById $root 'eh7_source_head'
+    $reason = Find-ById $root 'eh7_reason'
+    $confirm = Find-ByName $root '*confirm this certified BUILD/UAT web deployment*' $true
+    $submit = Find-ByName $root 'Deploy Certified Web Bundle'
+    if ($file -and $source -and $reason -and $confirm -and $submit) { break }
+    Write-Host ('INFO web_deploy_controls_retry=' + $pageAttempt)
+    try { Write-UiHints $root ('web_deploy_controls_missing_' + $pageAttempt) } catch {}
+    Navigate-ChromeWindow $chrome 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-web-deploy' 5
+  }
   if (-not $file -or -not $source -or -not $reason -or -not $confirm -or -not $submit) {
-    throw 'Current ERP UAT web deployment controls were not found.'
+    throw 'Current ERP UAT web deployment controls were not found after explicit navigation retries.'
   }
 
   Choose-File $file $webZip
@@ -383,12 +416,21 @@ function Resolve-UatAnomalies {
   }
 
   $root = Root $chrome
-  $reason = Find-ById $root 'eh7_reason'
-  $confirm = Find-ByName $root '*confirm safe UAT anomaly resolution*' $true
-  $submit = Find-ByName $root 'Resolve Safe UAT Anomalies'
+  $reason = $null
+  $confirm = $null
+  $submit = $null
+  for ($pageAttempt=1; $pageAttempt -le 3; $pageAttempt++) {
+    $root = Root $chrome
+    $reason = Find-ById $root 'eh7_reason'
+    $confirm = Find-ByName $root '*confirm safe UAT anomaly resolution*' $true
+    $submit = Find-ByName $root 'Resolve Safe UAT Anomalies'
+    if ($reason -and $confirm -and $submit) { break }
+    Write-Host ('INFO uat_cleanup_controls_retry=' + $pageAttempt)
+    try { Write-UiHints $root ('uat_cleanup_controls_missing_' + $pageAttempt) } catch {}
+    Navigate-ChromeWindow $chrome 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup' 5
+  }
   if (-not $reason -or -not $confirm -or -not $submit) {
-    try { Write-UiHints $root 'uat_cleanup_controls_missing' } catch {}
-    throw 'EH7 UAT Cleanup controls were not found.'
+    throw 'EH7 UAT Cleanup controls were not found after explicit navigation retries.'
   }
 
   Set-ElementValue $reason 'Resolve verified post-deployment UAT anomalies after diagnostics review'
