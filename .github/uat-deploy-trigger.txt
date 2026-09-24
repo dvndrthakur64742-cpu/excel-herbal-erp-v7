@@ -11,3 +11,5 @@ Business-safety receipt concurrency gate added at db4a481802bd6676fda62ffeb163d6
 Runtime screen-smoke credential and Flutter semantics fixes certified at 77a1d9083d105477e94150d4087cde61473110de.
 
 Supplier-payment concurrency gate added at 5523625e888558c32afcd990992959c5884d5589; certify and deploy exact head with authenticated runtime screens.
+
+WordPress admin navigation retry fix added at 3694bf3ac03280cf7711c2b441623bc96c059c0e; re-certify and deploy exact head.
