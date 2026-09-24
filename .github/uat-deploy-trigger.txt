@@ -3,3 +3,5 @@ UAT deployment trigger
 Certified parent head: a9ac4befcc004859780d66f3ea35345f85f39ceb
 Purpose: deploy and verify the current ERP UAT release identity on office.excelherbal.in after the full green correction verification run #268.
 Scope: BUILD/UAT only; no production release.
+
+Authenticated screen-smoke gate enabled at branch head b2fbac1758187028296b2730ea067db6449dbd91.
