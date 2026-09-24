@@ -2,6 +2,12 @@ import 'package:excel_herbal_erp/core/api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('bearer auth includes proxy-safe alternate header', () {
+    final headers = ApiClient.bearerHeaders('token-123');
+    expect(headers['Authorization'], 'Bearer token-123');
+    expect(headers['X-EH7-Authorization'], 'Bearer token-123');
+  });
+
   group('refresh token race detection', () {
     test('adopts a peer rotation when the stored refresh token changed', () {
       expect(
