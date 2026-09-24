@@ -347,7 +347,7 @@ jobs:
         working-directory: flutter-app
         run: |
           $ErrorActionPreference = 'Stop'
-          & $env:EH7_FLUTTER_EXE build web --release --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
+          & $env:EH7_FLUTTER_EXE build web --release --no-pub --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $index = 'build/web/index.html'
           $main = 'build/web/main.dart.js'
