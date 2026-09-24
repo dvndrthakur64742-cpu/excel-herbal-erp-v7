@@ -75,7 +75,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Purchase'),
+          title: const Text('Purchase & Suppliers'),
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Outstanding'),
