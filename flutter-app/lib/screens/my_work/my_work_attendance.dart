@@ -11,17 +11,89 @@ extension _MyWorkAttendance on _MyWorkScreenState {
           future: api.get(ApiPaths.attendanceToday),
           emptyMessage: 'Aaj attendance pending hai.',
           builder: (context, data) {
-            if (data == null) return const SizedBox.shrink();
-            final r = Map<String, dynamic>.from(data as Map);
-            return Card(
-              child: ListTile(
-                title: Text('${r['status'] ?? 'present'}'),
-                subtitle: Text(
-                  'Check-In: ${DateTimeText.local(r['check_in_at'])}\n'
-                  'Check-Out: ${DateTimeText.local(r['check_out_at'])}',
+            final r = data is Map
+                ? Map<String, dynamic>.from(data)
+                : <String, dynamic>{};
+            final checkedIn =
+                '${r['check_in_at'] ?? ''}'.trim().isNotEmpty;
+            final checkedOut =
+                '${r['check_out_at'] ?? ''}'.trim().isNotEmpty;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          checkedOut
+                              ? Icons.verified_outlined
+                              : checkedIn
+                                  ? Icons.timelapse_rounded
+                                  : Icons.schedule_outlined,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                checkedOut
+                                    ? 'Duty completed for today'
+                                    : checkedIn
+                                        ? 'Duty in progress'
+                                        : 'Attendance pending',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 6),
+                              if (checkedIn)
+                                Text(
+                                  'Check-In: ${DateTimeText.local(r['check_in_at'])}',
+                                )
+                              else
+                                const Text(
+                                  'Check-In time will appear after successful attendance.',
+                                ),
+                              if (checkedIn) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  checkedOut
+                                      ? 'Check-Out: ${DateTimeText.local(r['check_out_at'])}'
+                                      : 'Check-Out: pending',
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                isThreeLine: true,
-              ),
+                const SizedBox(height: 10),
+                if (!checkedIn)
+                  FilledButton.icon(
+                    onPressed: () => _attendanceAction(true),
+                    icon: const Icon(Icons.login),
+                    label: const Text('Check-In'),
+                  )
+                else if (!checkedOut)
+                  FilledButton.tonalIcon(
+                    onPressed: () => _attendanceAction(false),
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Check-Out'),
+                  )
+                else
+                  const Chip(
+                    avatar: Icon(Icons.check_circle_outline, size: 18),
+                    label: Text('Attendance complete'),
+                  ),
+              ],
             );
           },
         ),
@@ -29,23 +101,6 @@ extension _MyWorkAttendance on _MyWorkScreenState {
           const SizedBox(height: 8),
           _feedbackBanner(message!),
         ],
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            FilledButton.icon(
-              onPressed: () => _attendanceAction(true),
-              icon: const Icon(Icons.login),
-              label: const Text('Check-In'),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: () => _attendanceAction(false),
-              icon: const Icon(Icons.logout),
-              label: const Text('Check-Out'),
-            ),
-          ],
-        ),
       ],
     );
   }
