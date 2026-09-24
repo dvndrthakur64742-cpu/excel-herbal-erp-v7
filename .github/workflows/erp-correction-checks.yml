@@ -620,20 +620,29 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Validate controlled UAT runtime credentials
         env:
-          UAT_MOBILE: \${{ secrets.EH7_STAGING_UAT_MOBILE }}
-          UAT_PASSWORD: \${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
             throw 'EH7_STAGING_UAT_MOBILE / EH7_STAGING_UAT_PASSWORD secrets are required for authenticated screen smoke.'
           }
       - name: Verify authenticated Home and six business module landing screens
         env:
-          UAT_MOBILE: \${{ secrets.EH7_STAGING_UAT_MOBILE }}
-          UAT_PASSWORD: \${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
         run: |
           & '.github/scripts/uat-runtime-screen-smoke.ps1' -AppUrl 'https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/' -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
+      - name: Print UAT runtime screen evidence
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath 'dist/uat-runtime-screen-smoke/EVIDENCE.json' -PathType Leaf) {
+            Get-Content -LiteralPath 'dist/uat-runtime-screen-smoke/EVIDENCE.json'
+          } else {
+            Write-Host 'INFO UAT runtime screen evidence file was not created.'
+          }
       - name: Upload UAT runtime screen evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: EH7-UAT-Runtime-Screen-Evidence
