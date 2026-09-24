@@ -56,6 +56,7 @@ function e2_rebuild(Eh7IntegrationWpdb $db): void {
 function e2_seed(Eh7IntegrationWpdb $db): void {
     e2_insert($db,'companies',['id'=>1,'name'=>'Coverage II Disposable Co','status'=>'active','created_at'=>'2026-01-01 00:00:00']);
     e2_insert($db,'branches',['id'=>1,'company_id'=>1,'code'=>'B1','name'=>'Coverage Branch','is_head_office'=>1,'status'=>'active','created_at'=>'2026-01-01 00:00:00']);
+    e2_insert($db,'branches',['id'=>2,'company_id'=>1,'code'=>'B2','name'=>'Outside Authority Branch','is_head_office'=>0,'status'=>'active','created_at'=>'2026-01-01 00:00:00']);
     foreach ([[20,'E20','Coverage Approver'],[30,'E30','Coverage Maker']] as [$id,$code,$name]) {
         e2_insert($db,'employees',[
             'id'=>$id,'company_id'=>1,'employee_code'=>$code,'wp_user_id'=>8000+$id,'designation_code'=>'SYSADMIN',
@@ -96,6 +97,7 @@ function e2_seed(Eh7IntegrationWpdb $db): void {
         e2_insert($db,'accounts',['id'=>$id,'company_id'=>1,'code'=>$code,'name'=>$name,'type'=>$type,'subtype'=>$subtype,'active'=>1]);
     }
     e2_insert($db,'expense_heads',['id'=>1,'company_id'=>1,'code'=>'TRAVEL','name'=>'Travel Expense','expense_account_id'=>8,'active'=>1]);
+    e2_insert($db,'suppliers',['id'=>301,'company_id'=>1,'name'=>'Scoped Supplier','mobile'=>'9000000301','status'=>'active','created_at'=>'2026-01-01 00:00:00']);
 
 
 }
@@ -114,6 +116,7 @@ $approver=e2_actor(20,[
     Capabilities::BRANCH_CLOSE,Capabilities::BRANCH_REOPEN,
     Capabilities::REPORTS_VIEW,Capabilities::ACCOUNTING_VIEW,
 ]);
+$limited=e2_actor(40,[]);
 
 $state=[];
 $failed=0;
@@ -122,6 +125,78 @@ function e2_case(string $name, callable $fn):void{
     try{$fn();echo "PASS {$name}\n";}
     catch(Throwable $e){$failed++;echo "FAIL {$name}: ".get_class($e).' '.$e->getMessage()."\n";}
 }
+
+e2_case('e2_cross_branch_mutations_fail_closed',function()use($maker,$wpdb){
+    $beforeCustomers=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('customers'));
+    $beforeBills=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('purchase_bills'));
+    $beforeExpenses=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('expenses'));
+
+    $checks=[
+        ['sales.customer_create',[
+            'branch_id'=>2,'name'=>'Forbidden Customer','mobile'=>'9000000991',
+        ]],
+        ['purchase.bill',[
+            'branch_id'=>2,'supplier_id'=>301,'bill_no'=>'FORBIDDEN-BILL','bill_date'=>e2_date(),
+            'lines'=>[['product_id'=>100,'quantity'=>1,'unit_cost'=>40]],
+        ]],
+        ['finance.expense',[
+            'branch_id'=>2,'expense_head_id'=>1,'amount'=>50,'payment_account_id'=>1,
+            'expense_date'=>e2_date(),'description'=>'Forbidden cross-branch expense',
+        ]],
+    ];
+
+    foreach($checks as[$handler,$params]){
+        try{e2_dispatch($handler,$maker,$params);}
+        catch(DomainException $e){
+            if($e->codeKey==='branch_forbidden'&&$e->httpStatus===403)continue;
+            throw $e;
+        }
+        throw new RuntimeException($handler.' accepted a mutation outside actor branch authority');
+    }
+
+    $afterCustomers=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('customers'));
+    $afterBills=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('purchase_bills'));
+    $afterExpenses=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('expenses'));
+    if($afterCustomers!==$beforeCustomers||$afterBills!==$beforeBills||$afterExpenses!==$beforeExpenses){
+        throw new RuntimeException('cross-branch rejection partially persisted business data');
+    }
+});
+
+e2_case('e2_missing_capability_mutations_fail_closed',function()use($limited,$wpdb){
+    $beforeCustomers=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('customers'));
+    $beforeBills=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('purchase_bills'));
+    $beforeExpenses=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('expenses'));
+
+    $checks=[
+        ['sales.customer_create',[
+            'branch_id'=>1,'name'=>'No Cap Customer','mobile'=>'9000000992',
+        ]],
+        ['purchase.bill',[
+            'branch_id'=>1,'supplier_id'=>301,'bill_no'=>'NO-CAP-BILL','bill_date'=>e2_date(),
+            'lines'=>[['product_id'=>100,'quantity'=>1,'unit_cost'=>40]],
+        ]],
+        ['finance.expense',[
+            'branch_id'=>1,'expense_head_id'=>1,'amount'=>50,'payment_account_id'=>1,
+            'expense_date'=>e2_date(),'description'=>'No capability expense',
+        ]],
+    ];
+
+    foreach($checks as[$handler,$params]){
+        try{e2_dispatch($handler,$limited,$params);}
+        catch(DomainException $e){
+            if($e->codeKey==='permission_denied'&&$e->httpStatus===403)continue;
+            throw $e;
+        }
+        throw new RuntimeException($handler.' accepted a mutation without required capability');
+    }
+
+    $afterCustomers=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('customers'));
+    $afterBills=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('purchase_bills'));
+    $afterExpenses=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('expenses'));
+    if($afterCustomers!==$beforeCustomers||$afterBills!==$beforeBills||$afterExpenses!==$beforeExpenses){
+        throw new RuntimeException('permission rejection partially persisted business data');
+    }
+});
 
 e2_case('e2_purchase_bill_and_supplier_payment',function()use($maker,$approver,$wpdb,&$state){
     $supplier=e2_dispatch('purchase.supplier_create',$maker,['name'=>'Coverage Supplier','mobile'=>'9000000002','gstin'=>'22AAAAA0000A1Z5']);
