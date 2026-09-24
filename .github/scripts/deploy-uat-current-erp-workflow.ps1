@@ -183,16 +183,25 @@ function Get-WebRuntimeHealth {
 }
 
 function Get-LiveMainHash {
-  $tmp = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
-  try {
-    & curl.exe --fail --location --silent --show-error --max-time 30 --output $tmp ('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tmp -PathType Leaf)) {
-      throw 'Live main.dart.js could not be downloaded.'
+  $urlBase = 'https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/main.dart.js'
+  $lastExit = -1
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    $tmp = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
+    try {
+      & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 90 --retry 2 --retry-delay 2 --retry-all-errors --output $tmp ($urlBase + '?cb=' + [Guid]::NewGuid().ToString('N'))
+      $lastExit = $LASTEXITCODE
+      if ($lastExit -eq 0 -and (Test-Path -LiteralPath $tmp -PathType Leaf) -and (Get-Item -LiteralPath $tmp).Length -gt 0) {
+        $hash = (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Host ('INFO live_main_download_attempt=' + $attempt + ' sha256=' + $hash)
+        return $hash
+      }
+      Write-Host ('INFO live_main_download_retry=' + $attempt + ' curl_exit=' + $lastExit)
+    } finally {
+      Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
     }
-    return (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash.ToLowerInvariant()
-  } finally {
-    Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+    if ($attempt -lt 3) { Start-Sleep -Seconds (2 * $attempt) }
   }
+  throw ('Live main.dart.js could not be downloaded after retries. curl_exit=' + $lastExit)
 }
 
 function New-BackendPluginZip {
