@@ -124,9 +124,10 @@ try{
         ['HTTP_AUTHORIZATION','Bearer primary-token','auth_header_http_authorization'],
         ['REDIRECT_HTTP_AUTHORIZATION','Bearer redirect-token','auth_header_redirect_authorization'],
         ['Authorization','Bearer direct-token','auth_header_direct_authorization'],
+        ['HTTP_X_EH7_AUTHORIZATION','Bearer proxy-safe-token','auth_header_proxy_safe_authorization'],
     ];
     foreach($headerCases as[$key,$value,$name]){
-        unset($_SERVER['HTTP_AUTHORIZATION'],$_SERVER['REDIRECT_HTTP_AUTHORIZATION'],$_SERVER['Authorization']);
+        unset($_SERVER['HTTP_AUTHORIZATION'],$_SERVER['REDIRECT_HTTP_AUTHORIZATION'],$_SERVER['Authorization'],$_SERVER['HTTP_X_EH7_AUTHORIZATION']);
         $_SERVER[$key]=$value;
         $actual=$headerMethod->invoke(null);
         if($actual!==$value){$failed++;echo "FAIL {$name}: header fallback mismatch\n";}else echo "PASS {$name}\n";
