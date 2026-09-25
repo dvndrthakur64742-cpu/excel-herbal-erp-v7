@@ -37,6 +37,9 @@ jobs:
             }
             Write-Host "PASS powershell_parse $($file.Name)"
           }
+      - name: Test UAT browser ownership without opening a browser
+        run: |
+          & '.github/scripts/test-uat-browser-ownership.ps1'
       - name: Locate or install verified PHP 8.3.33 toolcache
         run: |
           $ErrorActionPreference = 'Stop'

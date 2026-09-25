@@ -25,27 +25,33 @@ function Get-ChromeExe {
   return $candidate
 }
 
-function Open-AppWindow([string]$Url) {
-  $before = @{}
-  Get-Process chrome -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowHandle -ne 0 } |
-    ForEach-Object { $before[[string]$_.MainWindowHandle] = $true }
-
-  Start-Process -FilePath (Get-ChromeExe) -ArgumentList @('--new-window',$Url) | Out-Null
+function Open-AppWindow([string]$Url,[string]$ProfilePath) {
+  # A shared Chrome process can change MainWindowHandle to a personal New Tab.
+  # Own a fresh profile/process and capture its window once; never adopt another
+  # process by title or reuse the runner's authenticated browser session.
+  $script:ownedChrome = Start-Process -FilePath (Get-ChromeExe) -ArgumentList @(
+    ('--user-data-dir="' + $ProfilePath + '"'),
+    '--no-first-run', '--no-default-browser-check', '--disable-sync',
+    '--force-renderer-accessibility', ('--app=' + $Url)
+  ) -PassThru -WindowStyle Normal
   for ($attempt = 0; $attempt -lt 40; $attempt++) {
     Start-Sleep -Milliseconds 500
-    $windows = @(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
-    $newWindow = $windows | Where-Object { -not $before.ContainsKey([string]$_.MainWindowHandle) } | Select-Object -First 1
-    if ($newWindow) { return $newWindow }
-    $match = $windows | Where-Object { $_.MainWindowTitle -match 'Excel Herbal|office\.excelherbal\.in' } | Select-Object -First 1
-    if ($match) { return $match }
+    $script:ownedChrome.Refresh()
+    if ($script:ownedChrome.HasExited) { throw 'Isolated UAT Chrome process exited before opening its window.' }
+    if ($script:ownedChrome.MainWindowHandle -ne 0) {
+      $script:appWindowHandle = $script:ownedChrome.MainWindowHandle
+      return $script:ownedChrome
+    }
   }
   throw 'Excel Herbal ERP Chrome window did not open.'
 }
 
 function Root([System.Diagnostics.Process]$Process) {
-  $fresh = Get-Process -Id $Process.Id -ErrorAction Stop
-  return [System.Windows.Automation.AutomationElement]::FromHandle($fresh.MainWindowHandle)
+  $Process.Refresh()
+  if ($Process.HasExited -or $script:appWindowHandle -eq 0) { throw 'Owned UAT Chrome window is no longer available.' }
+  $root = [System.Windows.Automation.AutomationElement]::FromHandle($script:appWindowHandle)
+  if (-not $root -or $root.Current.ProcessId -ne $Process.Id) { throw 'UAT Chrome window ownership changed.' }
+  return $root
 }
 
 function Find-ByNameLike([System.Windows.Automation.AutomationElement]$Root,[string[]]$Names) {
@@ -80,7 +86,12 @@ function All-Names([System.Windows.Automation.AutomationElement]$Root) {
 function Write-UiHints([System.Diagnostics.Process]$Process,[string]$Label) {
   Write-Host ('INFO uat_ui_hints_begin=' + $Label)
   try {
-    foreach ($name in (All-Names (Root $Process))) { Write-Host ('INFO UAT_UI: ' + $name) }
+    foreach ($name in (All-Names (Root $Process))) {
+      foreach ($secret in @($Mobile,$Password)) {
+        if (-not [string]::IsNullOrEmpty($secret)) { $name = $name.Replace($secret,'[redacted]') }
+      }
+      Write-Host ('INFO UAT_UI: ' + $name)
+    }
   } catch {
     Write-Host ('INFO uat_ui_hints_error=' + $_.Exception.Message)
   }
@@ -159,9 +170,6 @@ function Assert-NoBootstrapCrash([System.Diagnostics.Process]$Process,[string]$L
 
 function Find-EditByLabel([System.Diagnostics.Process]$Process,[string]$Label) {
   $root = Root $Process
-  $exact = Find-ByNameLike $root @($Label)
-  if ($exact) { return $exact }
-
   $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
   foreach ($element in $all) {
     try {
@@ -180,14 +188,21 @@ $evidence = [ordered]@{
   commit = $env:GITHUB_SHA
   run_id = $env:GITHUB_RUN_ID
   tested_at_utc = [DateTime]::UtcNow.ToString('o')
+  status = 'failed'
+  phase = 'browser_start'
   results = [ordered]@{}
 }
 
 $chrome = $null
+$script:ownedChrome = $null
+$script:appWindowHandle = [IntPtr]::Zero
+$profileRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+$profilePath = Join-Path $profileRoot ('eh7-uat-smoke-' + [Guid]::NewGuid().ToString('N'))
 try {
-  $chrome = Open-AppWindow $uri.AbsoluteUri
+  $chrome = Open-AppWindow $uri.AbsoluteUri $profilePath
   $shell = New-Object -ComObject WScript.Shell
-  [void]$shell.AppActivate($chrome.Id)
+  if (-not $shell.AppActivate($chrome.Id)) { throw 'Owned UAT Chrome window could not be activated.' }
+  $evidence.phase = 'login_screen'
   Start-Sleep -Seconds 8
 
   # Flutter web hides the semantic accessibility tree until this Chrome/Flutter
@@ -203,8 +218,13 @@ try {
     Write-Host 'PASS flutter_accessibility_semantics_enabled'
   }
 
-  $signIn = Wait-ForAnyName $chrome @('SIGN IN') 8
+  $signIn = Wait-ForAnyName $chrome @('SIGN IN') 30
+  if (-not $signIn) {
+    Write-UiHints $chrome 'fresh_login_screen_missing'
+    throw 'Fresh UAT login screen did not become visible in the isolated browser.'
+  }
   if ($signIn) {
+    $evidence.results['fresh_login_screen'] = 'passed'
     if ([string]::IsNullOrWhiteSpace($Mobile) -or [string]::IsNullOrWhiteSpace($Password)) {
       Write-UiHints $chrome 'uat_login_required_but_credentials_missing'
       throw 'ERP login screen is visible and controlled UAT credentials are not configured.'
@@ -218,6 +238,8 @@ try {
     if (-not (Set-ControlValue $mobileBox $Mobile)) { throw 'Could not enter UAT mobile number.' }
     if (-not (Set-ControlValue $passwordBox $Password)) { throw 'Could not enter UAT password.' }
     if (-not (Try-Invoke $signIn)) { throw 'Could not invoke ERP SIGN IN.' }
+    $evidence.phase = 'authenticated_workspace'
+    Write-Host 'INFO uat_login_submitted'
     Start-Sleep -Seconds 4
   }
 
@@ -230,6 +252,7 @@ try {
   Write-Host 'PASS authenticated_workspace'
 
   Assert-NoBootstrapCrash $chrome 'home'
+  $evidence.phase = 'home'
   $home = Find-ByNameLike (Root $chrome) @('Home')
   if (-not $home) {
     Write-UiHints $chrome 'home_navigation_missing'
@@ -251,6 +274,7 @@ try {
   )
 
   foreach ($module in $modules) {
+    $evidence.phase = $module.key
     $nav = Find-ByNameLike (Root $chrome) $module.nav
     if (-not $nav) {
       Write-UiHints $chrome ($module.key + '_navigation_missing')
@@ -270,13 +294,27 @@ try {
   }
 
   $evidence['status'] = 'passed'
+  $evidence.phase = 'complete'
   Write-Host 'PASSED authenticated UAT runtime screen smoke'
 }
 finally {
   $dir = Split-Path -Parent $EvidencePath
   if ($dir) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
   $evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $EvidencePath -Encoding utf8
-  if ($chrome) {
-    try { Stop-Process -Id $chrome.Id -Force -ErrorAction SilentlyContinue } catch {}
+  if ($script:ownedChrome) {
+    try {
+      if (-not $script:ownedChrome.HasExited) {
+        $script:ownedChrome.Kill()
+        [void]$script:ownedChrome.WaitForExit(5000)
+      }
+    } catch { Write-Warning 'Could not stop the isolated UAT Chrome process.' }
+  }
+  # Delete only this invocation's generated profile, never the user's profile.
+  $resolvedProfile = [IO.Path]::GetFullPath($profilePath)
+  if (([IO.Path]::GetDirectoryName($resolvedProfile) -eq $profileRoot.TrimEnd([char]92,[char]47)) -and
+      ([IO.Path]::GetFileName($resolvedProfile) -match '^eh7-uat-smoke-[a-f0-9]{32}$')) {
+    if (Test-Path -LiteralPath $resolvedProfile) {
+      Remove-Item -LiteralPath $resolvedProfile -Recurse -Force -ErrorAction SilentlyContinue
+    }
   }
 }
