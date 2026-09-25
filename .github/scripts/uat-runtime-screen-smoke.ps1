@@ -152,6 +152,21 @@ function Wait-ForAnyName([System.Diagnostics.Process]$Process,[string[]]$Names,[
   return $null
 }
 
+function Wait-ForFreshLogin([System.Diagnostics.Process]$Process) {
+  # A cold profile downloads the Flutter runtime before exposing its semantics
+  # opt-in control. Wait for readiness, rather than a short startup-only probe.
+  $ready = Wait-ForAnyName $Process @('SIGN IN','Enable accessibility') 90
+  if (-not $ready) { throw 'UAT app did not expose login or accessibility readiness.' }
+  if ($ready.Current.Name.Trim() -eq 'Enable accessibility') {
+    if (-not (Try-Invoke $ready)) { throw 'Flutter accessibility semantics could not be enabled.' }
+    $signIn = Wait-ForAnyName $Process @('SIGN IN') 30
+    if (-not $signIn) { throw 'UAT login semantics did not appear after enabling accessibility.' }
+    Write-Host 'PASS flutter_accessibility_semantics_enabled'
+    return $signIn
+  }
+  return $ready
+}
+
 function Assert-NoBootstrapCrash([System.Diagnostics.Process]$Process,[string]$Label) {
   $names = @(All-Names (Root $Process))
   $joined = ($names -join [Environment]::NewLine)
@@ -203,25 +218,11 @@ try {
   $shell = New-Object -ComObject WScript.Shell
   if (-not $shell.AppActivate($chrome.Id)) { throw 'Owned UAT Chrome window could not be activated.' }
   $evidence.phase = 'login_screen'
-  Start-Sleep -Seconds 8
-
-  # Flutter web hides the semantic accessibility tree until this Chrome/Flutter
-  # accessibility control is activated. Enable it before looking for the login
-  # fields or application navigation so the smoke test observes real Flutter
-  # semantics instead of only browser chrome.
-  $enableAccessibility = Wait-ForAnyName $chrome @('Enable accessibility') 6
-  if ($enableAccessibility) {
-    if (-not (Try-Invoke $enableAccessibility)) {
-      throw 'Flutter accessibility semantics could not be enabled.'
-    }
-    Start-Sleep -Seconds 2
-    Write-Host 'PASS flutter_accessibility_semantics_enabled'
-  }
-
-  $signIn = Wait-ForAnyName $chrome @('SIGN IN') 30
-  if (-not $signIn) {
+  try {
+    $signIn = Wait-ForFreshLogin $chrome
+  } catch {
     Write-UiHints $chrome 'fresh_login_screen_missing'
-    throw 'Fresh UAT login screen did not become visible in the isolated browser.'
+    throw
   }
   if ($signIn) {
     $evidence.results['fresh_login_screen'] = 'passed'

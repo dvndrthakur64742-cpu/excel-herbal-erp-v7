@@ -5,7 +5,7 @@ $parseErrors = $null
 $source = Join-Path $PSScriptRoot 'uat-runtime-screen-smoke.ps1'
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($source,[ref]$tokens,[ref]$parseErrors)
 if ($parseErrors.Count) { throw 'UAT smoke script did not parse.' }
-foreach ($name in @('Open-AppWindow','Root')) {
+foreach ($name in @('Open-AppWindow','Root','Wait-ForFreshLogin')) {
   $definition = $ast.Find({ param($node)
     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
   },$true)
@@ -73,3 +73,39 @@ $failed = $false
 try { Root $process | Out-Null } catch { $failed = $true }
 Assert $failed 'A missing window must fail closed.'
 Write-Host 'PASS pinned_window_and_ownership'
+
+$script:readyQueue = New-Object System.Collections.Queue
+$script:waits = @()
+$script:invocations = 0
+$script:invokeResult = $true
+function Wait-ForAnyName {
+  param($Process,$Names,$Seconds)
+  $script:waits += ,@($Names,$Seconds)
+  return $script:readyQueue.Dequeue()
+}
+function Try-Invoke { param($Element) $script:invocations++; return $script:invokeResult }
+$enable = [pscustomobject]@{ Current = [pscustomobject]@{ Name = 'Enable accessibility' } }
+$login = [pscustomobject]@{ Current = [pscustomobject]@{ Name = 'SIGN IN' } }
+$script:readyQueue.Enqueue($enable)
+$script:readyQueue.Enqueue($login)
+$result = Wait-ForFreshLogin $process
+Assert ([object]::ReferenceEquals($result,$login)) 'Cold startup must enable semantics and return the actual login control.'
+Assert ($script:waits[0][0] -contains 'Enable accessibility') 'Readiness must include the delayed accessibility control.'
+Assert ($script:waits[0][1] -eq 90) 'Cold startup must retain the bounded readiness budget.'
+Assert ($script:invocations -eq 1) 'Accessibility must be invoked once.'
+$script:readyQueue.Enqueue($login)
+$result = Wait-ForFreshLogin $process
+Assert ([object]::ReferenceEquals($result,$login)) 'Already enabled semantics must return login directly.'
+Assert ($script:invocations -eq 1) 'Already enabled semantics must not invoke SIGN IN before credentials.'
+foreach ($scenario in @('not_ready','invoke_failed','no_login_after_enable')) {
+  $script:invokeResult = $scenario -ne 'invoke_failed'
+  if ($scenario -eq 'not_ready') { $script:readyQueue.Enqueue($null) }
+  else {
+    $script:readyQueue.Enqueue($enable)
+    if ($scenario -eq 'no_login_after_enable') { $script:readyQueue.Enqueue($null) }
+  }
+  $failed = $false
+  try { Wait-ForFreshLogin $process | Out-Null } catch { $failed = $true }
+  Assert $failed ('Readiness must fail closed: ' + $scenario)
+}
+Write-Host 'PASS delayed_accessibility_and_login_readiness'
