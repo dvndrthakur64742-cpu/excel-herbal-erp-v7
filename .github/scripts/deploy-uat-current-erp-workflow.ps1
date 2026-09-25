@@ -153,15 +153,50 @@ function Set-ElementValue([System.Windows.Automation.AutomationElement]$Element,
   $pattern.SetValue($Value)
 }
 
-function Choose-File([System.Windows.Automation.AutomationElement]$Button,[string]$Path) {
+function Choose-File([System.Windows.Automation.AutomationElement]$Button,[string]$Path,[System.Diagnostics.Process]$Browser) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf) -or [IO.Path]::GetExtension($Path) -ine '.zip') {
+    throw 'The certified deployment ZIP is missing or invalid.'
+  }
+  $fullPath = [IO.Path]::GetFullPath($Path)
+  $fileName = [IO.Path]::GetFileName($fullPath)
+  # Global SendKeys/clipboard input can land in the page before the native
+  # picker is ready. Address only this Chrome process's actual file dialog.
   Invoke-Element $Button
-  Start-Sleep -Seconds 2
-  [System.Windows.Forms.SendKeys]::SendWait('^a')
-  Start-Sleep -Milliseconds 100
-  [System.Windows.Forms.Clipboard]::SetText($Path)
-  [System.Windows.Forms.SendKeys]::SendWait('^v')
-  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-  Start-Sleep -Seconds 3
+  $dialog = $null
+  for ($attempt = 0; $attempt -lt 40; $attempt++) {
+    Start-Sleep -Milliseconds 500
+    $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+      [System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($window in $windows) {
+      if ($window.Current.ProcessId -eq $Browser.Id -and $window.Current.ClassName -eq '#32770' -and
+          $window.Current.IsEnabled -and -not $window.Current.IsOffscreen) {
+        $dialog = $window
+        break
+      }
+    }
+    if ($dialog) { break }
+  }
+  if (-not $dialog) { throw 'Chrome deployment file picker did not become ready.' }
+  $fileControl = Find-ById $dialog '1148'
+  if (-not $fileControl) { throw 'Deployment file picker filename control is missing.' }
+  $editCondition = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Edit)
+  $edit = $fileControl.FindFirst([System.Windows.Automation.TreeScope]::Subtree,$editCondition)
+  if (-not $edit) { throw 'Deployment file picker filename edit is missing.' }
+  Set-ElementValue $edit $fullPath
+  $value = $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+  if ($value.Current.Value -ne $fullPath) { throw 'Deployment file picker did not accept the certified ZIP path.' }
+  $open = Find-ById $dialog '1'
+  if (-not $open -or -not $open.Current.IsEnabled) { throw 'Deployment file picker Open button is unavailable.' }
+  Invoke-Element $open
+  for ($attempt = 0; $attempt -lt 40; $attempt++) {
+    Start-Sleep -Milliseconds 500
+    if (([string]$Button.Current.Name).IndexOf($fileName,[StringComparison]::OrdinalIgnoreCase) -ge 0) {
+      Write-Host ('PASS deployment_zip_selected=' + $fileName)
+      return
+    }
+  }
+  throw 'Deployment form did not confirm the selected certified ZIP.'
 }
 
 function Get-HealthSourceHead {
@@ -276,7 +311,7 @@ function Deploy-BackendPlugin([string]$ZipPath) {
   }
   Write-Host ('INFO backend_choose_control=' + [string]$file.Current.Name + ' automation_id=' + [string]$file.Current.AutomationId)
   Write-Host ('INFO backend_install_control=' + [string]$install.Current.Name + ' automation_id=' + [string]$install.Current.AutomationId)
-  Choose-File $file $ZipPath
+  Choose-File $file $ZipPath $chrome
 
   $root = Root $chrome
   $install = Find-ById $root 'install-plugin-submit'
@@ -370,7 +405,7 @@ function Deploy-WebRuntime {
     throw 'Current ERP UAT web deployment controls were not found after explicit navigation retries.'
   }
 
-  Choose-File $file $webZip
+  Choose-File $file $webZip $chrome
   $root = Root $chrome
   Set-ElementValue (Find-ById $root 'eh7_source_head') $SourceHead
   Set-ElementValue (Find-ById $root 'eh7_reason') 'Deploy certified Phase 1 bootstrap recovery to office BUILD/UAT'
