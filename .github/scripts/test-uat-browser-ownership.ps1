@@ -125,7 +125,7 @@ Write-Host 'PASS delayed_accessibility_and_login_readiness'
 $deploySource = Join-Path $PSScriptRoot 'deploy-uat-current-erp-workflow.ps1'
 $deployAst = [System.Management.Automation.Language.Parser]::ParseFile($deploySource,[ref]$tokens,[ref]$parseErrors)
 if ($parseErrors.Count) { throw 'Deployment script did not parse.' }
-foreach ($name in @('Get-ChromeWindowAddress','Get-AuthenticatedWordPressWindow','Open-DedicatedChromeWindow','Root')) {
+foreach ($name in @('Get-ChromeWindowAddress','Normalize-WebAddress','Select-VerifiedWordPressCandidate','Get-AuthenticatedWordPressWindow','Open-DedicatedChromeWindow','Root')) {
   $definition = $deployAst.Find({ param($node)
     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
   },$true)
@@ -144,6 +144,10 @@ $adminWindow = [pscustomobject]@{
   Address = 'https://office.excelherbal.in/wp-admin/'
   Current = [pscustomobject]@{ NativeWindowHandle = 201; ProcessId = $process.Id; Name = 'Dashboard - Excel Herbal - WordPress'; ClassName = 'Chrome_WidgetWin_1' }
 }
+$uploadWindow = [pscustomobject]@{
+  Address = 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload'
+  Current = [pscustomobject]@{ NativeWindowHandle = 211; ProcessId = $process.Id; Name = 'Add Plugins - Excel Herbal - WordPress'; ClassName = 'Chrome_WidgetWin_1' }
+}
 $personalWindow = [pscustomobject]@{
   Address = 'https://www.google.com/'
   Current = [pscustomobject]@{ NativeWindowHandle = 301; ProcessId = $process.Id; Name = 'New Tab - Google Chrome'; ClassName = 'Chrome_WidgetWin_1' }
@@ -159,6 +163,7 @@ $script:navigatedUrl = ''
 function Get-ChromeWindows {
   $script:windowReads++
   if ($script:windowMode -eq 'reuse') { $adminWindow; return }
+  if ($script:windowMode -eq 'precise') { $adminWindow; $uploadWindow; return }
   $personalWindow
   if ($script:windowMode -eq 'new' -and $script:windowReads -gt 2) { $newWindow }
 }
@@ -172,6 +177,17 @@ Assert ($script:appWindowHandle -eq 201) 'Deployment must reuse the verified aut
 Assert ($script:navigatedUrl -eq $targetUrl) 'Reused authenticated admin window must navigate to the requested deployment page.'
 Assert ($script:deployLaunches -eq 0) 'An authenticated office WordPress admin window must be reused without launching a new Chrome window.'
 Write-Host 'PASS deployment_reuses_verified_authenticated_admin_window'
+
+$script:windowMode = 'precise'
+$script:windowReads = 0
+$script:deployLaunches = 0
+$script:navigatedUrl = ''
+$uploadUrl = 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload'
+Open-DedicatedChromeWindow $uploadUrl 'Add Plugins|Upload Plugin|office.*WordPress' | Out-Null
+Assert ($script:appWindowHandle -eq 211) 'Deployment must choose the single authenticated window whose address exactly matches the requested wp-admin URL.'
+Assert ($script:navigatedUrl -eq $uploadUrl) 'Exact authenticated target must still navigate through the verified pinned HWND.'
+Assert ($script:deployLaunches -eq 0) 'Exact authenticated target must not launch another Chrome window.'
+Write-Host 'PASS deployment_exact_url_disambiguates_multiple_admin_windows'
 
 $script:windowMode = 'new'
 $script:windowReads = 0
