@@ -84,6 +84,34 @@ function Normalize-WebAddress([string]$Address) {
   return $value.TrimEnd('/')
 }
 
+function Test-WebAddressMatchesTarget([string]$Address,[string]$Target) {
+  $candidateNormalized = Normalize-WebAddress $Address
+  $targetNormalized = Normalize-WebAddress $Target
+  if (-not $candidateNormalized -or -not $targetNormalized) { return $false }
+  try {
+    $candidateUri = [Uri]('https://' + $candidateNormalized)
+    $targetUri = [Uri]('https://' + $targetNormalized)
+    if ($candidateUri.Host -ine $targetUri.Host -or $candidateUri.AbsolutePath -ine $targetUri.AbsolutePath) { return $false }
+
+    $candidatePairs = @{}
+    foreach ($part in $candidateUri.Query.TrimStart('?').Split('&',[StringSplitOptions]::RemoveEmptyEntries)) {
+      $kv = $part.Split('=',2)
+      $key = [Uri]::UnescapeDataString($kv[0])
+      $value = if ($kv.Count -gt 1) { [Uri]::UnescapeDataString($kv[1]) } else { '' }
+      $candidatePairs[$key] = $value
+    }
+    foreach ($part in $targetUri.Query.TrimStart('?').Split('&',[StringSplitOptions]::RemoveEmptyEntries)) {
+      $kv = $part.Split('=',2)
+      $key = [Uri]::UnescapeDataString($kv[0])
+      $value = if ($kv.Count -gt 1) { [Uri]::UnescapeDataString($kv[1]) } else { '' }
+      if (-not $candidatePairs.ContainsKey($key) -or [string]$candidatePairs[$key] -cne $value) { return $false }
+    }
+    return $true
+  } catch {
+    return $candidateNormalized -eq $targetNormalized
+  }
+}
+
 function Select-VerifiedWordPressCandidate($Candidates,[string]$AmbiguousMessage) {
   $items = @($Candidates)
   if ($items.Count -eq 0) { return $null }
@@ -108,12 +136,17 @@ function Get-AuthenticatedWordPressWindow([string]$Url,[string]$TitlePattern) {
       if ([string]$window.Current.Name -match '(?i)Log In|Login') { continue }
       $entry = [pscustomobject]@{ Window = $window; Address = $address }
       $admin += $entry
-      if ((Normalize-WebAddress $address) -eq $target) { $urlMatches += $entry }
+      if (Test-WebAddressMatchesTarget $address $target) { $urlMatches += $entry }
       if ([string]$window.Current.Name -match $TitlePattern) { $titleMatches += $entry }
     } catch {}
   }
-  $selected = Select-VerifiedWordPressCandidate $urlMatches 'More than one authenticated WordPress window has the exact requested deployment URL.'
+  $selected = Select-VerifiedWordPressCandidate $urlMatches 'More than one authenticated WordPress window has the requested deployment URL.'
   if ($selected) { return $selected }
+  if ($titleMatches.Count -gt 1) {
+    foreach ($entry in $titleMatches) {
+      Write-Host ('INFO ambiguous_wp_title_candidate address=' + $entry.Address + ' hwnd=' + $entry.Window.Current.NativeWindowHandle)
+    }
+  }
   $selected = Select-VerifiedWordPressCandidate $titleMatches 'More than one authenticated WordPress window matches the requested deployment page.'
   if ($selected) { return $selected }
   return Select-VerifiedWordPressCandidate $admin 'More than one authenticated office WordPress admin window is open; deployment target is ambiguous.'
