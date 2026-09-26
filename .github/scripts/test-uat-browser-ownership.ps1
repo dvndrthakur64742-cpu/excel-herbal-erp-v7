@@ -125,36 +125,70 @@ Write-Host 'PASS delayed_accessibility_and_login_readiness'
 $deploySource = Join-Path $PSScriptRoot 'deploy-uat-current-erp-workflow.ps1'
 $deployAst = [System.Management.Automation.Language.Parser]::ParseFile($deploySource,[ref]$tokens,[ref]$parseErrors)
 if ($parseErrors.Count) { throw 'Deployment script did not parse.' }
-foreach ($name in @('Open-DedicatedChromeWindow','Root')) {
+foreach ($name in @('Get-ChromeWindowAddress','Get-AuthenticatedWordPressWindow','Open-DedicatedChromeWindow','Root')) {
   $definition = $deployAst.Find({ param($node)
     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
   },$true)
+  if (-not $definition) { throw ('Missing deployment function: ' + $name) }
   . ([scriptblock]::Create($definition.Extent.Text))
 }
 function Get-Process { param($Id,$ErrorAction) return $process }
 function Activate-OwnedChromeWindow { param($Process) $script:focusedHandle = $script:appWindowHandle }
-$oldWindow = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 201; ProcessId = $process.Id; Name = 'EH7 UAT Cleanup - Chrome' } }
-$newWindow = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 202; ProcessId = $process.Id; Name = 'EH7 UAT Cleanup - Chrome' } }
-$newWindow | Add-Member ScriptMethod SetFocus { $script:focusedHandle = $this.Current.NativeWindowHandle }
+function Navigate-ChromeWindow {
+  param($Process,$Url,$SettleSeconds)
+  $script:navigatedUrl = $Url
+  $script:focusedHandle = $script:appWindowHandle
+}
+function Get-ChromeWindowAddress { param($Window) return [string]$Window.Address }
+$adminWindow = [pscustomobject]@{
+  Address = 'https://office.excelherbal.in/wp-admin/'
+  Current = [pscustomobject]@{ NativeWindowHandle = 201; ProcessId = $process.Id; Name = 'Dashboard - Excel Herbal - WordPress'; ClassName = 'Chrome_WidgetWin_1' }
+}
+$personalWindow = [pscustomobject]@{
+  Address = 'https://www.google.com/'
+  Current = [pscustomobject]@{ NativeWindowHandle = 301; ProcessId = $process.Id; Name = 'New Tab - Google Chrome'; ClassName = 'Chrome_WidgetWin_1' }
+}
+$newWindow = [pscustomobject]@{
+  Address = 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup'
+  Current = [pscustomobject]@{ NativeWindowHandle = 202; ProcessId = $process.Id; Name = 'EH7 UAT Cleanup - Chrome'; ClassName = 'Chrome_WidgetWin_1' }
+}
+$script:windowMode = 'reuse'
 $script:windowReads = 0
-$script:showNewWindow = $true
+$script:deployLaunches = 0
+$script:navigatedUrl = ''
 function Get-ChromeWindows {
   $script:windowReads++
-  $oldWindow
-  if ($script:windowReads -gt 1 -and $script:showNewWindow) { $newWindow }
+  if ($script:windowMode -eq 'reuse') { $adminWindow; return }
+  $personalWindow
+  if ($script:windowMode -eq 'new' -and $script:windowReads -gt 2) { $newWindow }
 }
-Open-DedicatedChromeWindow 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup' 'EH7 UAT Cleanup' | Out-Null
-Assert ($script:appWindowHandle -eq 202) 'Deployment must select the new HWND even when the old window shares its process and title.'
-Assert ($script:focusedHandle -eq 202) 'Deployment must focus the chosen window, not activate an arbitrary process window.'
-[System.Windows.Automation.AutomationElement]::Owner = $process.Id
-Root $process | Out-Null
-Assert ([System.Windows.Automation.AutomationElement]::ObservedHandle -eq 202) 'Deployment reads must remain pinned to the new window.'
+function Start-Process {
+  param($FilePath,$ArgumentList,$WindowStyle)
+  $script:deployLaunches++
+}
+$targetUrl = 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup'
+Open-DedicatedChromeWindow $targetUrl 'EH7 UAT Cleanup' | Out-Null
+Assert ($script:appWindowHandle -eq 201) 'Deployment must reuse the verified authenticated office WordPress admin HWND.'
+Assert ($script:navigatedUrl -eq $targetUrl) 'Reused authenticated admin window must navigate to the requested deployment page.'
+Assert ($script:deployLaunches -eq 0) 'An authenticated office WordPress admin window must be reused without launching a new Chrome window.'
+Write-Host 'PASS deployment_reuses_verified_authenticated_admin_window'
+
+$script:windowMode = 'new'
 $script:windowReads = 0
-$script:showNewWindow = $false
+$script:deployLaunches = 0
+$script:navigatedUrl = ''
+Open-DedicatedChromeWindow $targetUrl 'EH7 UAT Cleanup' | Out-Null
+Assert ($script:appWindowHandle -eq 202) 'Without an authenticated admin window, deployment must select only the newly-created matching HWND.'
+Assert ($script:deployLaunches -eq 1) 'Fallback must launch exactly one new Chrome window.'
+Write-Host 'PASS deployment_new_window_isolation'
+
+$script:windowMode = 'none'
+$script:windowReads = 0
+$script:deployLaunches = 0
 $failed = $false
-try { Open-DedicatedChromeWindow 'https://office.excelherbal.in/' 'EH7 UAT Cleanup' | Out-Null } catch { $failed = $true }
-Assert $failed 'Deployment must not fall back to an existing matching window.'
-Write-Host 'PASS deployment_shared_process_window_isolation'
+try { Open-DedicatedChromeWindow $targetUrl 'EH7 UAT Cleanup' | Out-Null } catch { $failed = $true }
+Assert $failed 'Deployment must not adopt an unrelated existing Chrome window when no verified admin window or new target appears.'
+Write-Host 'PASS deployment_no_unrelated_fallback'
 
 Add-Type -TypeDefinition @'
 public static class UatWindowNative {
