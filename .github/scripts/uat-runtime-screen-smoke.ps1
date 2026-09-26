@@ -25,25 +25,58 @@ function Get-ChromeExe {
   return $candidate
 }
 
+function Get-ChromeWindows {
+  $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+    [System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($window in $windows) {
+    try {
+      if ($window.Current.ClassName -eq 'Chrome_WidgetWin_1' -and $window.Current.NativeWindowHandle -ne 0) { $window }
+    } catch {}
+  }
+}
+
+function Get-ChromeProcessCommandLine([int]$ProcessId) {
+  try {
+    $row = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $ProcessId) -ErrorAction Stop
+    return [string]$row.CommandLine
+  } catch { return '' }
+}
+
 function Open-AppWindow([string]$Url,[string]$ProfilePath) {
-  # A shared Chrome process can change MainWindowHandle to a personal New Tab.
-  # Own a fresh profile/process and capture its window once; never adopt another
-  # process by title or reuse the runner's authenticated browser session.
-  $script:ownedChrome = Start-Process -FilePath (Get-ChromeExe) -ArgumentList @(
+  # Start-Process can return Chrome's broker/existing process even when the
+  # actual app window belongs to another Chrome PID. Pin the newly-created
+  # top-level HWND only after proving its owning process uses our isolated
+  # UAT profile; this prevents a personal New Tab from being adopted.
+  $before = @{}
+  foreach ($window in (Get-ChromeWindows)) {
+    $before[[string]$window.Current.NativeWindowHandle] = $true
+  }
+  $script:ownedChrome = $null
+  $script:appWindowHandle = [IntPtr]::Zero
+  Start-Process -FilePath (Get-ChromeExe) -ArgumentList @(
     ('--user-data-dir="' + $ProfilePath + '"'),
     '--no-first-run', '--no-default-browser-check', '--disable-sync',
     '--force-renderer-accessibility', ('--app=' + $Url)
-  ) -PassThru -WindowStyle Normal
-  for ($attempt = 0; $attempt -lt 40; $attempt++) {
+  ) -WindowStyle Normal | Out-Null
+
+  for ($attempt = 0; $attempt -lt 60; $attempt++) {
     Start-Sleep -Milliseconds 500
-    $script:ownedChrome.Refresh()
-    if ($script:ownedChrome.HasExited) { throw 'Isolated UAT Chrome process exited before opening its window.' }
-    if ($script:ownedChrome.MainWindowHandle -ne 0) {
-      $script:appWindowHandle = $script:ownedChrome.MainWindowHandle
+    $candidates = @(Get-ChromeWindows | Where-Object {
+      -not $before.ContainsKey([string]$_.Current.NativeWindowHandle) -and
+      (Get-ChromeProcessCommandLine $_.Current.ProcessId).IndexOf(
+        $ProfilePath,[StringComparison]::OrdinalIgnoreCase) -ge 0
+    })
+    if ($candidates.Count -gt 1) {
+      throw 'More than one isolated UAT Chrome window appeared; ownership is ambiguous.'
+    }
+    if ($candidates.Count -eq 1) {
+      $pid = [int]$candidates[0].Current.ProcessId
+      $script:appWindowHandle = [IntPtr]$candidates[0].Current.NativeWindowHandle
+      $script:ownedChrome = Get-Process -Id $pid -ErrorAction Stop
       return $script:ownedChrome
     }
   }
-  throw 'Excel Herbal ERP Chrome window did not open.'
+  throw 'Excel Herbal ERP isolated Chrome window did not open.'
 }
 
 function Root([System.Diagnostics.Process]$Process) {
