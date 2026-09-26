@@ -202,12 +202,13 @@ Add-Type -TypeDefinition @'
 public static class UatWindowNative {
   public static bool AllowActivation = true;
   public static System.IntPtr Foreground;
-  public static bool ShowWindow(System.IntPtr window, int command) { return true; }
-  public static bool SetForegroundWindow(System.IntPtr window) {
-    if (AllowActivation) Foreground = window;
-    return AllowActivation;
-  }
+  public static int ForceCalls = 0;
   public static System.IntPtr GetForegroundWindow() { return Foreground; }
+  public static bool ForceForeground(System.IntPtr window) {
+    ForceCalls++;
+    if (AllowActivation) Foreground = window;
+    return AllowActivation && Foreground == window;
+  }
 }
 '@
 
@@ -253,12 +254,18 @@ $activation = $deployAst.Find({ param($node)
 },$true)
 . ([scriptblock]::Create($activation.Extent.Text))
 [System.Windows.Automation.AutomationElement]::Owner = $process.Id
+[UatWindowNative]::AllowActivation = $true
+[UatWindowNative]::Foreground = [IntPtr]201
+[UatWindowNative]::ForceCalls = 0
 $script:appWindowHandle = [IntPtr]202
 Activate-OwnedChromeWindow $process
 Assert ([UatWindowNative]::Foreground -eq 202) 'Activation must use the verified HWND.'
+Assert ([UatWindowNative]::ForceCalls -eq 1) 'Successful native foreground activation should stop after the first attempt.'
 [UatWindowNative]::AllowActivation = $false
 [UatWindowNative]::Foreground = [IntPtr]201
+[UatWindowNative]::ForceCalls = 0
 $failed = $false
 try { Activate-OwnedChromeWindow $process } catch { $failed = $true }
 Assert $failed 'Denied foreground activation must fail before any keyboard input.'
+Assert ([UatWindowNative]::ForceCalls -eq 3) 'Denied activation must use only the bounded native retry budget.'
 Write-Host 'PASS deployment_foreground_activation_fail_closed'
