@@ -10,6 +10,15 @@ Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class UatWindowNative {
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int command);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+}
+'@
 
 if ($SourceHead -notmatch '^[a-f0-9]{40}$') {
   throw 'SourceHead must be a 40-character lowercase commit SHA.'
@@ -65,7 +74,7 @@ function Open-DedicatedChromeWindow([string]$Url,[string]$TitlePattern) {
     if ($candidates.Count -eq 1) {
       $script:appWindowHandle = [IntPtr]$candidates[0].Current.NativeWindowHandle
       $owner = Get-Process -Id $candidates[0].Current.ProcessId -ErrorAction Stop
-      $candidates[0].SetFocus()
+      Activate-OwnedChromeWindow $owner
       return $owner
     }
   }
@@ -80,8 +89,21 @@ function Root([System.Diagnostics.Process]$Process) {
   return $root
 }
 
+function Activate-OwnedChromeWindow([System.Diagnostics.Process]$Process) {
+  # Chrome's top-level UIA pane need not support SetFocus. Use only the HWND
+  # already checked by Root and verify it really became the foreground window.
+  [void](Root $Process)
+  [void][UatWindowNative]::ShowWindow($script:appWindowHandle,9)
+  [void][UatWindowNative]::SetForegroundWindow($script:appWindowHandle)
+  for ($attempt=0; $attempt -lt 10; $attempt++) {
+    if ([UatWindowNative]::GetForegroundWindow() -eq $script:appWindowHandle) { return }
+    Start-Sleep -Milliseconds 100
+  }
+  throw 'Owned UAT Chrome window could not become foreground. Keep the runner desktop unlocked.'
+}
+
 function Navigate-ChromeWindow([System.Diagnostics.Process]$Process,[string]$Url,[int]$SettleSeconds=5) {
-  (Root $Process).SetFocus()
+  Activate-OwnedChromeWindow $Process
   Start-Sleep -Milliseconds 250
   [System.Windows.Forms.SendKeys]::SendWait('^l')
   Start-Sleep -Milliseconds 120
@@ -160,7 +182,7 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
   $fileName = [IO.Path]::GetFileName($fullPath)
   # Global SendKeys/clipboard input can land in the page before the native
   # picker is ready. Address only this Chrome process's actual file dialog.
-  (Root $Browser).SetFocus()
+  Activate-OwnedChromeWindow $Browser
   $Button.SetFocus()
   [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
   $dialog = $null
@@ -287,7 +309,7 @@ function Deploy-BackendPlugin([string]$ZipPath) {
   }
 
   $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload' -TitlePattern 'Add Plugins|Upload Plugin|office.*WordPress'
-  (Root $chrome).SetFocus()
+  Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
   if ((Root $chrome).Current.Name -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
 
@@ -378,7 +400,7 @@ function Deploy-WebRuntime {
   }
 
   $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-web-deploy' -TitlePattern 'EH7 UAT Web Deploy|office.*WordPress'
-  (Root $chrome).SetFocus()
+  Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
   if ((Root $chrome).Current.Name -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
 
@@ -451,7 +473,7 @@ function Deploy-WebRuntime {
 
 function Resolve-UatAnomalies {
   $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup' -TitlePattern 'EH7 UAT Cleanup|office.*WordPress'
-  (Root $chrome).SetFocus()
+  Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
   if ((Root $chrome).Current.Name -match 'Log In|Login') {
     throw 'WordPress admin session is not authenticated for UAT cleanup.'

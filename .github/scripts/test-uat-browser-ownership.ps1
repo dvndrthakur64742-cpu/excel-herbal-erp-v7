@@ -120,6 +120,7 @@ foreach ($name in @('Open-DedicatedChromeWindow','Root')) {
   . ([scriptblock]::Create($definition.Extent.Text))
 }
 function Get-Process { param($Id,$ErrorAction) return $process }
+function Activate-OwnedChromeWindow { param($Process) $script:focusedHandle = $script:appWindowHandle }
 $oldWindow = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 201; ProcessId = $process.Id; Name = 'EH7 UAT Cleanup - Chrome' } }
 $newWindow = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 202; ProcessId = $process.Id; Name = 'EH7 UAT Cleanup - Chrome' } }
 $newWindow | Add-Member ScriptMethod SetFocus { $script:focusedHandle = $this.Current.NativeWindowHandle }
@@ -142,3 +143,29 @@ $failed = $false
 try { Open-DedicatedChromeWindow 'https://office.excelherbal.in/' 'EH7 UAT Cleanup' | Out-Null } catch { $failed = $true }
 Assert $failed 'Deployment must not fall back to an existing matching window.'
 Write-Host 'PASS deployment_shared_process_window_isolation'
+
+Add-Type -TypeDefinition @'
+public static class UatWindowNative {
+  public static bool AllowActivation = true;
+  public static System.IntPtr Foreground;
+  public static bool ShowWindow(System.IntPtr window, int command) { return true; }
+  public static bool SetForegroundWindow(System.IntPtr window) {
+    if (AllowActivation) Foreground = window;
+    return AllowActivation;
+  }
+  public static System.IntPtr GetForegroundWindow() { return Foreground; }
+}
+'@
+$activation = $deployAst.Find({ param($node)
+  $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Activate-OwnedChromeWindow'
+},$true)
+. ([scriptblock]::Create($activation.Extent.Text))
+$script:appWindowHandle = [IntPtr]202
+Activate-OwnedChromeWindow $process
+Assert ([UatWindowNative]::Foreground -eq 202) 'Activation must use the verified HWND.'
+[UatWindowNative]::AllowActivation = $false
+[UatWindowNative]::Foreground = [IntPtr]201
+$failed = $false
+try { Activate-OwnedChromeWindow $process } catch { $failed = $true }
+Assert $failed 'Denied foreground activation must fail before any keyboard input.'
+Write-Host 'PASS deployment_foreground_activation_fail_closed'
