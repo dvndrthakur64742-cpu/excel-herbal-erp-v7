@@ -206,6 +206,7 @@ $activation = $deployAst.Find({ param($node)
   $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Activate-OwnedChromeWindow'
 },$true)
 . ([scriptblock]::Create($activation.Extent.Text))
+[System.Windows.Automation.AutomationElement]::Owner = $process.Id
 $script:appWindowHandle = [IntPtr]202
 Activate-OwnedChromeWindow $process
 Assert ([UatWindowNative]::Foreground -eq 202) 'Activation must use the verified HWND.'
