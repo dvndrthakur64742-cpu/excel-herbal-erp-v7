@@ -132,6 +132,12 @@ foreach ($name in @('Get-ChromeWindowAddress','Normalize-WebAddress','Select-Ver
   if (-not $definition) { throw ('Missing deployment function: ' + $name) }
   . ([scriptblock]::Create($definition.Extent.Text))
 }
+
+$chooseFileDefinition = $deployAst.Find({ param($node)
+  $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Choose-File'
+},$true)
+Assert ($chooseFileDefinition -and $chooseFileDefinition.Extent.Text -like '*Invoke-Element $Button*') 'Deployment file picker must be opened through the file input InvokePattern.'
+Write-Host 'PASS deployment_file_picker_uses_invoke_pattern'
 function Get-Process { param($Id,$ErrorAction) return $process }
 function Activate-OwnedChromeWindow { param($Process) $script:focusedHandle = $script:appWindowHandle }
 function Navigate-ChromeWindow {
