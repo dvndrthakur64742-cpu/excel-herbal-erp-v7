@@ -125,7 +125,7 @@ Write-Host 'PASS delayed_accessibility_and_login_readiness'
 $deploySource = Join-Path $PSScriptRoot 'deploy-uat-current-erp-workflow.ps1'
 $deployAst = [System.Management.Automation.Language.Parser]::ParseFile($deploySource,[ref]$tokens,[ref]$parseErrors)
 if ($parseErrors.Count) { throw 'Deployment script did not parse.' }
-foreach ($name in @('Get-ChromeWindowAddress','Normalize-WebAddress','Select-VerifiedWordPressCandidate','Get-AuthenticatedWordPressWindow','Open-DedicatedChromeWindow','Root')) {
+foreach ($name in @('Get-ChromeWindowAddress','Normalize-WebAddress','Test-WebAddressMatchesTarget','Select-VerifiedWordPressCandidate','Get-AuthenticatedWordPressWindow','Open-DedicatedChromeWindow','Root')) {
   $definition = $deployAst.Find({ param($node)
     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
   },$true)
@@ -138,6 +138,9 @@ $chooseFileDefinition = $deployAst.Find({ param($node)
 },$true)
 Assert ($chooseFileDefinition -and $chooseFileDefinition.Extent.Text -like '*Invoke-Element $Button*') 'Deployment file picker must be opened through the file input InvokePattern.'
 Write-Host 'PASS deployment_file_picker_uses_invoke_pattern'
+Assert (Test-WebAddressMatchesTarget 'office.excelherbal.in/wp-admin/plugin-install.php?_wpnonce=abc&tab=upload' 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload') 'WordPress target matching must allow extra query parameters and different query order.'
+Assert (-not (Test-WebAddressMatchesTarget 'office.excelherbal.in/wp-admin/plugin-install.php?tab=featured' 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload')) 'WordPress target matching must reject a different required query value.'
+Write-Host 'PASS deployment_url_required_query_matching'
 function Get-Process { param($Id,$ErrorAction) return $process }
 function Activate-OwnedChromeWindow { param($Process) $script:focusedHandle = $script:appWindowHandle }
 function Navigate-ChromeWindow {
