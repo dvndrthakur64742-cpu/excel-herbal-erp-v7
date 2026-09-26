@@ -77,8 +77,29 @@ function Get-ChromeWindowAddress($Window) {
   return ''
 }
 
-function Get-AuthenticatedWordPressWindow([string]$TitlePattern) {
-  $exact = @()
+function Normalize-WebAddress([string]$Address) {
+  if (-not $Address) { return '' }
+  $value = $Address.Trim()
+  $value = $value -replace '^(?i)https?://',''
+  return $value.TrimEnd('/')
+}
+
+function Select-VerifiedWordPressCandidate($Candidates,[string]$AmbiguousMessage) {
+  $items = @($Candidates)
+  if ($items.Count -eq 0) { return $null }
+  if ($items.Count -eq 1) { return $items[0] }
+  $foreground = [UatWindowNative]::GetForegroundWindow()
+  $foregroundMatches = @($items | Where-Object {
+    [IntPtr]$_.Window.Current.NativeWindowHandle -eq $foreground
+  })
+  if ($foregroundMatches.Count -eq 1) { return $foregroundMatches[0] }
+  throw $AmbiguousMessage
+}
+
+function Get-AuthenticatedWordPressWindow([string]$Url,[string]$TitlePattern) {
+  $target = Normalize-WebAddress $Url
+  $urlMatches = @()
+  $titleMatches = @()
   $admin = @()
   foreach ($window in (Get-ChromeWindows)) {
     try {
@@ -87,14 +108,15 @@ function Get-AuthenticatedWordPressWindow([string]$TitlePattern) {
       if ([string]$window.Current.Name -match '(?i)Log In|Login') { continue }
       $entry = [pscustomobject]@{ Window = $window; Address = $address }
       $admin += $entry
-      if ([string]$window.Current.Name -match $TitlePattern) { $exact += $entry }
+      if ((Normalize-WebAddress $address) -eq $target) { $urlMatches += $entry }
+      if ([string]$window.Current.Name -match $TitlePattern) { $titleMatches += $entry }
     } catch {}
   }
-  if ($exact.Count -gt 1) { throw 'More than one authenticated WordPress window matches the requested deployment page.' }
-  if ($exact.Count -eq 1) { return $exact[0] }
-  if ($admin.Count -gt 1) { throw 'More than one authenticated office WordPress admin window is open; deployment target is ambiguous.' }
-  if ($admin.Count -eq 1) { return $admin[0] }
-  return $null
+  $selected = Select-VerifiedWordPressCandidate $urlMatches 'More than one authenticated WordPress window has the exact requested deployment URL.'
+  if ($selected) { return $selected }
+  $selected = Select-VerifiedWordPressCandidate $titleMatches 'More than one authenticated WordPress window matches the requested deployment page.'
+  if ($selected) { return $selected }
+  return Select-VerifiedWordPressCandidate $admin 'More than one authenticated office WordPress admin window is open; deployment target is ambiguous.'
 }
 
 function Open-DedicatedChromeWindow([string]$Url,[string]$TitlePattern) {
@@ -102,7 +124,7 @@ function Open-DedicatedChromeWindow([string]$Url,[string]$TitlePattern) {
   # from Chrome's address-bar value before adopting its HWND; unrelated Chrome
   # windows are never reused. This keeps the deployment on the user's actual
   # authenticated profile while remaining fail-closed.
-  $authenticated = Get-AuthenticatedWordPressWindow -TitlePattern $TitlePattern
+  $authenticated = Get-AuthenticatedWordPressWindow -Url $Url -TitlePattern $TitlePattern
   if ($authenticated) {
     $script:appWindowHandle = [IntPtr]$authenticated.Window.Current.NativeWindowHandle
     $owner = Get-Process -Id $authenticated.Window.Current.ProcessId -ErrorAction Stop
