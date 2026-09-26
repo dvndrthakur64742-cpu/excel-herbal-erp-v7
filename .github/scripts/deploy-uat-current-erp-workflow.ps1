@@ -116,11 +116,24 @@ function Select-VerifiedWordPressCandidate($Candidates,[string]$AmbiguousMessage
   $items = @($Candidates)
   if ($items.Count -eq 0) { return $null }
   if ($items.Count -eq 1) { return $items[0] }
+
   $foreground = [UatWindowNative]::GetForegroundWindow()
   $foregroundMatches = @($items | Where-Object {
     [IntPtr]$_.Window.Current.NativeWindowHandle -eq $foreground
   })
   if ($foregroundMatches.Count -eq 1) { return $foregroundMatches[0] }
+
+  # Multiple windows can be left behind by a previous WordPress upload and can
+  # point to the exact same authenticated admin endpoint. When every candidate
+  # is semantically equivalent, selecting one deterministic HWND is safe; any
+  # differing admin URL remains ambiguous and still fails closed.
+  $addresses = @($items | ForEach-Object { Normalize-WebAddress ([string]$_.Address) } | Select-Object -Unique)
+  if ($addresses.Count -eq 1 -and $addresses[0]) {
+    $selected = $items | Sort-Object { [int64]$_.Window.Current.NativeWindowHandle } | Select-Object -First 1
+    Write-Host ('INFO equivalent_wp_windows=' + $items.Count + ' selected_hwnd=' + $selected.Window.Current.NativeWindowHandle + ' address=' + $selected.Address)
+    return $selected
+  }
+
   throw $AmbiguousMessage
 }
 
