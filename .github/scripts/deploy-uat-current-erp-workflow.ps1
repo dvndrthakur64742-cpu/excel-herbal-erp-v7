@@ -36,52 +36,52 @@ function Get-ChromeExe {
   return $candidate
 }
 
+function Get-ChromeWindows {
+  $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+    [System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($window in $windows) {
+    try {
+      if ($window.Current.ClassName -ne 'Chrome_WidgetWin_1' -or $window.Current.NativeWindowHandle -eq 0) { continue }
+      $owner = Get-Process -Id $window.Current.ProcessId -ErrorAction Stop
+      if ($owner.ProcessName -eq 'chrome') { $window }
+    } catch {}
+  }
+}
+
 function Open-DedicatedChromeWindow([string]$Url,[string]$TitlePattern) {
+  # Chrome shares one process across windows. Enumerate actual top-level HWNDs,
+  # retain the authenticated profile, and never adopt an unrelated existing tab.
   $before = @{}
-  Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object {
-    $before[[string]$_.MainWindowHandle] = $true
-  }
-
+  foreach ($window in (Get-ChromeWindows)) { $before[[string]$window.Current.NativeWindowHandle] = $true }
+  $script:appWindowHandle = [IntPtr]::Zero
   Start-Process -FilePath (Get-ChromeExe) -ArgumentList @('--new-window',$Url) | Out-Null
-
-  for ($attempt=0; $attempt -lt 24; $attempt++) {
+  for ($attempt=0; $attempt -lt 60; $attempt++) {
     Start-Sleep -Milliseconds 500
-    $windows = @(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
-    $newWindow = $windows | Where-Object { -not $before.ContainsKey([string]$_.MainWindowHandle) } | Select-Object -First 1
-    if ($newWindow) { return $newWindow }
-
-    $anyMatch = $windows | Where-Object { $_.MainWindowTitle -match $TitlePattern } | Select-Object -First 1
-    if ($anyMatch) { return $anyMatch }
-  }
-
-  $windows = @(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
-  $fallback = $windows | Where-Object { $_.MainWindowTitle -match 'office|EH7|Excel Herbal|WordPress' } | Select-Object -First 1
-  if (-not $fallback) { $fallback = $windows | Select-Object -First 1 }
-  if ($fallback) {
-    $shell = New-Object -ComObject WScript.Shell
-    if ($shell.AppActivate($fallback.Id)) {
-      Start-Sleep -Milliseconds 300
-      [System.Windows.Forms.SendKeys]::SendWait('^l')
-      Start-Sleep -Milliseconds 150
-      [System.Windows.Forms.Clipboard]::SetText($Url)
-      [System.Windows.Forms.SendKeys]::SendWait('^v')
-      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-      Start-Sleep -Seconds 5
-      return (Get-Process -Id $fallback.Id -ErrorAction Stop)
+    $candidates = @(Get-ChromeWindows | Where-Object {
+      -not $before.ContainsKey([string]$_.Current.NativeWindowHandle) -and
+      $_.Current.Name -match ($TitlePattern + '|Log In|Login')
+    })
+    if ($candidates.Count -gt 1) { throw 'More than one new matching Chrome window appeared; deployment target is ambiguous.' }
+    if ($candidates.Count -eq 1) {
+      $script:appWindowHandle = [IntPtr]$candidates[0].Current.NativeWindowHandle
+      $owner = Get-Process -Id $candidates[0].Current.ProcessId -ErrorAction Stop
+      $candidates[0].SetFocus()
+      return $owner
     }
   }
-
-  throw ('Chrome page did not open: ' + $Url)
+  throw ('Dedicated Chrome page did not open: ' + $Url)
 }
 
 function Root([System.Diagnostics.Process]$Process) {
-  $fresh = Get-Process -Id $Process.Id -ErrorAction Stop
-  return [System.Windows.Automation.AutomationElement]::FromHandle($fresh.MainWindowHandle)
+  $Process.Refresh()
+  if ($Process.HasExited -or $script:appWindowHandle -eq 0) { throw 'Owned deployment window is no longer available.' }
+  $root = [System.Windows.Automation.AutomationElement]::FromHandle($script:appWindowHandle)
+  if (-not $root -or $root.Current.ProcessId -ne $Process.Id) { throw 'Deployment window ownership changed.' }
+  return $root
 }
 
 function Navigate-ChromeWindow([System.Diagnostics.Process]$Process,[string]$Url,[int]$SettleSeconds=5) {
-  $shell = New-Object -ComObject WScript.Shell
-  if (-not $shell.AppActivate($Process.Id)) { throw 'Chrome window could not be activated.' }
+  (Root $Process).SetFocus()
   Start-Sleep -Milliseconds 250
   [System.Windows.Forms.SendKeys]::SendWait('^l')
   Start-Sleep -Milliseconds 120
@@ -89,8 +89,7 @@ function Navigate-ChromeWindow([System.Diagnostics.Process]$Process,[string]$Url
   [System.Windows.Forms.SendKeys]::SendWait('^v')
   [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
   Start-Sleep -Seconds $SettleSeconds
-  $fresh = Get-Process -Id $Process.Id -ErrorAction Stop
-  Write-Host ('INFO chrome_page_title=' + $fresh.MainWindowTitle)
+  Write-Host ('INFO chrome_page_title=' + (Root $Process).Current.Name)
 }
 
 function Find-ById([System.Windows.Automation.AutomationElement]$Root,[string]$Id) {
@@ -161,7 +160,9 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
   $fileName = [IO.Path]::GetFileName($fullPath)
   # Global SendKeys/clipboard input can land in the page before the native
   # picker is ready. Address only this Chrome process's actual file dialog.
-  Invoke-Element $Button
+  (Root $Browser).SetFocus()
+  $Button.SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
   $dialog = $null
   for ($attempt = 0; $attempt -lt 40; $attempt++) {
     Start-Sleep -Milliseconds 500
@@ -286,10 +287,9 @@ function Deploy-BackendPlugin([string]$ZipPath) {
   }
 
   $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload' -TitlePattern 'Add Plugins|Upload Plugin|office.*WordPress'
-  $shell = New-Object -ComObject WScript.Shell
-  $null = $shell.AppActivate($chrome.Id)
+  (Root $chrome).SetFocus()
   Start-Sleep -Seconds 5
-  if ((Get-Process -Id $chrome.Id).MainWindowTitle -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
+  if ((Root $chrome).Current.Name -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
 
   $root = Root $chrome
   $file = $null
@@ -378,10 +378,9 @@ function Deploy-WebRuntime {
   }
 
   $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-web-deploy' -TitlePattern 'EH7 UAT Web Deploy|office.*WordPress'
-  $shell = New-Object -ComObject WScript.Shell
-  $null = $shell.AppActivate($chrome.Id)
+  (Root $chrome).SetFocus()
   Start-Sleep -Seconds 5
-  if ((Get-Process -Id $chrome.Id).MainWindowTitle -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
+  if ((Root $chrome).Current.Name -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
 
   $root = Root $chrome
   $file = $null
@@ -452,10 +451,9 @@ function Deploy-WebRuntime {
 
 function Resolve-UatAnomalies {
   $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup' -TitlePattern 'EH7 UAT Cleanup|office.*WordPress'
-  $shell = New-Object -ComObject WScript.Shell
-  $null = $shell.AppActivate($chrome.Id)
+  (Root $chrome).SetFocus()
   Start-Sleep -Seconds 5
-  if ((Get-Process -Id $chrome.Id).MainWindowTitle -match 'Log In|Login') {
+  if ((Root $chrome).Current.Name -match 'Log In|Login') {
     throw 'WordPress admin session is not authenticated for UAT cleanup.'
   }
 
