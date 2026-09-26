@@ -180,8 +180,22 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
   }
   $fullPath = [IO.Path]::GetFullPath($Path)
   $fileName = [IO.Path]::GetFileName($fullPath)
-  # Global SendKeys/clipboard input can land in the page before the native
-  # picker is ready. Address only this Chrome process's actual file dialog.
+  # Chrome can host the native picker on a sibling browser process even when
+  # the initiating page HWND is pinned correctly. Snapshot existing dialogs,
+  # trigger the picker from the verified deployment window, then accept only
+  # one newly-created visible native dialog. This stays fail-closed without
+  # relying on Chrome's unstable process ownership.
+  $beforeDialogs = @{}
+  $existing = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+    [System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($window in $existing) {
+    try {
+      if ($window.Current.ClassName -eq '#32770' -and $window.Current.NativeWindowHandle -ne 0) {
+        $beforeDialogs[[string]$window.Current.NativeWindowHandle] = $true
+      }
+    } catch {}
+  }
+
   Activate-OwnedChromeWindow $Browser
   $Button.SetFocus()
   [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
@@ -190,14 +204,22 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
     Start-Sleep -Milliseconds 500
     $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
       [System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
+    $candidates = @()
     foreach ($window in $windows) {
-      if ($window.Current.ProcessId -eq $Browser.Id -and $window.Current.ClassName -eq '#32770' -and
-          $window.Current.IsEnabled -and -not $window.Current.IsOffscreen) {
-        $dialog = $window
-        break
-      }
+      try {
+        $handle = [string]$window.Current.NativeWindowHandle
+        if ($window.Current.ClassName -eq '#32770' -and $window.Current.NativeWindowHandle -ne 0 -and
+            -not $beforeDialogs.ContainsKey($handle) -and $window.Current.IsEnabled -and -not $window.Current.IsOffscreen) {
+          $candidates += $window
+        }
+      } catch {}
     }
-    if ($dialog) { break }
+    if ($candidates.Count -gt 1) { throw 'More than one new deployment file picker appeared; target is ambiguous.' }
+    if ($candidates.Count -eq 1) {
+      $dialog = $candidates[0]
+      Write-Host ('INFO deployment_file_picker_pid=' + $dialog.Current.ProcessId + ' hwnd=' + $dialog.Current.NativeWindowHandle)
+      break
+    }
   }
   if (-not $dialog) { throw 'Chrome deployment file picker did not become ready.' }
   $fileControl = Find-ById $dialog '1148'
