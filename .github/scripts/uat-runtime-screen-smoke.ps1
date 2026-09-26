@@ -47,6 +47,7 @@ function Open-AppWindow([string]$Url,[string]$ProfilePath) {
   # actual app window belongs to another Chrome PID. Pin the newly-created
   # top-level HWND only after proving its owning process uses our isolated
   # UAT profile; this prevents a personal New Tab from being adopted.
+  # Keep this ownership proof fail-closed before entering controlled UAT credentials.
   $before = @{}
   foreach ($window in (Get-ChromeWindows)) {
     $before[[string]$window.Current.NativeWindowHandle] = $true
