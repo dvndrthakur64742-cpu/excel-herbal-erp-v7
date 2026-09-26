@@ -57,9 +57,64 @@ function Get-ChromeWindows {
   }
 }
 
+function Get-ChromeWindowAddress($Window) {
+  try {
+    $all = $Window.FindAll(
+      [System.Windows.Automation.TreeScope]::Descendants,
+      [System.Windows.Automation.Condition]::TrueCondition
+    )
+    foreach ($element in $all) {
+      try {
+        if ($element.Current.ControlType -ne [System.Windows.Automation.ControlType]::Edit) { continue }
+        $name = [string]$element.Current.Name
+        if ($name -notmatch '(?i)address and search bar|search google or type a url') { continue }
+        $pattern = $element.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+        $value = ([string]$pattern.Current.Value).Trim()
+        if ($value) { return $value }
+      } catch {}
+    }
+  } catch {}
+  return ''
+}
+
+function Get-AuthenticatedWordPressWindow([string]$TitlePattern) {
+  $exact = @()
+  $admin = @()
+  foreach ($window in (Get-ChromeWindows)) {
+    try {
+      $address = Get-ChromeWindowAddress $window
+      if ($address -notmatch '^(?i)(https?://)?office\.excelherbal\.in/wp-admin(?:/|\?|$)') { continue }
+      if ([string]$window.Current.Name -match '(?i)Log In|Login') { continue }
+      $entry = [pscustomobject]@{ Window = $window; Address = $address }
+      $admin += $entry
+      if ([string]$window.Current.Name -match $TitlePattern) { $exact += $entry }
+    } catch {}
+  }
+  if ($exact.Count -gt 1) { throw 'More than one authenticated WordPress window matches the requested deployment page.' }
+  if ($exact.Count -eq 1) { return $exact[0] }
+  if ($admin.Count -gt 1) { throw 'More than one authenticated office WordPress admin window is open; deployment target is ambiguous.' }
+  if ($admin.Count -eq 1) { return $admin[0] }
+  return $null
+}
+
 function Open-DedicatedChromeWindow([string]$Url,[string]$TitlePattern) {
-  # Chrome shares one process across windows. Enumerate actual top-level HWNDs,
-  # retain the authenticated profile, and never adopt an unrelated existing tab.
+  # Prefer the already-authenticated office WordPress admin window. Verify it
+  # from Chrome's address-bar value before adopting its HWND; unrelated Chrome
+  # windows are never reused. This keeps the deployment on the user's actual
+  # authenticated profile while remaining fail-closed.
+  $authenticated = Get-AuthenticatedWordPressWindow -TitlePattern $TitlePattern
+  if ($authenticated) {
+    $script:appWindowHandle = [IntPtr]$authenticated.Window.Current.NativeWindowHandle
+    $owner = Get-Process -Id $authenticated.Window.Current.ProcessId -ErrorAction Stop
+    Activate-OwnedChromeWindow $owner
+    Write-Host ('INFO authenticated_wp_admin_window_reused=true address=' + $authenticated.Address + ' hwnd=' + $script:appWindowHandle)
+    Navigate-ChromeWindow $owner $Url 5
+    return $owner
+  }
+
+  # No verified authenticated admin window is currently visible. Open a new
+  # top-level window, pin only the newly-created HWND, and let the caller reject
+  # a WordPress login page rather than borrowing an unrelated browser window.
   $before = @{}
   foreach ($window in (Get-ChromeWindows)) { $before[[string]$window.Current.NativeWindowHandle] = $true }
   $script:appWindowHandle = [IntPtr]::Zero
