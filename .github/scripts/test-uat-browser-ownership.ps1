@@ -5,7 +5,7 @@ $parseErrors = $null
 $source = Join-Path $PSScriptRoot 'uat-runtime-screen-smoke.ps1'
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($source,[ref]$tokens,[ref]$parseErrors)
 if ($parseErrors.Count) { throw 'UAT smoke script did not parse.' }
-foreach ($name in @('Open-AppWindow','Root','Wait-ForFreshLogin')) {
+foreach ($name in @('Get-ChromeWindows','Get-ChromeProcessCommandLine','Open-AppWindow','Root','Wait-ForFreshLogin')) {
   $definition = $ast.Find({ param($node)
     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
   },$true)
@@ -16,30 +16,42 @@ foreach ($name in @('Open-AppWindow','Root','Wait-ForFreshLogin')) {
 function Assert($Condition,[string]$Message) { if (-not $Condition) { throw $Message } }
 function Get-ChromeExe { return 'fake-chrome.exe' }
 function Start-Sleep { param($Milliseconds) }
-function Get-Process { throw 'Must not enumerate or adopt personal Chrome processes.' }
 function Start-Process {
-  param($FilePath,$ArgumentList,[switch]$PassThru,$WindowStyle)
+  param($FilePath,$ArgumentList,$WindowStyle)
   $script:launchArguments = $ArgumentList
-  return $script:fakeBrowser
 }
-$script:fakeBrowser = [pscustomobject]@{ HasExited = $false; MainWindowHandle = [IntPtr]101 }
-$script:fakeBrowser | Add-Member ScriptMethod Refresh {}
+$process = [System.Diagnostics.Process]::GetCurrentProcess()
+$personalWindow = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 101; ProcessId = 501; ClassName = 'Chrome_WidgetWin_1' } }
+$isolatedWindow = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 202; ProcessId = $process.Id; ClassName = 'Chrome_WidgetWin_1' } }
+$script:windowReads = 0
+$script:showIsolatedWindow = $true
+function Get-ChromeWindows {
+  $script:windowReads++
+  $personalWindow
+  if ($script:windowReads -gt 1 -and $script:showIsolatedWindow) { $isolatedWindow }
+}
+function Get-ChromeProcessCommandLine {
+  param($ProcessId)
+  if ($ProcessId -eq $process.Id) { return 'chrome.exe --user-data-dir="C:\Temp\profile with spaces"' }
+  return 'chrome.exe --user-data-dir="C:\Users\intel\AppData\Local\Google\Chrome\User Data"'
+}
+function Get-Process {
+  param($Id,$ErrorAction)
+  if ($Id -eq $process.Id) { return $process }
+  throw 'Personal Chrome process must never be adopted.'
+}
 $launched = Open-AppWindow 'https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/' 'C:\Temp\profile with spaces'
-Assert ([object]::ReferenceEquals($launched,$script:fakeBrowser)) 'Must return only the launched browser.'
-Assert ($script:appWindowHandle -eq 101) 'Must capture the owned window.'
+Assert ([object]::ReferenceEquals($launched,$process)) 'Must return only the isolated-profile browser process.'
+Assert ($script:appWindowHandle -eq 202) 'Must capture the isolated-profile window, not a personal New Tab.'
 Assert ($script:launchArguments -contains '--user-data-dir="C:\Temp\profile with spaces"') 'Profile path must be quoted.'
 Assert ($script:launchArguments -contains '--app=https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/') 'App window must use the requested UAT URL.'
 Write-Host 'PASS isolated_browser_launch'
 
-$script:fakeBrowser.HasExited = $true
+$script:windowReads = 0
+$script:showIsolatedWindow = $false
 $failed = $false
-try { Open-AppWindow 'https://office.excelherbal.in/' 'C:\Temp\test' | Out-Null } catch { $failed = $true }
-Assert $failed 'An exited launch must fail instead of adopting an existing browser.'
-$script:fakeBrowser.HasExited = $false
-$script:fakeBrowser.MainWindowHandle = [IntPtr]::Zero
-$failed = $false
-try { Open-AppWindow 'https://office.excelherbal.in/' 'C:\Temp\test' | Out-Null } catch { $failed = $true }
-Assert $failed 'A launch without a window must fail instead of adopting an existing browser.'
+try { Open-AppWindow 'https://office.excelherbal.in/' 'C:\Temp\profile with spaces' | Out-Null } catch { $failed = $true }
+Assert $failed 'A launch without a matching isolated-profile window must fail instead of adopting an existing browser.'
 Write-Host 'PASS launch_failure_no_fallback'
 
 # Stub only the UI Automation boundary; Root still uses a real Process object.
