@@ -198,6 +198,26 @@ Assert ($script:navigatedUrl -eq $uploadUrl) 'Exact authenticated target must st
 Assert ($script:deployLaunches -eq 0) 'Exact authenticated target must not launch another Chrome window.'
 Write-Host 'PASS deployment_exact_url_disambiguates_multiple_admin_windows'
 
+$duplicateUploadA = [pscustomobject]@{
+  Address = 'https://office.excelherbal.in/wp-admin/update.php?action=upload-plugin'
+  Window = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 401 } }
+}
+$duplicateUploadB = [pscustomobject]@{
+  Address = 'office.excelherbal.in/wp-admin/update.php?action=upload-plugin'
+  Window = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 402 } }
+}
+[UatWindowNative]::Foreground = [IntPtr]999
+$equivalent = Select-VerifiedWordPressCandidate @($duplicateUploadB,$duplicateUploadA) 'duplicate equivalent windows should not be ambiguous'
+Assert ($equivalent.Window.Current.NativeWindowHandle -eq 401) 'Equivalent authenticated WordPress windows must resolve deterministically by HWND.'
+$differentUpload = [pscustomobject]@{
+  Address = 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup'
+  Window = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 403 } }
+}
+$failed = $false
+try { Select-VerifiedWordPressCandidate @($duplicateUploadA,$differentUpload) 'expected ambiguity' | Out-Null } catch { $failed = $true }
+Assert $failed 'Different authenticated WordPress admin URLs must remain fail-closed.'
+Write-Host 'PASS deployment_equivalent_duplicate_window_selection'
+
 $script:windowMode = 'new'
 $script:windowReads = 0
 $script:deployLaunches = 0
