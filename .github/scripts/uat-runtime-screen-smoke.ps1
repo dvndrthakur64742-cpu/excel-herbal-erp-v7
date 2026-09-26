@@ -70,9 +70,9 @@ function Open-AppWindow([string]$Url,[string]$ProfilePath) {
       throw 'More than one isolated UAT Chrome window appeared; ownership is ambiguous.'
     }
     if ($candidates.Count -eq 1) {
-      $pid = [int]$candidates[0].Current.ProcessId
+      $ownerPid = [int]$candidates[0].Current.ProcessId
       $script:appWindowHandle = [IntPtr]$candidates[0].Current.NativeWindowHandle
-      $script:ownedChrome = Get-Process -Id $pid -ErrorAction Stop
+      $script:ownedChrome = Get-Process -Id $ownerPid -ErrorAction Stop
       return $script:ownedChrome
     }
   }
