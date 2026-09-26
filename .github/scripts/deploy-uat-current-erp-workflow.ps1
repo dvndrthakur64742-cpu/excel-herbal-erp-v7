@@ -17,6 +17,40 @@ public static class UatWindowNative {
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int command);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr SetActiveWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr window);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, IntPtr processId);
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint attach, uint attachTo, bool value);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+
+  public static bool ForceForeground(IntPtr window) {
+    ShowWindow(window, 9);
+    if (GetForegroundWindow() == window) return true;
+
+    IntPtr foreground = GetForegroundWindow();
+    uint currentThread = GetCurrentThreadId();
+    uint targetThread = GetWindowThreadProcessId(window, IntPtr.Zero);
+    uint foregroundThread = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, IntPtr.Zero);
+    bool currentToTarget = false;
+    bool currentToForeground = false;
+    try {
+      if (targetThread != 0 && targetThread != currentThread) {
+        currentToTarget = AttachThreadInput(currentThread, targetThread, true);
+      }
+      if (foregroundThread != 0 && foregroundThread != currentThread && foregroundThread != targetThread) {
+        currentToForeground = AttachThreadInput(currentThread, foregroundThread, true);
+      }
+      BringWindowToTop(window);
+      SetForegroundWindow(window);
+      SetActiveWindow(window);
+      SetFocus(window);
+    } finally {
+      if (currentToForeground) AttachThreadInput(currentThread, foregroundThread, false);
+      if (currentToTarget) AttachThreadInput(currentThread, targetThread, false);
+    }
+    return GetForegroundWindow() == window;
+  }
 }
 '@
 
@@ -213,14 +247,16 @@ function Root([System.Diagnostics.Process]$Process) {
 }
 
 function Activate-OwnedChromeWindow([System.Diagnostics.Process]$Process) {
-  # Chrome's top-level UIA pane need not support SetFocus. Use only the HWND
-  # already checked by Root and verify it really became the foreground window.
+  # Stay pinned to the verified HWND. Windows can deny a plain
+  # SetForegroundWindow call to a background automation process, so use a
+  # thread-input attachment fallback that still targets only this exact HWND.
   [void](Root $Process)
-  [void][UatWindowNative]::ShowWindow($script:appWindowHandle,9)
-  [void][UatWindowNative]::SetForegroundWindow($script:appWindowHandle)
-  for ($attempt=0; $attempt -lt 10; $attempt++) {
-    if ([UatWindowNative]::GetForegroundWindow() -eq $script:appWindowHandle) { return }
-    Start-Sleep -Milliseconds 100
+  for ($attempt=1; $attempt -le 3; $attempt++) {
+    if ([UatWindowNative]::ForceForeground($script:appWindowHandle)) {
+      Write-Host ('INFO deployment_foreground_activation_attempt=' + $attempt + ' hwnd=' + $script:appWindowHandle)
+      return
+    }
+    Start-Sleep -Milliseconds (150 * $attempt)
   }
   throw 'Owned UAT Chrome window could not become foreground. Keep the runner desktop unlocked.'
 }
