@@ -274,8 +274,12 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
   }
 
   Activate-OwnedChromeWindow $Browser
-  $Button.SetFocus()
-  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  # The previously successful WordPress deployment path opens Chrome's native
+  # file chooser through the input element's InvokePattern. Keep the newer
+  # HWND/dialog verification below, but use that proven trigger rather than
+  # keyboard Enter, which can leave the chooser unopened on Chrome.
+  Invoke-Element $Button
+  Write-Host 'INFO deployment_file_picker_trigger=invoke_pattern'
   $dialog = $null
   for ($attempt = 0; $attempt -lt 40; $attempt++) {
     Start-Sleep -Milliseconds 500
