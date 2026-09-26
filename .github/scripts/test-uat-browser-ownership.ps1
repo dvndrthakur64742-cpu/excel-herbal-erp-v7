@@ -198,6 +198,19 @@ Assert ($script:navigatedUrl -eq $uploadUrl) 'Exact authenticated target must st
 Assert ($script:deployLaunches -eq 0) 'Exact authenticated target must not launch another Chrome window.'
 Write-Host 'PASS deployment_exact_url_disambiguates_multiple_admin_windows'
 
+Add-Type -TypeDefinition @'
+public static class UatWindowNative {
+  public static bool AllowActivation = true;
+  public static System.IntPtr Foreground;
+  public static bool ShowWindow(System.IntPtr window, int command) { return true; }
+  public static bool SetForegroundWindow(System.IntPtr window) {
+    if (AllowActivation) Foreground = window;
+    return AllowActivation;
+  }
+  public static System.IntPtr GetForegroundWindow() { return Foreground; }
+}
+'@
+
 $duplicateUploadA = [pscustomobject]@{
   Address = 'https://office.excelherbal.in/wp-admin/update.php?action=upload-plugin'
   Window = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 401 } }
@@ -235,18 +248,6 @@ try { Open-DedicatedChromeWindow $targetUrl 'EH7 UAT Cleanup' | Out-Null } catch
 Assert $failed 'Deployment must not adopt an unrelated existing Chrome window when no verified admin window or new target appears.'
 Write-Host 'PASS deployment_no_unrelated_fallback'
 
-Add-Type -TypeDefinition @'
-public static class UatWindowNative {
-  public static bool AllowActivation = true;
-  public static System.IntPtr Foreground;
-  public static bool ShowWindow(System.IntPtr window, int command) { return true; }
-  public static bool SetForegroundWindow(System.IntPtr window) {
-    if (AllowActivation) Foreground = window;
-    return AllowActivation;
-  }
-  public static System.IntPtr GetForegroundWindow() { return Foreground; }
-}
-'@
 $activation = $deployAst.Find({ param($node)
   $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Activate-OwnedChromeWindow'
 },$true)
