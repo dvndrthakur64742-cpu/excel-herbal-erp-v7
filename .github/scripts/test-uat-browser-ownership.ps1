@@ -168,8 +168,10 @@ Assert ($chooseFileDefinition.Extent.Text -like '*GetWindowClass($dialogHandle)*
 Assert ($chooseFileDefinition.Extent.Text -like '*ForceForeground($dialogHandle)*') 'Picker keyboard fallback must focus only the verified dialog HWND.'
 Assert ($chooseFileDefinition.Extent.Text -like '*Clipboard]::SetText($fullPath)*') 'Picker keyboard fallback must paste only the certified ZIP path.'
 Assert ($chooseFileDefinition.Extent.Text -like "*SendKeys]::SendWait('{ENTER}')*") 'Picker keyboard fallback must confirm through the verified native dialog.'
-Assert ($chooseFileDefinition.Extent.Text -like '*deployment_file_picker_confirm=fallback_keyboard*') 'Picker keyboard fallback must emit an auditable confirmation marker.'
-Write-Host 'PASS deployment_file_picker_verified_keyboard_fallback'
+Assert ($chooseFileDefinition.Extent.Text -like '*deployment_file_picker_exact_path=*') 'Picker confirmation must log the exact verified deployment path.'
+Assert ($chooseFileDefinition.Extent.Text -like '*deployment_file_picker_confirm=verified_keyboard*') 'Picker confirmation must emit an auditable verified-keyboard marker.'
+Assert ($chooseFileDefinition.Extent.Text -notlike '*Invoke-Element $open*') 'Picker confirmation must not rely on the native Open InvokePattern after setting a filename because it can submit a stale prior selection.'
+Write-Host 'PASS deployment_file_picker_verified_keyboard_confirmation'
 
 Assert ($deployText.Contains('function Wait-ForWordPressAdminAuthentication')) 'Deployment must provide a bounded WordPress admin authentication wait.'
 Assert ($deployText.Contains('ACTION_REQUIRED wordpress_admin_login=true')) 'Deployment must emit a clear login-required marker instead of failing immediately.'
