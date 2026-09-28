@@ -404,7 +404,7 @@ jobs:
           try {
             Get-ChildItem -LiteralPath $candidateDir -Recurse -File | ForEach-Object {
               $relative = $_.FullName.Substring($root.Length).TrimStart([char[]]@([char]92,[char]47))
-              $entryName = $relative.Replace('\\','/')
+              $entryName = $relative.Replace([char]92,[char]47)
               $entry = $archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
               $entryStream = $entry.Open()
               $fileStream = [System.IO.File]::OpenRead($_.FullName)
