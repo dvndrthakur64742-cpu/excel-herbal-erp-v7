@@ -177,34 +177,18 @@ function Select-VerifiedWordPressCandidate($Candidates,[string]$AmbiguousMessage
   })
   if ($foregroundMatches.Count -eq 1) { return $foregroundMatches[0] }
 
-  # Multiple authenticated WordPress windows can legitimately remain open on
-  # different /wp-admin pages after an earlier upload or UAT action. Every
-  # candidate reaching this function was already verified by the caller as an
-  # authenticated admin page on the requested host. Reusing any such window is
-  # safe because Open-DedicatedChromeWindow immediately navigates the selected
-  # HWND to the exact requested URL and re-verifies authentication there.
-  #
-  # Keep this fail-closed across hosts or non-admin paths, then choose one HWND
-  # deterministically so stale cleanup/upload tabs cannot block deployment.
-  $verifiedHost = ''
-  foreach ($item in $items) {
-    $normalized = Normalize-WebAddress ([string]$item.Address)
-    if (-not $normalized) { throw $AmbiguousMessage }
-    try {
-      $uri = [Uri]('https://' + $normalized)
-      if (-not $uri.AbsolutePath.StartsWith('/wp-admin',[StringComparison]::OrdinalIgnoreCase)) {
-        throw $AmbiguousMessage
-      }
-      if (-not $verifiedHost) { $verifiedHost = $uri.Host }
-      elseif ($uri.Host -ine $verifiedHost) { throw $AmbiguousMessage }
-    } catch {
-      throw $AmbiguousMessage
-    }
+  # Multiple windows can be left behind by a previous WordPress upload and can
+  # point to the exact same authenticated admin endpoint. When every candidate
+  # is semantically equivalent, selecting one deterministic HWND is safe; any
+  # differing admin URL remains ambiguous and still fails closed.
+  $addresses = @($items | ForEach-Object { Normalize-WebAddress ([string]$_.Address) } | Select-Object -Unique)
+  if ($addresses.Count -eq 1 -and $addresses[0]) {
+    $selected = $items | Sort-Object { [int64]$_.Window.Current.NativeWindowHandle } | Select-Object -First 1
+    Write-Host ('INFO equivalent_wp_windows=' + $items.Count + ' selected_hwnd=' + $selected.Window.Current.NativeWindowHandle + ' address=' + $selected.Address)
+    return $selected
   }
 
-  $selected = $items | Sort-Object { [int64]$_.Window.Current.NativeWindowHandle } | Select-Object -First 1
-  Write-Host ('INFO verified_wp_admin_windows=' + $items.Count + ' selected_hwnd=' + $selected.Window.Current.NativeWindowHandle + ' address=' + $selected.Address)
-  return $selected
+  throw $AmbiguousMessage
 }
 
 function Get-AuthenticatedWordPressWindow([string]$Url,[string]$TitlePattern) {
@@ -677,7 +661,7 @@ function Deploy-BackendPlugin([string]$ZipPath) {
     return
   }
 
-  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/plugin-install.php?tab=upload') -TitlePattern 'Add Plugins|Upload Plugin|WordPress'
+  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/plugin-install.php?tab=upload') -TitlePattern 'Add Plugins|Upload Plugin'
   Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
   Wait-ForWordPressAdminAuthentication $chrome ($script:uatSiteRoot + '/wp-admin/plugin-install.php?tab=upload')
@@ -768,7 +752,7 @@ function Deploy-WebRuntime {
     Write-Host ('INFO browser_web_hash_matches_but_server_hash_differs=' + $serverMainHash)
   }
 
-  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy') -TitlePattern 'EH7 UAT Web Deploy|WordPress'
+  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy') -TitlePattern 'EH7 UAT Web Deploy'
   Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
   Wait-ForWordPressAdminAuthentication $chrome ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy')
@@ -841,7 +825,7 @@ function Deploy-WebRuntime {
 }
 
 function Resolve-UatAnomalies {
-  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup') -TitlePattern 'EH7 UAT Cleanup|WordPress'
+  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup') -TitlePattern 'EH7 UAT Cleanup'
   Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
   Wait-ForWordPressAdminAuthentication $chrome ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup')
