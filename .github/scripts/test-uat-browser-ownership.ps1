@@ -145,7 +145,7 @@ Assert ($deployText.Contains('BUILD/UAT target must report environment=staging a
 Assert ($deployText.Contains('Assert-ControlledUatTarget -RequireErpHealth $false')) 'Fresh UAT deploy must tolerate the previous office environment only before backend replacement.'
 Assert ($deployText.Contains('Assert-ControlledUatTarget -RequireErpHealth $true')) 'UAT deploy must require ERP staging health immediately after backend deployment.'
 Write-Host 'PASS deployment_explicit_office_build_uat_policy'
-foreach ($name in @('Get-ChromeWindowAddress','Normalize-WebAddress','Test-WebAddressMatchesTarget','Select-VerifiedWordPressCandidate','Get-AuthenticatedWordPressWindow','Open-DedicatedChromeWindow','Root')) {
+foreach ($name in @('Get-ChromeWindowAddress','Normalize-WebAddress','Test-WebAddressMatchesTarget','Select-VerifiedWordPressCandidate','Select-AuthenticatedWordPressNavigationCandidate','Get-AuthenticatedWordPressWindow','Open-DedicatedChromeWindow','Root')) {
   $definition = $deployAst.Find({ param($node)
     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
   },$true)
@@ -272,6 +272,18 @@ $failed = $false
 try { Select-VerifiedWordPressCandidate @($duplicateUploadA,$differentUpload) 'expected ambiguity' | Out-Null } catch { $failed = $true }
 Assert $failed 'Different authenticated WordPress admin URLs must remain fail-closed.'
 Write-Host 'PASS deployment_equivalent_duplicate_window_selection'
+
+[UatWindowNative]::Foreground = [IntPtr]999
+$sameHostNavigation = Select-AuthenticatedWordPressNavigationCandidate @($differentUpload,$duplicateUploadA) 'office.excelherbal.in'
+Assert ($sameHostNavigation.Window.Current.NativeWindowHandle -eq 401) 'Different wp-admin pages on the same verified host must resolve deterministically before exact navigation.'
+$foreignAdmin = [pscustomobject]@{
+  Address = 'https://example.invalid/wp-admin/'
+  Window = [pscustomobject]@{ Current = [pscustomobject]@{ NativeWindowHandle = 404 } }
+}
+$failed = $false
+try { Select-AuthenticatedWordPressNavigationCandidate @($duplicateUploadA,$foreignAdmin) 'office.excelherbal.in' | Out-Null } catch { $failed = $true }
+Assert $failed 'Same-host navigation selection must reject any candidate outside the verified WordPress host.'
+Write-Host 'PASS deployment_same_host_admin_navigation_selection'
 
 $script:windowMode = 'new'
 $script:windowReads = 0
