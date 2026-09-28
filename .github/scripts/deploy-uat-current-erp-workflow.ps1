@@ -71,14 +71,12 @@ catch { throw 'UatSiteUrl must be a valid absolute HTTPS URL.' }
 if (-not $uatUri.IsAbsoluteUri -or $uatUri.Scheme -ne 'https') {
   throw 'Controlled UAT site must use HTTPS.'
 }
-if ($uatUri.Host -ieq 'office.excelherbal.in') {
-  throw 'Production office host is never a valid controlled UAT target.'
-}
-if ($uatUri.Host -notmatch '(?i)(^|[-.])(uat|staging)([-.]|$)') {
-  throw 'Controlled UAT hostname must explicitly contain uat or staging.'
+$script:isOfficeBuildUat = $uatUri.Host -ieq 'office.excelherbal.in'
+if (-not $script:isOfficeBuildUat -and $uatUri.Host -notmatch '(?i)(^|[-.])(uat|staging)([-.]|$)') {
+  throw 'UAT hostname must either be office.excelherbal.in during BUILD/UAT or explicitly contain uat/staging.'
 }
 $script:uatSiteRoot = $UatSiteUrl.TrimEnd('/')
-Write-Host ('INFO controlled_uat_site=' + $script:uatSiteRoot)
+Write-Host ('INFO build_uat_site=' + $script:uatSiteRoot + ' office_build_uat=' + $script:isOfficeBuildUat)
 
 $repoRoot = $env:GITHUB_WORKSPACE
 $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $SourceHead)
@@ -467,7 +465,11 @@ function Assert-ControlledUatTarget([bool]$RequireErpHealth=$false) {
   $data = if ($health.data) { $health.data } else { $health }
   if (-not $data) { throw 'Controlled UAT health response is empty.' }
   if ([string]$data.environment -ne 'staging') {
-    throw ('Controlled UAT target must report environment=staging; got ' + [string]$data.environment)
+    if (-not $RequireErpHealth -and $script:isOfficeBuildUat) {
+      Write-Host ('INFO office_build_uat_previous_environment=' + [string]$data.environment)
+      return
+    }
+    throw ('BUILD/UAT target must report environment=staging after backend deployment; got ' + [string]$data.environment)
   }
   if (-not $data.staging_safety -or $data.staging_safety.required -ne $true) {
     throw 'Controlled UAT target does not require staging safety.'
@@ -523,10 +525,15 @@ function New-BackendPluginZip {
   if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
   New-Item -ItemType Directory -Path $plugin -Force | Out-Null
   Copy-Item -Path (Join-Path $source '*') -Destination $plugin -Recurse -Force
+  $uatHost = ([Uri]$script:uatSiteRoot).Host.ToLowerInvariant()
+  $allowOffice = if ($script:isOfficeBuildUat) { 'true' } else { 'false' }
   @(
     '<?php',
     "if(!defined('ABSPATH'))exit;",
-    "define('EH7_SOURCE_HEAD','$SourceHead');"
+    "define('EH7_SOURCE_HEAD','$SourceHead');",
+    "define('EH7_DEPLOY_ENVIRONMENT','staging');",
+    "define('EH7_BUILD_UAT_ALLOW_OFFICE',$allowOffice);",
+    "define('EH7_BUILD_UAT_HOST','$uatHost');"
   ) | Set-Content -LiteralPath (Join-Path $plugin 'build-meta.php') -Encoding ascii
 
   foreach ($required in @(
