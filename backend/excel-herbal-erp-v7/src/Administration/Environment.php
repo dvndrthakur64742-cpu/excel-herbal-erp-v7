@@ -14,7 +14,9 @@ final class Environment {
     public static function allowsOfficeBuildUat():bool {
         return self::type()==='staging'
             && defined('EH7_BUILD_UAT_ALLOW_OFFICE')
-            && EH7_BUILD_UAT_ALLOW_OFFICE===true;
+            && EH7_BUILD_UAT_ALLOW_OFFICE===true
+            && defined('EH7_BUILD_UAT_HOST')
+            && strtolower(trim((string)EH7_BUILD_UAT_HOST))==='office.excelherbal.in';
     }
 
     public static function assertSafeUatHost(string $host):void {
