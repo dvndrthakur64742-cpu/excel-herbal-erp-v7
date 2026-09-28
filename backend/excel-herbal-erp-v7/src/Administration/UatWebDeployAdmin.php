@@ -118,6 +118,26 @@ final class UatWebDeployAdmin{
             $manifestHash=hash_file('sha256',$stage.'/SHA256SUMS.txt');
             file_put_contents($stage.'/EH7-SOURCE-HEAD.txt',$sourceHead."\n",LOCK_EX);
 
+            // A source-only certification commit can produce byte-identical
+            // Flutter web output. Replacing the whole live directory in that
+            // case creates an unnecessary availability window. If the current
+            // runtime already matches both certified hashes, retain it and
+            // atomically advance only the source marker.
+            if(is_dir($target)
+                && is_file($target.'/main.dart.js')
+                && is_file($target.'/SHA256SUMS.txt')
+                && hash_equals($mainHash,(string)(hash_file('sha256',$target.'/main.dart.js')?:''))
+                && hash_equals($manifestHash,(string)(hash_file('sha256',$target.'/SHA256SUMS.txt')?:''))){
+                $markerTmp=$target.'/EH7-SOURCE-HEAD.txt.__new_'.$id;
+                if(file_put_contents($markerTmp,$sourceHead."\n",LOCK_EX)===false)throw new \RuntimeException('Web source marker could not be staged.');
+                if(!rename($markerTmp,$target.'/EH7-SOURCE-HEAD.txt')){
+                    @unlink($markerTmp);
+                    throw new \RuntimeException('Web source marker could not be activated.');
+                }
+                self::removeTree($stage);
+                return ['main_sha256'=>$mainHash,'manifest_sha256'=>$manifestHash,'rollback'=>null];
+            }
+
             $moved=false;
             if(is_dir($target)){
                 if(!rename($target,$backup))throw new \RuntimeException('Current web runtime could not be preserved for rollback.');
