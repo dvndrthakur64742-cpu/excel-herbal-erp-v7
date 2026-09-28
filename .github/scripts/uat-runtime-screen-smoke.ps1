@@ -327,12 +327,12 @@ try {
 
   Assert-NoBootstrapCrash $chrome 'home'
   $evidence.phase = 'home'
-  $home = Find-ByNameLike (Root $chrome) @('Home')
-  if (-not $home) {
+  $homeNav = Find-ByNameLike (Root $chrome) @('Home')
+  if (-not $homeNav) {
     Write-UiHints $chrome 'home_navigation_missing'
     throw 'Home navigation item is missing.'
   }
-  if (-not (Try-Invoke $home)) { throw 'Home navigation item could not be invoked.' }
+  if (-not (Try-Invoke $homeNav)) { throw 'Home navigation item could not be invoked.' }
   Start-Sleep -Seconds 3
   Assert-NoBootstrapCrash $chrome 'home'
   $evidence.results['home'] = 'passed'
