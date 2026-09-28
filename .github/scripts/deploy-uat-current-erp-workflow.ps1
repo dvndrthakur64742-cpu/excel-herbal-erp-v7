@@ -20,9 +20,15 @@ public static class UatWindowNative {
   [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr SetActiveWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr window);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder className, int maxCount);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, IntPtr processId);
   [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint attach, uint attachTo, bool value);
   [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+
+  public static string GetWindowClass(IntPtr window) {
+    var name = new System.Text.StringBuilder(256);
+    return GetClassName(window, name, name.Capacity) > 0 ? name.ToString() : "";
+  }
 
   public static bool ForceForeground(IntPtr window) {
     ShowWindow(window, 9);
@@ -365,6 +371,23 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
   $dialog = $null
   for ($attempt = 0; $attempt -lt 40; $attempt++) {
     Start-Sleep -Milliseconds 500
+
+    # Prefer the actual foreground native dialog HWND when Chrome opens the
+    # file picker outside the UIA RootElement child enumeration.
+    $foreground = [UatWindowNative]::GetForegroundWindow()
+    if ($foreground -ne [IntPtr]::Zero -and
+        [UatWindowNative]::GetWindowClass($foreground) -eq '#32770' -and
+        -not $beforeDialogs.ContainsKey([string]$foreground)) {
+      try {
+        $candidate = [System.Windows.Automation.AutomationElement]::FromHandle($foreground)
+        if ($candidate -and $candidate.Current.IsEnabled -and -not $candidate.Current.IsOffscreen) {
+          $dialog = $candidate
+          Write-Host ('INFO deployment_file_picker_source=foreground hwnd=' + $foreground + ' pid=' + $dialog.Current.ProcessId)
+          break
+        }
+      } catch {}
+    }
+
     $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
       [System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
     $candidates = @()
@@ -380,7 +403,7 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
     if ($candidates.Count -gt 1) { throw 'More than one new deployment file picker appeared; target is ambiguous.' }
     if ($candidates.Count -eq 1) {
       $dialog = $candidates[0]
-      Write-Host ('INFO deployment_file_picker_pid=' + $dialog.Current.ProcessId + ' hwnd=' + $dialog.Current.NativeWindowHandle)
+      Write-Host ('INFO deployment_file_picker_source=uia_root pid=' + $dialog.Current.ProcessId + ' hwnd=' + $dialog.Current.NativeWindowHandle)
       break
     }
   }
