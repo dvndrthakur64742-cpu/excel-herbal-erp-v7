@@ -437,17 +437,28 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
   Set-ElementValue $edit $fullPath
   $value = $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
   if ($value.Current.Value -ne $fullPath) { throw 'Deployment file picker did not accept the certified ZIP path.' }
+  $dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle
   $open = Find-ById $dialog '1'
   if (-not $open -or -not $open.Current.IsEnabled) { throw 'Deployment file picker Open button is unavailable.' }
   Invoke-Element $open
+
+  # Do not trust the pre-picker UIA file-input object after the native dialog
+  # closes. Chrome can leave that object stale even though the file was
+  # accepted. Instead require the native picker to close and the verified
+  # browser HWND/UIA root to become usable again. The caller then re-queries
+  # the form controls and performs the authoritative submit/server checks.
   for ($attempt = 0; $attempt -lt 40; $attempt++) {
-    Start-Sleep -Milliseconds 500
-    if (([string]$Button.Current.Name).IndexOf($fileName,[StringComparison]::OrdinalIgnoreCase) -ge 0) {
-      Write-Host ('PASS deployment_zip_selected=' + $fileName)
-      return
+    Start-Sleep -Milliseconds 250
+    $foreground = [UatWindowNative]::GetForegroundWindow()
+    if ($foreground -ne $dialogHandle) {
+      try {
+        [void](Root $Browser)
+        Write-Host ('PASS deployment_file_picker_closed=' + $fileName)
+        return
+      } catch {}
     }
   }
-  throw 'Deployment form did not confirm the selected certified ZIP.'
+  throw 'Deployment file picker did not close after choosing the certified ZIP.'
 }
 
 function Assert-ControlledUatTarget([bool]$RequireErpHealth=$false) {
