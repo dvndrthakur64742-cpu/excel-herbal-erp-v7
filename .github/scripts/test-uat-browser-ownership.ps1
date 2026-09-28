@@ -126,11 +126,11 @@ $deploySource = Join-Path $PSScriptRoot 'deploy-uat-current-erp-workflow.ps1'
 $deployAst = [System.Management.Automation.Language.Parser]::ParseFile($deploySource,[ref]$tokens,[ref]$parseErrors)
 if ($parseErrors.Count) { throw 'Deployment script did not parse.' }
 $deployText = Get-Content -LiteralPath $deploySource -Raw
-Assert ($deployText -like '*[string]$UatSiteUrl*') 'UAT deployment must require an explicit target site URL.'
-Assert ($deployText -like '*Production office host is never a valid controlled UAT target.*') 'UAT deployment must explicitly reject the production office host.'
-Assert ($deployText -like '*Controlled UAT target must report environment=staging*') 'UAT deployment must fail closed unless target health reports staging.'
-Assert ($deployText -notlike '*https://office.excelherbal.in/wp-admin/*') 'UAT deployment must not contain a hardcoded production-office admin URL.'
-Assert ($deployText -notlike '*https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web*') 'UAT deployment must not contain a hardcoded production-office runtime URL.'
+Assert ($deployText.Contains('[string]$UatSiteUrl')) 'UAT deployment must require an explicit target site URL.'
+Assert ($deployText.Contains('Production office host is never a valid controlled UAT target.')) 'UAT deployment must explicitly reject the production office host.'
+Assert ($deployText.Contains('Controlled UAT target must report environment=staging')) 'UAT deployment must fail closed unless target health reports staging.'
+Assert (-not $deployText.Contains('https://office.excelherbal.in/wp-admin/')) 'UAT deployment must not contain a hardcoded production-office admin URL.'
+Assert (-not $deployText.Contains('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web')) 'UAT deployment must not contain a hardcoded production-office runtime URL.'
 Write-Host 'PASS deployment_controlled_staging_target_policy'
 foreach ($name in @('Get-ChromeWindowAddress','Normalize-WebAddress','Test-WebAddressMatchesTarget','Select-VerifiedWordPressCandidate','Get-AuthenticatedWordPressWindow','Open-DedicatedChromeWindow','Root')) {
   $definition = $deployAst.Find({ param($node)
