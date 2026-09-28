@@ -138,6 +138,9 @@ $chooseFileDefinition = $deployAst.Find({ param($node)
 },$true)
 Assert ($chooseFileDefinition -and $chooseFileDefinition.Extent.Text -like '*Invoke-Element $Button*') 'Deployment file picker must be opened through the file input InvokePattern.'
 Write-Host 'PASS deployment_file_picker_uses_invoke_pattern'
+Assert ($chooseFileDefinition.Extent.Text -like '*GetWindowClass($foreground)*') 'Deployment file picker detection must inspect the actual foreground native window class.'
+Assert ($chooseFileDefinition.Extent.Text -like '*AutomationElement]::FromHandle($foreground)*') 'Deployment file picker detection must bind UI Automation directly to the foreground native dialog HWND.'
+Write-Host 'PASS deployment_file_picker_foreground_native_detection'
 Assert (Test-WebAddressMatchesTarget 'office.excelherbal.in/wp-admin/plugin-install.php?_wpnonce=abc&tab=upload' 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload') 'WordPress target matching must allow extra query parameters and different query order.'
 Assert (-not (Test-WebAddressMatchesTarget 'office.excelherbal.in/wp-admin/plugin-install.php?tab=featured' 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload')) 'WordPress target matching must reject a different required query value.'
 Write-Host 'PASS deployment_url_required_query_matching'
