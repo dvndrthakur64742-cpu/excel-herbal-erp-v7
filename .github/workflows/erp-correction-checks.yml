@@ -414,16 +414,74 @@ jobs:
           Write-Host "Exact-head web candidate preserved at $releaseRoot"
 
 
+      - name: Build controlled UAT web candidate
+        if: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL != '' }}
+        working-directory: flutter-app
+        env:
+          UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $site = [Uri]$env:UAT_SITE_URL.TrimEnd('/')
+          if (-not $site.IsAbsoluteUri -or $site.Scheme -ne 'https') { throw 'Controlled UAT site must use HTTPS.' }
+          if ($site.Host -ieq 'office.excelherbal.in') { throw 'Production office host is never a valid controlled UAT target.' }
+          $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
+
+          & $env:EH7_FLUTTER_EXE build web --release --no-pub --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=$apiBase --dart-define=EH7_ENVIRONMENT=uat
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $index = 'build/web/index.html'
+          $main = 'build/web/main.dart.js'
+          if (-not (Test-Path -LiteralPath $index -PathType Leaf)) { throw 'Controlled UAT web index.html was not generated.' }
+          if (-not (Test-Path -LiteralPath $main -PathType Leaf)) { throw 'Controlled UAT web main.dart.js was not generated.' }
+          if (-not (Select-String -LiteralPath $main -SimpleMatch $apiBase -Quiet)) { throw 'Controlled UAT API base URL is missing from compiled web output.' }
+
+          $root = (Resolve-Path 'build/web').Path
+          $manifest = Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object FullName | ForEach-Object {
+            $relative = $_.FullName.Substring($root.Length + 1).Replace('\','/')
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $relative"
+          }
+          $manifest | Set-Content -LiteralPath 'build/web/SHA256SUMS.txt' -Encoding ascii
+
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA)
+          $candidateDir = Join-Path $releaseRoot 'web'
+          $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
+          if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $candidateDir -Force | Out-Null
+          Copy-Item -Path 'build/web/*' -Destination $candidateDir -Recurse -Force
+
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archiveRoot = (Resolve-Path -LiteralPath $candidateDir).Path
+          $archive = [System.IO.Compression.ZipFile]::Open($zipPath,[System.IO.Compression.ZipArchiveMode]::Create)
+          try {
+            Get-ChildItem -LiteralPath $candidateDir -Recurse -File | ForEach-Object {
+              $relative = $_.FullName.Substring($archiveRoot.Length).TrimStart([char[]]@([char]92,[char]47))
+              $entryName = $relative -replace '\','/'
+              $entry = $archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
+              $entryStream = $entry.Open()
+              $fileStream = [System.IO.File]::OpenRead($_.FullName)
+              try { $fileStream.CopyTo($entryStream) }
+              finally { $fileStream.Dispose(); $entryStream.Dispose() }
+            }
+          } finally { $archive.Dispose() }
+
+          Write-Host "PASS controlled_uat_web_candidate=$releaseRoot"
+          Write-Host "PASS controlled_uat_api_base=$apiBase"
+
+
   deploy-uat-current-erp:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-current]')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-current]') && vars.EH7_CONTROLLED_UAT_SITE_URL != ''
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 25
+    env:
+      UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Deploy backend and certified web through current ERP workflow
         run: |
-          & '.github/scripts/deploy-uat-current-erp-workflow.ps1' -SourceHead $env:GITHUB_SHA
+          & '.github/scripts/deploy-uat-current-erp-workflow.ps1' -SourceHead $env:GITHUB_SHA -UatSiteUrl $env:UAT_SITE_URL
       - name: Verify live backend head and certified web artifact SHA
         run: |
           $ErrorActionPreference = 'Stop'
@@ -431,7 +489,7 @@ jobs:
           $lastHealthError = ''
           for ($attempt = 1; $attempt -le 6; $attempt++) {
             try {
-              $health = Invoke-RestMethod -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+              $health = Invoke-RestMethod -UseBasicParsing -Uri ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
               break
             } catch {
               $lastHealthError = $_.Exception.Message
@@ -441,6 +499,8 @@ jobs:
             }
           }
           if (-not $health) { throw ('Live health verification failed after retries: ' + $lastHealthError) }
+          $healthData = if ($health.data) { $health.data } else { $health }
+          if ([string]$healthData.environment -ne 'staging') { throw ('Controlled UAT environment mismatch: ' + [string]$healthData.environment) }
           $liveHead = if ($health.data -and $health.data.source_head) { [string]$health.data.source_head } elseif ($health.source_head) { [string]$health.source_head } else { '' }
           if ($liveHead -ne $env:GITHUB_SHA) { throw ('Live backend source_head mismatch: ' + $liveHead) }
 
@@ -448,7 +508,7 @@ jobs:
           $candidate = Join-Path $releaseRoot 'web\\main.dart.js'
           if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'Exact-head candidate main.dart.js is missing.' }
           $live = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
-          & curl.exe --fail --location --silent --show-error --max-time 30 --output $live ('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
+          & curl.exe --fail --location --silent --show-error --max-time 30 --output $live ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
           if ($LASTEXITCODE -ne 0) { throw 'Live web verification download failed.' }
           $expected = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
           $actual = (Get-FileHash -LiteralPath $live -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -518,7 +578,7 @@ jobs:
 
 
   final-uat-bundle:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && vars.EH7_CONTROLLED_UAT_SITE_URL != '' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 30
@@ -529,7 +589,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Add-Type -AssemblyName System.IO.Compression
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $sourceWeb = Join-Path $env:USERPROFILE ('ERP7-Releases\candidates\' + $env:GITHUB_SHA + '\web')
+          $sourceWeb = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA + '\web')
           if (-not (Test-Path -LiteralPath (Join-Path $sourceWeb 'index.html') -PathType Leaf)) { throw 'Exact-head web candidate directory is missing.' }
           $work = Join-Path $env:RUNNER_TEMP ('eh7-final-bundle-' + [Guid]::NewGuid().ToString('N'))
           $payload = Join-Path $work 'eh7-uat-deploy'
@@ -554,13 +614,13 @@ jobs:
             "schema=$schemaVersion",
             "plugin_entrypoint_sha256=$pluginMainHash",
             "web_main_sha256=$webMainHash",
-            "purpose=office-build-uat-final-bundle",
+            "purpose=controlled-staging-uat-final-bundle",
             "production_approved=false"
           ) | Set-Content -LiteralPath (Join-Path $payload 'FINAL-MANIFEST.txt') -Encoding ascii
           @(
             'ONE-UPLOAD UAT DEPLOYMENT BUNDLE',
             '',
-            '1. Keep the current office backup and rollback plugin folder.',
+            '1. Confirm the target is a controlled staging host and keep its current rollback copy.',
             '2. Upload this bundle to Hostinger File Manager and extract to a temporary folder.',
             '3. Replace wp-content/plugins/excel-herbal-erp-v7 with plugin/excel-herbal-erp-v7.',
             '4. Replace wp-content/uploads/eh7-flutter-web with web/eh7-flutter-web.',
@@ -617,7 +677,7 @@ jobs:
           Remove-Item -LiteralPath $work -Recurse -Force
 
   uat-runtime-screen-smoke:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-current]')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-current]') && vars.EH7_CONTROLLED_UAT_SITE_URL != ''
     needs: [deploy-uat-current-erp]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
@@ -625,10 +685,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Verify authenticated Home and six business module landing screens
         env:
+          UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
           UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
         run: |
-          & '.github/scripts/uat-runtime-screen-smoke.ps1' -AppUrl 'https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/' -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
+          $appUrl = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/'
+          & '.github/scripts/uat-runtime-screen-smoke.ps1' -AppUrl $appUrl -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
       - name: Print UAT runtime screen evidence
         if: always()
         run: |
