@@ -378,7 +378,7 @@ jobs:
         working-directory: flutter-app
         run: |
           $ErrorActionPreference = 'Stop'
-          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\candidates\\' + $env:GITHUB_SHA)
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $env:GITHUB_SHA)
           $candidateDir = Join-Path $releaseRoot 'web'
           $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
           if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
@@ -504,7 +504,7 @@ jobs:
           $liveHead = if ($health.data -and $health.data.source_head) { [string]$health.data.source_head } elseif ($health.source_head) { [string]$health.source_head } else { '' }
           if ($liveHead -ne $env:GITHUB_SHA) { throw ('Live backend source_head mismatch: ' + $liveHead) }
 
-          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\candidates\\' + $env:GITHUB_SHA)
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $env:GITHUB_SHA)
           $candidate = Join-Path $releaseRoot 'web\\main.dart.js'
           if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'Exact-head candidate main.dart.js is missing.' }
           $live = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
@@ -528,22 +528,24 @@ jobs:
           Write-Host "PASS live_server_web_sha256=$serverHash"
 
   deploy-uat-web-session-race:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]') && vars.EH7_CONTROLLED_UAT_SITE_URL != ''
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
+    env:
+      UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Deploy certified web candidate through local authenticated WordPress session
         run: |
-          & '.github/scripts/deploy-uat-web-via-visible-wp-session.ps1' -SourceHead $env:GITHUB_SHA
+          & '.github/scripts/deploy-uat-web-via-visible-wp-session.ps1' -SourceHead $env:GITHUB_SHA -UatSiteUrl $env:UAT_SITE_URL
       - name: Verify live session-race build marker
         run: |
           $ErrorActionPreference = 'Stop'
-          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\candidates\\' + $env:GITHUB_SHA)
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $env:GITHUB_SHA)
           $candidate = Join-Path $releaseRoot 'web\\main.dart.js'
           $live = Join-Path $env:RUNNER_TEMP 'eh7-live-session-race-main.js'
-          & curl.exe --fail --location --silent --show-error --max-time 30 --output $live ('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
+          & curl.exe --fail --location --silent --show-error --max-time 30 --output $live ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
           if ($LASTEXITCODE -ne 0) { throw 'Live session-race verification download failed.' }
           $expected = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
           $actual = (Get-FileHash -LiteralPath $live -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -552,16 +554,18 @@ jobs:
           Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
 
   deploy-only-session-race:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-only-session-race]')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-only-session-race]') && vars.EH7_CONTROLLED_UAT_SITE_URL != ''
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
+    env:
+      UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Verify certified session-race candidate is present
         run: |
           $ErrorActionPreference = 'Stop'
           $sourceHead = '64f5e580b3e9ae9da94c977981f6c3ea76d073da'
-          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\candidates\\' + $sourceHead)
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $sourceHead)
           foreach ($required in @(
             (Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'),
             (Join-Path $releaseRoot 'web\\main.dart.js'),
@@ -574,7 +578,7 @@ jobs:
           Write-Host ('PASS certified_session_race_candidate=' + $sourceHead)
       - name: Deploy certified session-race candidate through exact web upload form
         run: |
-          & '.github/scripts/deploy-uat-web-via-visible-wp-session.ps1' -SourceHead '64f5e580b3e9ae9da94c977981f6c3ea76d073da'
+          & '.github/scripts/deploy-uat-web-via-visible-wp-session.ps1' -SourceHead '64f5e580b3e9ae9da94c977981f6c3ea76d073da' -UatSiteUrl $env:UAT_SITE_URL
 
 
   final-uat-bundle:
