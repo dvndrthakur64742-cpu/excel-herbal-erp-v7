@@ -177,18 +177,34 @@ function Select-VerifiedWordPressCandidate($Candidates,[string]$AmbiguousMessage
   })
   if ($foregroundMatches.Count -eq 1) { return $foregroundMatches[0] }
 
-  # Multiple windows can be left behind by a previous WordPress upload and can
-  # point to the exact same authenticated admin endpoint. When every candidate
-  # is semantically equivalent, selecting one deterministic HWND is safe; any
-  # differing admin URL remains ambiguous and still fails closed.
-  $addresses = @($items | ForEach-Object { Normalize-WebAddress ([string]$_.Address) } | Select-Object -Unique)
-  if ($addresses.Count -eq 1 -and $addresses[0]) {
-    $selected = $items | Sort-Object { [int64]$_.Window.Current.NativeWindowHandle } | Select-Object -First 1
-    Write-Host ('INFO equivalent_wp_windows=' + $items.Count + ' selected_hwnd=' + $selected.Window.Current.NativeWindowHandle + ' address=' + $selected.Address)
-    return $selected
+  # Multiple authenticated WordPress windows can legitimately remain open on
+  # different /wp-admin pages after an earlier upload or UAT action. Every
+  # candidate reaching this function was already verified by the caller as an
+  # authenticated admin page on the requested host. Reusing any such window is
+  # safe because Open-DedicatedChromeWindow immediately navigates the selected
+  # HWND to the exact requested URL and re-verifies authentication there.
+  #
+  # Keep this fail-closed across hosts or non-admin paths, then choose one HWND
+  # deterministically so stale cleanup/upload tabs cannot block deployment.
+  $verifiedHost = ''
+  foreach ($item in $items) {
+    $normalized = Normalize-WebAddress ([string]$item.Address)
+    if (-not $normalized) { throw $AmbiguousMessage }
+    try {
+      $uri = [Uri]('https://' + $normalized)
+      if (-not $uri.AbsolutePath.StartsWith('/wp-admin',[StringComparison]::OrdinalIgnoreCase)) {
+        throw $AmbiguousMessage
+      }
+      if (-not $verifiedHost) { $verifiedHost = $uri.Host }
+      elseif ($uri.Host -ine $verifiedHost) { throw $AmbiguousMessage }
+    } catch {
+      throw $AmbiguousMessage
+    }
   }
 
-  throw $AmbiguousMessage
+  $selected = $items | Sort-Object { [int64]$_.Window.Current.NativeWindowHandle } | Select-Object -First 1
+  Write-Host ('INFO verified_wp_admin_windows=' + $items.Count + ' selected_hwnd=' + $selected.Window.Current.NativeWindowHandle + ' address=' + $selected.Address)
+  return $selected
 }
 
 function Get-AuthenticatedWordPressWindow([string]$Url,[string]$TitlePattern) {
