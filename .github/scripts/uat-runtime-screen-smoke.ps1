@@ -175,6 +175,22 @@ function Set-ControlValue([System.Windows.Automation.AutomationElement]$Element,
   return $false
 }
 
+function Set-LoginControlValue([System.Diagnostics.Process]$Process,[System.Windows.Automation.AutomationElement]$Element,[string]$Value) {
+  if (-not $Element -or [string]::IsNullOrEmpty($Value)) { return $false }
+  try {
+    [void](Root $Process)
+    $Element.SetFocus()
+    Start-Sleep -Milliseconds 180
+    [System.Windows.Forms.SendKeys]::SendWait('^a')
+    [System.Windows.Forms.Clipboard]::SetText($Value)
+    [System.Windows.Forms.SendKeys]::SendWait('^v')
+    Start-Sleep -Milliseconds 220
+    return $true
+  } catch {}
+  return $false
+}
+
+
 function Wait-ForAnyName([System.Diagnostics.Process]$Process,[string[]]$Names,[int]$Seconds = 25) {
   for ($attempt = 0; $attempt -lt ($Seconds * 2); $attempt++) {
     Start-Sleep -Milliseconds 500
@@ -264,21 +280,44 @@ try {
       Write-UiHints $chrome 'uat_login_required_but_credentials_missing'
       throw 'ERP login screen is visible and controlled UAT credentials are not configured.'
     }
-    $mobileBox = Find-EditByLabel $chrome 'Mobile number'
-    $passwordBox = Find-EditByLabel $chrome 'Password'
-    if (-not $mobileBox -or -not $passwordBox) {
-      Write-UiHints $chrome 'login_fields_missing'
-      throw 'ERP login fields were not exposed to UI Automation.'
+    $workspace = $null
+    for ($loginAttempt = 1; $loginAttempt -le 3; $loginAttempt++) {
+      $mobileBox = Find-EditByLabel $chrome 'Mobile number'
+      $passwordBox = Find-EditByLabel $chrome 'Password'
+      if (-not $mobileBox -or -not $passwordBox) {
+        Write-UiHints $chrome ('login_fields_missing_' + $loginAttempt)
+        throw 'ERP login fields were not exposed to UI Automation.'
+      }
+
+      # Chrome/Flutter can report ValuePattern success for secure fields while
+      # the password remains empty. Use focused keyboard/clipboard entry for
+      # both credentials and never print either secret.
+      if (-not (Set-LoginControlValue $chrome $mobileBox $Mobile)) { throw 'Could not enter UAT mobile number.' }
+      if (-not (Set-LoginControlValue $chrome $passwordBox $Password)) { throw 'Could not enter UAT password.' }
+
+      # Re-query after input because Flutter semantics can replace the button
+      # element while editing form fields.
+      $signIn = Find-ByNameLike (Root $chrome) @('SIGN IN')
+      if (-not $signIn -or -not (Try-Invoke $signIn)) { throw 'Could not invoke ERP SIGN IN.' }
+      $evidence.phase = 'authenticated_workspace'
+      Write-Host ('INFO uat_login_submitted_attempt=' + $loginAttempt)
+
+      $workspace = Wait-ForAnyName $chrome @('ERP Workspace') 15
+      if ($workspace) { break }
+
+      $names = @(All-Names (Root $chrome))
+      $emptyPassword = $names -contains 'Enter your password.'
+      $emptyMobile = $names -contains 'Enter your mobile number.'
+      if (($emptyPassword -or $emptyMobile) -and $loginAttempt -lt 3) {
+        Write-Host ('INFO uat_login_validation_retry=' + $loginAttempt + ' empty_mobile=' + $emptyMobile + ' empty_password=' + $emptyPassword)
+        continue
+      }
+
+      Write-UiHints $chrome ('authenticated_workspace_missing_' + $loginAttempt)
+      throw 'Authenticated ERP Workspace did not become visible after credential submission.'
     }
-    if (-not (Set-ControlValue $mobileBox $Mobile)) { throw 'Could not enter UAT mobile number.' }
-    if (-not (Set-ControlValue $passwordBox $Password)) { throw 'Could not enter UAT password.' }
-    if (-not (Try-Invoke $signIn)) { throw 'Could not invoke ERP SIGN IN.' }
-    $evidence.phase = 'authenticated_workspace'
-    Write-Host 'INFO uat_login_submitted'
-    Start-Sleep -Seconds 4
   }
 
-  $workspace = Wait-ForAnyName $chrome @('ERP Workspace') 30
   if (-not $workspace) {
     Write-UiHints $chrome 'authenticated_workspace_missing'
     throw 'Authenticated ERP Workspace did not become visible.'
