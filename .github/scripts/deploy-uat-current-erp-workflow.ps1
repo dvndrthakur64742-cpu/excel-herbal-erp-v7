@@ -74,6 +74,9 @@ if (-not $uatUri.IsAbsoluteUri -or $uatUri.Scheme -ne 'https') {
 if ($uatUri.Host -ieq 'office.excelherbal.in') {
   throw 'Production office host is never a valid controlled UAT target.'
 }
+if ($uatUri.Host -notmatch '(?i)(^|[-.])(uat|staging)([-.]|$)') {
+  throw 'Controlled UAT hostname must explicitly contain uat or staging.'
+}
 $script:uatSiteRoot = $UatSiteUrl.TrimEnd('/')
 Write-Host ('INFO controlled_uat_site=' + $script:uatSiteRoot)
 
@@ -449,8 +452,18 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
   throw 'Deployment form did not confirm the selected certified ZIP.'
 }
 
-function Assert-ControlledUatTarget {
-  $health = Invoke-RestMethod -UseBasicParsing -Uri ($script:uatSiteRoot + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+function Assert-ControlledUatTarget([bool]$RequireErpHealth=$false) {
+  $health = $null
+  try {
+    $health = Invoke-RestMethod -UseBasicParsing -Uri ($script:uatSiteRoot + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+  } catch {
+    if ($RequireErpHealth) {
+      throw ('Controlled UAT ERP health endpoint is required after backend deployment: ' + $_.Exception.Message)
+    }
+    Write-Host 'INFO controlled_uat_erp_health_not_installed_yet=true'
+    return
+  }
+
   $data = if ($health.data) { $health.data } else { $health }
   if (-not $data) { throw 'Controlled UAT health response is empty.' }
   if ([string]$data.environment -ne 'staging') {
@@ -762,10 +775,11 @@ function Resolve-UatAnomalies {
   if ($diag) { Write-Host ('INFO uat_cleanup_diagnostics_label=' + $diag) }
 }
 
-Assert-ControlledUatTarget
+Assert-ControlledUatTarget -RequireErpHealth $false
 $backendZip = New-BackendPluginZip
 try {
   Deploy-BackendPlugin $backendZip
+  Assert-ControlledUatTarget -RequireErpHealth $true
   Deploy-WebRuntime
   Resolve-UatAnomalies
 } finally {
