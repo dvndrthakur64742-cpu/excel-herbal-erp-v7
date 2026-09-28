@@ -1,6 +1,8 @@
 param(
   [Parameter(Mandatory = $true)]
-  [string]$SourceHead
+  [string]$SourceHead,
+  [Parameter(Mandatory = $true)]
+  [string]$UatSiteUrl
 )
 
 $ErrorActionPreference = 'Stop'
@@ -64,8 +66,19 @@ if ($SourceHead -notmatch '^[a-f0-9]{40}$') {
   throw 'SourceHead must be a 40-character lowercase commit SHA.'
 }
 
+try { $uatUri = [Uri]$UatSiteUrl.TrimEnd('/') }
+catch { throw 'UatSiteUrl must be a valid absolute HTTPS URL.' }
+if (-not $uatUri.IsAbsoluteUri -or $uatUri.Scheme -ne 'https') {
+  throw 'Controlled UAT site must use HTTPS.'
+}
+if ($uatUri.Host -ieq 'office.excelherbal.in') {
+  throw 'Production office host is never a valid controlled UAT target.'
+}
+$script:uatSiteRoot = $UatSiteUrl.TrimEnd('/')
+Write-Host ('INFO controlled_uat_site=' + $script:uatSiteRoot)
+
 $repoRoot = $env:GITHUB_WORKSPACE
-$releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\candidates\' + $SourceHead)
+$releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $SourceHead)
 $webZip = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
 $candidateMain = Join-Path $releaseRoot 'web\main.dart.js'
 foreach ($required in @($webZip,$candidateMain)) {
@@ -185,7 +198,13 @@ function Get-AuthenticatedWordPressWindow([string]$Url,[string]$TitlePattern) {
   foreach ($window in (Get-ChromeWindows)) {
     try {
       $address = Get-ChromeWindowAddress $window
-      if ($address -notmatch '^(?i)(https?://)?office\.excelherbal\.in/wp-admin(?:/|\?|$)') { continue }
+      $addressNormalized = Normalize-WebAddress $address
+      if (-not $addressNormalized) { continue }
+      try {
+        $addressUri = [Uri]('https://' + $addressNormalized)
+        $targetUri = [Uri]('https://' + $target)
+        if ($addressUri.Host -ine $targetUri.Host -or -not $addressUri.AbsolutePath.StartsWith('/wp-admin',[StringComparison]::OrdinalIgnoreCase)) { continue }
+      } catch { continue }
       if ([string]$window.Current.Name -match '(?i)Log In|Login') { continue }
       $entry = [pscustomobject]@{ Window = $window; Address = $address }
       $admin += $entry
@@ -430,9 +449,22 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
   throw 'Deployment form did not confirm the selected certified ZIP.'
 }
 
+function Assert-ControlledUatTarget {
+  $health = Invoke-RestMethod -UseBasicParsing -Uri ($script:uatSiteRoot + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+  $data = if ($health.data) { $health.data } else { $health }
+  if (-not $data) { throw 'Controlled UAT health response is empty.' }
+  if ([string]$data.environment -ne 'staging') {
+    throw ('Controlled UAT target must report environment=staging; got ' + [string]$data.environment)
+  }
+  if (-not $data.staging_safety -or $data.staging_safety.required -ne $true) {
+    throw 'Controlled UAT target does not require staging safety.'
+  }
+  Write-Host ('PASS controlled_uat_environment=staging host=' + ([Uri]$script:uatSiteRoot).Host)
+}
+
 function Get-HealthSourceHead {
   try {
-    $health = Invoke-RestMethod -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+    $health = Invoke-RestMethod -UseBasicParsing -Uri ($script:uatSiteRoot + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
     if ($health.data -and $health.data.source_head) { return [string]$health.data.source_head }
     if ($health.source_head) { return [string]$health.source_head }
     return ''
@@ -441,7 +473,7 @@ function Get-HealthSourceHead {
 
 function Get-WebRuntimeHealth {
   try {
-    $health = Invoke-RestMethod -UseBasicParsing -Uri ('https://office.excelherbal.in/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+    $health = Invoke-RestMethod -UseBasicParsing -Uri ($script:uatSiteRoot + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
     if ($health.data -and $health.data.web_runtime) { return $health.data.web_runtime }
     if ($health.web_runtime) { return $health.web_runtime }
   } catch {}
@@ -449,7 +481,7 @@ function Get-WebRuntimeHealth {
 }
 
 function Get-LiveMainHash {
-  $urlBase = 'https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/main.dart.js'
+  $urlBase = $script:uatSiteRoot + '/wp-content/uploads/eh7-flutter-web/main.dart.js'
   $lastExit = -1
   for ($attempt = 1; $attempt -le 3; $attempt++) {
     $tmp = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
@@ -516,7 +548,7 @@ function Deploy-BackendPlugin([string]$ZipPath) {
     return
   }
 
-  $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload' -TitlePattern 'Add Plugins|Upload Plugin|office.*WordPress'
+  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/plugin-install.php?tab=upload') -TitlePattern 'Add Plugins|Upload Plugin|WordPress'
   Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
   if ((Root $chrome).Current.Name -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
@@ -534,7 +566,7 @@ function Deploy-BackendPlugin([string]$ZipPath) {
     if ($file -and $install) { break }
     Write-Host ('INFO backend_upload_controls_retry=' + $pageAttempt)
     try { Write-UiHints $root ('backend_upload_controls_missing_' + $pageAttempt) } catch {}
-    Navigate-ChromeWindow $chrome 'https://office.excelherbal.in/wp-admin/plugin-install.php?tab=upload' 5
+    Navigate-ChromeWindow $chrome ($script:uatSiteRoot + '/wp-admin/plugin-install.php?tab=upload') 5
   }
   if (-not $file -or -not $install) {
     throw 'WordPress Upload Plugin controls were not found after explicit navigation retries.'
@@ -607,7 +639,7 @@ function Deploy-WebRuntime {
     Write-Host ('INFO browser_web_hash_matches_but_server_hash_differs=' + $serverMainHash)
   }
 
-  $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-web-deploy' -TitlePattern 'EH7 UAT Web Deploy|office.*WordPress'
+  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy') -TitlePattern 'EH7 UAT Web Deploy|WordPress'
   Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
   if ((Root $chrome).Current.Name -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
@@ -628,7 +660,7 @@ function Deploy-WebRuntime {
     if ($file -and $source -and $reason -and $confirm -and $submit) { break }
     Write-Host ('INFO web_deploy_controls_retry=' + $pageAttempt)
     try { Write-UiHints $root ('web_deploy_controls_missing_' + $pageAttempt) } catch {}
-    Navigate-ChromeWindow $chrome 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-web-deploy' 5
+    Navigate-ChromeWindow $chrome ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy') 5
   }
   if (-not $file -or -not $source -or -not $reason -or -not $confirm -or -not $submit) {
     throw 'Current ERP UAT web deployment controls were not found after explicit navigation retries.'
@@ -637,7 +669,7 @@ function Deploy-WebRuntime {
   Choose-File $file $webZip $chrome
   $root = Root $chrome
   Set-ElementValue (Find-ById $root 'eh7_source_head') $SourceHead
-  Set-ElementValue (Find-ById $root 'eh7_reason') 'Deploy certified Phase 1 bootstrap recovery to office BUILD/UAT'
+  Set-ElementValue (Find-ById $root 'eh7_reason') 'Deploy certified exact-head build to controlled UAT'
   $confirm = Find-ByName $root '*confirm this certified BUILD/UAT web deployment*' $true
   $toggle = $confirm.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
   if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) { $toggle.Toggle() }
@@ -680,7 +712,7 @@ function Deploy-WebRuntime {
 }
 
 function Resolve-UatAnomalies {
-  $chrome = Open-DedicatedChromeWindow -Url 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup' -TitlePattern 'EH7 UAT Cleanup|office.*WordPress'
+  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup') -TitlePattern 'EH7 UAT Cleanup|WordPress'
   Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
   if ((Root $chrome).Current.Name -match 'Log In|Login') {
@@ -699,7 +731,7 @@ function Resolve-UatAnomalies {
     if ($reason -and $confirm -and $submit) { break }
     Write-Host ('INFO uat_cleanup_controls_retry=' + $pageAttempt)
     try { Write-UiHints $root ('uat_cleanup_controls_missing_' + $pageAttempt) } catch {}
-    Navigate-ChromeWindow $chrome 'https://office.excelherbal.in/wp-admin/tools.php?page=eh7-uat-cleanup' 5
+    Navigate-ChromeWindow $chrome ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup') 5
   }
   if (-not $reason -or -not $confirm -or -not $submit) {
     throw 'EH7 UAT Cleanup controls were not found after explicit navigation retries.'
@@ -730,6 +762,7 @@ function Resolve-UatAnomalies {
   if ($diag) { Write-Host ('INFO uat_cleanup_diagnostics_label=' + $diag) }
 }
 
+Assert-ControlledUatTarget
 $backendZip = New-BackendPluginZip
 try {
   Deploy-BackendPlugin $backendZip
