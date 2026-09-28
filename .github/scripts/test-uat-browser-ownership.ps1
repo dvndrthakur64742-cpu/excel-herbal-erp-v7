@@ -123,6 +123,15 @@ foreach ($scenario in @('not_ready','invoke_failed','no_login_after_enable')) {
 }
 Write-Host 'PASS delayed_accessibility_and_login_readiness'
 
+$smokeText = Get-Content -LiteralPath $source -Raw
+Assert ($smokeText.Contains('function Set-LoginControlValue')) 'Runtime smoke must use a dedicated focused credential-entry helper.'
+Assert ($smokeText.Contains('[System.Windows.Forms.Clipboard]::SetText($Value)')) 'Runtime smoke credential entry must use clipboard paste after focusing the verified field.'
+Assert ($smokeText.Contains('for ($loginAttempt = 1; $loginAttempt -le 3; $loginAttempt++)')) 'Runtime smoke login must use a bounded retry budget.'
+Assert ($smokeText.Contains("Find-ByNameLike (Root $chrome) @('SIGN IN')")) 'Runtime smoke must re-query SIGN IN after credential entry.'
+Assert ($smokeText.Contains('uat_login_validation_retry=')) 'Runtime smoke must retry when Flutter reports empty credential validation.'
+Assert (-not $smokeText.Contains("Write-Host ('INFO UAT_PASSWORD=")) 'Runtime smoke must never log the UAT password.'
+Write-Host 'PASS runtime_login_focused_keyboard_retry_policy'
+
 $deploySource = Join-Path $PSScriptRoot 'deploy-uat-current-erp-workflow.ps1'
 $deployAst = [System.Management.Automation.Language.Parser]::ParseFile($deploySource,[ref]$tokens,[ref]$parseErrors)
 if ($parseErrors.Count) { throw 'Deployment script did not parse.' }
