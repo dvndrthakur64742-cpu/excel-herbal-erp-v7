@@ -441,6 +441,53 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
   $open = Find-ById $dialog '1'
   if (-not $open -or -not $open.Current.IsEnabled) { throw 'Deployment file picker Open button is unavailable.' }
   Invoke-Element $open
+  Write-Host 'INFO deployment_file_picker_confirm=uia_invoke'
+
+  # Give the native Open button a short bounded chance to close the picker.
+  for ($attempt = 0; $attempt -lt 8; $attempt++) {
+    Start-Sleep -Milliseconds 250
+    if ([UatWindowNative]::GetForegroundWindow() -ne $dialogHandle) {
+      try {
+        [void](Root $Browser)
+        Write-Host ('PASS deployment_file_picker_closed=' + $fileName)
+        return
+      } catch {}
+    }
+  }
+
+  # Some Chrome/Windows builds expose an InvokePattern on the native Open
+  # button but do not commit the filename selection through that pattern.
+  # Fall back only while the exact picker HWND is still a verified native
+  # #32770 dialog. Re-focus that HWND, re-enter the already-certified ZIP path
+  # through the filename edit, and press Enter on the verified dialog.
+  if ([UatWindowNative]::GetWindowClass($dialogHandle) -ne '#32770') {
+    throw 'Deployment file picker HWND changed before fallback confirmation.'
+  }
+  if (-not [UatWindowNative]::ForceForeground($dialogHandle) -or
+      [UatWindowNative]::GetForegroundWindow() -ne $dialogHandle) {
+    throw 'Deployment file picker could not be safely focused for fallback confirmation.'
+  }
+
+  $dialog = [System.Windows.Automation.AutomationElement]::FromHandle($dialogHandle)
+  if (-not $dialog -or -not $dialog.Current.IsEnabled -or $dialog.Current.IsOffscreen) {
+    throw 'Deployment file picker became unavailable before fallback confirmation.'
+  }
+  $fileControl = Find-ById $dialog '1148'
+  if (-not $fileControl) { throw 'Deployment file picker filename control disappeared before fallback confirmation.' }
+  $edit = $fileControl.FindFirst([System.Windows.Automation.TreeScope]::Subtree,$editCondition)
+  if (-not $edit) { throw 'Deployment file picker filename edit disappeared before fallback confirmation.' }
+
+  $edit.SetFocus()
+  [System.Windows.Forms.Clipboard]::SetText($fullPath)
+  [System.Windows.Forms.SendKeys]::SendWait('^a')
+  [System.Windows.Forms.SendKeys]::SendWait('^v')
+  Start-Sleep -Milliseconds 150
+  $value = $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+  if ($value.Current.Value -ne $fullPath) {
+    throw 'Deployment file picker fallback did not retain the certified ZIP path.'
+  }
+  Write-Host 'INFO deployment_file_picker_confirm=fallback_keyboard'
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
 
   # Do not trust the pre-picker UIA file-input object after the native dialog
   # closes. Chrome can leave that object stale even though the file was
@@ -458,7 +505,7 @@ function Choose-File([System.Windows.Automation.AutomationElement]$Button,[strin
       } catch {}
     }
   }
-  throw 'Deployment file picker did not close after choosing the certified ZIP.'
+  throw 'Deployment file picker did not close after verified fallback confirmation.'
 }
 
 function Assert-ControlledUatTarget([bool]$RequireErpHealth=$false) {
