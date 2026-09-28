@@ -5,7 +5,7 @@ use ExcelHerbal\ERP7\Database\Db;
 
 final class StagingSafety {
     public static function status():array {
-        $environment=self::environment();
+        $environment=Environment::type();
         if($environment!=='staging')return ['required'=>false,'sanitized'=>false,'environment'=>$environment];
         $db=Db::wpdb();
         $activeSessions=(int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('mobile_sessions').' WHERE revoked_at IS NULL');
@@ -27,9 +27,9 @@ final class StagingSafety {
     }
 
     public static function sanitize():array {
-        if(self::environment()!=='staging')throw new \RuntimeException('Staging sanitizer refuses non-staging environments.');
+        if(Environment::type()!=='staging')throw new \RuntimeException('Staging sanitizer refuses non-staging environments.');
         $host=strtolower((string)parse_url((string)home_url('/'),PHP_URL_HOST));
-        if($host===''||$host==='office.excelherbal.in')throw new \RuntimeException('Staging sanitizer refuses the production office host.');
+        Environment::assertSafeUatHost($host);
         $source=defined('EH7_SOURCE_HEAD')?(string)EH7_SOURCE_HEAD:'';
         if(!preg_match('/^[0-9a-f]{40}$/i',$source))throw new \RuntimeException('Staging sanitizer requires an exact packaged source head.');
 
@@ -45,8 +45,5 @@ final class StagingSafety {
         return ['sessions_revoked'=>$sessions,'push_devices_deactivated'=>$push]+$status;
     }
 
-    private static function environment():string {
-        if(function_exists('wp_get_environment_type'))return (string)wp_get_environment_type();
-        return defined('WP_ENVIRONMENT_TYPE')?(string)WP_ENVIRONMENT_TYPE:'production';
-    }
 }
+
