@@ -102,6 +102,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $env:EH7_PHP_EXE tests/fresh_uat_bootstrap_guard.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:EH7_PHP_EXE tests/build_uat_environment.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Route and contract checks
         run: |
           $ErrorActionPreference = 'Stop'
