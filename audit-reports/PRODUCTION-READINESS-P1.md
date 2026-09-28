@@ -127,3 +127,4 @@ No production deployment, database migration, plugin update, WordPress configura
 <!-- UAT deployment certification trigger: precise WordPress window-selection fix validated by CI on 2026-09-28. -->
 <!-- UAT deploy trigger after exact ZIP picker certification: 6a6227157eae18107de30ff449ae0193dd333195 -->
 <!-- UAT deploy trigger after runtime-smoke HOME fix certification: aac346f87c5d4c02b1ae25d84c8f69a44f28ffb8 -->
+<!-- UAT deploy trigger after atomic identical-web marker certification: a7f2b2d54d086f3380ae850deaa357374744af82 -->
