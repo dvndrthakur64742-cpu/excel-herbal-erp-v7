@@ -32,7 +32,7 @@ echo "PASS fresh_uat_seed_marker\n";
 
 $testHost='office.excelherbal.in';
 try{\ExcelHerbal\ERP7\Administration\FreshUatBootstrap::assertSafeTarget();fwrite(STDERR,"FAIL fresh_uat_office_refusal\n");exit(1);}
-catch(RuntimeException $e){if(!str_contains($e->getMessage(),'production office host')){fwrite(STDERR,"FAIL fresh_uat_office_message\n");exit(1);}}
+catch(RuntimeException $e){if(!str_contains($e->getMessage(),'explicit BUILD/UAT package marker')){fwrite(STDERR,"FAIL fresh_uat_office_message\n");exit(1);}}
 echo "PASS fresh_uat_refuses_office_host\n";
 
 $testHost='uat.example.test';$testEnv='production';
