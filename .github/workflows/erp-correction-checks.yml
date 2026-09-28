@@ -3,6 +3,16 @@ on:
   push:
     branches: [codex/erp735-document-integration]
   workflow_dispatch:
+    inputs:
+      controlled_uat_site_url:
+        description: 'Isolated HTTPS staging WordPress site root (never office.excelherbal.in)'
+        required: false
+        type: string
+      deploy_controlled_uat:
+        description: 'Build, deploy and runtime-smoke the controlled UAT target'
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
 concurrency:
@@ -415,10 +425,10 @@ jobs:
 
 
       - name: Build controlled UAT web candidate
-        if: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL != '' }}
+        if: ${{ (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '') }}
         working-directory: flutter-app
         env:
-          UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
           $site = [Uri]$env:UAT_SITE_URL.TrimEnd('/')
@@ -471,12 +481,12 @@ jobs:
 
 
   deploy-uat-current-erp:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-current]') && vars.EH7_CONTROLLED_UAT_SITE_URL != ''
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true)) && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '')
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 25
     env:
-      UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Deploy backend and certified web through current ERP workflow
@@ -528,12 +538,12 @@ jobs:
           Write-Host "PASS live_server_web_sha256=$serverHash"
 
   deploy-uat-web-session-race:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]') && vars.EH7_CONTROLLED_UAT_SITE_URL != ''
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]') && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '')
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     env:
-      UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Deploy certified web candidate through local authenticated WordPress session
@@ -554,11 +564,11 @@ jobs:
           Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
 
   deploy-only-session-race:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-only-session-race]') && vars.EH7_CONTROLLED_UAT_SITE_URL != ''
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-only-session-race]') && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '')
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     env:
-      UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Verify certified session-race candidate is present
@@ -582,7 +592,7 @@ jobs:
 
 
   final-uat-bundle:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && vars.EH7_CONTROLLED_UAT_SITE_URL != '' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '') && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 30
@@ -681,7 +691,7 @@ jobs:
           Remove-Item -LiteralPath $work -Recurse -Force
 
   uat-runtime-screen-smoke:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-current]') && vars.EH7_CONTROLLED_UAT_SITE_URL != ''
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true)) && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '')
     needs: [deploy-uat-current-erp]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
@@ -689,7 +699,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Verify authenticated Home and six business module landing screens
         env:
-          UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL }}
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
           UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
         run: |
