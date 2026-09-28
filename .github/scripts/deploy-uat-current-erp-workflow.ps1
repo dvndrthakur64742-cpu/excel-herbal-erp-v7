@@ -191,8 +191,46 @@ function Select-VerifiedWordPressCandidate($Candidates,[string]$AmbiguousMessage
   throw $AmbiguousMessage
 }
 
+function Select-AuthenticatedWordPressNavigationCandidate($Candidates,[string]$TargetHost) {
+  $items = @($Candidates)
+  if ($items.Count -eq 0) { return $null }
+  if ($items.Count -eq 1) { return $items[0] }
+
+  # These candidates will be navigated immediately to an exact requested
+  # wp-admin URL. Re-verify every candidate belongs to the same target host and
+  # an authenticated wp-admin path before resolving duplicate admin windows.
+  foreach ($entry in $items) {
+    $normalized = Normalize-WebAddress ([string]$entry.Address)
+    try {
+      $uri = [Uri]('https://' + $normalized)
+      if ($uri.Host -ine $TargetHost -or
+          -not $uri.AbsolutePath.StartsWith('/wp-admin',[StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Authenticated WordPress navigation candidate escaped the verified target admin host.'
+      }
+    } catch {
+      throw 'Authenticated WordPress navigation candidate could not be safely verified.'
+    }
+  }
+
+  $foreground = [UatWindowNative]::GetForegroundWindow()
+  $foregroundMatches = @($items | Where-Object {
+    [IntPtr]$_.Window.Current.NativeWindowHandle -eq $foreground
+  })
+  if ($foregroundMatches.Count -eq 1) {
+    Write-Host ('INFO same_host_wp_admin_navigation_candidates=' + $items.Count + ' selected=foreground hwnd=' + $foregroundMatches[0].Window.Current.NativeWindowHandle)
+    return $foregroundMatches[0]
+  }
+
+  $selected = $items | Sort-Object { [int64]$_.Window.Current.NativeWindowHandle } | Select-Object -First 1
+  Write-Host ('INFO same_host_wp_admin_navigation_candidates=' + $items.Count + ' selected=deterministic hwnd=' + $selected.Window.Current.NativeWindowHandle)
+  return $selected
+}
+
 function Get-AuthenticatedWordPressWindow([string]$Url,[string]$TitlePattern) {
   $target = Normalize-WebAddress $Url
+  if (-not $target) { return $null }
+  try { $targetUri = [Uri]('https://' + $target) }
+  catch { throw 'Requested WordPress deployment URL could not be normalized safely.' }
   $urlMatches = @()
   $titleMatches = @()
   $admin = @()
@@ -203,7 +241,6 @@ function Get-AuthenticatedWordPressWindow([string]$Url,[string]$TitlePattern) {
       if (-not $addressNormalized) { continue }
       try {
         $addressUri = [Uri]('https://' + $addressNormalized)
-        $targetUri = [Uri]('https://' + $target)
         if ($addressUri.Host -ine $targetUri.Host -or -not $addressUri.AbsolutePath.StartsWith('/wp-admin',[StringComparison]::OrdinalIgnoreCase)) { continue }
       } catch { continue }
       if ([string]$window.Current.Name -match '(?i)Log In|Login') { continue }
@@ -220,9 +257,9 @@ function Get-AuthenticatedWordPressWindow([string]$Url,[string]$TitlePattern) {
       Write-Host ('INFO ambiguous_wp_title_candidate address=' + $entry.Address + ' hwnd=' + $entry.Window.Current.NativeWindowHandle)
     }
   }
-  $selected = Select-VerifiedWordPressCandidate $titleMatches 'More than one authenticated WordPress window matches the requested deployment page.'
+  $selected = Select-AuthenticatedWordPressNavigationCandidate $titleMatches $targetUri.Host
   if ($selected) { return $selected }
-  return Select-VerifiedWordPressCandidate $admin 'More than one authenticated office WordPress admin window is open; deployment target is ambiguous.'
+  return Select-AuthenticatedWordPressNavigationCandidate $admin $targetUri.Host
 }
 
 function Open-DedicatedChromeWindow([string]$Url,[string]$TitlePattern) {
