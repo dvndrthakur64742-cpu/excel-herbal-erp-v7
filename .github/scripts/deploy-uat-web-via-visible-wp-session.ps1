@@ -1,6 +1,8 @@
 param(
   [Parameter(Mandatory = $true)]
-  [string]$SourceHead
+  [string]$SourceHead,
+  [Parameter(Mandatory = $true)]
+  [string]$UatSiteUrl
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,7 +14,13 @@ if ($SourceHead -notmatch '^[a-f0-9]{40}$') {
   throw 'SourceHead must be a 40-character lowercase commit SHA.'
 }
 
-$releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\candidates\' + $SourceHead)
+try { $uatUri = [Uri]$UatSiteUrl.TrimEnd('/') }
+catch { throw 'UatSiteUrl must be a valid absolute HTTPS URL.' }
+if (-not $uatUri.IsAbsoluteUri -or $uatUri.Scheme -ne 'https') { throw 'Controlled UAT site must use HTTPS.' }
+if ($uatUri.Host -ieq 'office.excelherbal.in') { throw 'Production office host is never a valid controlled UAT target.' }
+$uatSiteRoot = $UatSiteUrl.TrimEnd('/')
+
+$releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $SourceHead)
 $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
 $candidateMain = Join-Path $releaseRoot 'web\main.dart.js'
 foreach ($required in @($zipPath, $candidateMain)) {
@@ -26,7 +34,7 @@ $expectedMainHash = (Get-FileHash -LiteralPath $candidateMain -Algorithm SHA256)
 function Get-LiveMainHash {
   $tmp = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
   try {
-    $url = 'https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N')
+    $url = ($uatSiteRoot + '/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=') + [Guid]::NewGuid().ToString('N')
     & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 120 --retry 3 --retry-delay 2 --retry-all-errors --output $tmp $url
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tmp -PathType Leaf)) {
       throw 'Live main.dart.js could not be downloaded for verification after retries.'
@@ -109,7 +117,7 @@ function Invoke-Control([System.Windows.Automation.AutomationElement]$Element) {
 Write-Host ('INFO expected_main_sha256=' + $expectedMainHash)
 Write-Host 'INFO pre_upload_live_hash_check=skipped_runner_network_is_slow'
 
-$setupUrl = 'https://office.excelherbal.in/wp-admin/admin.php?page=eh7-setup-assistant&tab=desktop'
+    $setupUrl = $uatSiteRoot + '/wp-admin/admin.php?page=eh7-setup-assistant&tab=desktop'
 $chrome = Open-SetupAssistantWindow -Url $setupUrl
 $shell = New-Object -ComObject WScript.Shell
 if (-not $shell.AppActivate($chrome.Id)) {
