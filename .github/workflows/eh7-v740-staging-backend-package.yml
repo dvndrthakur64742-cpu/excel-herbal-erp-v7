@@ -45,7 +45,10 @@ jobs:
           @(
             '<?php',
             "if(!defined('ABSPATH'))exit;",
-            "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');"
+            "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');",
+            "define('EH7_DEPLOY_ENVIRONMENT','staging');",
+            "define('EH7_BUILD_UAT_ALLOW_OFFICE',true);",
+            "define('EH7_BUILD_UAT_HOST','office.excelherbal.in');"
           )|Set-Content -LiteralPath $buildMeta -Encoding ascii
           $zip=Join-Path $out 'excel-herbal-erp-v7.zip'
           Add-Type -AssemblyName System.IO.Compression
@@ -68,7 +71,7 @@ jobs:
           try{
             $entryNames=@($zipCheck.Entries|ForEach-Object{$_.FullName})
             if($entryNames|Where-Object{$_.Contains([char]92)}){throw 'Staging ZIP contains Windows backslash path entries.'}
-            foreach($required in @('excel-herbal-erp-v7.php','build-meta.php','src/Core/Autoloader.php','src/Http/ApiDispatch.php','src/Administration/StagingSafety.php','src/Administration/FreshUatBootstrap.php')){
+            foreach($required in @('excel-herbal-erp-v7.php','build-meta.php','src/Core/Autoloader.php','src/Http/ApiDispatch.php','src/Administration/Environment.php','src/Administration/StagingSafety.php','src/Administration/FreshUatBootstrap.php')){
               if($entryNames -notcontains $required){throw ('Staging ZIP missing required entry: '+$required)}
             }
           }finally{$zipCheck.Dispose()}
@@ -78,6 +81,8 @@ jobs:
           if(-not(Test-Path -LiteralPath (Join-Path $verifiedRoot 'excel-herbal-erp-v7.php'))){throw 'Staging ZIP root is invalid.'}
           $metaText=Get-Content -LiteralPath (Join-Path $verifiedRoot 'build-meta.php') -Raw
           if($metaText -notmatch [regex]::Escape($env:GITHUB_SHA)){throw 'Staging ZIP source-head metadata mismatch.'}
+          if($metaText -notmatch "EH7_DEPLOY_ENVIRONMENT','staging"){throw 'Staging ZIP deployment-environment marker is missing.'}
+          if($metaText -notmatch "EH7_BUILD_UAT_HOST','office\.excelherbal\.in"){throw 'Staging ZIP BUILD/UAT host marker is missing.'}
           $zipHash=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           $mainHash=(Get-FileHash -LiteralPath (Join-Path $pluginDir 'excel-herbal-erp-v7.php') -Algorithm SHA256).Hash.ToLowerInvariant()
           $metaHash=(Get-FileHash -LiteralPath $buildMeta -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -86,7 +91,7 @@ jobs:
           @(
             "commit=$env:GITHUB_SHA",
             "ref=$env:GITHUB_REF",
-            "purpose=controlled-staging-only",
+            "purpose=office-build-uat-only",
             "production_approved=false",
             "plugin_zip_sha256=$zipHash",
             "plugin_entrypoint_sha256=$mainHash",
