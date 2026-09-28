@@ -127,14 +127,14 @@ $deployAst = [System.Management.Automation.Language.Parser]::ParseFile($deploySo
 if ($parseErrors.Count) { throw 'Deployment script did not parse.' }
 $deployText = Get-Content -LiteralPath $deploySource -Raw
 Assert ($deployText.Contains('[string]$UatSiteUrl')) 'UAT deployment must require an explicit target site URL.'
-Assert ($deployText.Contains('Production office host is never a valid controlled UAT target.')) 'UAT deployment must explicitly reject the production office host.'
-Assert ($deployText.Contains('Controlled UAT target must report environment=staging')) 'UAT deployment must fail closed unless target health reports staging.'
-Assert ($deployText.Contains('Controlled UAT hostname must explicitly contain uat or staging.')) 'UAT deployment must require an explicitly named staging/UAT hostname.'
-Assert ($deployText.Contains('Assert-ControlledUatTarget -RequireErpHealth $false')) 'Fresh UAT deploy must allow pre-plugin health absence only before backend bootstrap.'
-Assert ($deployText.Contains('Assert-ControlledUatTarget -RequireErpHealth $true')) 'UAT deploy must require ERP staging health immediately after backend bootstrap.'
-Assert (-not $deployText.Contains('https://office.excelherbal.in/wp-admin/')) 'UAT deployment must not contain a hardcoded production-office admin URL.'
-Assert (-not $deployText.Contains('https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web')) 'UAT deployment must not contain a hardcoded production-office runtime URL.'
-Write-Host 'PASS deployment_controlled_staging_target_policy'
+Assert ($deployText.Contains("$script:isOfficeBuildUat = $uatUri.Host -ieq 'office.excelherbal.in'")) 'Deployment must recognize office.excelherbal.in only as an explicit BUILD/UAT host.'
+Assert ($deployText.Contains("define('EH7_DEPLOY_ENVIRONMENT','staging');")) 'UAT backend package must declare the ERP staging environment.'
+Assert ($deployText.Contains("define('EH7_BUILD_UAT_ALLOW_OFFICE',$allowOffice);")) 'UAT backend package must carry the explicit office BUILD/UAT marker.'
+Assert ($deployText.Contains("define('EH7_BUILD_UAT_HOST','$uatHost');")) 'UAT backend package must bind the marker to the exact target host.'
+Assert ($deployText.Contains('BUILD/UAT target must report environment=staging after backend deployment')) 'UAT deployment must fail closed unless the newly deployed backend reports staging.'
+Assert ($deployText.Contains('Assert-ControlledUatTarget -RequireErpHealth $false')) 'Fresh UAT deploy must tolerate the previous office environment only before backend replacement.'
+Assert ($deployText.Contains('Assert-ControlledUatTarget -RequireErpHealth $true')) 'UAT deploy must require ERP staging health immediately after backend deployment.'
+Write-Host 'PASS deployment_explicit_office_build_uat_policy'
 foreach ($name in @('Get-ChromeWindowAddress','Normalize-WebAddress','Test-WebAddressMatchesTarget','Select-VerifiedWordPressCandidate','Get-AuthenticatedWordPressWindow','Open-DedicatedChromeWindow','Root')) {
   $definition = $deployAst.Find({ param($node)
     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
