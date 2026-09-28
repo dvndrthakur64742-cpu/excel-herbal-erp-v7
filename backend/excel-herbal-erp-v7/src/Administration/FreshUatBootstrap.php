@@ -9,7 +9,7 @@ use ExcelHerbal\ERP7\Setup\SetupService;
 
 final class FreshUatBootstrap {
     public static function status():array {
-        $environment=self::environment();
+        $environment=Environment::type();
         if($environment!=='staging')return ['required'=>false,'seeded'=>false,'environment'=>$environment];
         $source=defined('EH7_SOURCE_HEAD')?(string)EH7_SOURCE_HEAD:'source-tree';
         $marker=(string)get_option('eh7_uat_seed_source_head','');
@@ -34,9 +34,9 @@ final class FreshUatBootstrap {
     }
 
     public static function assertSafeTarget():void {
-        if(self::environment()!=='staging')throw new \RuntimeException('Fresh UAT bootstrap refuses non-staging environments.');
+        if(Environment::type()!=='staging')throw new \RuntimeException('Fresh UAT bootstrap refuses non-staging environments.');
         $host=strtolower((string)parse_url((string)home_url('/'),PHP_URL_HOST));
-        if($host===''||$host==='office.excelherbal.in')throw new \RuntimeException('Fresh UAT bootstrap refuses the production office host.');
+        Environment::assertSafeUatHost($host);
         $source=defined('EH7_SOURCE_HEAD')?(string)EH7_SOURCE_HEAD:'';
         if(!preg_match('/^[0-9a-f]{40}$/i',$source))throw new \RuntimeException('Fresh UAT bootstrap requires an exact packaged source head.');
     }
@@ -115,8 +115,5 @@ final class FreshUatBootstrap {
     }
 
     private static function mobile(string $value):string{return preg_replace('/\D+/','',$value)?:'';}
-    private static function environment():string {
-        if(function_exists('wp_get_environment_type'))return (string)wp_get_environment_type();
-        return defined('WP_ENVIRONMENT_TYPE')?(string)WP_ENVIRONMENT_TYPE:'production';
-    }
 }
+
