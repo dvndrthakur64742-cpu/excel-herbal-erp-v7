@@ -124,3 +124,4 @@ Do not expose a feature as production-ready merely because route constants or UI
 ## Change control
 
 No production deployment, database migration, plugin update, WordPress configuration mutation, PR merge, or release publication is authorized by this checklist alone. Each production-affecting batch requires explicit owner approval.
+<!-- UAT deployment certification trigger: precise WordPress window-selection fix validated by CI on 2026-09-28. -->
