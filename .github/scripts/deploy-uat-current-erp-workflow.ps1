@@ -299,6 +299,41 @@ function Navigate-ChromeWindow([System.Diagnostics.Process]$Process,[string]$Url
   Write-Host ('INFO chrome_page_title=' + (Root $Process).Current.Name)
 }
 
+function Wait-ForWordPressAdminAuthentication([System.Diagnostics.Process]$Process,[string]$TargetUrl,[int]$Seconds=480) {
+  $notified = $false
+  $iterations = [Math]::Max(1,$Seconds * 2)
+  for ($attempt=0; $attempt -lt $iterations; $attempt++) {
+    $root = Root $Process
+    $title = [string]$root.Current.Name
+    $address = ''
+    try { $address = [string](Get-ChromeWindowAddress $root) } catch {}
+
+    if ($title -notmatch '(?i)Log In|Login' -and $address -match '(?i)(https?://)?[^/]+/wp-admin(?:/|\?|$)') {
+      Write-Host ('PASS wordpress_admin_session_authenticated=true address=' + $address)
+      if (-not (Test-WebAddressMatchesTarget $address $TargetUrl)) {
+        Navigate-ChromeWindow $Process $TargetUrl 5
+        $root = Root $Process
+        if ([string]$root.Current.Name -match '(?i)Log In|Login') {
+          throw 'WordPress admin session became unauthenticated after post-login navigation.'
+        }
+      }
+      return
+    }
+
+    if (-not $notified) {
+      Activate-OwnedChromeWindow $Process
+      Write-Host ('ACTION_REQUIRED wordpress_admin_login=true target=' + $TargetUrl)
+      Write-Host 'ACTION_REQUIRED Complete WordPress admin login in the foreground runner Chrome window; deployment will continue automatically.'
+      $notified = $true
+    } elseif (($attempt % 20) -eq 0) {
+      Write-Host ('INFO wordpress_admin_login_wait_seconds=' + [Math]::Floor($attempt / 2))
+    }
+    Start-Sleep -Milliseconds 500
+  }
+  throw 'WordPress admin login was not completed within the bounded deployment wait.'
+}
+
+
 function Find-ById([System.Windows.Automation.AutomationElement]$Root,[string]$Id) {
   $condition = New-Object System.Windows.Automation.PropertyCondition(
     [System.Windows.Automation.AutomationElement]::AutomationIdProperty,$Id
@@ -629,7 +664,7 @@ function Deploy-BackendPlugin([string]$ZipPath) {
   $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/plugin-install.php?tab=upload') -TitlePattern 'Add Plugins|Upload Plugin|WordPress'
   Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
-  if ((Root $chrome).Current.Name -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
+  Wait-ForWordPressAdminAuthentication $chrome ($script:uatSiteRoot + '/wp-admin/plugin-install.php?tab=upload')
 
   $root = Root $chrome
   $file = $null
@@ -720,7 +755,7 @@ function Deploy-WebRuntime {
   $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy') -TitlePattern 'EH7 UAT Web Deploy|WordPress'
   Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
-  if ((Root $chrome).Current.Name -match 'Log In|Login') { throw 'WordPress admin session is not authenticated.' }
+  Wait-ForWordPressAdminAuthentication $chrome ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy')
 
   $root = Root $chrome
   $file = $null
@@ -793,9 +828,7 @@ function Resolve-UatAnomalies {
   $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup') -TitlePattern 'EH7 UAT Cleanup|WordPress'
   Activate-OwnedChromeWindow $chrome
   Start-Sleep -Seconds 5
-  if ((Root $chrome).Current.Name -match 'Log In|Login') {
-    throw 'WordPress admin session is not authenticated for UAT cleanup.'
-  }
+  Wait-ForWordPressAdminAuthentication $chrome ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup')
 
   $root = Root $chrome
   $reason = $null
