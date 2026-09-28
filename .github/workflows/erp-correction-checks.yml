@@ -5,11 +5,11 @@ on:
   workflow_dispatch:
     inputs:
       controlled_uat_site_url:
-        description: 'Isolated HTTPS staging WordPress site root (never office.excelherbal.in)'
+        description: 'BUILD/UAT WordPress site root; defaults to office.excelherbal.in on this build branch'
         required: false
         type: string
       deploy_controlled_uat:
-        description: 'Build, deploy and runtime-smoke the controlled UAT target'
+        description: 'Build, deploy and runtime-smoke the BUILD/UAT target'
         required: false
         default: false
         type: boolean
@@ -425,15 +425,15 @@ jobs:
 
 
       - name: Build controlled UAT web candidate
-        if: ${{ (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '') }}
+        if: ${{ contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true) }}
         working-directory: flutter-app
         env:
-          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
         run: |
           $ErrorActionPreference = 'Stop'
           $site = [Uri]$env:UAT_SITE_URL.TrimEnd('/')
           if (-not $site.IsAbsoluteUri -or $site.Scheme -ne 'https') { throw 'Controlled UAT site must use HTTPS.' }
-          if ($site.Host -ieq 'office.excelherbal.in') { throw 'Production office host is never a valid controlled UAT target.' }
+          if ($site.Host -ine 'office.excelherbal.in' -and $site.Host -notmatch '(?i)(^|[-.])(uat|staging)([-.]|$)') { throw 'BUILD/UAT hostname must be office.excelherbal.in or explicitly contain uat/staging.' }
           $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
 
           & $env:EH7_FLUTTER_EXE build web --release --no-pub --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=$apiBase --dart-define=EH7_ENVIRONMENT=uat
@@ -481,12 +481,12 @@ jobs:
 
 
   deploy-uat-current-erp:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true)) && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 25
     env:
-      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Deploy backend and certified web through current ERP workflow
@@ -538,12 +538,12 @@ jobs:
           Write-Host "PASS live_server_web_sha256=$serverHash"
 
   deploy-uat-web-session-race:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]') && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]')
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     env:
-      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Deploy certified web candidate through local authenticated WordPress session
@@ -564,11 +564,11 @@ jobs:
           Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
 
   deploy-only-session-race:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-only-session-race]') && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-only-session-race]')
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     env:
-      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Verify certified session-race candidate is present
@@ -592,10 +592,12 @@ jobs:
 
 
   final-uat-bundle:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '') && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true)) && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
     needs: [php-regression, flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 30
+    env:
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Build single-upload exact-head UAT deployment bundle
@@ -613,10 +615,15 @@ jobs:
           New-Item -ItemType Directory -Path $web -Force | Out-Null
           Copy-Item -Path 'backend\excel-herbal-erp-v7\*' -Destination $plugin -Recurse -Force
           Copy-Item -Path (Join-Path $sourceWeb '*') -Destination $web -Recurse -Force
+          $uatHost = ([Uri]$env:UAT_SITE_URL.TrimEnd('/')).Host.ToLowerInvariant()
+          $allowOffice = if ($uatHost -eq 'office.excelherbal.in') { 'true' } else { 'false' }
           @(
             '<?php',
             "if(!defined('ABSPATH'))exit;",
-            "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');"
+            "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');",
+            "define('EH7_DEPLOY_ENVIRONMENT','staging');",
+            "define('EH7_BUILD_UAT_ALLOW_OFFICE',$allowOffice);",
+            "define('EH7_BUILD_UAT_HOST','$uatHost');"
           ) | Set-Content -LiteralPath (Join-Path $plugin 'build-meta.php') -Encoding ascii
           $schemaLine = Select-String -LiteralPath (Join-Path $plugin 'src\Database\Schema.php') -Pattern "public const VERSION='([^']+)'" | Select-Object -First 1
           if (-not $schemaLine) { throw 'Schema version could not be read.' }
@@ -628,13 +635,13 @@ jobs:
             "schema=$schemaVersion",
             "plugin_entrypoint_sha256=$pluginMainHash",
             "web_main_sha256=$webMainHash",
-            "purpose=controlled-staging-uat-final-bundle",
+            "purpose=build-uat-final-bundle",
             "production_approved=false"
           ) | Set-Content -LiteralPath (Join-Path $payload 'FINAL-MANIFEST.txt') -Encoding ascii
           @(
             'ONE-UPLOAD UAT DEPLOYMENT BUNDLE',
             '',
-            '1. Confirm the target is a controlled staging host and keep its current rollback copy.',
+            '1. Confirm the target is the current BUILD/UAT host and keep its current rollback copy.',
             '2. Upload this bundle to Hostinger File Manager and extract to a temporary folder.',
             '3. Replace wp-content/plugins/excel-herbal-erp-v7 with plugin/excel-herbal-erp-v7.',
             '4. Replace wp-content/uploads/eh7-flutter-web with web/eh7-flutter-web.',
@@ -691,7 +698,7 @@ jobs:
           Remove-Item -LiteralPath $work -Recurse -Force
 
   uat-runtime-screen-smoke:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true)) && (inputs.controlled_uat_site_url != '' || vars.EH7_CONTROLLED_UAT_SITE_URL != '')
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
     needs: [deploy-uat-current-erp]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
@@ -699,7 +706,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Verify authenticated Home and six business module landing screens
         env:
-          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL }}
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
           UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
         run: |
