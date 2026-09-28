@@ -1,3 +1,4 @@
+# BUILD/UAT certification trigger: office.excelherbal.in
 # Behavioral tests with fake browser/UIA boundaries: no browser, network or ERP data.
 $ErrorActionPreference = 'Stop'
 $tokens = $null
