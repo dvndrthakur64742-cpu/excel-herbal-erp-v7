@@ -23,5 +23,5 @@ if(($options['eh7_staging_sanitized_source_head']??'')!==EH7_SOURCE_HEAD){fwrite
 echo "PASS staging_safety_sanitize_clone_sessions_push_and_indexing\n";
 $testHost='office.excelherbal.in';
 try{\ExcelHerbal\ERP7\Administration\StagingSafety::sanitize();fwrite(STDERR,"FAIL staging_safety_office_refusal\n");exit(1);}
-catch(\RuntimeException $e){if(!str_contains($e->getMessage(),'production office host')){fwrite(STDERR,"FAIL staging_safety_office_refusal_message\n");exit(1);}}
+catch(\RuntimeException $e){if(!str_contains($e->getMessage(),'explicit BUILD/UAT package marker')){fwrite(STDERR,"FAIL staging_safety_office_refusal_message\n");exit(1);}}
 echo "PASS staging_safety_refuses_office_host\n";
