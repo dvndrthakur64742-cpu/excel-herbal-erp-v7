@@ -202,6 +202,31 @@ function Wait-ForAnyName([System.Diagnostics.Process]$Process,[string[]]$Names,[
   return $null
 }
 
+function Wait-ForAuthenticatedWorkspace([System.Diagnostics.Process]$Process,[int]$Seconds = 25) {
+  for ($attempt = 0; $attempt -lt ($Seconds * 2); $attempt++) {
+    Start-Sleep -Milliseconds 500
+    try {
+      $root = Root $Process
+      $legacy = Find-ByNameLike $root @('ERP Workspace')
+      if ($legacy) {
+        Write-Host 'INFO authenticated_workspace_marker=legacy_workspace'
+        return $legacy
+      }
+
+      $names = @(All-Names $root)
+      $hasHome = $names -contains 'Home'
+      $hasMyWork = $names -contains 'My Work'
+      $hasProfile = $names -contains 'Profile'
+      $hasGreeting = @($names | Where-Object { $_ -match '^Good (morning|afternoon|evening),' }).Count -gt 0
+      if ($hasHome -and $hasMyWork -and $hasProfile -and $hasGreeting) {
+        Write-Host 'INFO authenticated_workspace_marker=current_shell'
+        return $root
+      }
+    } catch {}
+  }
+  return $null
+}
+
 function Wait-ForFreshLogin([System.Diagnostics.Process]$Process) {
   # A cold profile downloads the Flutter runtime before exposing its semantics
   # opt-in control. Wait for readiness, rather than a short startup-only probe.
@@ -302,7 +327,7 @@ try {
       $evidence.phase = 'authenticated_workspace'
       Write-Host ('INFO uat_login_submitted_attempt=' + $loginAttempt)
 
-      $workspace = Wait-ForAnyName $chrome @('ERP Workspace') 15
+      $workspace = Wait-ForAuthenticatedWorkspace $chrome 15
       if ($workspace) { break }
 
       $names = @(All-Names (Root $chrome))
