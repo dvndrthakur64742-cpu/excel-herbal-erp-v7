@@ -45,8 +45,8 @@ final class UatWebDeployAdmin{
             echo '<p><label for="eh7_web_bundle"><strong>Certified Flutter Web ZIP</strong></label><br><input id="eh7_web_bundle" name="web_bundle" type="file" accept=".zip,application/zip" required></p>';
             echo '<p><label for="eh7_source_head"><strong>Certified source head</strong></label><br><input id="eh7_source_head" name="source_head" class="regular-text code" pattern="[0-9a-f]{40}" maxlength="40" required></p>';
             echo '<p><label for="eh7_reason"><strong>Audit reason</strong></label><br><input id="eh7_reason" name="reason" class="regular-text" value="Deploy certified UAT web runtime" required minlength="10"></p>';
-            echo '<p><label><input type="checkbox" name="confirm" value="1" required> I confirm this certified BUILD/UAT web deployment.</label></p>';
-            submit_button('Deploy Certified Web Bundle','primary','submit',false);
+            echo '<p><label for="eh7_confirm"><input id="eh7_confirm" type="checkbox" name="confirm" value="1" required> I confirm this certified BUILD/UAT web deployment.</label></p>';
+            submit_button('Deploy Certified Web Bundle','primary','submit',false,['id'=>'eh7_submit']);
             echo '</form>';
         }catch(\Throwable $e){
             echo '<div class="notice notice-error"><p>'.esc_html($e->getMessage()).'</p></div>';
