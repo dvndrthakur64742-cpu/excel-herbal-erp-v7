@@ -30,11 +30,14 @@ final class UatWebDeployAdmin{
             echo '<div class="notice '.(!empty($result['ok'])?'notice-success':'notice-error').'"><p>'.esc_html((string)($result['message']??'Deployment result unavailable.')).'</p></div>';
         }
         try{
-            $actor=ActorResolver::current();
-            Guard::cap($actor,Capabilities::ACCESS_MANAGE);
+            $actor=self::deploymentActor();
             $uploads=wp_upload_dir();
             $target=rtrim((string)$uploads['basedir'],'/\\').'/eh7-flutter-web';
-            echo '<p><strong>ERP actor:</strong> '.esc_html((string)$actor->designationCode).' · Employee #'.esc_html((string)$actor->employeeId).'</p>';
+            if($actor){
+                echo '<p><strong>ERP actor:</strong> '.esc_html((string)$actor->designationCode).' · Employee #'.esc_html((string)$actor->employeeId).'</p>';
+            }else{
+                echo '<p><strong>UAT deployment authority:</strong> WordPress administrator · controlled BUILD/UAT fallback</p>';
+            }
             echo '<p><strong>Current runtime:</strong> '.esc_html(is_file($target.'/main.dart.js')?'present':'missing').'</p>';
             echo '<form method="post" enctype="multipart/form-data" action="'.esc_url(admin_url('admin-post.php')).'">';
             wp_nonce_field(self::ACTION);
@@ -60,22 +63,46 @@ final class UatWebDeployAdmin{
             if(empty($_POST['confirm']))throw new \RuntimeException('Explicit deployment confirmation is required.');
             if(strlen($reason)<10)throw new \RuntimeException('A deployment audit reason is required.');
             if(!preg_match('/^[0-9a-f]{40}$/',$sourceHead))throw new \RuntimeException('Certified source head is invalid.');
-            $actor=ActorResolver::current();
-            Guard::cap($actor,Capabilities::ACCESS_MANAGE);
+            $actor=self::deploymentActor();
             $result=self::deploy($_FILES['web_bundle']??[],$sourceHead);
-            Audit::add($actor,'administration.uat_web_deploy','web_runtime',$sourceHead,[
+            $auditContext=[
                 'source_head'=>$sourceHead,
                 'main_sha256'=>$result['main_sha256'],
                 'manifest_sha256'=>$result['manifest_sha256'],
                 'rollback'=>$result['rollback'],
                 'reason'=>$reason,
-            ]);
+            ];
+            if($actor){
+                Audit::add($actor,'administration.uat_web_deploy','web_runtime',$sourceHead,$auditContext);
+            }else{
+                update_option('eh7_uat_web_deploy_last_wp_admin_audit',[
+                    'wp_user_id'=>get_current_user_id(),
+                    'source_head'=>$sourceHead,
+                    'main_sha256'=>$result['main_sha256'],
+                    'manifest_sha256'=>$result['manifest_sha256'],
+                    'rollback'=>$result['rollback'],
+                    'reason'=>$reason,
+                    'created_at'=>gmdate('c'),
+                ],false);
+            }
             set_transient(self::resultKey(),['ok'=>true,'message'=>'Certified UAT web bundle deployed. Source '.$sourceHead.' · main.dart.js '.$result['main_sha256']],180);
         }catch(\Throwable $e){
             set_transient(self::resultKey(),['ok'=>false,'message'=>$e->getMessage()],180);
         }
         wp_safe_redirect(admin_url('tools.php?page='.self::PAGE));
         exit;
+    }
+
+    private static function deploymentActor():?\ExcelHerbal\ERP7\Security\Actor{
+        try{
+            $actor=ActorResolver::current();
+        }catch(\Throwable $e){
+            $host=strtolower((string)parse_url((string)home_url('/'),PHP_URL_HOST));
+            if(current_user_can('manage_options')&&Environment::allowsOfficeBuildUat()&&$host==='office.excelherbal.in')return null;
+            throw $e;
+        }
+        Guard::cap($actor,Capabilities::ACCESS_MANAGE);
+        return $actor;
     }
 
     private static function deploy(array $file,string $sourceHead):array{
