@@ -133,3 +133,4 @@ No production deployment, database migration, plugin update, WordPress configura
 <!-- UAT deploy trigger after current-shell smoke certification: 917cd4029692c3d30d88053f03728031f8e54aae -->
 <!-- UAT deploy trigger after controlled admin-fallback certification: 7070f1c683db3c6f63962ae4508d29110a59da3d -->
 <!-- clean runtime-smoke setup recovery trigger: 2026-09-29 -->
+<!-- UAT deploy trigger after navigation-ancestor smoke certification: 5378766edbd3c8f40c639c08edeacd16ada9c671 -->
