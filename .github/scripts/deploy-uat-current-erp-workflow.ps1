@@ -352,6 +352,38 @@ function Find-ByName([System.Windows.Automation.AutomationElement]$Root,[string]
   return $null
 }
 
+function Find-ControlByIdOrNameLike(
+  [System.Windows.Automation.AutomationElement]$Root,
+  [string]$Id,
+  [string[]]$Names,
+  [System.Windows.Automation.AutomationPattern]$RequiredPattern
+) {
+  $byId = Find-ById $Root $Id
+  if ($byId) {
+    try {
+      [void]$byId.GetCurrentPattern($RequiredPattern)
+      return $byId
+    } catch {}
+  }
+
+  $all = $Root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($element in $all) {
+    try {
+      $current = ([string]$element.Current.Name).Trim()
+      if (-not $current) { continue }
+      $matches = $false
+      foreach ($pattern in $Names) {
+        if ($current -like $pattern) { $matches = $true; break }
+      }
+      if (-not $matches) { continue }
+      [void]$element.GetCurrentPattern($RequiredPattern)
+      Write-Host ('INFO deployment_control_name_fallback id=' + $Id + ' name=' + $current)
+      return $element
+    } catch {}
+  }
+  return $null
+}
+
 function Write-UiHints([System.Windows.Automation.AutomationElement]$Root,[string]$Label) {
   Write-Host ('INFO ui_hints_begin=' + $Label)
   $seen = @{}
@@ -745,11 +777,11 @@ function Deploy-WebRuntime {
   $submit = $null
   for ($pageAttempt=1; $pageAttempt -le 3; $pageAttempt++) {
     $root = Root $chrome
-    $file = Find-ById $root 'eh7_web_bundle'
-    $source = Find-ById $root 'eh7_source_head'
-    $reason = Find-ById $root 'eh7_reason'
-    $confirm = Find-ByName $root '*confirm this certified BUILD/UAT web deployment*' $true
-    $submit = Find-ByName $root 'Deploy Certified Web Bundle'
+    $file = Find-ControlByIdOrNameLike $root 'eh7_web_bundle' @('*Certified Flutter Web ZIP*','*Choose File*') ([System.Windows.Automation.InvokePattern]::Pattern)
+    $source = Find-ControlByIdOrNameLike $root 'eh7_source_head' @('*Certified source head*') ([System.Windows.Automation.ValuePattern]::Pattern)
+    $reason = Find-ControlByIdOrNameLike $root 'eh7_reason' @('*Audit reason*') ([System.Windows.Automation.ValuePattern]::Pattern)
+    $confirm = Find-ControlByIdOrNameLike $root 'eh7_confirm' @('*confirm this certified BUILD/UAT web deployment*') ([System.Windows.Automation.TogglePattern]::Pattern)
+    $submit = Find-ControlByIdOrNameLike $root 'eh7_submit' @('Deploy Certified Web Bundle') ([System.Windows.Automation.InvokePattern]::Pattern)
     if ($file -and $source -and $reason -and $confirm -and $submit) { break }
     Write-Host ('INFO web_deploy_controls_retry=' + $pageAttempt)
     try { Write-UiHints $root ('web_deploy_controls_missing_' + $pageAttempt) } catch {}
@@ -761,9 +793,9 @@ function Deploy-WebRuntime {
 
   Choose-File $file $webZip $chrome
   $root = Root $chrome
-  Set-ElementValue (Find-ById $root 'eh7_source_head') $SourceHead
-  Set-ElementValue (Find-ById $root 'eh7_reason') 'Deploy certified exact-head build to controlled UAT'
-  $confirm = Find-ByName $root '*confirm this certified BUILD/UAT web deployment*' $true
+  Set-ElementValue (Find-ControlByIdOrNameLike $root 'eh7_source_head' @('*Certified source head*') ([System.Windows.Automation.ValuePattern]::Pattern)) $SourceHead
+  Set-ElementValue (Find-ControlByIdOrNameLike $root 'eh7_reason' @('*Audit reason*') ([System.Windows.Automation.ValuePattern]::Pattern)) 'Deploy certified exact-head build to controlled UAT'
+  $confirm = Find-ControlByIdOrNameLike $root 'eh7_confirm' @('*confirm this certified BUILD/UAT web deployment*') ([System.Windows.Automation.TogglePattern]::Pattern)
   $toggle = $confirm.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
   if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) { $toggle.Toggle() }
 
@@ -771,7 +803,7 @@ function Deploy-WebRuntime {
   # well over the old fixed wait to validate/extract a production Flutter ZIP,
   # so verify by polling the server-side source marker instead of assuming a
   # 12-18 second completion time.
-  $submit = Find-ByName (Root $chrome) 'Deploy Certified Web Bundle'
+  $submit = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_submit' @('Deploy Certified Web Bundle') ([System.Windows.Automation.InvokePattern]::Pattern)
   if (-not $submit) { throw 'Deploy Certified Web Bundle submit control disappeared before submission.' }
   Invoke-Element $submit
   Write-Host 'INFO web_deploy_submit_invoked=true'
