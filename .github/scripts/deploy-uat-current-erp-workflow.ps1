@@ -288,15 +288,49 @@ function Activate-OwnedChromeWindow([System.Diagnostics.Process]$Process) {
 }
 
 function Navigate-ChromeWindow([System.Diagnostics.Process]$Process,[string]$Url,[int]$SettleSeconds=5) {
-  Activate-OwnedChromeWindow $Process
-  Start-Sleep -Milliseconds 250
-  [System.Windows.Forms.SendKeys]::SendWait('^l')
-  Start-Sleep -Milliseconds 120
-  [System.Windows.Forms.Clipboard]::SetText($Url)
-  [System.Windows.Forms.SendKeys]::SendWait('^v')
-  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-  Start-Sleep -Seconds $SettleSeconds
-  Write-Host ('INFO chrome_page_title=' + (Root $Process).Current.Name)
+  $beforeRoot = Root $Process
+  $beforeTitle = [string]$beforeRoot.Current.Name
+  $beforeAddress = ''
+  try { $beforeAddress = [string](Get-ChromeWindowAddress $beforeRoot) } catch {}
+  $alreadyTarget = Test-WebAddressMatchesTarget $beforeAddress $Url
+
+  for ($navAttempt=1; $navAttempt -le 3; $navAttempt++) {
+    Activate-OwnedChromeWindow $Process
+    Start-Sleep -Milliseconds 250
+    [System.Windows.Forms.SendKeys]::SendWait('^l')
+    Start-Sleep -Milliseconds 120
+    [System.Windows.Forms.Clipboard]::SetText($Url)
+    [System.Windows.Forms.SendKeys]::SendWait('^a')
+    [System.Windows.Forms.SendKeys]::SendWait('^v')
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+
+    $iterations = [Math]::Max(8,$SettleSeconds * 4)
+    for ($attempt=0; $attempt -lt $iterations; $attempt++) {
+      Start-Sleep -Milliseconds 250
+      $root = Root $Process
+      $title = [string]$root.Current.Name
+      $address = ''
+      try { $address = [string](Get-ChromeWindowAddress $root) } catch {}
+      $addressMatches = Test-WebAddressMatchesTarget $address $Url
+      $pageTransitioned = $alreadyTarget -or ($title -ne $beforeTitle)
+
+      if ($addressMatches -and $pageTransitioned) {
+        Write-Host ('INFO chrome_navigation_verified=true attempt=' + $navAttempt + ' address=' + $address)
+        Write-Host ('INFO chrome_page_title=' + $title)
+        return
+      }
+    }
+
+    Write-Host ('INFO chrome_navigation_retry=' + $navAttempt + ' target=' + $Url)
+    # If the address bar changed but content did not, re-entering the exact
+    # target forces Chrome to commit/reload the requested admin page.
+    $alreadyTarget = $false
+  }
+
+  $finalRoot = Root $Process
+  $finalAddress = ''
+  try { $finalAddress = [string](Get-ChromeWindowAddress $finalRoot) } catch {}
+  throw ('Chrome navigation did not verify the requested page. target=' + $Url + ' address=' + $finalAddress + ' title=' + [string]$finalRoot.Current.Name)
 }
 
 function Wait-ForWordPressAdminAuthentication([System.Diagnostics.Process]$Process,[string]$TargetUrl,[int]$Seconds=480) {
