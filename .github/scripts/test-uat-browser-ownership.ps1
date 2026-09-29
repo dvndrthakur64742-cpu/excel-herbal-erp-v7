@@ -131,6 +131,12 @@ Assert ($smokeText.Contains('Find-ByNameLike (Root $chrome)') -and $smokeText.Co
 Assert ($smokeText.Contains('uat_login_validation_retry=')) 'Runtime smoke must retry when Flutter reports empty credential validation.'
 Assert (-not $smokeText.Contains("Write-Host ('INFO UAT_PASSWORD=")) 'Runtime smoke must never log the UAT password.'
 Write-Host 'PASS runtime_login_focused_keyboard_retry_policy'
+Assert ($smokeText.Contains('function Wait-ForAuthenticatedWorkspace')) 'Runtime smoke must detect the authenticated shell with a dedicated bounded wait.'
+Assert ($smokeText.Contains("$names -contains 'Home'") -and $smokeText.Contains("$names -contains 'My Work'") -and $smokeText.Contains("$names -contains 'Profile'")) 'Authenticated shell detection must require stable navigation markers.'
+Assert ($smokeText.Contains("^Good (morning|afternoon|evening),")) 'Authenticated shell detection must require a signed-in greeting marker.'
+Assert ($smokeText.Contains('authenticated_workspace_marker=current_shell')) 'Runtime smoke must log when current-shell composite detection is used.'
+Assert ($smokeText.Contains('$workspace = Wait-ForAuthenticatedWorkspace $chrome 15')) 'Runtime login must use the current authenticated-shell detector.'
+Write-Host 'PASS runtime_authenticated_shell_composite_detection'
 
 $deploySource = Join-Path $PSScriptRoot 'deploy-uat-current-erp-workflow.ps1'
 $deployAst = [System.Management.Automation.Language.Parser]::ParseFile($deploySource,[ref]$tokens,[ref]$parseErrors)
