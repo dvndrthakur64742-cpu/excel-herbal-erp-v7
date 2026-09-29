@@ -132,7 +132,7 @@ function Write-UiHints([System.Diagnostics.Process]$Process,[string]$Label) {
   Write-Host ('INFO uat_ui_hints_end=' + $Label)
 }
 
-function Try-Invoke([System.Windows.Automation.AutomationElement]$Element) {
+function Try-InvokeSingle([System.Windows.Automation.AutomationElement]$Element) {
   if (-not $Element) { return $false }
   try {
     $p = $Element.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
@@ -150,10 +150,32 @@ function Try-Invoke([System.Windows.Automation.AutomationElement]$Element) {
     return $true
   } catch {}
   try {
-    $Element.SetFocus()
-    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-    return $true
+    if ($Element.Current.IsKeyboardFocusable) {
+      $Element.SetFocus()
+      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+      return $true
+    }
   } catch {}
+  return $false
+}
+
+function Try-Invoke([System.Windows.Automation.AutomationElement]$Element) {
+  if (-not $Element) { return $false }
+  if (Try-InvokeSingle $Element) { return $true }
+
+  # Flutter/Chrome semantics can expose the visible label as a non-clickable
+  # text child while the actionable control is one of its ancestors. Walk a
+  # bounded parent chain and invoke the first actionable ancestor.
+  $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $current = $Element
+  for ($depth = 1; $depth -le 4; $depth++) {
+    try { $current = $walker.GetParent($current) } catch { $current = $null }
+    if (-not $current) { break }
+    if (Try-InvokeSingle $current) {
+      Write-Host ('INFO uat_navigation_invoked_via_ancestor_depth=' + $depth)
+      return $true
+    }
+  }
   return $false
 }
 
