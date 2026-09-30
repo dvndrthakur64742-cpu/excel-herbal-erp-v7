@@ -88,6 +88,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                     ],
                   );
                 },
+                ),
               ),
             ],
           ),
