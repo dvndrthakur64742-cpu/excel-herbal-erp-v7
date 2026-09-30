@@ -316,19 +316,11 @@ class _RecordsListState extends State<RecordsList> {
                       cells: [
                         for (final key in keys)
                           DataCell(
-                            ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: _cellWidth(key),
-                              ),
-                              child: Tooltip(
-                                message: BusinessFormat.value(key, row[key]),
-                                child: Text(
-                                  BusinessFormat.value(key, row[key]),
-                                  textAlign: _isNumericKey(key) ? TextAlign.right : TextAlign.left,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
+                            _desktopCell(
+                              context,
+                              key,
+                              row[key],
+                              primary: key == keys.first,
                             ),
                           ),
                         DataCell(
@@ -654,6 +646,47 @@ class _RecordsListState extends State<RecordsList> {
           'balance',
           'points',
         }.contains(k);
+  }
+
+  Widget _desktopCell(
+    BuildContext context,
+    String key,
+    dynamic rawValue, {
+    required bool primary,
+  }) {
+    final value = BusinessFormat.value(key, rawValue);
+    final child = key == 'status'
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              BusinessFormat.status(rawValue),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          )
+        : Text(
+            value,
+            textAlign: _isNumericKey(key) ? TextAlign.right : TextAlign.left,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: primary
+                ? Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    )
+                : null,
+          );
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: _cellWidth(key)),
+      child: Tooltip(message: value, child: child),
+    );
   }
 
   double _cellWidth(String key) {
