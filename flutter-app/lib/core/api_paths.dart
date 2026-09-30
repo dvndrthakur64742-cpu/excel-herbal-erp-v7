@@ -93,6 +93,10 @@ abstract final class ApiPaths {
       pushDevices = '/communication/push-devices',
       pushDeactivate = '/communication/push-devices/deactivate',
       tasks = '/communication/tasks',
+      actingDelegations = '/administration/delegations',
+      actingInbox = '/administration/acting-inbox',
+      actingAuthorityStatus = '/administration/authority-status',
+      actingUnavailability = '/administration/unavailability',
       accessMatrix = '/administration/access',
       adminRoles = '/administration/roles',
       audit = '/administration/audit',
@@ -226,6 +230,10 @@ abstract final class ApiPaths {
   static String taskReassign(int id) => '/communication/tasks/$id/reassign';
   static String taskComplete(int id) => '/communication/tasks/$id/complete';
 
+  static String delegationRevoke(int id) =>
+      '/administration/delegations/$id/revoke';
+  static String unavailabilityRevoke(int id) =>
+      '/administration/unavailability/$id/revoke';
   static String roleCapabilities(int id) =>
       '/administration/roles/$id/capabilities';
   static String employeeAccess(int id) =>

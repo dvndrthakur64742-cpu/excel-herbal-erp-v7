@@ -9,6 +9,7 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import 'acting_duty_admin_panel.dart';
 
 class AdministrationScreen extends ConsumerStatefulWidget {
   const AdministrationScreen({super.key});
@@ -43,6 +44,9 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
           ),
         ),
       ));
+    }
+    if (app.can('administration.delegation.manage')) {
+      tabs.add(('Acting Duty', const ActingDutyAdminPanel()));
     }
     if (app.can('administration.access.manage')) {
       tabs.add(('Access', _accessTab(app.currentBranchId)));
@@ -87,12 +91,15 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                 child: ModuleWorkspaceHeader(
                   title: 'Administration',
                   subtitle:
-                      'Access control, audit, reversals and system health.',
+                      'Access control, acting duty, audit, reversals and system health.',
                   icon: Icons.admin_panel_settings_outlined,
                   contextLabel: app.currentBranchName,
                 ),
               ),
-              if (app.can('administration.access.manage'))
+              if (app.canAny(const [
+                'administration.access.manage',
+                'administration.delegation.manage',
+              ]))
                 const Padding(
                   padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
                   child: BranchSelector(),
