@@ -241,6 +241,11 @@ credentials=employees[employees.index('public static function setEmployeeCredent
 for token in ["Transaction::run","FOR UPDATE","status='active'","employee.login_credentials_reset"]:
  assert token in credentials,('employee credential reset is not offboarding-safe',token)
 print('PASS employee credential reset/offboarding serialization')
+hr=(root/'src/Organization/HrLifecycleService.php').read_text()
+candidate_credentials=hr[hr.index('public static function issueCandidateCredentials'):hr.index('public static function markNoShow')]
+for token in ["Transaction::run","FOR UPDATE","'candidate_credentials_already_issued'","OrganizationService::setEmployeeCredentials"]:
+ assert token in candidate_credentials,('candidate credential issuance is not concurrency-safe',token)
+print('PASS candidate credential issuance locking')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
