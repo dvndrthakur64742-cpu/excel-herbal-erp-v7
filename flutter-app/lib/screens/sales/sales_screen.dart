@@ -273,7 +273,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           .toList();
       if (stock.isEmpty)
         throw Exception(
-          'Selected branch me sale ke liye available stock nahi hai.',
+          'No stock is available for sale in the selected branch.',
         );
 
       int? customerId;
@@ -431,14 +431,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           final rate = double.tryParse('${product?['sale_price'] ?? 0}') ?? 0;
           if (rate <= 0) {
             throw Exception(
-              '${product?['name'] ?? 'Product'} ka valid Sale Price available nahi hai.',
+              '${product?['name'] ?? 'Product'} does not have a valid sale price.',
             );
           }
           gross += (line['quantity'] as num).toDouble() * rate;
         }
         final paidAmount = double.tryParse(paid.text.trim());
         if (paidAmount == null)
-          throw Exception('Paid Amount valid number me enter karein.');
+          throw Exception('Enter a valid paid amount.');
         final guardError = TransactionGuardrails.counterSale(
           gross: gross,
           paid: paidAmount,
@@ -486,7 +486,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         if (mounted) {
           setState(
             () => message =
-                'Customer receipt ke liye koi posted outstanding sale nahi hai.',
+                'No posted outstanding sale is available for customer receipt.',
           );
         }
         return;
@@ -629,7 +629,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             double.tryParse('${selected['outstanding_amount']}') ?? 0;
         final receiptAmount = double.tryParse(amount.text.trim());
         if (receiptAmount == null) {
-          throw Exception('Receipt Amount valid number me enter karein.');
+          throw Exception('Enter a valid receipt amount.');
         }
         final guardError = TransactionGuardrails.customerReceipt(
           saleId: saleId,

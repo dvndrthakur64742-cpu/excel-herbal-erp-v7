@@ -400,7 +400,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
           final unitCost = double.tryParse(rawCost);
           if (unitCost == null) {
             throw Exception(
-              '${p['name']} ka Unit Cost valid number me enter karein. Zero-cost item ke liye 0 explicitly enter karein.',
+              '${p['name']} requires a valid unit cost. Enter 0 explicitly for a zero-cost item.',
             );
           }
           final batch = batchNo[id]!.text.trim();
@@ -555,7 +555,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
         final paymentAmount = double.tryParse(amount.text.trim());
         if (paymentAmount == null) {
           throw Exception(
-            'Supplier Payment amount valid number me enter karein.',
+            'Enter a valid supplier payment amount.',
           );
         }
         final guardError = TransactionGuardrails.supplierPayment(

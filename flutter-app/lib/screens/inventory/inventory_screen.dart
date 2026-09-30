@@ -109,7 +109,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ApiPaths.adjustments,
                   query: {'branch_id': app.currentBranchId},
                 ),
-          emptyMessage: 'Koi stock adjustment nahi hai.',
+          emptyMessage: 'No stock adjustments are available.',
           builder: (context, data) => RecordsList(
             recordType: 'stock_adjustment',
             rows: _rows(data),
@@ -242,7 +242,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     try {
       final stock = await _branchStock();
       if (stock.isEmpty)
-        throw Exception('Selected branch me transfer ke liye stock nahi hai.');
+        throw Exception('No stock is available for transfer in the selected branch.');
       int? dest;
       int? lineId;
       final qty = TextEditingController();
@@ -338,7 +338,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         final available = double.tryParse('${l['quantity']}') ?? 0;
         if (q <= 0 || q > available + .0001)
           throw Exception(
-            'Valid quantity available stock ke andar enter karein.',
+            'Enter a valid quantity within the available stock.',
           );
         final batchKey = int.tryParse('${l['batch_key']}') ?? 0;
         await api.post(
@@ -375,7 +375,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     try {
       final stock = await _branchStock();
       if (stock.isEmpty)
-        throw Exception('Adjustment ke liye stock item available nahi hai.');
+        throw Exception('No stock item is available for adjustment.');
       int? lineId;
       final delta = TextEditingController();
       final reason = TextEditingController();
@@ -449,7 +449,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       if (ok == true) {
         final l = stock[lineId!];
         final d = WholePcs.parseOrZero(delta.text, signed: true);
-        if (d == 0) throw Exception('Adjustment delta zero nahi ho sakta.');
+        if (d == 0) throw Exception('Adjustment quantity cannot be zero.');
         final batchKey = int.tryParse('${l['batch_key']}') ?? 0;
         await api.post(
           ApiPaths.adjustments,

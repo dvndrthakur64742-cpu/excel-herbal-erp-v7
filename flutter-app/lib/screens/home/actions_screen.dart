@@ -101,7 +101,7 @@ class ActionsScreen extends ConsumerWidget {
         Text('Quick Actions', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 5),
         Text(
-          'Sirf aapke role aur permission ke authorised actions yahan dikhte hain.',
+          'Only actions authorised for your role and permissions are shown here.',
           style: Theme.of(context).textTheme.bodyMedium
               ?.copyWith(color: ExcelBrand.muted),
         ),
@@ -111,7 +111,7 @@ class ActionsScreen extends ConsumerWidget {
             child: Padding(
               padding: EdgeInsets.all(20),
               child: Text(
-                'Aapke role ke liye koi quick action available nahi hai.',
+                'No quick actions are available for your role.',
               ),
             ),
           )
