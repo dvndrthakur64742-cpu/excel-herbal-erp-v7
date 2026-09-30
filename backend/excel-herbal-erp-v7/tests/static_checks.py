@@ -260,6 +260,11 @@ candidate_doc_off=hr_service[hr_service.index('public static function deactivate
 for token in ["Transaction::run","FOR UPDATE","'unchanged'=>true"]:
  assert token in candidate_doc_off,('candidate document deactivation is not idempotent/locked',token)
 print('PASS idempotent locked deactivation transitions')
+documents=(root/'src/Organization/DocumentService.php').read_text()
+deactivate_doc=documents[documents.index('public static function deactivate'):]
+for token in ["Transaction::run","FOR UPDATE","'unchanged'=>true"]:
+ assert token in deactivate_doc,('employee document deactivation is not idempotent/locked',token)
+print('PASS employee document deactivation locking')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')

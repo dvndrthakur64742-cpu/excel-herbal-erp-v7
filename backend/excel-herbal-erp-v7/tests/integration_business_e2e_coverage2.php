@@ -273,6 +273,13 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     try{e2_dispatch('org.employee_credentials',$master,['id'=>30],['password'=>'StrongPassword123!']);throw new RuntimeException('credentials were reset for inactive employee');}
     catch(DomainException $e){if($e->codeKey!=='employee_not_found')throw $e;}
     if($wpdb->update(Db::table('employees'),['status'=>'active'],['id'=>30])===false)throw new RuntimeException('credential guard fixture cleanup failed');
+    e2_insert($wpdb,'employee_documents',['id'=>301,'company_id'=>1,'employee_id'=>30,'attachment_id'=>0,'private_file_id'=>null,'document_type'=>'identity','title'=>'Deactivation Fixture','status'=>'active','uploaded_by'=>20,'created_at'=>'2026-01-01 00:00:00']);
+    $docOff=e2_dispatch('org.employee_document_deactivate',$master,['id'=>30,'document_id'=>301]);
+    if(($docOff['status']??'')!=='inactive'||($docOff['unchanged']??true)!==false)throw new RuntimeException('employee document deactivation failed');
+    $docOffAgain=e2_dispatch('org.employee_document_deactivate',$master,['id'=>30,'document_id'=>301]);
+    if(($docOffAgain['unchanged']??false)!==true)throw new RuntimeException('employee document deactivation was not idempotent');
+    $docAudits=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='employee_document.deactivate' AND entity_id=301");
+    if($docAudits!==1)throw new RuntimeException('employee document deactivation audit duplicated');
     $target=e2_dispatch('performance.target',$master,['branch_id'=>1,'employee_id'=>20,'period_start'=>'2026-09-01','period_end'=>'2026-09-30','target_points'=>100]);
     if((int)($target['id']??0)<1)throw new RuntimeException('performance target seed failed');
     try{e2_dispatch('performance.target',$master,['branch_id'=>1,'employee_id'=>20,'period_start'=>'2026-09-15','period_end'=>'2026-10-15','target_points'=>120]);throw new RuntimeException('overlapping target was accepted');}
