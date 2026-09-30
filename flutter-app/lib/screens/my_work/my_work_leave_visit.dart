@@ -120,7 +120,7 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
           ),
           const SizedBox(height: 8),
           Text(
-            'Periodic GPS tracking backend v7.2 se connected hai. Check-In ke baad app foreground mein route points bhejti hai.',
+            'Check-in ke baad, app khuli rehne par field route record hota hai.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -134,41 +134,91 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
 
   Future<void> _applyLeave() async {
     final app = ref.read(appStateProvider);
+    final businessDate = DateTime.tryParse(app.businessDate);
+    if (businessDate == null) {
+      _setFeatureState(() => message = 'Business date unavailable. Refresh and try again.');
+      return;
+    }
+    final formKey = GlobalKey<FormState>();
     final type = TextEditingController(text: 'Casual Leave');
     final from = TextEditingController(text: app.businessDate);
     final to = TextEditingController(text: app.businessDate);
     final reason = TextEditingController();
+    Future<void> pickDate(BuildContext dialogContext,
+        TextEditingController controller) async {
+      final selected = await showDatePicker(
+        context: dialogContext,
+        initialDate: DateTime.tryParse(controller.text) ?? businessDate,
+        firstDate: DateTime(businessDate.year - 100),
+        lastDate: DateTime(businessDate.year + 100, 12, 31),
+      );
+      if (selected != null && dialogContext.mounted) {
+        controller.text = '${selected.year.toString().padLeft(4, '0')}-'
+            '${selected.month.toString().padLeft(2, '0')}-'
+            '${selected.day.toString().padLeft(2, '0')}';
+        formKey.currentState?.validate();
+      }
+    }
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Apply Leave'),
+        scrollable: true,
         content: SizedBox(
           width: 480,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: type,
-                decoration: const InputDecoration(labelText: 'Leave Type'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: from,
-                decoration: const InputDecoration(labelText: 'From YYYY-MM-DD'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: to,
-                decoration: const InputDecoration(labelText: 'To YYYY-MM-DD'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: reason,
-                decoration: const InputDecoration(labelText: 'Reason'),
-                minLines: 2,
-                maxLines: 4,
-              ),
-            ],
+          child: Form(
+            key: formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: type,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'Leave Type *'),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Enter the leave type.' : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: from,
+                  readOnly: true,
+                  onTap: () => pickDate(context, from),
+                  decoration: InputDecoration(
+                    labelText: 'From date *',
+                    suffixIcon: IconButton(
+                      tooltip: 'Choose start date',
+                      onPressed: () => pickDate(context, from),
+                      icon: const Icon(Icons.calendar_today_outlined),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: to,
+                  readOnly: true,
+                  onTap: () => pickDate(context, to),
+                  decoration: InputDecoration(
+                    labelText: 'To date *',
+                    suffixIcon: IconButton(
+                      tooltip: 'Choose end date',
+                      onPressed: () => pickDate(context, to),
+                      icon: const Icon(Icons.calendar_today_outlined),
+                    ),
+                  ),
+                  validator: (_) => DateTime.parse(to.text)
+                      .isBefore(DateTime.parse(from.text))
+                      ? 'End date must be on or after the start date.' : null,
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: reason,
+                  decoration: const InputDecoration(labelText: 'Reason'),
+                  minLines: 2,
+                  maxLines: 4,
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -177,8 +227,10 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Submit'),
+            onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(context, true);
+            },
+            child: const Text('Submit Leave Request'),
           ),
         ],
       ),
@@ -234,15 +286,24 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
       return;
     }
     final purpose = TextEditingController();
+    final formKey = GlobalKey<FormState>();
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Start Field Visit'),
-        content: TextField(
-          controller: purpose,
-          decoration: const InputDecoration(labelText: 'Purpose'),
-          minLines: 2,
-          maxLines: 4,
+        scrollable: true,
+        content: Form(
+          key: formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: TextFormField(
+            controller: purpose,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Purpose *'),
+            minLines: 2,
+            maxLines: 4,
+            validator: (value) => value == null || value.trim().isEmpty
+                ? 'Enter the purpose of this visit.' : null,
+          ),
         ),
         actions: [
           TextButton(
@@ -250,9 +311,10 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, purpose.text.trim().isNotEmpty),
-            child: const Text('Start'),
+            onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(context, true);
+            },
+            child: const Text('Start Field Visit'),
           ),
         ],
       ),

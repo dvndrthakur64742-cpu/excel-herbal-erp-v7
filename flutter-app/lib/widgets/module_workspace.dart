@@ -192,7 +192,9 @@ class ModuleSectionHeader extends StatelessWidget {
       ],
     );
 
-    if (trailing == null) return copy;
+    if (trailing == null) {
+      return SizedBox(width: double.infinity, child: copy);
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
