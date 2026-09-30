@@ -155,6 +155,24 @@ for token in [
 ]:
  assert token in closing,('missing branch closing audit event',token)
 print('PASS workforce, task, bank and branch-closing control coverage')
+daily=(root/'src/DailyOrder/DailyOrderService.php').read_text()
+for token in [
+ "Audit::add($a,'daily_order.submit'",
+ "Audit::add($a,'daily_order.approve'",
+ "Audit::add($a,'daily_order.issue'",
+ "Audit::add($a,'daily_order.evening_start'",
+ "Audit::add($a,'daily_order.evening_save'",
+ "Audit::add($a,'daily_order.evening_submit'",
+]:
+ assert token in daily,('missing Daily Order lifecycle audit event',token)
+inventory=(root/'src/Inventory/InventoryService.php').read_text()
+for token in [
+ "stock_quarantine.'.$action",
+ "'quarantine_state_invalid'",
+ "FOR UPDATE",
+]:
+ assert token in inventory,('missing quarantine resolution control',token)
+print('PASS Daily Order lifecycle audit and quarantine resolution controls')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
