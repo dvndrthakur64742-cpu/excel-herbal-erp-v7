@@ -128,6 +128,33 @@ assert "Audit::add($a,'supplier_payment.post'" in purchase,'supplier payment is 
 expense=(root/'src/Finance/FinanceExpenseService.php').read_text()
 assert "Audit::add($a,'expense.'.($approve?'approve':'reject')" in expense,'expense decision is not audited'
 print('PASS financial lifecycle state recheck and audit coverage')
+workforce=(root/'src/Workforce/WorkforceService.php').read_text()
+for token in [
+ "'field_visit_purpose_invalid'",
+ "Audit::add($a,'leave.request'",
+]:
+ assert token in workforce,('missing workforce invariant/audit',token)
+communication=(root/'src/Communication/CommunicationService.php').read_text()
+for token in [
+ "FOR UPDATE",
+ "'task_state_invalid'",
+ "Audit::add($a,'task.complete'",
+]:
+ assert token in communication,('missing task completion state control',token)
+bank=(root/'src/Finance/FinanceBankService.php').read_text()
+for token in [
+ "Audit::add($a,'bank_reconciliation.import'",
+ "Audit::add($a,'bank_line.match'",
+ "Audit::add($a,'bank_reconciliation.finalize'",
+]:
+ assert token in bank,('missing bank reconciliation audit event',token)
+closing=(root/'src/Finance/FinanceClosingService.php').read_text()
+for token in [
+ "Audit::add($a,'branch_closing.draft'",
+ "Audit::add($a,'branch_closing.close'",
+]:
+ assert token in closing,('missing branch closing audit event',token)
+print('PASS workforce, task, bank and branch-closing control coverage')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
