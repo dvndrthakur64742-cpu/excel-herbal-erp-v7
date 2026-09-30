@@ -116,7 +116,7 @@ final class HrLifecycleService {
     }
 
     public static function deactivateCandidateDocument(Actor $a,int $candidateId,int $documentId):array {
-        self::candidateRow($a,$candidateId,Capabilities::HR_MANAGE);$db=Db::wpdb();$t=Db::table('hr_candidate_documents');$r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND candidate_id=%d AND company_id=%d",$documentId,$candidateId,$a->companyId),ARRAY_A);if(!$r)throw new DomainException('Candidate document not found.','candidate_document_not_found',404);if($r['status']!=='inactive')Db::mustUpdate($db,$t,['status'=>'inactive','updated_at'=>Db::now()],['id'=>$documentId]);Audit::add($a,'hr.candidate.document_deactivate','hr_candidate_document',$documentId,['candidate_id'=>$candidateId]);return['id'=>$documentId,'status'=>'inactive'];
+        self::candidateRow($a,$candidateId,Capabilities::HR_MANAGE);return Transaction::run(function()use($a,$candidateId,$documentId){$db=Db::wpdb();$t=Db::table('hr_candidate_documents');$r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND candidate_id=%d AND company_id=%d FOR UPDATE",$documentId,$candidateId,$a->companyId),ARRAY_A);if(!$r)throw new DomainException('Candidate document not found.','candidate_document_not_found',404);if($r['status']==='inactive')return['id'=>$documentId,'status'=>'inactive','unchanged'=>true];Db::mustUpdate($db,$t,['status'=>'inactive','updated_at'=>Db::now()],['id'=>$documentId]);Audit::add($a,'hr.candidate.document_deactivate','hr_candidate_document',$documentId,['candidate_id'=>$candidateId]);return['id'=>$documentId,'status'=>'inactive','unchanged'=>false];});
     }
 
     public static function separations(Actor $a,?int $branchId,string $status='open'):array {

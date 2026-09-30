@@ -251,6 +251,15 @@ overrides=access_service[access_service.index('public static function setEmploye
 for token in ["Capabilities::ACCESS,Capabilities::ACCESS_MANAGE","'self_access_lockout'"]:
  assert token in overrides,('self access override lockout guard incomplete',token)
 print('PASS self access/access-management override lockout coverage')
+employee_service=(root/'src/Organization/OrganizationEmployeeService.php').read_text()
+designation_off=employee_service[employee_service.index('public static function deactivateEmployeeDesignation'):]
+for token in ["Transaction::run","FOR UPDATE","'unchanged'=>true"]:
+ assert token in designation_off,('designation deactivation is not idempotent/locked',token)
+hr_service=(root/'src/Organization/HrLifecycleService.php').read_text()
+candidate_doc_off=hr_service[hr_service.index('public static function deactivateCandidateDocument'):hr_service.index('public static function separations')]
+for token in ["Transaction::run","FOR UPDATE","'unchanged'=>true"]:
+ assert token in candidate_doc_off,('candidate document deactivation is not idempotent/locked',token)
+print('PASS idempotent locked deactivation transitions')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')

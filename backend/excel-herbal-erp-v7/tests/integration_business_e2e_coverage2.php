@@ -243,6 +243,12 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     if((int)($first['id']??0)<1)throw new RuntimeException('designation assignment seed failed');
     try{e2_dispatch('org.employee_designation_assign',$master,['id'=>20],['designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-15','effective_to'=>'2026-10-15']);throw new RuntimeException('overlapping designation was accepted');}
     catch(DomainException $e){if($e->codeKey!=='designation_assignment_overlap')throw $e;}
+    $deactivated=e2_dispatch('org.employee_designation_deactivate',$master,['id'=>20,'assignment_id'=>(int)$first['id']]);
+    if(($deactivated['active']??true)!==false||($deactivated['unchanged']??true)!==false)throw new RuntimeException('designation deactivation failed');
+    $deactivatedAgain=e2_dispatch('org.employee_designation_deactivate',$master,['id'=>20,'assignment_id'=>(int)$first['id']]);
+    if(($deactivatedAgain['unchanged']??false)!==true)throw new RuntimeException('designation deactivation was not idempotent');
+    $designationAudits=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='employee.designation_assignment_deactivate' AND entity_id=20");
+    if($designationAudits!==1)throw new RuntimeException('designation deactivation audit duplicated');
     $accessManager=new Actor(8020,20,1,1,[1,2],[Capabilities::ACCESS_MANAGE],'SYSADMIN');
     try{e2_dispatch('access.employee_overrides',$accessManager,['id'=>20],['grants'=>[],'denies'=>[Capabilities::ACCESS],'reason'=>'Self access lockout coverage']);throw new RuntimeException('self ACCESS capability denial was accepted');}
     catch(DomainException $e){if($e->codeKey!=='self_access_lockout')throw $e;}
