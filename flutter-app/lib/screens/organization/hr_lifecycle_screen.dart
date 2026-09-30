@@ -9,10 +9,11 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
-import 'hr_api_paths.dart';
 
 class HrLifecycleScreen extends ConsumerStatefulWidget {
-  const HrLifecycleScreen({super.key});
+  const HrLifecycleScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   ConsumerState<HrLifecycleScreen> createState() => _HrLifecycleScreenState();
@@ -34,53 +35,62 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       'organization.hr.review',
     ]);
     if (!allowed) {
-      return const Scaffold(
-        body: Center(child: Text('HR Lifecycle access is not authorised.')),
+      const denied = Center(
+        child: Text('HR Lifecycle access is not authorised.'),
       );
+      return widget.embedded ? denied : const Scaffold(body: denied);
     }
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('HR Lifecycle'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.person_search_outlined), text: 'Candidates'),
-              Tab(icon: Icon(Icons.person_off_outlined), text: 'Separations'),
+    const lifecycleTabs = TabBar(
+      tabs: [
+        Tab(icon: Icon(Icons.person_search_outlined), text: 'Candidates'),
+        Tab(icon: Icon(Icons.person_off_outlined), text: 'Separations'),
+      ],
+    );
+
+    final body = Column(
+      children: [
+        if (!widget.embedded)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: BranchSelector(allowAllAuthorised: true),
+          ),
+        if (widget.embedded) lifecycleTabs,
+        if (_message != null)
+          Material(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.info_outline),
+              title: Text(_message!),
+              trailing: IconButton(
+                onPressed: () => setState(() => _message = null),
+                icon: const Icon(Icons.close),
+              ),
+            ),
+          ),
+        Expanded(
+          child: TabBarView(
+            children: [
+              _candidatesTab(app),
+              _separationsTab(app),
             ],
           ),
         ),
-        body: Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
-              child: BranchSelector(allowAllAuthorised: true),
-            ),
-            if (_message != null)
-              Material(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.info_outline),
-                  title: Text(_message!),
-                  trailing: IconButton(
-                    onPressed: () => setState(() => _message = null),
-                    icon: const Icon(Icons.close),
-                  ),
-                ),
+      ],
+    );
+
+    return DefaultTabController(
+      length: 2,
+      child: widget.embedded
+          ? body
+          : Scaffold(
+              appBar: AppBar(
+                title: const Text('HR Lifecycle'),
+                bottom: lifecycleTabs,
               ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _candidatesTab(app),
-                  _separationsTab(app),
-                ],
-              ),
+              body: body,
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -123,7 +133,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
             key: ValueKey('hr-candidates-${app.currentBranchId}'),
             reloadToken: '${app.currentBranchId}-$_refresh',
             future: ref.read(apiClientProvider).get(
-                  HrApiPaths.candidates,
+                  ApiPaths.hrCandidates,
                   query: query,
                 ),
             emptyMessage: 'Koi open candidate nahi hai.',
@@ -210,7 +220,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
             key: ValueKey('hr-separations-${app.currentBranchId}'),
             reloadToken: '${app.currentBranchId}-$_refresh',
             future: ref.read(apiClientProvider).get(
-                  HrApiPaths.separations,
+                  ApiPaths.hrSeparations,
                   query: query,
                 ),
             emptyMessage: 'Koi open separation request nahi hai.',
@@ -426,7 +436,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       if (ok != true) return;
       final result = await ref
           .read(apiClientProvider)
-          .post(HrApiPaths.candidates, data: payload);
+          .post(ApiPaths.hrCandidates, data: payload);
       _success('Candidate ${result['candidate_code'] ?? ''} registered.');
     } catch (error) {
       _failure(error);
@@ -438,7 +448,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (id == null) return;
     Map<String, dynamic> detail = row;
     try {
-      final loaded = await ref.read(apiClientProvider).get(HrApiPaths.candidate(id));
+      final loaded = await ref.read(apiClientProvider).get(ApiPaths.candidateDetail(id));
       detail = Map<String, dynamic>.from(loaded as Map);
     } catch (_) {
       // Keep list data available when the detail request is temporarily unavailable.
@@ -643,7 +653,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     try {
       await ref
           .read(apiClientProvider)
-          .post(HrApiPaths.candidateReview(id), data: payload);
+          .post(ApiPaths.candidateReview(id), data: payload);
       _success(selected ? 'Candidate selected.' : 'Candidate rejected.');
     } catch (error) {
       _failure(error);
@@ -767,7 +777,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       if (ok != true) return;
       await ref
           .read(apiClientProvider)
-          .post(HrApiPaths.candidateJoining(id), data: payload);
+          .post(ApiPaths.candidateJoining(id), data: payload);
       _success('Joining confirmed for $employeeCodeValue. Credentials are pending.');
     } catch (error) {
       _failure(error);
@@ -822,7 +832,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (ok != true) return;
     try {
       await ref.read(apiClientProvider).post(
-        HrApiPaths.candidateCredentials(id),
+        ApiPaths.candidateCredentials(id),
         data: {'password': value},
       );
       _success('Login credentials issued.');
@@ -864,7 +874,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (ok != true) return;
     try {
       await ref.read(apiClientProvider).post(
-        HrApiPaths.candidateNoShow(id),
+        ApiPaths.candidateNoShow(id),
         data: {'reason': value},
       );
       _success('Candidate marked no-show.');
@@ -1238,7 +1248,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (ok != true) return;
     try {
       final result = await ref.read(apiClientProvider).post(
-        HrApiPaths.separationReview(id),
+        ApiPaths.separationReview(id),
         data: {'approve': approve, 'reason': value},
       );
       final blockers = (result['current_blockers'] as List?) ?? const [];
@@ -1278,7 +1288,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (confirmed != true) return;
     try {
       await ref.read(apiClientProvider).post(
-        HrApiPaths.separationComplete(id),
+        ApiPaths.separationComplete(id),
         data: const {},
       );
       _success('Employee separation completed and employee offboarded.');

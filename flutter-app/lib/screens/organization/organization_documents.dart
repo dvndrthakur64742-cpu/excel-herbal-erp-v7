@@ -14,19 +14,6 @@ extension _OrganizationDocumentsFeature on _OrganizationScreenState {
     );
   }
 
-  Future<void> _candidateDocuments(int candidateId, String candidateName) async {
-    if (!await OverlayTransition.closeAndSettle(context) || !mounted) return;
-    final app = ref.read(appStateProvider);
-    await _showPrivateDocuments(
-      title: '$candidateName · Private Documents',
-      listPath: ApiPaths.candidateDocuments(candidateId),
-      uploadPath: ApiPaths.candidateDocumentUpload(candidateId),
-      deactivatePath: (documentId) =>
-          ApiPaths.candidateDocumentDeactivate(candidateId, documentId),
-      canManage: app.can('organization.hr.manage'),
-    );
-  }
-
   Future<void> _showPrivateDocuments({
     required String title,
     required String listPath,

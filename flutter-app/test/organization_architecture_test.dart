@@ -17,7 +17,7 @@ void main() {
       'lib/screens/organization/organization_employees.dart',
     ).readAsStringSync();
     final hr = File(
-      'lib/screens/organization/organization_hr.dart',
+      'lib/screens/organization/hr_lifecycle_screen.dart',
     ).readAsStringSync();
     final products = File(
       'lib/screens/organization/organization_products.dart',
@@ -27,7 +27,11 @@ void main() {
     expect(main, contains("part 'organization_branches.dart';"));
     expect(main, contains("part 'organization_documents.dart';"));
     expect(main, contains("part 'organization_employees.dart';"));
-    expect(main, contains("part 'organization_hr.dart';"));
+    expect(
+      main,
+      contains("const HrLifecycleScreen(embedded: true)"),
+    );
+    expect(main, isNot(contains("part 'organization_hr.dart';")));
     expect(main, contains("part 'organization_products.dart';"));
     expect(main, contains("tabs.add(('HR Lifecycle', _hrLifecycleTab(app, api)))"));
     expect(main, contains('void _setOrganizationState(VoidCallback update)'));
@@ -41,7 +45,7 @@ void main() {
     expect(documents, contains('FilePicker.platform.pickFiles'));
     expect(documents, contains('openErpDocument'));
     expect(employees, contains('extension _OrganizationEmployeesFeature'));
-    expect(hr, contains('extension _OrganizationHrFeature'));
+    expect(hr, contains('class HrLifecycleScreen'));
     expect(hr, contains('New Candidate'));
     expect(hr, contains('Initiate Separation'));
     expect(products, contains('extension _OrganizationProductsFeature'));
@@ -52,7 +56,7 @@ void main() {
     expect(branches, isNot(contains('setState(')));
     expect(documents, isNot(contains('setState(')));
     expect(employees, isNot(contains('setState(')));
-    expect(hr, isNot(contains('setState(')));
+    expect(hr, contains('widget.embedded'));
     expect(products, isNot(contains('setState(')));
   });
 }
