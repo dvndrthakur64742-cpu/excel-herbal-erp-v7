@@ -266,6 +266,9 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     catch(DomainException $e){if($e->codeKey!=='branch_deactivate_blocked')throw $e;}
     if($wpdb->query('DELETE FROM '.Db::table('stock_quarantine').' WHERE id=202')===false)throw new RuntimeException('branch quarantine fixture cleanup failed');
     e2_insert($wpdb,'payroll_runs',['id'=>901,'company_id'=>1,'branch_id'=>1,'period_start'=>'2026-09-01','period_end'=>'2026-09-30','calculation_version'=>'7.3.5','status'=>'draft','created_by'=>20,'created_at'=>'2026-09-30 00:00:00']);
+    $holidayManager=e2_actor(20,[Capabilities::LEAVE_MANAGE]);
+    try{e2_dispatch('work.holiday_create',$holidayManager,[],['branch_id'=>1,'holiday_date'=>'2026-09-15','name'=>'Payroll Conflict Holiday']);throw new RuntimeException('holiday was created inside an existing payroll period');}
+    catch(DomainException $e){if($e->codeKey!=='holiday_payroll_conflict')throw $e;}
     try{e2_dispatch('org.employee_create',$master,[],['employee_code'=>'PAYLOCK-E1','full_name'=>'Payroll Scope Guard','designation_code'=>'SM','assigned_branch_id'=>1,'joining_date'=>'2026-09-15','monthly_salary'=>1000,'provision_login'=>false]);throw new RuntimeException('employee was created inside an existing payroll period');}
     catch(DomainException $e){if($e->codeKey!=='employee_create_payroll_conflict')throw $e;}
     if($wpdb->query('DELETE FROM '.Db::table('payroll_runs').' WHERE id=901')===false)throw new RuntimeException('payroll conflict fixture cleanup failed');
