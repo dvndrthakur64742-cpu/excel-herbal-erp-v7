@@ -90,7 +90,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
             if (mounted) {
               setState(
                 () => message =
-                    'Aaj Evening Closing ke liye koi issued order available nahi hai.',
+                    'No issued order is available for today’s evening closing.',
               );
             }
             return;

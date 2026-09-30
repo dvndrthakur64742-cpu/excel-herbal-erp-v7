@@ -27,7 +27,7 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
           AsyncPanel(
             key: ValueKey('leave-mine-$refresh'),
             future: api.get(ApiPaths.leaveMine),
-            emptyMessage: 'Abhi koi leave request nahi hai.',
+            emptyMessage: 'No leave requests are available.',
             builder: (context, data) {
               final rows = ((data as List?) ?? const [])
                   .whereType<Map>()
@@ -67,7 +67,7 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
           AsyncPanel(
             key: ValueKey('visit-current-$refresh'),
             future: api.get(ApiPaths.fieldVisitCurrent),
-            emptyMessage: 'Koi active field visit nahi hai.',
+            emptyMessage: 'No active field visit is available.',
             builder: (context, data) {
               final current = data is Map
                   ? Map<String, dynamic>.from(data)
@@ -120,7 +120,7 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
           ),
           const SizedBox(height: 8),
           Text(
-            'Check-in ke baad, app khuli rehne par field route record hota hai.',
+            'After check-in, the field route is recorded while the app remains open.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -282,7 +282,7 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
   Future<void> _startVisit() async {
     final app = ref.read(appStateProvider);
     if (app.currentBranchId == null) {
-      _setFeatureState(() => message = 'Branch select karein.');
+      _setFeatureState(() => message = 'Select an authorised branch.');
       return;
     }
     final purpose = TextEditingController();
