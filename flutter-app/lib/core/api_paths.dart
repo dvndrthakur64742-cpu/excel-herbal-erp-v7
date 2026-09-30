@@ -206,6 +206,10 @@ abstract final class ApiPaths {
   static String bankExclude(int id) => '/finance/bank-lines/$id/exclude';
   static String bankFinalize(int id) =>
       '/finance/bank-reconciliations/$id/finalize';
+  static String salaryRevisions(int employeeId) =>
+      '/payroll/employees/$employeeId/salary-revisions';
+  static String salaryRevisionReview(int id) =>
+      '/payroll/salary-revisions/$id/review';
   static String payrollDetail(int id) => '/payroll/runs/$id';
   static String payrollItemUpdate(int id, int itemId) =>
       '/payroll/runs/$id/items/$itemId';

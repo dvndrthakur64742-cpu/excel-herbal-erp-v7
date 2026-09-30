@@ -124,10 +124,21 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                 padding: const EdgeInsets.all(12),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: FilledButton.icon(
-                    onPressed: _generate,
-                    icon: const Icon(Icons.calculate_outlined),
-                    label: const Text('Generate Payroll Draft'),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: _generate,
+                        icon: const Icon(Icons.calculate_outlined),
+                        label: const Text('Generate Payroll Draft'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _salaryRevisionWorkspace,
+                        icon: const Icon(Icons.history_toggle_off_outlined),
+                        label: const Text('Salary Revisions'),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -214,6 +225,377 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
   List<Map<String, dynamic>> _rows(dynamic data) =>
       (data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+  Future<void> _salaryRevisionWorkspace() async {
+    final app = ref.read(appStateProvider);
+    final branchId = app.currentBranchId;
+    if (branchId == null) return;
+    try {
+      final employees = (await ref.read(apiClientProvider).get(
+        ApiPaths.employees,
+        query: {'branch_id': branchId},
+      ) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (employees.isEmpty) {
+        throw const FormatException('No active employee is available in this branch.');
+      }
+      int? employeeId;
+      final selected = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: const Text('Salary Revision History'),
+            content: SizedBox(
+              width: 520,
+              child: DropdownButtonFormField<int>(
+                isExpanded: true,
+                initialValue: employeeId,
+                decoration: const InputDecoration(labelText: 'Employee'),
+                items: employees
+                    .map(
+                      (employee) => DropdownMenuItem(
+                        value: int.parse('\${employee['id']}'),
+                        child: Text(
+                          '\${employee['full_name']} · \${employee['employee_code']}',
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setLocal(() => employeeId = value),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: employeeId == null
+                    ? null
+                    : () => Navigator.pop(
+                          context,
+                          employees.firstWhere(
+                            (employee) =>
+                                int.parse('\${employee['id']}') == employeeId,
+                          ),
+                        ),
+                child: const Text('Open History'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (selected == null || !mounted) return;
+      await _showSalaryHistory(selected);
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _showSalaryHistory(Map<String, dynamic> employee) async {
+    final api = ref.read(apiClientProvider);
+    final app = ref.read(appStateProvider);
+    final employeeId = int.parse('\${employee['id']}');
+    final currentActorId = int.tryParse('\${app.employee['id']}') ?? 0;
+    Future<List<Map<String, dynamic>>> load() async =>
+        (await api.get(ApiPaths.salaryRevisions(employeeId)) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+
+    var future = load();
+    String? localMessage;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setLocal) {
+          Future<void> requestRevision() async {
+            if (employeeId == currentActorId) {
+              setLocal(
+                () => localMessage =
+                    'Your own salary revision must be created by another authorised maker.',
+              );
+              return;
+            }
+            final salary = TextEditingController(
+              text: '\${employee['monthly_salary'] ?? ''}',
+            );
+            final effective = TextEditingController(text: app.businessDate);
+            final reason = TextEditingController();
+            String? validation;
+            final ok = await showDialog<bool>(
+              context: dialogContext,
+              builder: (context) => StatefulBuilder(
+                builder: (context, setForm) => AlertDialog(
+                  title: Text(
+                    'New Salary Revision · \${employee['full_name'] ?? 'Employee'}',
+                  ),
+                  content: SizedBox(
+                    width: 520,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: salary,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Monthly Salary',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: effective,
+                          decoration: const InputDecoration(
+                            labelText: 'Effective From YYYY-MM-DD',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: reason,
+                          minLines: 2,
+                          maxLines: 4,
+                          decoration:
+                              const InputDecoration(labelText: 'Reason'),
+                        ),
+                        if (validation != null) ...[
+                          const SizedBox(height: 8),
+                          Text(validation!),
+                        ],
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        final amount = double.tryParse(salary.text.trim());
+                        final date = effective.text.trim();
+                        final parsedDate = DateTime.tryParse(date);
+                        if (amount == null || amount <= 0) {
+                          setForm(
+                            () => validation =
+                                'Monthly salary must be positive.',
+                          );
+                        } else if (!RegExp(r'^\d{4}-\d{2}-\d{2}$')
+                                .hasMatch(date) ||
+                            parsedDate == null) {
+                          setForm(
+                            () => validation =
+                                'Effective date must be a valid YYYY-MM-DD date.',
+                          );
+                        } else if (reason.text.trim().length < 5) {
+                          setForm(
+                            () => validation =
+                                'Reason must contain at least 5 characters.',
+                          );
+                        } else {
+                          Navigator.pop(context, true);
+                        }
+                      },
+                      child: const Text('Submit Revision'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+            final payload = {
+              'monthly_salary': double.tryParse(salary.text.trim()),
+              'effective_from': effective.text.trim(),
+              'reason': reason.text.trim(),
+            };
+            salary.dispose();
+            effective.dispose();
+            reason.dispose();
+            if (ok != true) return;
+            try {
+              await api.post(
+                ApiPaths.salaryRevisions(employeeId),
+                data: payload,
+              );
+              setLocal(() {
+                localMessage =
+                    'Salary revision submitted for independent approval.';
+                future = load();
+              });
+            } catch (e) {
+              setLocal(() => localMessage = UiError.message(e));
+            }
+          }
+
+          Future<void> reviewRevision(
+            Map<String, dynamic> revision,
+            bool approve,
+          ) async {
+            final revisionId = int.tryParse('\${revision['id']}');
+            if (revisionId == null) return;
+            final action = approve ? 'Approve' : 'Reject';
+            final confirmed = await showDialog<bool>(
+              context: dialogContext,
+              builder: (context) => AlertDialog(
+                title: Text('\$action Salary Revision?'),
+                content: Text(
+                  '\${employee['full_name'] ?? 'Employee'} · '
+                  '\${revision['monthly_salary'] ?? ''} from '
+                  '\${revision['effective_from'] ?? ''}\\n\\n'
+                  'This review is maker-checker protected and cannot be performed by the revision creator or the employee.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: Text(action),
+                  ),
+                ],
+              ),
+            );
+            if (confirmed != true) return;
+            try {
+              await api.post(
+                ApiPaths.salaryRevisionReview(revisionId),
+                data: {'approve': approve},
+              );
+              setLocal(() {
+                localMessage = approve
+                    ? 'Salary revision approved.'
+                    : 'Salary revision rejected.';
+                future = load();
+              });
+            } catch (e) {
+              setLocal(() => localMessage = UiError.message(e));
+            }
+          }
+
+          return AlertDialog(
+            title: Text(
+              'Salary History · \${employee['full_name'] ?? 'Employee'}',
+            ),
+            content: SizedBox(
+              width: 760,
+              height: 480,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (localMessage != null) ...[
+                    ModuleMessageBanner(message: localMessage!),
+                    const SizedBox(height: 8),
+                  ],
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '\${employee['employee_code'] ?? ''} · Current salary \${employee['monthly_salary'] ?? '—'}',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: employeeId == currentActorId
+                            ? null
+                            : requestRevision,
+                        icon: const Icon(Icons.add_card_outlined),
+                        label: const Text('New Revision'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: FutureBuilder<List<Map<String, dynamic>>>(
+                      future: future,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(UiError.message(snapshot.error!)),
+                          );
+                        }
+                        final rows = snapshot.data ?? const [];
+                        if (rows.isEmpty) {
+                          return const Center(
+                            child: Text('No salary history is available.'),
+                          );
+                        }
+                        return ListView.separated(
+                          itemCount: rows.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final row = rows[index];
+                            final status =
+                                '\${row['status'] ?? ''}'.toLowerCase();
+                            final creatorId =
+                                int.tryParse('\${row['created_by']}') ?? 0;
+                            final canReview = status == 'pending' &&
+                                app.can('payroll.approve') &&
+                                creatorId != currentActorId &&
+                                employeeId != currentActorId;
+                            return ListTile(
+                              leading: const Icon(
+                                Icons.currency_rupee_rounded,
+                              ),
+                              title: Text(
+                                '\${row['monthly_salary'] ?? '—'} · \${row['effective_from'] ?? '—'}',
+                              ),
+                              subtitle: Text(
+                                '\${row['reason'] ?? ''} · \${status.isEmpty ? 'unknown' : status}',
+                              ),
+                              trailing: canReview
+                                  ? Wrap(
+                                      spacing: 4,
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Approve revision',
+                                          onPressed: () =>
+                                              reviewRevision(row, true),
+                                          icon: const Icon(
+                                            Icons.check_circle_outline,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Reject revision',
+                                          onPressed: () =>
+                                              reviewRevision(row, false),
+                                          icon:
+                                              const Icon(Icons.cancel_outlined),
+                                        ),
+                                      ],
+                                    )
+                                  : Chip(
+                                      label: Text(
+                                        status.isEmpty ? 'Unknown' : status,
+                                      ),
+                                    ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   Future<void> _generate() async {
     final app = ref.read(appStateProvider);
