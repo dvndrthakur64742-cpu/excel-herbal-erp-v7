@@ -45,7 +45,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             body: SafeArea(
               child: Row(
                 children: [
-                  SizedBox(width: 274, child: _desktopSidebar(context, app)),
+                  SizedBox(width: 248, child: _desktopSidebar(context, app)),
                   const VerticalDivider(width: 1),
                   Expanded(
                     child: ColoredBox(
@@ -329,22 +329,17 @@ class _AppShellState extends ConsumerState<AppShell> {
       _ => const HomeScreen(),
     };
 
+    // Desktop modules already provide their own AppBar/title/tabs. Keeping a
+    // second workspace header here created competing page hierarchies and
+    // reduced the usable data area, especially on record-heavy ERP screens.
     return Padding(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        children: [
-          _desktopWorkspaceHeader(app, effectiveRoute),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Material(
-                color: Theme.of(context).colorScheme.surface,
-                child: child,
-              ),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.all(14),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Material(
+          color: Theme.of(context).colorScheme.surface,
+          child: child,
+        ),
       ),
     );
   }
