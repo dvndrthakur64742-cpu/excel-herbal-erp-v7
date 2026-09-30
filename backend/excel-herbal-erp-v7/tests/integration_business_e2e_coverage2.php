@@ -244,6 +244,8 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     try{e2_dispatch('org.employee_designation_assign',$master,['id'=>20],['designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-15','effective_to'=>'2026-10-15']);throw new RuntimeException('overlapping designation was accepted');}
     catch(DomainException $e){if($e->codeKey!=='designation_assignment_overlap')throw $e;}
     $accessManager=new Actor(8020,20,1,1,[1,2],[Capabilities::ACCESS_MANAGE],'SYSADMIN');
+    try{e2_dispatch('access.employee_overrides',$accessManager,['id'=>20],['grants'=>[],'denies'=>[Capabilities::ACCESS],'reason'=>'Self access lockout coverage']);throw new RuntimeException('self ACCESS capability denial was accepted');}
+    catch(DomainException $e){if($e->codeKey!=='self_access_lockout')throw $e;}
     try{e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>1,'active'=>false]);throw new RuntimeException('primary branch authority was treated as revocable');}
     catch(DomainException $e){if($e->codeKey!=='primary_branch_authority_inherent')throw $e;}
     $granted=e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>2,'active'=>true]);

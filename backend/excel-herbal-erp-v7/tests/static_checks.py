@@ -246,6 +246,11 @@ candidate_credentials=hr[hr.index('public static function issueCandidateCredenti
 for token in ["Transaction::run","FOR UPDATE","'candidate_credentials_already_issued'","OrganizationService::setEmployeeCredentials"]:
  assert token in candidate_credentials,('candidate credential issuance is not concurrency-safe',token)
 print('PASS candidate credential issuance locking')
+access_service=(root/'src/Security/AccessService.php').read_text()
+overrides=access_service[access_service.index('public static function setEmployeeOverrides'):]
+for token in ["Capabilities::ACCESS,Capabilities::ACCESS_MANAGE","'self_access_lockout'"]:
+ assert token in overrides,('self access override lockout guard incomplete',token)
+print('PASS self access/access-management override lockout coverage')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
