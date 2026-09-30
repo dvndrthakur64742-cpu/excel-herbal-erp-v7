@@ -255,7 +255,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       int? lineId;
       final qty = TextEditingController();
       final notes = TextEditingController();
-      final formKey = GlobalKey<FormState>();
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -266,12 +265,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             content: SizedBox(
               width: 560,
               child: SingleChildScrollView(
-                child: Form(
-                  key: formKey,
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     DropdownButtonFormField<int>(
                       initialValue: dest,
                       decoration: const InputDecoration(
@@ -290,8 +286,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           )
                           .toList(),
                       onChanged: (v) => setLocal(() => dest = v),
-                      validator: (value) =>
-                          value == null ? 'Select destination branch.' : null,
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<int>(
@@ -313,19 +307,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ),
                       ),
                       onChanged: (v) => setLocal(() => lineId = v),
-                      validator: (value) =>
-                          value == null ? 'Select a stock item.' : null,
                     ),
                     const SizedBox(height: 10),
-                    TextFormField(
+                    TextField(
                       controller: qty,
                       keyboardType: TextInputType.number,
                       inputFormatters: [WholePcs.positiveFormatter],
-                      decoration: const InputDecoration(labelText: 'Quantity *'),
-                      validator: (value) {
-                        final parsed = WholePcs.parseOrZero(value ?? '');
-                        return parsed <= 0 ? 'Enter a valid quantity.' : null;
-                      },
+                      decoration: const InputDecoration(labelText: 'Quantity'),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -336,7 +324,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     ),
                   ],
                 ),
-                ),
               ),
             ),
             actions: [
@@ -345,12 +332,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () {
-                  if (formKey.currentState!.validate()) {
-                    Navigator.pop(context, true);
-                  }
-                },
-                child: const Text('Create Transfer'),
+                onPressed: () =>
+                    Navigator.pop(context, dest != null && lineId != null),
+                child: const Text('Create'),
               ),
             ],
           ),
