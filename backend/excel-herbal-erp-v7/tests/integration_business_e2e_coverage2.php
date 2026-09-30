@@ -220,6 +220,14 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
         try{$fn();throw new RuntimeException($name.' unexpectedly accepted invalid data');}
         catch(DomainException $e){if($e->codeKey!==$code)throw $e;}
     }
+    $customer=e2_dispatch('sales.customer_create',$master,['branch_id'=>1,'name'=>'Duplicate Guard Customer','mobile'=>'9000000666','email'=>'duplicate.guard@example.test']);
+    if((int)($customer['id']??0)<1)throw new RuntimeException('customer duplicate guard seed failed');
+    try{e2_dispatch('sales.customer_create',$master,['branch_id'=>1,'name'=>'Duplicate Guard Customer 2','mobile'=>'9000000666']);throw new RuntimeException('duplicate customer mobile was accepted');}
+    catch(DomainException $e){if($e->codeKey!=='customer_duplicate')throw $e;}
+    $supplier=e2_dispatch('purchase.supplier_create',$master,['name'=>'Duplicate Guard Supplier','mobile'=>'9000000555','gstin'=>'22BBBBB0000B1Z6']);
+    if((int)($supplier['id']??0)<1)throw new RuntimeException('supplier duplicate guard seed failed');
+    try{e2_dispatch('purchase.supplier_create',$master,['name'=>'Duplicate Guard Supplier 2','mobile'=>'9000000444','gstin'=>'22BBBBB0000B1Z6']);throw new RuntimeException('duplicate supplier GSTIN was accepted');}
+    catch(DomainException $e){if($e->codeKey!=='supplier_duplicate')throw $e;}
     e2_insert($wpdb,'designations',['id'=>1,'company_id'=>1,'code'=>'SM','name'=>'Sales Manager','sequence_no'=>10,'field_role'=>1,'promotion_min_points'=>0,'minimum_days'=>0,'status'=>'active']);
     $first=e2_dispatch('org.employee_designation_assign',$master,['id'=>20],['designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-01','effective_to'=>'2026-09-30']);
     if((int)($first['id']??0)<1)throw new RuntimeException('designation assignment seed failed');
