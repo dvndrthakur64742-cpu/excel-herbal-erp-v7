@@ -5,8 +5,10 @@ import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
+import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
 import '../../widgets/async_panel.dart';
+import '../../widgets/module_workspace.dart';
 import 'tasks_screen.dart';
 
 class CommunicationScreen extends ConsumerStatefulWidget {
@@ -24,6 +26,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
   @override
   Widget build(BuildContext context) {
     final api = ref.watch(apiClientProvider);
+    final app = ref.watch(appStateProvider);
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -37,15 +40,34 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
             ],
           ),
         ),
-        body: Column(
-          children: [
-            if (message != null)
+        body: SafeArea(
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: _Message(text: message!),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: ModuleWorkspaceHeader(
+                  title: 'Communication',
+                  subtitle:
+                      'Tasks, announcements and notifications in one workspace.',
+                  icon: Icons.forum_outlined,
+                  contextLabel: 'Business date · ${app.businessDate}',
+                ),
               ),
-            Expanded(
-              child: AsyncPanel(
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: _Message(text: message!),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: ModuleSectionHeader(
+                  title: 'Communication Workspace',
+                  subtitle:
+                      'Review assigned work and stay current with business updates.',
+                ),
+              ),
+              Expanded(
+                child: AsyncPanel(
                 key: ValueKey(refresh),
                 future: api.get(ApiPaths.communicationSummary),
                 builder: (context, data) {
@@ -67,8 +89,8 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                   );
                 },
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -76,7 +98,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
 
   Widget _announcements(List<Map<String, dynamic>> rows) {
     if (rows.isEmpty) {
-      return const Center(child: Text('Koi active announcement nahi hai.'));
+      return const Center(child: Text('No active announcements.'));
     }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
@@ -166,7 +188,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
           ),
         Expanded(
           child: rows.isEmpty
-              ? const Center(child: Text('Koi notification nahi hai.'))
+              ? const Center(child: Text('No notifications.'))
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: rows.length,

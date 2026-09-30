@@ -8,6 +8,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/module_workspace.dart';
 
 class AdministrationScreen extends ConsumerStatefulWidget {
   const AdministrationScreen({super.key});
@@ -78,35 +79,42 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
           ),
         ),
-        body: Column(
-          children: [
-            if (app.can('administration.access.manage'))
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
-                child: BranchSelector(),
-              ),
-            if (message != null)
+        body: SafeArea(
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: Material(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                  child: ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.info_outline),
-                    title: Text(message!),
-                    trailing: IconButton(
-                      tooltip: 'Dismiss',
-                      onPressed: () => setState(() => message = null),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: ModuleWorkspaceHeader(
+                  title: 'Administration',
+                  subtitle:
+                      'Access control, audit, reversals and system health.',
+                  icon: Icons.admin_panel_settings_outlined,
+                  contextLabel: app.currentBranchName,
                 ),
               ),
-            Expanded(
-              child: TabBarView(children: [for (final tab in tabs) tab.$2]),
-            ),
-          ],
+              if (app.can('administration.access.manage'))
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: BranchSelector(),
+                ),
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: ModuleMessageBanner(message: message!),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: ModuleSectionHeader(
+                  title: 'Control & Audit Workspace',
+                  subtitle:
+                      'Use only the administration functions authorised for your role.',
+                ),
+              ),
+              Expanded(
+                child: TabBarView(children: [for (final tab in tabs) tab.$2]),
+              ),
+            ],
+          ),
         ),
       ),
     );
