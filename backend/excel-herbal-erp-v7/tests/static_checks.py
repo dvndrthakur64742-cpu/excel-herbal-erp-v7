@@ -56,6 +56,23 @@ for rel in [
 assert "return ApiDispatch::dispatch(" in (root/'src/Http/Api.php').read_text(),'Api transport does not delegate to ApiDispatch'
 assert "return match($h)" in (root/'src/Http/ApiDispatch.php').read_text(),'ApiDispatch handler map missing'
 print('PASS backend facade boundaries and extracted service files')
+for token in [
+ "ensureIndex('employees','branch_status'",
+ "ensureIndex('parties','branch_type_status'",
+ "ensureIndex('counter_sales','branch_date'",
+ "ensureIndex('counter_sales','branch_status_outstanding'",
+ "ensureIndex('purchase_bills','branch_status_outstanding'",
+ "ensureIndex('stock_transfers','source_status'",
+ "ensureIndex('stock_transfers','destination_status'",
+ "ensureIndex('journal_entries','company_status_date'",
+ "ensureIndex('journal_entries','company_source'",
+ "ensureIndex('tasks','employee_status_due'",
+ "ensureIndex('notifications','employee_created'",
+ "ensureIndex('holidays','scope_date'",
+]:
+ assert token in schema,('missing large-data performance index',token)
+assert 'information_schema.statistics' in schema,'performance index migration is not idempotent'
+print('PASS large-data hot-path index migration')
 maintenance=(root/'src/Administration/MaintenanceService.php').read_text()
 for metric in [
  'open_past_without_checkout',
@@ -68,7 +85,7 @@ for metric in [
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
 print('PASS operational diagnostics anomaly coverage')
 schema=(root/'src/Database/Schema.php').read_text()
-assert "7.3.5-business-fixes-3" in schema,'schema version was not advanced for business integrity migration'
+assert "7.3.5-performance-indexes-1" in schema,'schema version was not advanced for performance index migration'
 for token in [
  'checkout_exception',
  'checkout_exception_reason',

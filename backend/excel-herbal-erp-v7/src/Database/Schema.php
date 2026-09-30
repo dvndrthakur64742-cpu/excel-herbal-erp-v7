@@ -1,7 +1,7 @@
 <?php
 namespace ExcelHerbal\ERP7\Database;
 final class Schema {
-    public const VERSION='7.3.5-business-fixes-3';
+    public const VERSION='7.3.5-performance-indexes-1';
     /** @return array<string,string> */
     public static function definitions():array{$c=[];
 $c['companies']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,name VARCHAR(190) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'active',created_at DATETIME NOT NULL,PRIMARY KEY(id)";
@@ -124,6 +124,23 @@ return$c;}
         self::ensureColumn('stock_quarantine','unit_cost_snapshot','DECIMAL(14,4) NOT NULL DEFAULT 0 AFTER quantity');
         self::ensureColumn('stock_quarantine','journal_entry_id','BIGINT UNSIGNED NULL AFTER resolved_by');
 
+        // Hot-path indexes for large-data UAT/production readiness.
+        self::ensureIndex('employees','branch_status','company_id,assigned_branch_id,status');
+        self::ensureIndex('parties','branch_type_status','company_id,branch_id,type,status');
+        self::ensureIndex('suppliers','company_status','company_id,status');
+        self::ensureIndex('counter_sales','branch_date','company_id,branch_id,sale_date,id');
+        self::ensureIndex('counter_sales','branch_status_outstanding','company_id,branch_id,status,outstanding_amount');
+        self::ensureIndex('purchase_bills','branch_status_outstanding','company_id,branch_id,status,outstanding_amount,bill_date,id');
+        self::ensureIndex('stock_transfers','source_status','company_id,source_branch_id,status,id');
+        self::ensureIndex('stock_transfers','destination_status','company_id,destination_branch_id,status,id');
+        self::ensureIndex('stock_adjustments','branch_status','company_id,branch_id,status,id');
+        self::ensureIndex('journal_entries','company_status_date','company_id,status,entry_date,id');
+        self::ensureIndex('journal_entries','company_source','company_id,source_type,source_id,status');
+        self::ensureIndex('tasks','employee_status_due','company_id,assigned_employee_id,status,due_at,id');
+        self::ensureIndex('notifications','employee_created','company_id,employee_id,created_at,id');
+        self::ensureIndex('holidays','scope_date','company_id,branch_id,holiday_date,active');
+        self::ensureIndex('announcements','company_status_published','company_id,status,published_at,id');
+
         $salaryTable=Db::table('salary_revisions');$employeeTable=Db::table('employees');
         Db::mustQuery($db,$db->prepare("INSERT INTO {$salaryTable} (company_id,employee_id,effective_from,monthly_salary,status,reason,created_at) SELECT e.company_id,e.id,GREATEST(COALESCE(e.joining_date,%s),%s),e.monthly_salary,'baseline','Upgrade snapshot; earlier salary must be independently confirmed',%s FROM {$employeeTable} e WHERE NOT EXISTS(SELECT 1 FROM {$salaryTable} s WHERE s.company_id=e.company_id AND s.employee_id=e.id)",Db::today(),Db::today(),Db::now()));
         \ExcelHerbal\ERP7\Organization\DocumentVault::provisionKey();
@@ -151,6 +168,23 @@ return$c;}
             $row=$db->get_row($db->prepare("SELECT id,active FROM {$accounts} WHERE company_id=%d AND code='INTER_BRANCH_CLEARING' LIMIT 1",$companyId),ARRAY_A);
             if(!$row){Db::mustInsert($db,$accounts,['company_id'=>$companyId,'code'=>'INTER_BRANCH_CLEARING','name'=>'Inter-branch Transfer Clearing','type'=>'asset','subtype'=>'inter_branch_clearing','active'=>1]);continue;}
             if((int)$row['active']!==1)Db::mustUpdate($db,$accounts,['active'=>1],['id'=>(int)$row['id']]);
+        }
+    }
+
+    private static function ensureIndex(string $tableName,string $indexName,string $columns):void{
+        if(!preg_match('/^[A-Za-z0-9_]+$/',$indexName)||!preg_match('/^[A-Za-z0-9_,]+$/',$columns)){
+            throw new \LogicException('Unsafe internal schema index definition.');
+        }
+        $db=Db::wpdb();$table=Db::table($tableName);
+        $existing=(int)$db->get_var($db->prepare(
+            "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=%s AND index_name=%s",
+            $table,$indexName
+        ));
+        if($existing>0)return;
+        $result=$db->query("ALTER TABLE {$table} ADD INDEX {$indexName} ({$columns})");
+        if($result===false){
+            $error=trim((string)($db->last_error??''));
+            throw new \RuntimeException('ERP schema migration failed adding index '.$tableName.'.'.$indexName.($error!==''?': '.$error:''));
         }
     }
 
