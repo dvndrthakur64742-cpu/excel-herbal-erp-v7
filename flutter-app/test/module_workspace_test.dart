@@ -48,7 +48,8 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Inventory Control'), findsOneWidget);
+    expect(find.text('Inventory Control'), findsNothing);
+    expect(find.textContaining('Branch stock, transfers'), findsOneWidget);
     expect(find.text('Transfer'), findsOneWidget);
   });
 }

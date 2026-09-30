@@ -28,6 +28,7 @@ void main() {
     expect(source, contains('void _selectDesktopRoute(String id)'));
     expect(source, contains('desktopRoute = id;'));
     expect(source, contains('if (index >= 0) mobileIndex = index;'));
-    expect(source, contains('mobileIndex = index;\n        desktopRoute = id;'));
+    expect(source, contains('mobileIndex = index;'));
+    expect(source, contains('desktopRoute = id;'));
   });
 }

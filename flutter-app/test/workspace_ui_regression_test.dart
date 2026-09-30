@@ -11,7 +11,11 @@ void main() {
 
     expect(source, contains('ModuleWorkspaceHeader('));
     expect(source, contains('ModuleMessageBanner(message: message!)'));
-    expect(source, contains('ModuleSectionHeader('));
+    expect(
+      source,
+      isNot(contains('ModuleSectionHeader(')),
+      reason: 'Tabbed Organization content should not repeat a workspace header.',
+    );
     expect(source, contains('contextLabel: app.currentBranchName'));
     expect(
       source.split('BranchSelector()').length - 1,
@@ -58,14 +62,15 @@ void main() {
     expect(source, contains("Check-Out: pending"));
   });
 
-  test('desktop workspace context header stacks safely at narrow desktop widths', () {
+  test('desktop shell avoids a second competing workspace header', () {
     final source = File('lib/shell/app_shell.dart').readAsStringSync();
 
-    expect(source, contains("final compact = constraints.maxWidth < 760"));
-    expect(source, contains("final contextChips = Wrap("));
-    expect(source, contains("if (compact)"));
-    expect(source, contains("Business date unavailable"));
-    expect(source, contains("Branch unavailable"));
+    expect(source, isNot(contains('_desktopWorkspaceHeader')));
+    expect(source, contains('SizedBox(width: 248'));
+    expect(source, contains("ModuleWorkspaceHeader"));
+    expect(source, contains("_sectionLabel(context, 'WORK')"));
+    expect(source, contains("_sectionLabel(context, 'CONTROL')"));
+    expect(source, contains("_sectionLabel(context, 'MODULES')"));
   });
 
   test('business module page titles match shell navigation labels', () {
