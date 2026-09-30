@@ -7,6 +7,7 @@ use ExcelHerbal\ERP7\Database\Schema;
 use ExcelHerbal\ERP7\Domain\DomainException;
 use ExcelHerbal\ERP7\Inventory\InventoryService;
 use ExcelHerbal\ERP7\Organization\OrganizationEmployeeService;
+use ExcelHerbal\ERP7\Organization\OrganizationBranchService;
 use ExcelHerbal\ERP7\Payroll\PayrollPerformanceService;
 use ExcelHerbal\ERP7\Payroll\SalaryService;
 use ExcelHerbal\ERP7\Security\Actor;
@@ -23,7 +24,7 @@ function bc_rebuild_schema(Eh7IntegrationWpdb $db): void {
         'stock_transfer_lines', 'stock_transfers', 'branch_closings', 'hr_separations',
         'audit_log', 'performance_entries', 'leave_requests', 'attendance', 'holidays',
         'settings', 'payroll_items', 'payroll_runs', 'salary_revisions',
-        'employee_branch_history', 'employees', 'branches', 'companies',
+        'employee_branch_authorities', 'employee_branch_history', 'employees', 'branches', 'companies',
     ];
     $definitions = Schema::definitions();
     $db->query('SET FOREIGN_KEY_CHECKS=0');
@@ -42,6 +43,12 @@ function bc_insert(Eh7IntegrationWpdb $db, string $table, array $row): void {
     if ($db->insert(Db::table($table), $row) === false) {
         throw new RuntimeException('Insert '.$table.' failed: '.$db->last_error);
     }
+}
+
+function bc_seed_head_office(Eh7IntegrationWpdb $db): void {
+    bc_insert($db, 'companies', [
+        'id' => 1, 'name' => 'Concurrency Test Co', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00',
+    ]);
 }
 
 function bc_seed_payroll(Eh7IntegrationWpdb $db, bool $pendingSalary = false): void {
@@ -152,6 +159,12 @@ function bc_worker(string $mode, float $startAt): never {
             ),
             'report-b-to-a' => OrganizationEmployeeService::setReportingManager(
                 bc_actor([Capabilities::EMP_MANAGE]), 11, 10, 'Concurrent reporting assignment B to A'
+            ),
+            'head-office-a' => OrganizationBranchService::createBranch(
+                bc_actor([Capabilities::BRANCH_MANAGE]), 'HO-A', 'Head Office A', true
+            ),
+            'head-office-b' => OrganizationBranchService::createBranch(
+                bc_actor([Capabilities::BRANCH_MANAGE]), 'HO-B', 'Head Office B', true
             ),
             default => throw new RuntimeException('Unknown business worker mode: '.$mode),
         };
@@ -321,6 +334,23 @@ bc_case('business_reporting_cycle_concurrency_is_serialized', function () use ($
     $audits = (int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='employee.reporting_manager'");
     if ($audits !== 1) {
         throw new RuntimeException("reporting hierarchy audit invariant failed audits={$audits}");
+    }
+});
+
+bc_case('business_single_head_office_is_concurrency_safe', function () use ($wpdb) {
+    bc_rebuild_schema($wpdb);
+    bc_seed_head_office($wpdb);
+    $results = bc_parallel(['head-office-a', 'head-office-b']);
+    if (bc_success_count($results) !== 1) {
+        throw new RuntimeException('concurrent Head Office creation must have exactly one winner: '.json_encode($results));
+    }
+    if (!in_array('head_office_exists', bc_failure_codes($results), true)) {
+        throw new RuntimeException('losing Head Office creation did not receive head_office_exists: '.json_encode($results));
+    }
+    $count = (int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('branches')." WHERE company_id=1 AND status='active' AND is_head_office=1");
+    $audits = (int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='branch.create'");
+    if ($count !== 1 || $audits !== 1) {
+        throw new RuntimeException("Head Office invariant mismatch branches={$count} audits={$audits}");
     }
 });
 

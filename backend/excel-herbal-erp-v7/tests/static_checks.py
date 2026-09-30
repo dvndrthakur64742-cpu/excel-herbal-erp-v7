@@ -231,6 +231,11 @@ reporting=employee_service[employee_service.index('public static function setRep
 for token in ["SalaryService::lockCompany","FOR UPDATE","'reporting_cycle'"]:
  assert token in reporting,('reporting hierarchy mutation is not concurrency-safe',token)
 print('PASS reporting hierarchy concurrency serialization')
+branch_service=(root/'src/Organization/OrganizationBranchService.php').read_text()
+create_branch=branch_service[branch_service.index('public static function createBranch'):branch_service.index('public static function setBranchAuthority')]
+for token in ["Transaction::run","Db::table('companies')","FOR UPDATE","'head_office_exists'"]:
+ assert token in create_branch,('single Head Office invariant is not concurrency-safe',token)
+print('PASS single Head Office branch concurrency guard')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
