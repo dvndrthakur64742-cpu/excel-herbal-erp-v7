@@ -201,11 +201,11 @@ e2_case('e2_missing_capability_mutations_fail_closed',function()use($limited,$wp
 e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     $master=e2_actor(50,[Capabilities::PRODUCT_MANAGE,Capabilities::SALES_CREATE,Capabilities::PURCHASE_CREATE,Capabilities::EMP_MANAGE,Capabilities::PERFORMANCE_MANAGE]);
     $cases=[
-        ['expiry_requires_batch',fn()=>e2_dispatch('catalog.product_create',$master,[
+        ['expiry_requires_batch',fn()=>e2_dispatch('catalog.product_create',$master,[],[
             'sku'=>'EXP-OFF','name'=>'Expiry Invalid','uom'=>'PCS','batch_tracking'=>'off','expiry_tracking'=>true,
             'mrp'=>100,'sale_price'=>100,'ho_amount'=>40,'bm_profit'=>20,'salary_fund'=>20,'office_expense'=>20,'points'=>1,'purchase_cost'=>50,
         ]),'product_expiry_batch_required'],
-        ['commercial_distribution',fn()=>e2_dispatch('catalog.product_create',$master,[
+        ['commercial_distribution',fn()=>e2_dispatch('catalog.product_create',$master,[],[
             'sku'=>'BAD-COM','name'=>'Bad Commercial','uom'=>'PCS','batch_tracking'=>'optional','expiry_tracking'=>false,
             'mrp'=>100,'sale_price'=>90,'ho_amount'=>10,'bm_profit'=>10,'salary_fund'=>10,'office_expense'=>10,'points'=>1,'purchase_cost'=>50,
         ]),'commercial_distribution_invalid'],
@@ -221,9 +221,9 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
         catch(DomainException $e){if($e->codeKey!==$code)throw $e;}
     }
     e2_insert($wpdb,'designations',['id'=>1,'company_id'=>1,'code'=>'SM','name'=>'Sales Manager','sequence_no'=>10,'field_role'=>1,'promotion_min_points'=>0,'minimum_days'=>0,'status'=>'active']);
-    $first=e2_dispatch('org.employee_designation_assign',$master,['id'=>20,'designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-01','effective_to'=>'2026-09-30']);
+    $first=e2_dispatch('org.employee_designation_assign',$master,['id'=>20],['designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-01','effective_to'=>'2026-09-30']);
     if((int)($first['id']??0)<1)throw new RuntimeException('designation assignment seed failed');
-    try{e2_dispatch('org.employee_designation_assign',$master,['id'=>20,'designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-15','effective_to'=>'2026-10-15']);throw new RuntimeException('overlapping designation was accepted');}
+    try{e2_dispatch('org.employee_designation_assign',$master,['id'=>20],['designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-15','effective_to'=>'2026-10-15']);throw new RuntimeException('overlapping designation was accepted');}
     catch(DomainException $e){if($e->codeKey!=='designation_assignment_overlap')throw $e;}
     $target=e2_dispatch('performance.target',$master,['branch_id'=>1,'employee_id'=>20,'period_start'=>'2026-09-01','period_end'=>'2026-09-30','target_points'=>100]);
     if((int)($target['id']??0)<1)throw new RuntimeException('performance target seed failed');

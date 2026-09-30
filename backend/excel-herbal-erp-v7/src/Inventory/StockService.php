@@ -18,7 +18,7 @@ final class StockService{
   $where="sb.company_id=%d AND sb.branch_id=%d AND sb.product_id=%d AND sb.custodian_key=0 AND sb.quantity>.0001";$args=[$a->companyId,$branch,$product];
   if($mode==='off'){$where.=' AND sb.batch_key=0';$order='sb.id';}
   elseif($mode==='required'||!empty($p['expiry_tracking'])){$where.=" AND sb.batch_key<>0 AND bt.status='active' AND bt.expires_on IS NOT NULL AND bt.expires_on>=%s";$args[]=$today;$order='CASE WHEN bt.expires_on IS NULL THEN 1 ELSE 0 END,bt.expires_on,bt.batch_no,sb.id';}
-  else{$where.=" AND (sb.batch_key=0 OR (bt.status='active' AND (bt.expires_on IS NULL OR bt.expires_on>=%s)))";$args[]=$today;$order='CASE WHEN sb.batch_key=0 THEN 0 ELSE 1 END,CASE WHEN bt.expires_on IS NULL THEN 1 ELSE 0 END,bt.expires_on,bt.batch_no,sb.id';}
+  else{$where.=" AND (sb.batch_key=0 OR (bt.status='active' AND (bt.expires_on IS NULL OR bt.expires_on>=%s)))";$args[]=$today;$order='CASE WHEN sb.batch_key=0 THEN 2 WHEN bt.expires_on IS NULL THEN 1 ELSE 0 END,bt.expires_on,bt.batch_no,sb.id';}
   $rows=(array)$db->get_results($db->prepare("SELECT sb.batch_key,sb.quantity,bt.batch_no,bt.expires_on FROM {$b} sb LEFT JOIN {$bt} bt ON bt.id=NULLIF(sb.batch_key,0) WHERE {$where} ORDER BY {$order}",...$args),ARRAY_A);
   $remaining=$qty;$out=[];foreach($rows as$r){if($remaining<=.0001)break;$available=(float)$r['quantity'];if($available<=.0001)continue;$take=min($remaining,$available);$batch=(int)$r['batch_key'];$out[]=['batch_id'=>$batch>0?$batch:null,'quantity'=>round($take,3)];$remaining-= $take;}
   if($remaining>.0001)throw new DomainException('Insufficient warehouse stock for Daily Order issue.','insufficient_stock',409);
