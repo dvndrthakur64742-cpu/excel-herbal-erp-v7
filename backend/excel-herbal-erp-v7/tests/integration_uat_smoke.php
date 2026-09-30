@@ -93,7 +93,7 @@ function uat_seed(Eh7IntegrationWpdb $db): void {
     ]);
     uat_insert($db, 'product_commercial_revisions', [
         'id'=>1,'company_id'=>1,'product_id'=>100,'effective_from'=>'2026-01-01 00:00:00','mrp'=>120,'sale_price'=>100,
-        'ho_amount'=>20,'bm_profit'=>10,'salary_fund'=>5,'office_expense'=>5,'points'=>2,'purchase_cost'=>50,
+        'ho_amount'=>60,'bm_profit'=>20,'salary_fund'=>10,'office_expense'=>10,'points'=>2,'purchase_cost'=>50,
         'reason'=>'UAT pricing','status'=>'active','approved_by'=>20,'created_at'=>'2026-01-01 00:00:00',
     ]);
     uat_insert($db, 'stock_balances', [
