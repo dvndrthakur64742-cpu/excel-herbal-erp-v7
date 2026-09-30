@@ -538,6 +538,20 @@ class _RecordsListState extends State<RecordsList> {
         'mobile',
         'status',
       ],
+      'candidate' => const [
+        'candidate_code',
+        'proposed_designation_code',
+        'mobile',
+        'expected_joining_date',
+        'status',
+      ],
+      'separation' => const [
+        'employee_code',
+        'designation_code',
+        'separation_date',
+        'reason',
+        'status',
+      ],
       'product' => const ['sku', 'mrp', 'sale_price', 'status'],
       'daily_order' => const [
         'business_date',

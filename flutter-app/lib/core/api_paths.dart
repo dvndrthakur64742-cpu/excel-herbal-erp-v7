@@ -12,6 +12,8 @@ abstract final class ApiPaths {
 
   static const branches = '/organization/branches',
       employees = '/organization/employees',
+      hrCandidates = '/organization/candidates',
+      hrSeparations = '/organization/separations',
       masterData = '/organization/master-data',
       designations = '/organization/designations',
       roles = '/organization/roles',
@@ -125,6 +127,21 @@ abstract final class ApiPaths {
       '/organization/employees/$id/transfer-branch';
   static String employeeDocuments(int id) =>
       '/organization/employees/$id/documents';
+  static String candidateDetail(int id) => '/organization/candidates/$id';
+  static String candidateReview(int id) =>
+      '/organization/candidates/$id/review';
+  static String candidateJoining(int id) =>
+      '/organization/candidates/$id/joining';
+  static String candidateCredentials(int id) =>
+      '/organization/candidates/$id/credentials';
+  static String candidateNoShow(int id) =>
+      '/organization/candidates/$id/no-show';
+  static String employeeSeparation(int id) =>
+      '/organization/employees/$id/separations';
+  static String separationReview(int id) =>
+      '/organization/separations/$id/review';
+  static String separationComplete(int id) =>
+      '/organization/separations/$id/complete';
   static String employeeDocumentUpload(int id) =>
       '/organization/employees/$id/documents/upload';
   static String employeeDocumentDeactivate(int id, int documentId) =>

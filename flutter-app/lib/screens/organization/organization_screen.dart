@@ -16,6 +16,7 @@ import '../common/record_detail_screen.dart';
 
 part 'organization_branches.dart';
 part 'organization_employees.dart';
+part 'organization_hr.dart';
 part 'organization_products.dart';
 
 class OrganizationScreen extends ConsumerStatefulWidget {
@@ -47,6 +48,9 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
     ])) {
       tabs.add(('Employees', _employeesTab(app, api)));
     }
+    if (app.can('organization.hr.view')) {
+      tabs.add(('HR Lifecycle', _hrLifecycleTab(app, api)));
+    }
     if (app.canAny(const ['catalog.product.view', 'catalog.product.manage'])) {
       tabs.add(('Products', _productsTab(app, api)));
     }
@@ -73,7 +77,7 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
                 child: ModuleWorkspaceHeader(
                   title: 'Organization & Masters',
                   subtitle:
-                      'Branches, employees and product masters in one authorised workspace.',
+                      'Branches, employees, HR lifecycle and product masters in one authorised workspace.',
                   icon: Icons.corporate_fare_outlined,
                   contextLabel: app.currentBranchName,
                 ),
