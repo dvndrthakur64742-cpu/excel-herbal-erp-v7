@@ -203,8 +203,8 @@ for token in ["Transaction::run","FOR UPDATE","open_quarantine","pending_stock_a
 print('PASS branch deactivation transactional lifecycle coverage')
 branch_service=(root/'src/Organization/OrganizationBranchService.php').read_text()
 authority=branch_service[branch_service.index('public static function setBranchAuthority'):branch_service.index('public static function updateBranch')]
-for token in ["Transaction::run","FOR UPDATE","'employee_inactive'","valid_until"]:
- assert token in authority,('branch authority mutation is not concurrency-safe',token)
+for token in ["Transaction::run","FOR UPDATE","'employee_inactive'","'primary_branch_authority_inherent'","valid_until"]:
+ assert token in authority,('branch authority mutation/semantics are not safe',token)
 print('PASS branch authority grant/revoke locking and validity window')
 products=(root/'src/Organization/OrganizationProductService.php').read_text()
 update_product=products[products.index('public static function updateProduct'):products.index('public static function setProductStatus')]

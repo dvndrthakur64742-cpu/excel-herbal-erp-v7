@@ -243,13 +243,15 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     if((int)($first['id']??0)<1)throw new RuntimeException('designation assignment seed failed');
     try{e2_dispatch('org.employee_designation_assign',$master,['id'=>20],['designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-15','effective_to'=>'2026-10-15']);throw new RuntimeException('overlapping designation was accepted');}
     catch(DomainException $e){if($e->codeKey!=='designation_assignment_overlap')throw $e;}
-    $accessManager=e2_actor(20,[Capabilities::ACCESS_MANAGE]);
-    $granted=e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>1,'active'=>true]);
-    if(($granted['active']??false)!==true)throw new RuntimeException('branch authority grant failed');
-    $revoked=e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>1,'active'=>false]);
-    if(($revoked['active']??true)!==false)throw new RuntimeException('branch authority revoke failed');
-    $authorityRow=$wpdb->get_row('SELECT active,valid_until FROM '.Db::table('employee_branch_authorities').' WHERE company_id=1 AND employee_id=30 AND branch_id=1',ARRAY_A);
-    if(!$authorityRow||(int)$authorityRow['active']!==0||empty($authorityRow['valid_until']))throw new RuntimeException('branch authority validity window was not closed');
+    $accessManager=new Actor(8020,20,1,1,[1,2],[Capabilities::ACCESS_MANAGE],'SYSADMIN');
+    try{e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>1,'active'=>false]);throw new RuntimeException('primary branch authority was treated as revocable');}
+    catch(DomainException $e){if($e->codeKey!=='primary_branch_authority_inherent')throw $e;}
+    $granted=e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>2,'active'=>true]);
+    if(($granted['active']??false)!==true)throw new RuntimeException('extra branch authority grant failed');
+    $revoked=e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>2,'active'=>false]);
+    if(($revoked['active']??true)!==false)throw new RuntimeException('extra branch authority revoke failed');
+    $authorityRow=$wpdb->get_row('SELECT active,valid_until FROM '.Db::table('employee_branch_authorities').' WHERE company_id=1 AND employee_id=30 AND branch_id=2',ARRAY_A);
+    if(!$authorityRow||(int)$authorityRow['active']!==0||empty($authorityRow['valid_until']))throw new RuntimeException('extra branch authority validity window was not closed');
     e2_insert($wpdb,'stock_quarantine',['id'=>202,'company_id'=>1,'branch_id'=>2,'product_id'=>100,'batch_id'=>null,'quantity'=>1,'unit_cost_snapshot'=>50,'reason'=>'Branch deactivate guard fixture','status'=>'open','created_by'=>30,'created_at'=>'2026-01-01 00:00:00']);
     $branchManager=e2_actor(20,[Capabilities::BRANCH_MANAGE]);
     try{e2_dispatch('org.branch_status',$branchManager,['id'=>2,'active'=>false]);throw new RuntimeException('branch with open quarantine was deactivated');}
