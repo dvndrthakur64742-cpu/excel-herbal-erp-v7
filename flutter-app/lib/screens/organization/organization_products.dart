@@ -59,6 +59,7 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
       points,
       purchaseCost,
     ];
+    final formKey = GlobalKey<FormState>();
     var batchMode = 'optional';
     var expiryTracking = false;
     final ok = await showDialog<bool>(
@@ -72,15 +73,26 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
+                  TextFormField(
                     controller: sku,
-                    decoration: const InputDecoration(labelText: 'SKU'),
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(labelText: 'SKU *'),
+                    validator: (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Enter SKU.'
+                            : null,
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  TextFormField(
                     controller: name,
+                    textInputAction: TextInputAction.next,
                     decoration:
-                        const InputDecoration(labelText: 'Product Name'),
+                        const InputDecoration(labelText: 'Product Name *'),
+                    validator: (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Enter product name.'
+                            : null,
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -124,7 +136,8 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
                     child: Text(
                         'Rule: Sale Price ≤ MRP and distribution total must equal Sale Price.'),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -134,11 +147,12 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(
-                context,
-                sku.text.trim().isNotEmpty && name.text.trim().isNotEmpty,
-              ),
-              child: const Text('Create'),
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(context, true);
+                }
+              },
+              child: const Text('Create Product'),
             ),
           ],
         ),
