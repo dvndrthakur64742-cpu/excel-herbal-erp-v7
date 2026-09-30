@@ -12,6 +12,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/module_workspace.dart';
 import 'employee_designations_screen.dart';
 
 class TeamScreen extends ConsumerStatefulWidget {
@@ -160,22 +161,45 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
           ),
         ),
-        body: Column(
-          children: [
-            const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
-            if (message != null)
+        body: SafeArea(
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(message!),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: ModuleWorkspaceHeader(
+                  title: 'Team Operations',
+                  subtitle:
+                      'Daily work, attendance, leave, field activity and employee oversight.',
+                  icon: Icons.groups_outlined,
+                  contextLabel: app.currentBranchName,
+                ),
               ),
-            Expanded(
-              child: app.currentBranchId == null
-                  ? const Center(
-                      child: Text('Select an authorised branch to continue.'),
-                    )
-                  : TabBarView(children: [for (final tab in tabs) tab.$2]),
-            ),
-          ],
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: BranchSelector(),
+              ),
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: ModuleMessageBanner(message: message!),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: ModuleSectionHeader(
+                  title: 'Team Workspace',
+                  subtitle:
+                      'Use the tabs below for the team functions allowed by your role.',
+                ),
+              ),
+              Expanded(
+                child: app.currentBranchId == null
+                    ? const Center(
+                        child: Text('Select an authorised branch to continue.'),
+                      )
+                    : TabBarView(children: [for (final tab in tabs) tab.$2]),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -9,6 +9,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/module_workspace.dart';
 
 import 'compensation_workspace.dart';
 
@@ -43,7 +44,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                     'to': app.businessDate,
                   },
                 ),
-          emptyMessage: 'Performance posting nahi hai.',
+          emptyMessage: 'No performance records for the selected period.',
           builder: (context, data) =>
               RecordsList(recordType: 'performance', rows: _rows(data)),
         ),
@@ -75,7 +76,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                         ApiPaths.performanceTargets,
                         query: {'branch_id': app.currentBranchId},
                       ),
-                emptyMessage: 'Koi performance target nahi hai.',
+                emptyMessage: 'No performance targets for this branch.',
                 builder: (context, data) => RecordsList(
                   recordType: 'target',
                   rows: _rows(data),
@@ -139,7 +140,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                         ApiPaths.payrollRuns,
                         query: {'branch_id': app.currentBranchId},
                       ),
-                emptyMessage: 'Payroll run nahi hai.',
+                emptyMessage: 'No payroll runs for this branch.',
                 builder: (context, data) => RecordsList(
                   recordType: 'payroll',
                   rows: _rows(data),
@@ -167,20 +168,45 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
           ),
         ),
-        body: Column(
-          children: [
-            const Padding(padding: EdgeInsets.all(16), child: BranchSelector()),
-            if (message != null)
+        body: SafeArea(
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(message!),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: ModuleWorkspaceHeader(
+                  title: 'Payroll & Performance',
+                  subtitle:
+                      'Performance, targets, payroll and authorised compensation workflows.',
+                  icon: Icons.insights_outlined,
+                  contextLabel: app.currentBranchName,
+                ),
               ),
-            Expanded(
-              child: app.currentBranchId == null
-                  ? const Center(child: Text('Branch select karein.'))
-                  : TabBarView(children: [for (final tab in tabs) tab.$2]),
-            ),
-          ],
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: BranchSelector(),
+              ),
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: ModuleMessageBanner(message: message!),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: ModuleSectionHeader(
+                  title: 'People Performance Workspace',
+                  subtitle:
+                      'Use the tabs below for the payroll and performance functions allowed by your role.',
+                ),
+              ),
+              Expanded(
+                child: app.currentBranchId == null
+                    ? const Center(
+                        child: Text('Select an authorised branch to continue.'),
+                      )
+                    : TabBarView(children: [for (final tab in tabs) tab.$2]),
+              ),
+            ],
+          ),
         ),
       ),
     );

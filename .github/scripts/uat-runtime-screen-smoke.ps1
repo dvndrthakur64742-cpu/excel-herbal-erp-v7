@@ -387,16 +387,27 @@ try {
 
   $modules = @(
     @{ nav = @('Team Operations'); title = @('Team Operations'); key = 'team' },
-    @{ nav = @('Sales & Collections'); title = @('Sales'); key = 'sales' },
+    @{ nav = @('Sales & Collections'); title = @('Sales & Collections'); key = 'sales' },
     @{ nav = @('Inventory'); title = @('Inventory'); key = 'inventory' },
-    @{ nav = @('Purchase & Suppliers'); title = @('Purchase'); key = 'purchase' },
-    @{ nav = @('Finance & Accounts'); title = @('Finance'); key = 'finance' },
+    @{ nav = @('Purchase & Suppliers'); title = @('Purchase & Suppliers'); key = 'purchase' },
+    @{ nav = @('Finance & Accounts'); title = @('Finance & Accounts'); key = 'finance' },
     @{ nav = @('Payroll & Performance'); title = @('Payroll & Performance'); key = 'payroll_performance' }
   )
 
   foreach ($module in $modules) {
     $evidence.phase = $module.key
+
+    # On the responsive/mobile shell, business modules live inside the drawer.
+    # Open it only when the requested module is not already exposed (desktop
+    # sidebar keeps modules visible without this step).
     $nav = Find-ByNameLike (Root $chrome) $module.nav
+    if (-not $nav) {
+      $menu = Find-ByNameLike (Root $chrome) @('Open navigation menu')
+      if ($menu -and (Try-Invoke $menu)) {
+        Start-Sleep -Milliseconds 650
+        $nav = Wait-ForAnyName $chrome $module.nav 8
+      }
+    }
     if (-not $nav) {
       Write-UiHints $chrome ($module.key + '_navigation_missing')
       throw ('Required UAT module navigation is missing: ' + ($module.nav -join ' / '))
@@ -412,6 +423,21 @@ try {
     Assert-NoBootstrapCrash $chrome $module.key
     $evidence.results[$module.key] = 'passed'
     Write-Host ('PASS uat_screen_' + $module.key)
+
+    # Mobile module tiles push a route. Return to the authenticated shell before
+    # locating the next drawer item. Desktop modules stay in the shell and do
+    # not expose a Back control, so no navigation is needed there.
+    $back = Find-ByNameLike (Root $chrome) @('Back')
+    if ($back) {
+      if (-not (Try-Invoke $back)) {
+        Write-UiHints $chrome ($module.key + '_back_navigation_failed')
+        throw ('Could not return from UAT module: ' + $module.key)
+      }
+      if (-not (Wait-ForAuthenticatedWorkspace $chrome 15)) {
+        Write-UiHints $chrome ($module.key + '_shell_return_missing')
+        throw ('Authenticated shell did not return after UAT module: ' + $module.key)
+      }
+    }
   }
 
   $evidence['status'] = 'passed'
