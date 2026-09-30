@@ -12,6 +12,7 @@ import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 
 import 'compensation_workspace.dart';
+import 'payroll_policy_dialog.dart';
 
 class PerformanceScreen extends ConsumerStatefulWidget {
   const PerformanceScreen({super.key});
@@ -119,7 +120,10 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
         'Payroll',
         Column(
           children: [
-            if (app.can('payroll.generate'))
+            if (app.canAny(const [
+              'payroll.generate',
+              'payroll.approve',
+            ]))
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Align(
@@ -128,16 +132,24 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      FilledButton.icon(
-                        onPressed: _generate,
-                        icon: const Icon(Icons.calculate_outlined),
-                        label: const Text('Generate Payroll Draft'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _salaryRevisionWorkspace,
-                        icon: const Icon(Icons.history_toggle_off_outlined),
-                        label: const Text('Salary Revisions'),
-                      ),
+                      if (app.can('payroll.generate'))
+                        FilledButton.icon(
+                          onPressed: _generate,
+                          icon: const Icon(Icons.calculate_outlined),
+                          label: const Text('Generate Payroll Draft'),
+                        ),
+                      if (app.can('payroll.generate'))
+                        OutlinedButton.icon(
+                          onPressed: _salaryRevisionWorkspace,
+                          icon: const Icon(Icons.history_toggle_off_outlined),
+                          label: const Text('Salary Revisions'),
+                        ),
+                      if (app.can('payroll.approve'))
+                        OutlinedButton.icon(
+                          onPressed: _payrollPolicy,
+                          icon: const Icon(Icons.policy_outlined),
+                          label: const Text('Payroll Policy'),
+                        ),
                     ],
                   ),
                 ),
@@ -225,6 +237,25 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
   List<Map<String, dynamic>> _rows(dynamic data) =>
       (data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+  Future<void> _payrollPolicy() async {
+    final app = ref.read(appStateProvider);
+    try {
+      final result = await showPayrollPolicyDialog(
+        context,
+        ref,
+        canManage: app.can('administration.access.manage'),
+      );
+      if (result != null && mounted) {
+        setState(() {
+          message = result;
+          refresh++;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
 
   Future<void> _salaryRevisionWorkspace() async {
     final app = ref.read(appStateProvider);

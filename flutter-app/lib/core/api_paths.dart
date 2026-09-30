@@ -63,7 +63,8 @@ abstract final class ApiPaths {
       periodClose = '/finance/periods/close',
       bankReconciliations = '/finance/bank-reconciliations';
 
-  static const payrollRuns = '/payroll/runs',
+  static const payrollPolicy = '/payroll/policy',
+      payrollRuns = '/payroll/runs',
       salaryStructures = '/payroll/salary-structures',
       performanceSummary = '/performance/summary',
       performanceTargets = '/performance/targets',
