@@ -238,8 +238,11 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
       if (employees.isEmpty) {
-        throw const FormatException('No active employee is available in this branch.');
+        throw const FormatException(
+          'No active employee is available in this branch.',
+        );
       }
+
       int? employeeId;
       final selected = await showDialog<Map<String, dynamic>>(
         context: context,
@@ -255,9 +258,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                 items: employees
                     .map(
                       (employee) => DropdownMenuItem(
-                        value: int.parse('\${employee['id']}'),
+                        value: int.parse("\${employee['id']}"),
                         child: Text(
-                          '\${employee['full_name']} · \${employee['employee_code']}',
+                          "\${employee['full_name']} · \${employee['employee_code']}",
                         ),
                       ),
                     )
@@ -277,7 +280,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           context,
                           employees.firstWhere(
                             (employee) =>
-                                int.parse('\${employee['id']}') == employeeId,
+                                int.parse("\${employee['id']}") == employeeId,
                           ),
                         ),
                 child: const Text('Open History'),
@@ -296,8 +299,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
   Future<void> _showSalaryHistory(Map<String, dynamic> employee) async {
     final api = ref.read(apiClientProvider);
     final app = ref.read(appStateProvider);
-    final employeeId = int.parse('\${employee['id']}');
-    final currentActorId = int.tryParse('\${app.employee['id']}') ?? 0;
+    final employeeId = int.parse("\${employee['id']}");
+    final currentActorId = int.tryParse("\${app.employee['id']}") ?? 0;
+
     Future<List<Map<String, dynamic>>> load() async =>
         (await api.get(ApiPaths.salaryRevisions(employeeId)) as List)
             .map((e) => Map<String, dynamic>.from(e as Map))
@@ -305,6 +309,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
     var future = load();
     String? localMessage;
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -317,18 +322,20 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
               );
               return;
             }
+
             final salary = TextEditingController(
-              text: '\${employee['monthly_salary'] ?? ''}',
+              text: "\${employee['monthly_salary'] ?? ''}",
             );
             final effective = TextEditingController(text: app.businessDate);
             final reason = TextEditingController();
             String? validation;
+
             final ok = await showDialog<bool>(
               context: dialogContext,
               builder: (context) => StatefulBuilder(
                 builder: (context, setForm) => AlertDialog(
                   title: Text(
-                    'New Salary Revision · \${employee['full_name'] ?? 'Employee'}',
+                    "New Salary Revision · \${employee['full_name'] ?? 'Employee'}",
                   ),
                   content: SizedBox(
                     width: 520,
@@ -403,6 +410,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                 ),
               ),
             );
+
             final payload = {
               'monthly_salary': double.tryParse(salary.text.trim()),
               'effective_from': effective.text.trim(),
@@ -412,6 +420,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             effective.dispose();
             reason.dispose();
             if (ok != true) return;
+
             try {
               await api.post(
                 ApiPaths.salaryRevisions(employeeId),
@@ -431,17 +440,18 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             Map<String, dynamic> revision,
             bool approve,
           ) async {
-            final revisionId = int.tryParse('\${revision['id']}');
+            final revisionId = int.tryParse("\${revision['id']}");
             if (revisionId == null) return;
             final action = approve ? 'Approve' : 'Reject';
+
             final confirmed = await showDialog<bool>(
               context: dialogContext,
               builder: (context) => AlertDialog(
                 title: Text('\$action Salary Revision?'),
                 content: Text(
-                  '\${employee['full_name'] ?? 'Employee'} · '
-                  '\${revision['monthly_salary'] ?? ''} from '
-                  '\${revision['effective_from'] ?? ''}\\n\\n'
+                  "\${employee['full_name'] ?? 'Employee'} · "
+                  "\${revision['monthly_salary'] ?? ''} from "
+                  "\${revision['effective_from'] ?? ''}\n\n"
                   'This review is maker-checker protected and cannot be performed by the revision creator or the employee.',
                 ),
                 actions: [
@@ -457,6 +467,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
               ),
             );
             if (confirmed != true) return;
+
             try {
               await api.post(
                 ApiPaths.salaryRevisionReview(revisionId),
@@ -475,7 +486,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
           return AlertDialog(
             title: Text(
-              'Salary History · \${employee['full_name'] ?? 'Employee'}',
+              "Salary History · \${employee['full_name'] ?? 'Employee'}",
             ),
             content: SizedBox(
               width: 760,
@@ -491,7 +502,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          '\${employee['employee_code'] ?? ''} · Current salary \${employee['monthly_salary'] ?? '—'}',
+                          "\${employee['employee_code'] ?? ''} · Current salary \${employee['monthly_salary'] ?? '—'}",
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ),
@@ -526,6 +537,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                             child: Text('No salary history is available.'),
                           );
                         }
+
                         return ListView.separated(
                           itemCount: rows.length,
                           separatorBuilder: (_, __) =>
@@ -533,22 +545,22 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           itemBuilder: (context, index) {
                             final row = rows[index];
                             final status =
-                                '\${row['status'] ?? ''}'.toLowerCase();
+                                "\${row['status'] ?? ''}".toLowerCase();
                             final creatorId =
-                                int.tryParse('\${row['created_by']}') ?? 0;
+                                int.tryParse("\${row['created_by']}") ?? 0;
                             final canReview = status == 'pending' &&
                                 app.can('payroll.approve') &&
                                 creatorId != currentActorId &&
                                 employeeId != currentActorId;
+
                             return ListTile(
-                              leading: const Icon(
-                                Icons.currency_rupee_rounded,
-                              ),
+                              leading:
+                                  const Icon(Icons.currency_rupee_rounded),
                               title: Text(
-                                '\${row['monthly_salary'] ?? '—'} · \${row['effective_from'] ?? '—'}',
+                                "\${row['monthly_salary'] ?? '—'} · \${row['effective_from'] ?? '—'}",
                               ),
                               subtitle: Text(
-                                '\${row['reason'] ?? ''} · \${status.isEmpty ? 'unknown' : status}',
+                                "\${row['reason'] ?? ''} · \${status.isEmpty ? 'unknown' : status}",
                               ),
                               trailing: canReview
                                   ? Wrap(
