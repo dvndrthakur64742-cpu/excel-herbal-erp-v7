@@ -91,7 +91,7 @@ final class OrganizationEmployeeService{
   if($managerId!==null&&$managerId<1)$managerId=null;
   if($managerId===$employeeId)throw new DomainException('Employee cannot report to self.','reporting_employee_invalid',422);
   return Transaction::run(function()use($a,$employeeId,$managerId,$reason){
-   $db=Db::wpdb();$t=Db::table('employees');$e=$db->get_row($db->prepare("SELECT id,assigned_branch_id,reporting_employee_id FROM {$t} WHERE id=%d AND company_id=%d AND status='active' FOR UPDATE",$employeeId,$a->companyId),ARRAY_A);
+   \ExcelHerbal\ERP7\Payroll\SalaryService::lockCompany($a->companyId);$db=Db::wpdb();$t=Db::table('employees');$e=$db->get_row($db->prepare("SELECT id,assigned_branch_id,reporting_employee_id FROM {$t} WHERE id=%d AND company_id=%d AND status='active' FOR UPDATE",$employeeId,$a->companyId),ARRAY_A);
    if(!$e)throw new DomainException('Active employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::EMP_MANAGE);
    $old=$e['reporting_employee_id']!==null?(int)$e['reporting_employee_id']:null;
    if($old===$managerId)return['id'=>$employeeId,'reporting_employee_id'=>$managerId,'unchanged'=>true];

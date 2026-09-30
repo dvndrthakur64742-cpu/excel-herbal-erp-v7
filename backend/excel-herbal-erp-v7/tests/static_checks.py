@@ -226,6 +226,11 @@ for method,next_method in [
 for token in ["'employee_create_payroll_conflict'","'employee_reactivate_payroll_conflict'","'payroll_period_conflict'"]:
  assert token in employees,('missing workforce/payroll period conflict guard',token)
 print('PASS workforce lifecycle and payroll scope synchronization')
+employee_service=(root/'src/Organization/OrganizationEmployeeService.php').read_text()
+reporting=employee_service[employee_service.index('public static function setReportingManager'):employee_service.index('public static function offboardingPreflight')]
+for token in ["SalaryService::lockCompany","FOR UPDATE","'reporting_cycle'"]:
+ assert token in reporting,('reporting hierarchy mutation is not concurrency-safe',token)
+print('PASS reporting hierarchy concurrency serialization')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')

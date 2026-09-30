@@ -92,6 +92,23 @@ function bc_seed_payroll(Eh7IntegrationWpdb $db, bool $pendingSalary = false): v
     ]);
 }
 
+function bc_seed_reporting(Eh7IntegrationWpdb $db): void {
+    bc_insert($db, 'companies', [
+        'id' => 1, 'name' => 'Concurrency Test Co', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00',
+    ]);
+    bc_insert($db, 'branches', [
+        'id' => 1, 'company_id' => 1, 'code' => 'B1', 'name' => 'Branch One',
+        'is_head_office' => 1, 'status' => 'active', 'created_at' => '2026-01-01 00:00:00',
+    ]);
+    foreach ([[10,'E10','Employee A'],[11,'E11','Employee B']] as [$id,$code,$name]) {
+        bc_insert($db, 'employees', [
+            'id' => $id, 'company_id' => 1, 'employee_code' => $code, 'designation_code' => 'BM',
+            'assigned_branch_id' => 1, 'full_name' => $name, 'monthly_salary' => 1000,
+            'joining_date' => '2026-01-01', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00',
+        ]);
+    }
+}
+
 function bc_seed_transfer(Eh7IntegrationWpdb $db): void {
     bc_insert($db, 'companies', [
         'id' => 1, 'name' => 'Concurrency Test Co', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00',
@@ -129,6 +146,12 @@ function bc_worker(string $mode, float $startAt): never {
             ),
             'salary-approve' => SalaryService::approve(
                 bc_actor([Capabilities::PAYROLL_APPROVE]), 2, true
+            ),
+            'report-a-to-b' => OrganizationEmployeeService::setReportingManager(
+                bc_actor([Capabilities::EMP_MANAGE]), 10, 11, 'Concurrent reporting assignment A to B'
+            ),
+            'report-b-to-a' => OrganizationEmployeeService::setReportingManager(
+                bc_actor([Capabilities::EMP_MANAGE]), 11, 10, 'Concurrent reporting assignment B to A'
             ),
             default => throw new RuntimeException('Unknown business worker mode: '.$mode),
         };
@@ -276,6 +299,28 @@ bc_case('business_salary_approval_vs_payroll_snapshot_consistent', function () u
         }
     } else {
         throw new RuntimeException('unexpected salary revision status '.$status);
+    }
+});
+
+bc_case('business_reporting_cycle_concurrency_is_serialized', function () use ($wpdb) {
+    bc_rebuild_schema($wpdb);
+    bc_seed_reporting($wpdb);
+    $results = bc_parallel(['report-a-to-b', 'report-b-to-a']);
+    if (bc_success_count($results) !== 1) {
+        throw new RuntimeException('reporting hierarchy race must have exactly one winner: '.json_encode($results));
+    }
+    if (!in_array('reporting_cycle', bc_failure_codes($results), true)) {
+        throw new RuntimeException('losing reporting hierarchy mutation did not receive reporting_cycle: '.json_encode($results));
+    }
+    $aManager = (int)$wpdb->get_var('SELECT COALESCE(reporting_employee_id,0) FROM '.Db::table('employees').' WHERE id=10');
+    $bManager = (int)$wpdb->get_var('SELECT COALESCE(reporting_employee_id,0) FROM '.Db::table('employees').' WHERE id=11');
+    $valid = ($aManager === 11 && $bManager === 0) || ($aManager === 0 && $bManager === 10);
+    if (!$valid) {
+        throw new RuntimeException("reporting hierarchy cycle persisted A={$aManager} B={$bManager}");
+    }
+    $audits = (int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='employee.reporting_manager'");
+    if ($audits !== 1) {
+        throw new RuntimeException("reporting hierarchy audit invariant failed audits={$audits}");
     }
 });
 
