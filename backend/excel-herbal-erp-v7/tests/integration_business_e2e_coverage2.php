@@ -265,6 +265,13 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     try{e2_dispatch('org.branch_status',$branchManager,['id'=>2,'active'=>false]);throw new RuntimeException('branch with open quarantine was deactivated');}
     catch(DomainException $e){if($e->codeKey!=='branch_deactivate_blocked')throw $e;}
     if($wpdb->query('DELETE FROM '.Db::table('stock_quarantine').' WHERE id=202')===false)throw new RuntimeException('branch quarantine fixture cleanup failed');
+    e2_insert($wpdb,'holidays',['id'=>777,'company_id'=>1,'branch_id'=>null,'holiday_date'=>'2026-10-05','name'=>'Company Wide Guard Fixture','active'=>1,'created_by'=>20,'created_at'=>'2026-01-01 00:00:00']);
+    $limitedHoliday=e2_actor(40,[Capabilities::LEAVE_MANAGE]);
+    try{e2_dispatch('work.holiday_update',$limitedHoliday,['id'=>777],['name'=>'Unauthorized Company Holiday Edit']);throw new RuntimeException('limited branch manager updated company-wide holiday');}
+    catch(DomainException $e){if($e->codeKey!=='company_scope_forbidden')throw $e;}
+    try{e2_dispatch('work.holiday_deactivate',$limitedHoliday,['id'=>777]);throw new RuntimeException('limited branch manager deactivated company-wide holiday');}
+    catch(DomainException $e){if($e->codeKey!=='company_scope_forbidden')throw $e;}
+    if($wpdb->query('DELETE FROM '.Db::table('holidays').' WHERE id=777')===false)throw new RuntimeException('holiday authority fixture cleanup failed');
     e2_insert($wpdb,'payroll_runs',['id'=>901,'company_id'=>1,'branch_id'=>1,'period_start'=>'2026-09-01','period_end'=>'2026-09-30','calculation_version'=>'7.3.5','status'=>'draft','created_by'=>20,'created_at'=>'2026-09-30 00:00:00']);
     $holidayManager=e2_actor(20,[Capabilities::LEAVE_MANAGE]);
     try{e2_dispatch('work.holiday_create',$holidayManager,[],['branch_id'=>1,'holiday_date'=>'2026-09-15','name'=>'Payroll Conflict Holiday']);throw new RuntimeException('holiday was created inside an existing payroll period');}

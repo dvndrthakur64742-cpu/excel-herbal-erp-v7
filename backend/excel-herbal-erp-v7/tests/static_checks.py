@@ -271,8 +271,8 @@ for token in ["Transaction::run","FOR UPDATE","'closing_state_invalid'"]:
  assert token in reopen,('branch closing reopen is not concurrency-safe',token)
 print('PASS branch closing reopen state locking')
 holidays=(root/'src/Workforce/HolidayService.php').read_text()
-for token in ["SalaryService::lockCompany","'holiday_payroll_conflict'","Transaction::run","FOR UPDATE","'unchanged'=>true"]:
- assert token in holidays,('holiday/payroll calendar integrity guard missing',token)
+for token in ["SalaryService::lockCompany","'holiday_payroll_conflict'","Transaction::run","FOR UPDATE","'unchanged'=>true","self::companyWide($a)"]:
+ assert token in holidays,('holiday/payroll calendar or scope guard missing',token)
 print('PASS holiday calendar/payroll synchronization')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
