@@ -196,6 +196,11 @@ reopen=periods[periods.index('public static function reopenPeriod'):]
 for token in ["Transaction::run","FOR UPDATE","'period_state_invalid'"]:
  assert token in reopen,('accounting period reopen is not concurrency-safe',token)
 print('PASS performance target and accounting period state-transition locking')
+branches=(root/'src/Organization/OrganizationBranchService.php').read_text()
+branch_status=branches[branches.index('public static function setBranchStatus'):]
+for token in ["Transaction::run","FOR UPDATE","open_quarantine","pending_stock_adjustments","pending_expenses","pending_reversals","open_payroll"]:
+ assert token in branch_status,('branch deactivation lifecycle guard missing',token)
+print('PASS branch deactivation transactional lifecycle coverage')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')

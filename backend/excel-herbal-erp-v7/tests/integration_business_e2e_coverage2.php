@@ -243,6 +243,11 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     if((int)($first['id']??0)<1)throw new RuntimeException('designation assignment seed failed');
     try{e2_dispatch('org.employee_designation_assign',$master,['id'=>20],['designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-15','effective_to'=>'2026-10-15']);throw new RuntimeException('overlapping designation was accepted');}
     catch(DomainException $e){if($e->codeKey!=='designation_assignment_overlap')throw $e;}
+    e2_insert($wpdb,'stock_quarantine',['id'=>202,'company_id'=>1,'branch_id'=>2,'product_id'=>100,'batch_id'=>null,'quantity'=>1,'unit_cost_snapshot'=>50,'reason'=>'Branch deactivate guard fixture','status'=>'open','created_by'=>30,'created_at'=>'2026-01-01 00:00:00']);
+    $branchManager=e2_actor(20,[Capabilities::BRANCH_MANAGE]);
+    try{e2_dispatch('org.branch_status',$branchManager,['id'=>2,'active'=>false]);throw new RuntimeException('branch with open quarantine was deactivated');}
+    catch(DomainException $e){if($e->codeKey!=='branch_deactivate_blocked')throw $e;}
+    if($wpdb->query('DELETE FROM '.Db::table('stock_quarantine').' WHERE id=202')===false)throw new RuntimeException('branch quarantine fixture cleanup failed');
     $target=e2_dispatch('performance.target',$master,['branch_id'=>1,'employee_id'=>20,'period_start'=>'2026-09-01','period_end'=>'2026-09-30','target_points'=>100]);
     if((int)($target['id']??0)<1)throw new RuntimeException('performance target seed failed');
     try{e2_dispatch('performance.target',$master,['branch_id'=>1,'employee_id'=>20,'period_start'=>'2026-09-15','period_end'=>'2026-10-15','target_points'=>120]);throw new RuntimeException('overlapping target was accepted');}
