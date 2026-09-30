@@ -31,3 +31,4 @@ Proxy-safe dual bearer transport added through a66f83495fabe0a0e5395ee894fb9d7dc
 Transient live main.dart.js verification retry added at 1588790273b7361745cf462c791c1214846f1961; re-certify session-auth fix and complete runtime gate.
 
 Office BUILD/UAT environment policy + picker/path hardening certified at c5c7c8ec8a7e031397dde1c817ae8d239470dfc1 in verification run 36402434679; deploy and runtime-smoke the exact successor trigger head.
+2026-09-30 UX finalization: consolidated navigation, hierarchy, tables, language consistency, and tabbed workspace cleanup.
