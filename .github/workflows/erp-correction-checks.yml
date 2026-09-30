@@ -520,8 +520,19 @@ jobs:
           $candidate = Join-Path $releaseRoot 'web\\main.dart.js'
           if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'Exact-head candidate main.dart.js is missing.' }
           $live = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
-          & curl.exe --fail --location --silent --show-error --max-time 30 --output $live ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
-          if ($LASTEXITCODE -ne 0) { throw 'Live web verification download failed.' }
+          $liveDownloaded = $false
+          $lastLiveCurlExit = 0
+          for ($downloadAttempt = 1; $downloadAttempt -le 4; $downloadAttempt++) {
+            Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
+            & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 90 --output $live ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
+            $lastLiveCurlExit = $LASTEXITCODE
+            if ($lastLiveCurlExit -eq 0 -and (Test-Path -LiteralPath $live -PathType Leaf) -and (Get-Item -LiteralPath $live).Length -gt 0) {
+              $liveDownloaded = $true
+              break
+            }
+            if ($downloadAttempt -lt 4) { Start-Sleep -Seconds ([Math]::Min(8, $downloadAttempt * 2)) }
+          }
+          if (-not $liveDownloaded) { throw ('Live web verification download failed after retries. curl_exit=' + $lastLiveCurlExit) }
           $expected = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
           $actual = (Get-FileHash -LiteralPath $live -Algorithm SHA256).Hash.ToLowerInvariant()
           Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
@@ -557,8 +568,19 @@ jobs:
           $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $env:GITHUB_SHA)
           $candidate = Join-Path $releaseRoot 'web\\main.dart.js'
           $live = Join-Path $env:RUNNER_TEMP 'eh7-live-session-race-main.js'
-          & curl.exe --fail --location --silent --show-error --max-time 30 --output $live ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
-          if ($LASTEXITCODE -ne 0) { throw 'Live session-race verification download failed.' }
+          $liveDownloaded = $false
+          $lastLiveCurlExit = 0
+          for ($downloadAttempt = 1; $downloadAttempt -le 4; $downloadAttempt++) {
+            Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
+            & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 90 --output $live ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
+            $lastLiveCurlExit = $LASTEXITCODE
+            if ($lastLiveCurlExit -eq 0 -and (Test-Path -LiteralPath $live -PathType Leaf) -and (Get-Item -LiteralPath $live).Length -gt 0) {
+              $liveDownloaded = $true
+              break
+            }
+            if ($downloadAttempt -lt 4) { Start-Sleep -Seconds ([Math]::Min(8, $downloadAttempt * 2)) }
+          }
+          if (-not $liveDownloaded) { throw ('Live session-race verification download failed after retries. curl_exit=' + $lastLiveCurlExit) }
           $expected = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
           $actual = (Get-FileHash -LiteralPath $live -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($expected -ne $actual) { throw 'Live Flutter web hash does not match exact-head candidate.' }
