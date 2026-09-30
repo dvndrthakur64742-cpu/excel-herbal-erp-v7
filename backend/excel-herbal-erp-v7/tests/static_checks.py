@@ -215,6 +215,17 @@ move=stock_service[stock_service.index('public static function move'):stock_serv
 for token in ["FOR UPDATE","status='active'","validateBatch"]:
  assert token in move,('stock movement does not synchronize with product structure/status',token)
 print('PASS product structure and stock movement lock symmetry')
+employees=(root/'src/Organization/OrganizationEmployeeService.php').read_text()
+for method,next_method in [
+ ('public static function createEmployee','public static function setEmployeeCredentials'),
+ ('public static function reactivateEmployee','public static function setReportingManager'),
+ ('public static function offboardEmployee','private static function offboardingBlockers'),
+]:
+ section=employees[employees.index(method):employees.index(next_method)]
+ assert 'SalaryService::lockCompany' in section,('employee/payroll lifecycle mutation lacks company lock',method)
+for token in ["'employee_create_payroll_conflict'","'employee_reactivate_payroll_conflict'","'payroll_period_conflict'"]:
+ assert token in employees,('missing workforce/payroll period conflict guard',token)
+print('PASS workforce lifecycle and payroll scope synchronization')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
