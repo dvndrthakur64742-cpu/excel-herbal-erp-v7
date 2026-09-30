@@ -72,6 +72,10 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                 future: api.get(ApiPaths.communicationSummary),
                 builder: (context, data) {
                   final summary = Map<String, dynamic>.from(data as Map);
+                  final tasks =
+                      ((summary['tasks'] as List?) ?? const [])
+                          .map((e) => Map<String, dynamic>.from(e as Map))
+                          .toList();
                   final announcements =
                       ((summary['announcements'] as List?) ?? const [])
                           .map((e) => Map<String, dynamic>.from(e as Map))
@@ -82,7 +86,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                           .toList();
                   return TabBarView(
                     children: [
-                      const TasksScreen(),
+                      TasksScreen(initialTasks: tasks),
                       _announcements(announcements),
                       _notifications(notifications),
                     ],

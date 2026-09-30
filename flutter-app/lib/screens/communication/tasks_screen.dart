@@ -6,23 +6,25 @@ import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../theme/excel_brand.dart';
-import '../../widgets/async_panel.dart';
 
 class TasksScreen extends ConsumerStatefulWidget {
-  const TasksScreen({super.key});
+  const TasksScreen({super.key, this.initialTasks});
+
+  final List<Map<String, dynamic>>? initialTasks;
 
   @override
   ConsumerState<TasksScreen> createState() => _TasksScreenState();
 }
 
 class _TasksScreenState extends ConsumerState<TasksScreen> {
-  int refresh = 0;
   int? completingId;
   String? message;
 
+  List<Map<String, dynamic>> get _tasks =>
+      widget.initialTasks ?? const <Map<String, dynamic>>[];
+
   @override
   Widget build(BuildContext context) {
-    final api = ref.watch(apiClientProvider);
     return Column(
       children: [
         Padding(
@@ -59,23 +61,14 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
             ),
           ),
         Expanded(
-          child: AsyncPanel(
-            key: ValueKey(refresh),
-            future: api.get(ApiPaths.communicationSummary),
-            builder: (context, data) {
-              final d = Map<String, dynamic>.from(data as Map);
-              final tasks = ((d['tasks'] as List?) ?? const [])
-                  .map((e) => Map<String, dynamic>.from(e as Map))
-                  .toList();
-              if (tasks.isEmpty) {
-                return const Center(child: Text('No pending tasks.'));
-              }
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: tasks.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (_, i) {
-                  final task = tasks[i];
+          child: _tasks.isEmpty
+              ? const Center(child: Text('No pending tasks.'))
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _tasks.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) {
+                    final task = _tasks[i];
                   final id = int.parse('${task['id']}');
                   final busy = completingId == id;
                   final due = task['due_at'] == null
@@ -140,10 +133,8 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                       ),
                     ),
                   );
-                },
-              );
-            },
-          ),
+                  },
+                ),
         ),
       ],
     );
@@ -180,7 +171,6 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         setState(() {
           completingId = null;
           message = 'Task completed.';
-          refresh++;
         });
       }
     } catch (e) {
