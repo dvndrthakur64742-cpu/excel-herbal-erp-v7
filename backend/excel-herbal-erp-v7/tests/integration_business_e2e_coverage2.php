@@ -250,7 +250,7 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     $designationAudits=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='employee.designation_assignment_deactivate' AND entity_id=20");
     if($designationAudits!==1)throw new RuntimeException('designation deactivation audit duplicated');
     $accessManager=new Actor(8020,20,1,1,[1,2],[Capabilities::ACCESS_MANAGE],'SYSADMIN');
-    try{e2_dispatch('access.employee_overrides',$accessManager,['id'=>20,'reason'=>'Self access lockout coverage'],['grants'=>[],'denies'=>[Capabilities::ACCESS]]);throw new RuntimeException('self ACCESS capability denial was accepted');}
+    try{e2_dispatch('access.employee_overrides',$accessManager,['id'=>20,'reason'=>'Self access lockout coverage','grants'=>[],'denies'=>[Capabilities::ACCESS]]);throw new RuntimeException('self ACCESS capability denial was accepted');}
     catch(DomainException $e){if($e->codeKey!=='self_access_lockout')throw $e;}
     try{e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>1,'active'=>false]);throw new RuntimeException('primary branch authority was treated as revocable');}
     catch(DomainException $e){if($e->codeKey!=='primary_branch_authority_inherent')throw $e;}
