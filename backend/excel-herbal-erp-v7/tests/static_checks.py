@@ -56,6 +56,19 @@ for rel in [
 assert "return ApiDispatch::dispatch(" in (root/'src/Http/Api.php').read_text(),'Api transport does not delegate to ApiDispatch'
 assert "return match($h)" in (root/'src/Http/ApiDispatch.php').read_text(),'ApiDispatch handler map missing'
 print('PASS backend facade boundaries and extracted service files')
+maintenance=(root/'src/Administration/MaintenanceService.php').read_text()
+for metric in [
+ 'open_past_without_checkout',
+ 'stale_non_completed_cycles',
+ 'legacy_draft_runs',
+ 'duplicate_active_role_names',
+ 'duplicate_active_designation_names',
+]:
+ assert metric in maintenance,('missing operational diagnostics metric',metric)
+assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
+print('PASS operational diagnostics anomaly coverage')
+schema=(root/'src/Database/Schema.php').read_text()
+assert "7.3.5-performance-indexes-1" in schema,'schema version was not advanced for performance index migration'
 for token in [
  "ensureIndex('employees','branch_status'",
  "ensureIndex('parties','branch_type_status'",
@@ -73,19 +86,6 @@ for token in [
  assert token in schema,('missing large-data performance index',token)
 assert 'information_schema.statistics' in schema,'performance index migration is not idempotent'
 print('PASS large-data hot-path index migration')
-maintenance=(root/'src/Administration/MaintenanceService.php').read_text()
-for metric in [
- 'open_past_without_checkout',
- 'stale_non_completed_cycles',
- 'legacy_draft_runs',
- 'duplicate_active_role_names',
- 'duplicate_active_designation_names',
-]:
- assert metric in maintenance,('missing operational diagnostics metric',metric)
-assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
-print('PASS operational diagnostics anomaly coverage')
-schema=(root/'src/Database/Schema.php').read_text()
-assert "7.3.5-performance-indexes-1" in schema,'schema version was not advanced for performance index migration'
 for token in [
  'checkout_exception',
  'checkout_exception_reason',
