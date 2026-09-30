@@ -138,6 +138,103 @@ void main() {
     );
   });
 
+  group('master and stock entry guardrails', () {
+    test('employee creation validates required fields email mobile and date', () {
+      expect(
+        TransactionGuardrails.employeeCreate(
+          employeeCode: '',
+          fullName: 'Test Employee',
+          designationCode: 'SM',
+          roleId: 1,
+          mobile: '',
+          email: '',
+          joiningDate: '2026-09-30',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.employeeCreate(
+          employeeCode: 'E-100',
+          fullName: 'Test Employee',
+          designationCode: 'SM',
+          roleId: 1,
+          mobile: '9876543210',
+          email: 'bad-email',
+          joiningDate: '2026-09-30',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.employeeCreate(
+          employeeCode: 'E-100',
+          fullName: 'Test Employee',
+          designationCode: 'SM',
+          roleId: 1,
+          mobile: '+91 98765 43210',
+          email: 'employee@example.com',
+          joiningDate: '2026-09-30',
+        ),
+        isNull,
+      );
+    });
+
+    test('product creation validates master structure', () {
+      expect(
+        TransactionGuardrails.productCreate(
+          sku: 'SKU-1',
+          name: 'Product',
+          uom: 'PCS',
+          batchMode: 'off',
+          expiryTracking: true,
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.productCreate(
+          sku: 'SKU-1',
+          name: 'Product',
+          uom: 'PCS',
+          batchMode: 'optional',
+          expiryTracking: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('stock transfer validates branch item and quantity', () {
+      expect(
+        TransactionGuardrails.stockTransfer(
+          sourceBranchId: 1,
+          destinationBranchId: 1,
+          itemSelected: true,
+          quantity: 1,
+          available: 10,
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.stockTransfer(
+          sourceBranchId: 1,
+          destinationBranchId: 2,
+          itemSelected: true,
+          quantity: 11,
+          available: 10,
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.stockTransfer(
+          sourceBranchId: 1,
+          destinationBranchId: 2,
+          itemSelected: true,
+          quantity: 10,
+          available: 10,
+        ),
+        isNull,
+      );
+    });
+  });
+
   test('date range validates format and sequence', () {
     expect(TransactionGuardrails.dateRange('2026-09-01', '2026-09-08'), isNull);
     expect(TransactionGuardrails.dateRange('2026-09-09', '2026-09-08'), isNotNull);

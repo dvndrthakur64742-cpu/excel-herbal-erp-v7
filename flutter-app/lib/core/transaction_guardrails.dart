@@ -117,6 +117,140 @@ abstract final class TransactionGuardrails {
     return null;
   }
 
+  static String? employeeCreate({
+    required String employeeCode,
+    required String fullName,
+    required String? designationCode,
+    required int? roleId,
+    required String mobile,
+    required String email,
+    required String joiningDate,
+  }) {
+    if (employeeCode.trim().isEmpty) return 'Employee Code is required.';
+    if (fullName.trim().isEmpty) return 'Full Name is required.';
+    if (designationCode == null || designationCode.trim().isEmpty) {
+      return 'Designation is required.';
+    }
+    if (roleId == null) return 'Role is required.';
+
+    final rawMobile = mobile.trim();
+    if (rawMobile.isNotEmpty) {
+      if (!RegExp(r'^[0-9+\-\s()]+
+    if (!_validIsoDate(from) || !_validIsoDate(to)) {
+      return 'Valid date range YYYY-MM-DD format me enter karein.';
+    }
+    final start = DateTime.parse(from.trim());
+    final end = DateTime.parse(to.trim());
+    if (start.isAfter(end)) return 'From date To date ke baad nahi ho sakti.';
+    return null;
+  }
+
+  static bool _validIsoDate(String raw) {
+    final value = raw.trim();
+    final match = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value);
+    if (!match) return false;
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return false;
+    final normalized =
+        '${parsed.year.toString().padLeft(4, '0')}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
+    return normalized == value;
+  }
+}
+).hasMatch(rawMobile)) {
+        return 'Mobile number contains invalid characters.';
+      }
+      final digits = rawMobile.replaceAll(RegExp(r'\D'), '');
+      if (digits.length < 8 || digits.length > 15) {
+        return 'Mobile number must contain 8 to 15 digits.';
+      }
+    }
+
+    final cleanEmail = email.trim();
+    if (cleanEmail.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+
+    if (!_validIsoDate(from) || !_validIsoDate(to)) {
+      return 'Valid date range YYYY-MM-DD format me enter karein.';
+    }
+    final start = DateTime.parse(from.trim());
+    final end = DateTime.parse(to.trim());
+    if (start.isAfter(end)) return 'From date To date ke baad nahi ho sakti.';
+    return null;
+  }
+
+  static bool _validIsoDate(String raw) {
+    final value = raw.trim();
+    final match = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value);
+    if (!match) return false;
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return false;
+    final normalized =
+        '${parsed.year.toString().padLeft(4, '0')}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
+    return normalized == value;
+  }
+}
+).hasMatch(cleanEmail)) {
+      return 'Enter a valid employee email address.';
+    }
+    if (!_validIsoDate(joiningDate)) {
+      return 'Joining Date must be a valid YYYY-MM-DD date.';
+    }
+    return null;
+  }
+
+  static String? productCreate({
+    required String sku,
+    required String name,
+    required String uom,
+    required String batchMode,
+    required bool expiryTracking,
+  }) {
+    final cleanSku = sku.trim();
+    final cleanName = name.trim();
+    final cleanUom = uom.trim();
+    if (cleanSku.isEmpty) return 'SKU is required.';
+    if (cleanSku.length > 80) return 'SKU must be 80 characters or fewer.';
+    if (cleanName.isEmpty) return 'Product Name is required.';
+    if (cleanName.length > 190) {
+      return 'Product Name must be 190 characters or fewer.';
+    }
+    if (cleanUom.isEmpty) return 'UOM is required.';
+    if (cleanUom.length > 40) return 'UOM must be 40 characters or fewer.';
+    if (!const {'off', 'optional', 'required'}.contains(batchMode)) {
+      return 'Select a valid Batch Tracking mode.';
+    }
+    if (expiryTracking && batchMode == 'off') {
+      return 'Expiry Tracking requires Batch Tracking.';
+    }
+    return null;
+  }
+
+  static String? stockTransfer({
+    required int? sourceBranchId,
+    required int? destinationBranchId,
+    required bool itemSelected,
+    required num quantity,
+    required num available,
+  }) {
+    if (sourceBranchId == null) return 'Source Branch is required.';
+    if (destinationBranchId == null) return 'Destination Branch is required.';
+    if (sourceBranchId == destinationBranchId) {
+      return 'Destination Branch must be different from Source Branch.';
+    }
+    if (!itemSelected) return 'Select a stock item.';
+    final qty = quantity.toDouble();
+    final availableQty = available.toDouble();
+    if (!qty.isFinite || qty <= 0) {
+      return 'Transfer quantity must be greater than zero.';
+    }
+    if (!availableQty.isFinite || availableQty <= 0) {
+      return 'Selected stock item has no transferable quantity.';
+    }
+    if (qty > availableQty + 0.0001) {
+      return 'Transfer quantity cannot exceed available stock.';
+    }
+    return null;
+  }
+
   static String? dateRange(String from, String to) {
     if (!_validIsoDate(from) || !_validIsoDate(to)) {
       return 'Valid date range YYYY-MM-DD format me enter karein.';

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/commercial_integrity.dart';
 import '../../core/providers.dart';
+import '../../core/transaction_guardrails.dart';
 import '../../core/overlay_transition.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';

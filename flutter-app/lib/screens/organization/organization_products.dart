@@ -149,6 +149,17 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
       return;
     }
     try {
+      final skuValue = sku.text.trim();
+      final nameValue = name.text.trim();
+      final uomValue = uom.text.trim();
+      final validation = TransactionGuardrails.productCreate(
+        sku: skuValue,
+        name: nameValue,
+        uom: uomValue,
+        batchMode: batchMode,
+        expiryTracking: expiryTracking,
+      );
+      if (validation != null) throw Exception(validation);
       final commercial = _commercialValues(
         mrp: mrp,
         sale: sale,
@@ -160,9 +171,9 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
         purchaseCost: purchaseCost,
       );
       final payload = {
-        'sku': sku.text.trim(),
-        'name': name.text.trim(),
-        'uom': uom.text.trim(),
+        'sku': skuValue,
+        'name': nameValue,
+        'uom': uomValue,
         'batch_tracking': batchMode,
         'expiry_tracking': expiryTracking,
         ...commercial.toPayload(),

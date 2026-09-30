@@ -190,17 +190,49 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
           ),
         ),
       );
+      if (ok != true) {
+        code.dispose();
+        name.dispose();
+        mobile.dispose();
+        email.dispose();
+        salary.dispose();
+        joining.dispose();
+        return;
+      }
+      final employeeCode = code.text.trim();
+      final fullName = name.text.trim();
+      final mobileValue = mobile.text.trim();
+      final emailValue = email.text.trim();
+      final joiningDate = joining.text.trim();
+      final validation = TransactionGuardrails.employeeCreate(
+        employeeCode: employeeCode,
+        fullName: fullName,
+        designationCode: designationCode,
+        roleId: roleId,
+        mobile: mobileValue,
+        email: emailValue,
+        joiningDate: joiningDate,
+      );
+      if (validation != null) {
+        code.dispose();
+        name.dispose();
+        mobile.dispose();
+        email.dispose();
+        salary.dispose();
+        joining.dispose();
+        throw Exception(validation);
+      }
       final payload = {
         'assigned_branch_id': app.currentBranchId,
-        'employee_code': code.text.trim(),
-        'full_name': name.text.trim(),
+        'employee_code': employeeCode,
+        'full_name': fullName,
         'designation_code': designationCode,
         if (roleId != null) 'role_ids': [roleId],
         if (reportingId != null) 'reporting_employee_id': reportingId,
-        if (mobile.text.trim().isNotEmpty) 'mobile': mobile.text.trim(),
-        if (email.text.trim().isNotEmpty) 'email': email.text.trim(),
+        if (mobileValue.isNotEmpty) 'mobile': mobileValue,
+        if (emailValue.isNotEmpty) 'email': emailValue,
         'monthly_salary': double.tryParse(salary.text) ?? 0,
-        'joining_date': joining.text.trim(),
+        'joining_date': joiningDate,
       };
       code.dispose();
       name.dispose();
@@ -208,7 +240,6 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       email.dispose();
       salary.dispose();
       joining.dispose();
-      if (ok != true) return;
       await api.post(ApiPaths.employees, data: payload);
       if (mounted)
         _setOrganizationState(() {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
+import '../../core/transaction_guardrails.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/overlay_transition.dart';
 import '../../core/ui_error.dart';
@@ -339,14 +340,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ),
       );
       if (ok == true) {
-        final l = stock[lineId!];
+        final selectedLine = lineId;
+        final l = selectedLine == null ? null : stock[selectedLine];
         final q = WholePcs.parseOrZero(qty.text);
-        final available = double.tryParse('${l['quantity']}') ?? 0;
-        if (q <= 0 || q > available + .0001)
-          throw Exception(
-            'Enter a valid quantity within the available stock.',
-          );
-        final batchKey = int.tryParse('${l['batch_key']}') ?? 0;
+        final available =
+            l == null ? 0 : (double.tryParse('${l['quantity']}') ?? 0);
+        final validation = TransactionGuardrails.stockTransfer(
+          sourceBranchId: app.currentBranchId,
+          destinationBranchId: dest,
+          itemSelected: l != null,
+          quantity: q,
+          available: available,
+        );
+        if (validation != null) throw Exception(validation);
+        final selectedStock = l!;
+        final batchKey = int.tryParse('${selectedStock['batch_key']}') ?? 0;
         await api.post(
           ApiPaths.transfers,
           data: {
@@ -354,7 +362,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             'destination_branch_id': dest,
             'lines': [
               {
-                'product_id': l['product_id'],
+                'product_id': selectedStock['product_id'],
                 'quantity': q,
                 if (batchKey > 0) 'batch_id': batchKey,
               },
