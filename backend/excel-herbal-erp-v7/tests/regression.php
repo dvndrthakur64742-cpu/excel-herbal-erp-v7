@@ -3,9 +3,15 @@
 require_once __DIR__.'/../src/Core/Autoloader.php';
 \ExcelHerbal\ERP7\Core\Autoloader::register(__DIR__.'/../src');
 use ExcelHerbal\ERP7\Payroll\PayrollCalculator;
+use ExcelHerbal\ERP7\Policy\CommercialPolicy;
 use ExcelHerbal\ERP7\Domain\DomainException;
 
 $cases=json_decode(file_get_contents(__DIR__.'/payroll-fixtures.json'),true,512,JSON_THROW_ON_ERROR);$failed=0;
+try{CommercialPolicy::assert(['mrp'=>120,'sale_price'=>100,'ho_amount'=>60,'bm_profit'=>20,'salary_fund'=>10,'office_expense'=>10,'points'=>2,'purchase_cost'=>50]);echo "PASS commercial_policy_valid\n";}catch(Throwable $e){$failed++;echo "FAIL commercial_policy_valid: {$e->getMessage()}\n";}
+foreach([
+ ['commercial_policy_mrp','commercial_sale_price_invalid',['mrp'=>90,'sale_price'=>100,'ho_amount'=>60,'bm_profit'=>20,'salary_fund'=>10,'office_expense'=>10,'points'=>2,'purchase_cost'=>50]],
+ ['commercial_policy_distribution','commercial_distribution_invalid',['mrp'=>120,'sale_price'=>100,'ho_amount'=>20,'bm_profit'=>20,'salary_fund'=>10,'office_expense'=>10,'points'=>2,'purchase_cost'=>50]],
+] as[$name,$code,$values]){try{CommercialPolicy::assert($values);$failed++;echo "FAIL {$name}: expected rejection\n";}catch(DomainException $e){if($e->codeKey===$code)echo "PASS {$name}\n";else{$failed++;echo "FAIL {$name}: {$e->codeKey}\n";}}}
 foreach($cases as$c){
     try{$result=PayrollCalculator::calculate($c['input']);
         if(isset($c['error']))throw new \RuntimeException('Expected error '.$c['error']);
