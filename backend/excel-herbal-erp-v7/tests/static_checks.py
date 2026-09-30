@@ -116,6 +116,18 @@ for token in [
  assert token in web_deploy,('unsafe or incomplete UAT web deployment workflow',token)
 assert 'UatWebDeployAdmin::boot();' in plugin,'UAT web deployment admin workflow is not booted'
 print('PASS audited rollback-safe UAT web deployment workflow')
+reversal=(root/'src/Finance/FinanceReversalService.php').read_text()
+for token in [
+ "self::sourceStatus($a,$type,$source)!==$required",
+ "'reversal_source_state_changed'",
+ "Audit::add($a,'reversal.'.($approve?'approve':'reject')",
+]:
+ assert token in reversal,('missing reversal lifecycle integrity guard',token)
+purchase=(root/'src/Purchase/PurchaseService.php').read_text()
+assert "Audit::add($a,'supplier_payment.post'" in purchase,'supplier payment is not audited'
+expense=(root/'src/Finance/FinanceExpenseService.php').read_text()
+assert "Audit::add($a,'expense.'.($approve?'approve':'reject')" in expense,'expense decision is not audited'
+print('PASS financial lifecycle state recheck and audit coverage')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')

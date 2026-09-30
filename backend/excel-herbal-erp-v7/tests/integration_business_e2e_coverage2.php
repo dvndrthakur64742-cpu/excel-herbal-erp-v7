@@ -260,6 +260,8 @@ e2_case('e2_purchase_bill_and_supplier_payment',function()use($maker,$approver,$
         'purchase_bill_id'=>(int)$bill['id'],'amount'=>150,'payment_account_id'=>1,
     ]);
     if(($payment['status']??'')!=='posted')throw new RuntimeException('supplier payment did not post');
+    $paymentAudit=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='supplier_payment.post' AND entity_id=".(int)$payment['id']);
+    if($paymentAudit!==1)throw new RuntimeException('supplier payment audit trail missing');
     $out=(float)$wpdb->get_var('SELECT outstanding_amount FROM '.Db::table('purchase_bills').' WHERE id='.(int)$bill['id']);
     $qty=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     if(abs($out-250)>0.005||abs($qty-10)>0.001)throw new RuntimeException("purchase controls mismatch outstanding={$out} stock={$qty}");
@@ -314,6 +316,8 @@ e2_case('e2_finance_expense_reversal_workflow',function()use($maker,$approver,$w
     ]);
     $decision=e2_dispatch('finance.expense_decision',$approver,['id'=>(int)$expense['id'],'approve'=>true]);
     if(($decision['status']??'')!=='approved'||(int)($decision['journal_entry_id']??0)<1)throw new RuntimeException('expense approval failed');
+    $expenseAudit=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='expense.approve' AND entity_id=".(int)$expense['id']);
+    if($expenseAudit!==1)throw new RuntimeException('expense approval audit trail missing');
     $request=e2_dispatch('finance.reversal_request',$maker,[
         'source_type'=>'expense','source_id'=>(int)$expense['id'],'reason'=>'Coverage reversal verification',
     ]);
@@ -322,6 +326,8 @@ e2_case('e2_finance_expense_reversal_workflow',function()use($maker,$approver,$w
         if($e->codeKey!=='maker_checker_required')throw $e;
         $approved=e2_dispatch('finance.reversal_decision',$approver,['id'=>(int)$request['id'],'approve'=>true]);
         if(($approved['status']??'')!=='approved')throw new RuntimeException('reversal approval failed');
+        $reversalAudit=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='reversal.approve' AND entity_id=".(int)$request['id']);
+        if($reversalAudit!==1)throw new RuntimeException('reversal approval audit trail missing');
         $executed=e2_dispatch('finance.reversal_execute',$approver,['id'=>(int)$request['id']]);
         if(($executed['status']??'')!=='executed'||(int)($executed['reversal_journal_id']??0)<1)throw new RuntimeException('reversal execution failed');
         $expenseStatus=(string)$wpdb->get_var('SELECT status FROM '.Db::table('expenses').' WHERE id='.(int)$expense['id']);
