@@ -116,14 +116,6 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                   child: ModuleMessageBanner(message: message!),
                 ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
-                child: ModuleSectionHeader(
-                  title: 'Accounting Workspace',
-                  subtitle:
-                      'Select the finance function required for the current business date.',
-                ),
-              ),
               Expanded(
                 child: TabBarView(children: [for (final tab in tabs) tab.$2]),
               ),

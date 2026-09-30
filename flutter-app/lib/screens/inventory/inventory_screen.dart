@@ -206,14 +206,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                   child: ModuleMessageBanner(message: message!),
                 ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
-                child: ModuleSectionHeader(
-                  title: 'Inventory Workspace',
-                  subtitle:
-                      'Use the tabs to review stock and controlled inventory movements.',
-                ),
-              ),
               Expanded(
                 child: app.currentBranchId == null
                     ? const Center(child: Text('Select an authorised branch.'))

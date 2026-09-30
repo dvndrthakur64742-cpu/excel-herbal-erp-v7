@@ -86,14 +86,6 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                   child: ModuleMessageBanner(message: message!),
                 ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
-                child: ModuleSectionHeader(
-                  title: 'Master Data Workspace',
-                  subtitle:
-                      'Use the tabs below to manage authorised organization records.',
-                ),
-              ),
               Expanded(
                 child: TabBarView(children: [for (final tab in tabs) tab.$2]),
               ),
