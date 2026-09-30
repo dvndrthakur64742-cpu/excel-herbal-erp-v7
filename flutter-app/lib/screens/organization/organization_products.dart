@@ -70,9 +70,12 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
           content: SizedBox(
             width: 640,
             child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+              child: Form(
+                key: formKey,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   TextFormField(
                     controller: sku,
                     autofocus: true,
