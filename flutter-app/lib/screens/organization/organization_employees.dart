@@ -270,6 +270,14 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
               title: const Text('Branch History'),
               onTap: () => _employeeHistory(id),
             ),
+            ListTile(
+              leading: const Icon(Icons.folder_shared_outlined),
+              title: const Text('Private Documents'),
+              onTap: () => _employeeDocuments(
+                id,
+                '${employee['full_name'] ?? 'Employee'}',
+              ),
+            ),
             if (app.can('organization.employee.manage'))
               ListTile(
                 leading: const Icon(Icons.swap_horiz),

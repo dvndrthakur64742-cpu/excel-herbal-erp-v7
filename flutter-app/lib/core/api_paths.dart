@@ -136,6 +136,12 @@ abstract final class ApiPaths {
       '/organization/candidates/$id/credentials';
   static String candidateNoShow(int id) =>
       '/organization/candidates/$id/no-show';
+  static String candidateDocuments(int id) =>
+      '/organization/candidates/$id/documents';
+  static String candidateDocumentUpload(int id) =>
+      '/organization/candidates/$id/documents/upload';
+  static String candidateDocumentDeactivate(int id, int documentId) =>
+      '/organization/candidates/$id/documents/$documentId/deactivate';
   static String employeeSeparation(int id) =>
       '/organization/employees/$id/separations';
   static String separationReview(int id) =>

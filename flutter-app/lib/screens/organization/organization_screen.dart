@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +7,7 @@ import '../../core/commercial_integrity.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
 import '../../core/overlay_transition.dart';
+import '../../core/open_document.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
@@ -15,6 +17,7 @@ import '../../widgets/module_workspace.dart';
 import '../common/record_detail_screen.dart';
 
 part 'organization_branches.dart';
+part 'organization_documents.dart';
 part 'organization_employees.dart';
 part 'organization_hr.dart';
 part 'organization_products.dart';

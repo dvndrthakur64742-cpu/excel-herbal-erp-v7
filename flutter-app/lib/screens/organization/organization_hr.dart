@@ -259,6 +259,14 @@ extension _OrganizationHrFeature on _OrganizationScreenState {
                 '${candidate['candidate_code'] ?? ''} · ${candidate['proposed_designation_code'] ?? ''}',
               ),
             ),
+            ListTile(
+              leading: const Icon(Icons.folder_shared_outlined),
+              title: const Text('Private Documents'),
+              onTap: () => _candidateDocuments(
+                id,
+                '${candidate['full_name'] ?? 'Candidate'}',
+              ),
+            ),
             if (status == 'registered' &&
                 app.can('organization.hr.review'))
               ListTile(

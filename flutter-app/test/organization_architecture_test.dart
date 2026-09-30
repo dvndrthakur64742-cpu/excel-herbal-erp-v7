@@ -10,6 +10,9 @@ void main() {
     final branches = File(
       'lib/screens/organization/organization_branches.dart',
     ).readAsStringSync();
+    final documents = File(
+      'lib/screens/organization/organization_documents.dart',
+    ).readAsStringSync();
     final employees = File(
       'lib/screens/organization/organization_employees.dart',
     ).readAsStringSync();
@@ -22,6 +25,7 @@ void main() {
     final apiPaths = File('lib/core/api_paths.dart').readAsStringSync();
 
     expect(main, contains("part 'organization_branches.dart';"));
+    expect(main, contains("part 'organization_documents.dart';"));
     expect(main, contains("part 'organization_employees.dart';"));
     expect(main, contains("part 'organization_hr.dart';"));
     expect(main, contains("part 'organization_products.dart';"));
@@ -33,6 +37,9 @@ void main() {
     expect(main.split('\n').length, lessThan(260));
 
     expect(branches, contains('extension _OrganizationBranchesFeature'));
+    expect(documents, contains('extension _OrganizationDocumentsFeature'));
+    expect(documents, contains('FilePicker.platform.pickFiles'));
+    expect(documents, contains('openErpDocument'));
     expect(employees, contains('extension _OrganizationEmployeesFeature'));
     expect(hr, contains('extension _OrganizationHrFeature'));
     expect(hr, contains('New Candidate'));
@@ -40,7 +47,10 @@ void main() {
     expect(products, contains('extension _OrganizationProductsFeature'));
     expect(apiPaths, contains("hrCandidates = '/organization/candidates'"));
     expect(apiPaths, contains("hrSeparations = '/organization/separations'"));
+    expect(apiPaths, contains("candidateDocuments(int id)"));
+    expect(apiPaths, contains("candidateDocumentUpload(int id)"));
     expect(branches, isNot(contains('setState(')));
+    expect(documents, isNot(contains('setState(')));
     expect(employees, isNot(contains('setState(')));
     expect(hr, isNot(contains('setState(')));
     expect(products, isNot(contains('setState(')));
