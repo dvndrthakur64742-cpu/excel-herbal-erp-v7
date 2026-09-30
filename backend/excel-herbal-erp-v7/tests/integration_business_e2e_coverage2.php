@@ -199,7 +199,7 @@ e2_case('e2_missing_capability_mutations_fail_closed',function()use($limited,$wp
 });
 
 e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
-    $master=e2_actor(50,[Capabilities::PRODUCT_MANAGE,Capabilities::SALES_CREATE,Capabilities::PURCHASE_CREATE,Capabilities::EMP_MANAGE,Capabilities::PERFORMANCE_MANAGE]);
+    $master=e2_actor(20,[Capabilities::PRODUCT_MANAGE,Capabilities::SALES_CREATE,Capabilities::PURCHASE_CREATE,Capabilities::EMP_MANAGE,Capabilities::PERFORMANCE_MANAGE]);
     $cases=[
         ['expiry_requires_batch',fn()=>e2_dispatch('catalog.product_create',$master,[],[
             'sku'=>'EXP-OFF','name'=>'Expiry Invalid','uom'=>'PCS','batch_tracking'=>'off','expiry_tracking'=>true,
@@ -234,6 +234,10 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     e2_insert($wpdb,'stock_adjustment_lines',['id'=>101,'adjustment_id'=>101,'product_id'=>101,'quantity_delta'=>1,'unit_cost_snapshot'=>50]);
     try{e2_dispatch('catalog.product_status',$master,['id'=>101,'active'=>false]);throw new RuntimeException('product with pending adjustment was deactivated');}
     catch(DomainException $e){if($e->codeKey!=='product_deactivate_blocked')throw $e;}
+    // This pending adjustment exists only to prove the lifecycle guard. Remove
+    // the fixture immediately so later branch-closing coverage starts clean.
+    if($wpdb->query('DELETE FROM '.Db::table('stock_adjustment_lines').' WHERE adjustment_id=101')===false)throw new RuntimeException('pending adjustment fixture cleanup failed');
+    if($wpdb->query('DELETE FROM '.Db::table('stock_adjustments').' WHERE id=101')===false)throw new RuntimeException('pending adjustment fixture cleanup failed');
     e2_insert($wpdb,'designations',['id'=>1,'company_id'=>1,'code'=>'SM','name'=>'Sales Manager','sequence_no'=>10,'field_role'=>1,'promotion_min_points'=>0,'minimum_days'=>0,'status'=>'active']);
     $first=e2_dispatch('org.employee_designation_assign',$master,['id'=>20],['designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-01','effective_to'=>'2026-09-30']);
     if((int)($first['id']??0)<1)throw new RuntimeException('designation assignment seed failed');
