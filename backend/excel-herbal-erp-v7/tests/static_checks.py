@@ -236,6 +236,11 @@ create_branch=branch_service[branch_service.index('public static function create
 for token in ["Transaction::run","Db::table('companies')","FOR UPDATE","'head_office_exists'"]:
  assert token in create_branch,('single Head Office invariant is not concurrency-safe',token)
 print('PASS single Head Office branch concurrency guard')
+employees=(root/'src/Organization/OrganizationEmployeeService.php').read_text()
+credentials=employees[employees.index('public static function setEmployeeCredentials'):employees.index('public static function employeeLoginStatus')]
+for token in ["Transaction::run","FOR UPDATE","status='active'","employee.login_credentials_reset"]:
+ assert token in credentials,('employee credential reset is not offboarding-safe',token)
+print('PASS employee credential reset/offboarding serialization')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')

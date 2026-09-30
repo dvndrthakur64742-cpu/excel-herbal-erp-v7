@@ -261,6 +261,10 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     try{e2_dispatch('org.employee_create',$master,[],['employee_code'=>'PAYLOCK-E1','full_name'=>'Payroll Scope Guard','designation_code'=>'SM','assigned_branch_id'=>1,'joining_date'=>'2026-09-15','monthly_salary'=>1000,'provision_login'=>false]);throw new RuntimeException('employee was created inside an existing payroll period');}
     catch(DomainException $e){if($e->codeKey!=='employee_create_payroll_conflict')throw $e;}
     if($wpdb->query('DELETE FROM '.Db::table('payroll_runs').' WHERE id=901')===false)throw new RuntimeException('payroll conflict fixture cleanup failed');
+    if($wpdb->update(Db::table('employees'),['status'=>'inactive'],['id'=>30])===false)throw new RuntimeException('credential guard fixture setup failed');
+    try{e2_dispatch('org.employee_credentials',$master,['id'=>30],['password'=>'StrongPassword123!']);throw new RuntimeException('credentials were reset for inactive employee');}
+    catch(DomainException $e){if($e->codeKey!=='employee_not_found')throw $e;}
+    if($wpdb->update(Db::table('employees'),['status'=>'active'],['id'=>30])===false)throw new RuntimeException('credential guard fixture cleanup failed');
     $target=e2_dispatch('performance.target',$master,['branch_id'=>1,'employee_id'=>20,'period_start'=>'2026-09-01','period_end'=>'2026-09-30','target_points'=>100]);
     if((int)($target['id']??0)<1)throw new RuntimeException('performance target seed failed');
     try{e2_dispatch('performance.target',$master,['branch_id'=>1,'employee_id'=>20,'period_start'=>'2026-09-15','period_end'=>'2026-10-15','target_points'=>120]);throw new RuntimeException('overlapping target was accepted');}

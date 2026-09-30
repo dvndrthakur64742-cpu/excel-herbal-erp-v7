@@ -55,14 +55,16 @@ final class OrganizationEmployeeService{
   return $result;
  }
  public static function setEmployeeCredentials(Actor $a,int $employeeId,array $data,string $requiredCapability=Capabilities::EMP_MANAGE):array{
-  $db=Db::wpdb();$table=Db::table('employees');$e=$db->get_row($db->prepare("SELECT * FROM {$table} WHERE id=%d AND company_id=%d AND status='active'",$employeeId,$a->companyId),ARRAY_A);
-  if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],$requiredCapability);
-  $mobile=self::normaliseMobile((string)($e['mobile']??''));if($mobile==='')throw new DomainException('Employee mobile is required before enabling mobile login.','mobile_required',422);self::assertMobileAvailable($mobile,$employeeId);
-  $password=(string)($data['password']??'');if(trim($password)==='')throw new DomainException('Password is required to enable or reset mobile login.','password_required',422);if(strlen($password)<10)throw new DomainException('Mobile login password must be at least 10 characters.','password_too_short',422);
-  $uid=(int)($e['wp_user_id']??0);if($uid<1){$uid=self::createWordPressUser($a->companyId,(string)$e['employee_code'],(string)$e['full_name'],(string)($e['email']??''),$password);Db::mustUpdate($db,$table,['wp_user_id'=>$uid,'mobile'=>$mobile,'updated_at'=>Db::now()],['id'=>$employeeId,'company_id'=>$a->companyId]);}else{if(!get_user_by('id',$uid))throw new DomainException('Linked WordPress user no longer exists.','wp_user_missing',409);wp_set_password($password,$uid);}
-  $revoked=$db->update(Db::table('mobile_sessions'),['revoked_at'=>Db::now()],['employee_id'=>$employeeId]);if($revoked===false)throw new DomainException('Existing mobile sessions could not be revoked.','session_revoke_failed',500);
-  Audit::add($a,'employee.login_credentials_reset','employee',$employeeId,['branch_id'=>(int)$e['assigned_branch_id'],'wp_user_id'=>$uid]);
-  return['id'=>$employeeId,'login_enabled'=>true,'sessions_revoked'=>true,'password_updated'=>true];
+  return Transaction::run(function()use($a,$employeeId,$data,$requiredCapability){
+   $db=Db::wpdb();$table=Db::table('employees');$e=$db->get_row($db->prepare("SELECT * FROM {$table} WHERE id=%d AND company_id=%d AND status='active' FOR UPDATE",$employeeId,$a->companyId),ARRAY_A);
+   if(!$e)throw new DomainException('Active employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],$requiredCapability);
+   $mobile=self::normaliseMobile((string)($e['mobile']??''));if($mobile==='')throw new DomainException('Employee mobile is required before enabling mobile login.','mobile_required',422);self::assertMobileAvailable($mobile,$employeeId);
+   $password=(string)($data['password']??'');if(trim($password)==='')throw new DomainException('Password is required to enable or reset mobile login.','password_required',422);if(strlen($password)<10)throw new DomainException('Mobile login password must be at least 10 characters.','password_too_short',422);
+   $uid=(int)($e['wp_user_id']??0);if($uid<1){$uid=self::createWordPressUser($a->companyId,(string)$e['employee_code'],(string)$e['full_name'],(string)($e['email']??''),$password);Db::mustUpdate($db,$table,['wp_user_id'=>$uid,'mobile'=>$mobile,'updated_at'=>Db::now()],['id'=>$employeeId,'company_id'=>$a->companyId,'status'=>'active']);}else{if(!get_user_by('id',$uid))throw new DomainException('Linked WordPress user no longer exists.','wp_user_missing',409);wp_set_password($password,$uid);}
+   $revoked=$db->update(Db::table('mobile_sessions'),['revoked_at'=>Db::now()],['employee_id'=>$employeeId]);if($revoked===false)throw new DomainException('Existing mobile sessions could not be revoked.','session_revoke_failed',500);
+   Audit::add($a,'employee.login_credentials_reset','employee',$employeeId,['branch_id'=>(int)$e['assigned_branch_id'],'wp_user_id'=>$uid]);
+   return['id'=>$employeeId,'login_enabled'=>true,'sessions_revoked'=>true,'password_updated'=>true];
+  });
  }
  public static function employeeLoginStatus(Actor $a,int $employeeId):array{
   $db=Db::wpdb();$t=Db::table('employees');$e=$db->get_row($db->prepare("SELECT id,employee_code,full_name,mobile,email,assigned_branch_id,status,wp_user_id FROM {$t} WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);
