@@ -206,6 +206,15 @@ authority=branch_service[branch_service.index('public static function setBranchA
 for token in ["Transaction::run","FOR UPDATE","'employee_inactive'","valid_until"]:
  assert token in authority,('branch authority mutation is not concurrency-safe',token)
 print('PASS branch authority grant/revoke locking and validity window')
+products=(root/'src/Organization/OrganizationProductService.php').read_text()
+update_product=products[products.index('public static function updateProduct'):products.index('public static function setProductStatus')]
+for token in ["Transaction::run","FOR UPDATE","'product_structure_locked'"]:
+ assert token in update_product,('product structure update is not transaction-safe',token)
+stock_service=(root/'src/Inventory/StockService.php').read_text()
+move=stock_service[stock_service.index('public static function move'):stock_service.index('public static function automaticCustodyAllocations')]
+for token in ["FOR UPDATE","status='active'","validateBatch"]:
+ assert token in move,('stock movement does not synchronize with product structure/status',token)
+print('PASS product structure and stock movement lock symmetry')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')

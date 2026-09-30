@@ -284,6 +284,9 @@ e2_case('e2_purchase_bill_and_supplier_payment',function()use($maker,$approver,$
     $out=(float)$wpdb->get_var('SELECT outstanding_amount FROM '.Db::table('purchase_bills').' WHERE id='.(int)$bill['id']);
     $qty=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     if(abs($out-250)>0.005||abs($qty-10)>0.001)throw new RuntimeException("purchase controls mismatch outstanding={$out} stock={$qty}");
+    $productManager=e2_actor(20,[Capabilities::PRODUCT_MANAGE]);
+    try{e2_dispatch('catalog.product_update',$productManager,['id'=>100],['batch_tracking'=>'optional']);throw new RuntimeException('product structure changed after stock movement');}
+    catch(DomainException $e){if($e->codeKey!=='product_structure_locked')throw $e;}
     $state['bill_id']=(int)$bill['id'];$state['supplier_id']=(int)$supplier['id'];
 });
 
