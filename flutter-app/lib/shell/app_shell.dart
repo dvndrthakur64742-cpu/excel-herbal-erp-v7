@@ -177,10 +177,19 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
               children: [
-                _sectionLabel(context, 'WORKSPACE'),
+                _sectionLabel(context, 'WORK'),
                 _desktopTile('home', 'Home', Icons.home_outlined),
                 if (app.sectionVisible('my_work'))
                   _desktopTile('my_work', 'My Work', Icons.work_outline),
+                if (app.can('communication.view'))
+                  _desktopTile('tasks', 'Tasks', Icons.task_alt_outlined),
+                if (_quickActionsVisible(app) ||
+                    _approvalVisible(app) ||
+                    !app.businessAccessBlocked ||
+                    app.erpToolsVisible) ...[
+                  const SizedBox(height: 10),
+                  _sectionLabel(context, 'CONTROL'),
+                ],
                 if (_quickActionsVisible(app))
                   _desktopTile(
                     'quick_actions',
@@ -199,15 +208,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                     'Global Search',
                     Icons.manage_search_outlined,
                   ),
-                if (app.can('communication.view'))
-                  _desktopTile('tasks', 'Tasks', Icons.task_alt_outlined),
                 if (app.erpToolsVisible)
                   _desktopTile(
                     'erp_tools',
-                    'My Account & Duty',
+                    'Account & Duty',
                     Icons.badge_outlined,
                   ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _sectionLabel(context, 'MODULES'),
                 ...app.sections
                     .where(
