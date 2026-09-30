@@ -67,7 +67,7 @@ void main() {
 
     expect(source, isNot(contains('_desktopWorkspaceHeader')));
     expect(source, contains('SizedBox(width: 248'));
-    expect(source, contains("ModuleWorkspaceHeader"));
+    expect(source, isNot(contains('ModuleWorkspaceHeader(')));
     expect(source, contains("_sectionLabel(context, 'WORK')"));
     expect(source, contains("_sectionLabel(context, 'CONTROL')"));
     expect(source, contains("_sectionLabel(context, 'MODULES')"));
