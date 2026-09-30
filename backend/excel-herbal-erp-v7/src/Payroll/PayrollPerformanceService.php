@@ -370,31 +370,43 @@ final class PayrollPerformanceService
         if ($points < 0) {
             throw new DomainException('Target points cannot be negative.','target_points_invalid',422);
         }
-        $db = Db::wpdb();
-        HierarchyScope::assertCanViewEmployee($a,$employee);
-        $valid = (int) $db->get_var($db->prepare(
-            "SELECT COUNT(*) FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d AND assigned_branch_id=%d AND status='active'",
-            $employee,
-            $a->companyId,
-            $branch
-        ));
-        if (!$valid) {
-            throw new DomainException('Active employee not found in selected branch.', 'employee_branch_mismatch', 422);
+        if (!is_finite($points)) {
+            throw new DomainException('Target points must be finite.','target_points_invalid',422);
         }
-        Db::mustInsert($db,Db::table('performance_targets'), [
-            'company_id' => $a->companyId,
-            'branch_id' => $branch,
-            'employee_id' => $employee,
-            'period_start' => $from,
-            'period_end' => $to,
-            'target_points' => $points,
-            'status' => 'draft',
-            'created_by' => $a->employeeId,
-            'created_at' => Db::now(),
-        ]);
-        $id = (int) $db->insert_id;
-        Audit::add($a, 'performance_target.create', 'performance_target', $id, ['branch_id' => $branch, 'employee_id' => $employee]);
-        return ['id' => $id, 'status' => 'draft'];
+        return Transaction::run(function() use ($a,$branch,$employee,$from,$to,$points) {
+            $db = Db::wpdb();
+            HierarchyScope::assertCanViewEmployee($a,$employee);
+            $employeeTable=Db::table('employees');
+            $valid = (int) $db->get_var($db->prepare(
+                "SELECT COUNT(*) FROM {$employeeTable} WHERE id=%d AND company_id=%d AND assigned_branch_id=%d AND status='active' FOR UPDATE",
+                $employee,
+                $a->companyId,
+                $branch
+            ));
+            if (!$valid) {
+                throw new DomainException('Active employee not found in selected branch.', 'employee_branch_mismatch', 422);
+            }
+            $targetTable=Db::table('performance_targets');
+            $overlap=(int)$db->get_var($db->prepare(
+                "SELECT COUNT(*) FROM {$targetTable} WHERE company_id=%d AND employee_id=%d AND status IN ('draft','approved') AND NOT(period_end<%s OR period_start>%s)",
+                $a->companyId,$employee,$from,$to
+            ));
+            if($overlap)throw new DomainException('An overlapping performance target already exists for this employee.','performance_target_overlap',409);
+            Db::mustInsert($db,$targetTable, [
+                'company_id' => $a->companyId,
+                'branch_id' => $branch,
+                'employee_id' => $employee,
+                'period_start' => $from,
+                'period_end' => $to,
+                'target_points' => $points,
+                'status' => 'draft',
+                'created_by' => $a->employeeId,
+                'created_at' => Db::now(),
+            ]);
+            $id = (int) $db->insert_id;
+            Audit::add($a, 'performance_target.create', 'performance_target', $id, ['branch_id' => $branch, 'employee_id' => $employee]);
+            return ['id' => $id, 'status' => 'draft'];
+        });
     }
 
     public static function approveTarget(Actor $a, int $id): array
