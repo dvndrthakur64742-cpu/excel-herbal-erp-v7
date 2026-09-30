@@ -247,6 +247,13 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     if((int)($target['id']??0)<1)throw new RuntimeException('performance target seed failed');
     try{e2_dispatch('performance.target',$master,['branch_id'=>1,'employee_id'=>20,'period_start'=>'2026-09-15','period_end'=>'2026-10-15','target_points'=>120]);throw new RuntimeException('overlapping target was accepted');}
     catch(DomainException $e){if($e->codeKey!=='performance_target_overlap')throw $e;}
+    try{e2_dispatch('performance.target_approve',$master,['id'=>(int)$target['id']]);throw new RuntimeException('performance target maker approved own target');}
+    catch(DomainException $e){if($e->codeKey!=='maker_checker_required')throw $e;}
+    $targetReviewer=e2_actor(30,[Capabilities::PERFORMANCE_MANAGE]);
+    $approvedTarget=e2_dispatch('performance.target_approve',$targetReviewer,['id'=>(int)$target['id']]);
+    if(($approvedTarget['status']??'')!=='approved')throw new RuntimeException('performance target approval failed');
+    try{e2_dispatch('performance.target_approve',$targetReviewer,['id'=>(int)$target['id']]);throw new RuntimeException('approved performance target was approved twice');}
+    catch(DomainException $e){if($e->codeKey!=='target_state_invalid')throw $e;}
 });
 
 e2_case('e2_purchase_bill_and_supplier_payment',function()use($maker,$approver,$wpdb,&$state){

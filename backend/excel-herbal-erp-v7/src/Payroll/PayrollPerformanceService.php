@@ -412,26 +412,28 @@ final class PayrollPerformanceService
     public static function approveTarget(Actor $a, int $id): array
     {
         Guard::cap($a, Capabilities::PERFORMANCE_MANAGE);
-        $db = Db::wpdb();
-        $table = Db::table('performance_targets');
-        $row = $db->get_row($db->prepare(
-            "SELECT * FROM {$table} WHERE id=%d AND company_id=%d",
-            $id,
-            $a->companyId
-        ), ARRAY_A);
-        if (!$row) {
-            throw new DomainException('Target not found.', 'target_not_found', 404);
-        }
-        Guard::branch($a, (int) $row['branch_id'], Capabilities::PERFORMANCE_MANAGE);
-        if ($row['status'] !== 'draft') {
-            throw new DomainException('Only draft target can be approved.', 'target_state_invalid', 409);
-        }
-        if ((int) $row['created_by'] === $a->employeeId) {
-            throw new DomainException('Maker cannot approve own target.', 'maker_checker_required', 409);
-        }
-        Db::mustUpdate($db, $table, ['status' => 'approved', 'approved_by' => $a->employeeId], ['id' => $id]);
-        Audit::add($a, 'performance_target.approve', 'performance_target', $id, ['branch_id' => (int) $row['branch_id']]);
-        return ['id' => $id, 'status' => 'approved'];
+        return Transaction::run(function () use ($a, $id) {
+            $db = Db::wpdb();
+            $table = Db::table('performance_targets');
+            $row = $db->get_row($db->prepare(
+                "SELECT * FROM {$table} WHERE id=%d AND company_id=%d FOR UPDATE",
+                $id,
+                $a->companyId
+            ), ARRAY_A);
+            if (!$row) {
+                throw new DomainException('Target not found.', 'target_not_found', 404);
+            }
+            Guard::branch($a, (int) $row['branch_id'], Capabilities::PERFORMANCE_MANAGE);
+            if ($row['status'] !== 'draft') {
+                throw new DomainException('Only draft target can be approved.', 'target_state_invalid', 409);
+            }
+            if ((int) $row['created_by'] === $a->employeeId) {
+                throw new DomainException('Maker cannot approve own target.', 'maker_checker_required', 409);
+            }
+            Db::mustUpdate($db, $table, ['status' => 'approved', 'approved_by' => $a->employeeId], ['id' => $id]);
+            Audit::add($a, 'performance_target.approve', 'performance_target', $id, ['branch_id' => (int) $row['branch_id']]);
+            return ['id' => $id, 'status' => 'approved'];
+        });
     }
 
     /** Query data separately from the deterministic monthly calculator. */

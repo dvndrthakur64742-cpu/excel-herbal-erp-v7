@@ -187,6 +187,15 @@ assert "q.quantity*q.unit_cost_snapshot" in reporting,'open quarantine value mis
 for token in ["unit_cost_snapshot","journal_entry_id"]:
  assert token in schema,('missing quarantine valuation schema field',token)
 print('PASS quarantine hold/release/write-off valuation workflow')
+performance=(root/'src/Payroll/PayrollPerformanceService.php').read_text()
+approve_target=performance[performance.index('public static function approveTarget'):performance.index('/** Query data separately')]
+for token in ["Transaction::run","FOR UPDATE","'target_state_invalid'","'maker_checker_required'"]:
+ assert token in approve_target,('performance target approval is not concurrency-safe',token)
+periods=(root/'src/Finance/FinancePeriodService.php').read_text()
+reopen=periods[periods.index('public static function reopenPeriod'):]
+for token in ["Transaction::run","FOR UPDATE","'period_state_invalid'"]:
+ assert token in reopen,('accounting period reopen is not concurrency-safe',token)
+print('PASS performance target and accounting period state-transition locking')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')
