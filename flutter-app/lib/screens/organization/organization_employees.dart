@@ -172,7 +172,11 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       validator: (value) =>
                           value == null ||
                                   value.trim().isEmpty ||
-                                  RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+
+                                  RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                                      .hasMatch(value.trim())
+                              ? null
+                              : 'Enter a valid email address.',
+                    ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: salary,
