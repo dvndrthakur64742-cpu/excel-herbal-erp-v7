@@ -180,7 +180,7 @@ class _RecordsListState extends State<RecordsList> {
     final statuses = widget.rows.map((row) => '${row['status'] ?? ''}')
         .where((value) => value.isNotEmpty).toSet().toList()..sort();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -191,7 +191,7 @@ class _RecordsListState extends State<RecordsList> {
             child: TextField(
               controller: _search,
               decoration: InputDecoration(
-                labelText: 'Search records',
+                hintText: 'Search records…',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _search.text.isEmpty ? null : IconButton(
                   tooltip: 'Clear search',
@@ -225,8 +225,16 @@ class _RecordsListState extends State<RecordsList> {
               ],
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text(_status == null ? 'All statuses ▾'
-                    : '${BusinessFormat.status(_status)} ▾'),
+                child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.filter_list_rounded, size: 18),
+                  const SizedBox(width: 6),
+                  Text(_status == null ? 'All statuses' : BusinessFormat.status(_status)),
+                  const SizedBox(width: 3),
+                  const Icon(Icons.arrow_drop_down, size: 18),
+                ],
+              ),
               ),
             ),
           PopupMenuButton<String>(
@@ -277,11 +285,11 @@ class _RecordsListState extends State<RecordsList> {
                 showCheckboxColumn: false,
                 sortColumnIndex: keys.contains(_sortKey) ? keys.indexOf(_sortKey!) : null,
                 sortAscending: _ascending,
-                headingRowHeight: 46,
-                dataRowMinHeight: 48,
-                dataRowMaxHeight: 64,
-                horizontalMargin: 18,
-                columnSpacing: 28,
+                headingRowHeight: 44,
+                dataRowMinHeight: 46,
+                dataRowMaxHeight: 58,
+                horizontalMargin: 14,
+                columnSpacing: 20,
                 showBottomBorder: true,
                 columns: [
                   for (final key in keys)
@@ -299,7 +307,7 @@ class _RecordsListState extends State<RecordsList> {
                         ),
                       ),
                     ),
-                  const DataColumn(label: Text('Action')),
+                  const DataColumn(label: Text('Open')),
                 ],
                 rows: [
                   for (final row in rows)
@@ -623,7 +631,9 @@ class _RecordsListState extends State<RecordsList> {
     ordered.addAll(rest);
 
     if (ordered.isEmpty) return const ['status'];
-    return ordered.take(7).toList();
+    // ERP list views should answer the first decision at a glance. Extra
+    // attributes belong in the record detail view, not in the scanning table.
+    return ordered.take(5).toList();
   }
 
   bool _isNumericKey(String key) {
