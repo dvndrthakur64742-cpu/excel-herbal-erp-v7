@@ -228,6 +228,12 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     if((int)($supplier['id']??0)<1)throw new RuntimeException('supplier duplicate guard seed failed');
     try{e2_dispatch('purchase.supplier_create',$master,['name'=>'Duplicate Guard Supplier 2','mobile'=>'9000000444','gstin'=>'22BBBBB0000B1Z6']);throw new RuntimeException('duplicate supplier GSTIN was accepted');}
     catch(DomainException $e){if($e->codeKey!=='supplier_duplicate')throw $e;}
+    e2_insert($wpdb,'products',['id'=>101,'company_id'=>1,'sku'=>'PENDING-P101','name'=>'Pending Workflow Product','uom'=>'PCS','batch_tracking'=>'off','expiry_tracking'=>0,'status'=>'active','created_at'=>'2026-01-01 00:00:00']);
+    e2_insert($wpdb,'product_commercial_revisions',['id'=>101,'company_id'=>1,'product_id'=>101,'effective_from'=>'2026-01-01 00:00:00','mrp'=>100,'sale_price'=>100,'ho_amount'=>40,'bm_profit'=>20,'salary_fund'=>20,'office_expense'=>20,'points'=>1,'purchase_cost'=>50,'status'=>'active','approved_by'=>20,'created_at'=>'2026-01-01 00:00:00']);
+    e2_insert($wpdb,'stock_adjustments',['id'=>101,'company_id'=>1,'branch_id'=>1,'status'=>'pending','reason'=>'Pending lifecycle guard','created_by'=>30,'created_at'=>'2026-01-01 00:00:00']);
+    e2_insert($wpdb,'stock_adjustment_lines',['id'=>101,'adjustment_id'=>101,'product_id'=>101,'quantity_delta'=>1,'unit_cost_snapshot'=>50]);
+    try{e2_dispatch('catalog.product_status',$master,['id'=>101,'active'=>false]);throw new RuntimeException('product with pending adjustment was deactivated');}
+    catch(DomainException $e){if($e->codeKey!=='product_deactivate_blocked')throw $e;}
     e2_insert($wpdb,'designations',['id'=>1,'company_id'=>1,'code'=>'SM','name'=>'Sales Manager','sequence_no'=>10,'field_role'=>1,'promotion_min_points'=>0,'minimum_days'=>0,'status'=>'active']);
     $first=e2_dispatch('org.employee_designation_assign',$master,['id'=>20],['designation_code'=>'SM','assignment_type'=>'temporary','effective_from'=>'2026-09-01','effective_to'=>'2026-09-30']);
     if((int)($first['id']??0)<1)throw new RuntimeException('designation assignment seed failed');
@@ -274,6 +280,8 @@ e2_case('e2_sales_credit_and_customer_receipt',function()use($maker,$approver,$w
     if(count($open)!==1||abs((float)$open[0]['outstanding_amount']-150)>0.005)throw new RuntimeException('open sales control mismatch');
     $qty=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     if(abs($qty-6)>0.001)throw new RuntimeException('sale stock movement mismatch');
+    try{e2_dispatch('sales.customer_status',$maker,['id'=>(int)$customer['id'],'active'=>false]);throw new RuntimeException('customer with outstanding receivable was deactivated');}
+    catch(DomainException $e){if($e->codeKey!=='customer_deactivate_blocked')throw $e;}
     $state['sale_id']=(int)$sale['id'];$state['receipt_id']=(int)$receipt['id'];$state['customer_id']=(int)$customer['id'];
 });
 
