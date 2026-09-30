@@ -129,7 +129,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ApiPaths.quarantine,
                   query: {'branch_id': app.currentBranchId},
                 ),
-          emptyMessage: 'Quarantine empty hai.',
+          emptyMessage: 'No quarantined stock is available.',
           builder: (context, data) => RecordsList(
             recordType: 'quarantine',
             rows: _rows(data),
@@ -162,6 +162,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           onPressed: app.currentBranchId == null ? null : _createAdjustment,
           icon: const Icon(Icons.tune_rounded, size: 18),
           label: const Text('Adjustment'),
+        ),
+      if (app.can('inventory.adjustment.create'))
+        OutlinedButton.icon(
+          onPressed: app.currentBranchId == null ? null : _createQuarantine,
+          icon: const Icon(Icons.gpp_bad_outlined, size: 18),
+          label: const Text('Quarantine Stock'),
         ),
     ];
     return DefaultTabController(
@@ -468,7 +474,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         if (mounted)
           setState(() {
             refresh++;
-            message = 'Stock adjustment approval ke liye submit ho gaya.';
+            message = 'Stock adjustment submitted for approval.';
           });
       }
       delta.dispose();
@@ -642,6 +648,114 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           });
       }
       for (final c in controllers.values) c.dispose();
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _createQuarantine() async {
+    final app = ref.read(appStateProvider);
+    final api = ref.read(apiClientProvider);
+    try {
+      final stock = await _branchStock();
+      if (stock.isEmpty) {
+        throw Exception('No stock item is available for quarantine.');
+      }
+      int? lineId;
+      final qty = TextEditingController();
+      final reason = TextEditingController();
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+            title: const Text('Quarantine Stock'),
+            content: SizedBox(
+              width: 540,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    isExpanded: true,
+                    menuMaxHeight: 360,
+                    initialValue: lineId,
+                    decoration: const InputDecoration(labelText: 'Stock Item'),
+                    items: List.generate(
+                      stock.length,
+                      (i) => DropdownMenuItem(
+                        value: i,
+                        child: Text(
+                          '${stock[i]['product_name']} · Batch ${stock[i]['batch_no'] ?? '-'} · ${BusinessFormat.quantity(stock[i]['quantity'])} PCS',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    onChanged: (v) => setLocal(() => lineId = v),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: qty,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [WholePcs.positiveFormatter],
+                    decoration: const InputDecoration(labelText: 'Quantity'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: reason,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Quarantine reason',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(
+                  context,
+                  lineId != null && reason.text.trim().length >= 5,
+                ),
+                child: const Text('Hold Stock'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (ok == true) {
+        final l = stock[lineId!];
+        final q = WholePcs.parseOrZero(qty.text);
+        final available = double.tryParse('${l['quantity']}') ?? 0;
+        if (q <= 0 || q > available + .0001) {
+          throw Exception('Enter a valid quantity within the available stock.');
+        }
+        final batchKey = int.tryParse('${l['batch_key']}') ?? 0;
+        await api.post(
+          ApiPaths.quarantine,
+          data: {
+            'branch_id': app.currentBranchId,
+            'product_id': l['product_id'],
+            'quantity': q,
+            if (batchKey > 0) 'batch_id': batchKey,
+            'reason': reason.text.trim(),
+          },
+        );
+        if (mounted) {
+          setState(() {
+            refresh++;
+            message = 'Stock moved to quarantine for controlled review.';
+          });
+        }
+      }
+      qty.dispose();
+      reason.dispose();
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }

@@ -381,6 +381,28 @@ e2_case('e2_reports_and_subledger_reconciliation',function()use($approver,$wpdb)
     if($unbalanced!==0)throw new RuntimeException('raw journal balance invariant failed');
 });
 
+e2_case('e2_quarantine_hold_release_writeoff_reconciles_inventory',function()use($maker,$approver,$wpdb){
+    $before=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    $hold=e2_dispatch('inventory.quarantine_hold',$maker,['branch_id'=>1,'product_id'=>100,'quantity'=>1,'reason'=>'Coverage quality hold']);
+    if(($hold['status']??'')!=='open')throw new RuntimeException('quarantine hold failed');
+    $afterHold=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    if(abs($afterHold-($before-1))>0.001)throw new RuntimeException('quarantine hold stock mismatch');
+    foreach(e2_dispatch('reports.finance_reconciliation',$approver,['branch_id'=>1]) as$r)if(($r['status']??'')!=='matched')throw new RuntimeException('quarantine hold reconciliation mismatch: '.json_encode($r));
+    try{e2_dispatch('inventory.quarantine_resolve',$maker,['id'=>(int)$hold['id'],'action'=>'release','reason'=>'Maker self release blocked']);throw new RuntimeException('quarantine maker resolved own hold');}
+    catch(DomainException $e){if($e->codeKey!=='maker_checker_required')throw $e;}
+    $released=e2_dispatch('inventory.quarantine_resolve',$approver,['id'=>(int)$hold['id'],'action'=>'release','reason'=>'Quality check cleared']);
+    if(($released['status']??'')!=='released')throw new RuntimeException('quarantine release failed');
+    $afterRelease=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    if(abs($afterRelease-$before)>0.001)throw new RuntimeException('quarantine release stock mismatch');
+
+    $hold2=e2_dispatch('inventory.quarantine_hold',$maker,['branch_id'=>1,'product_id'=>100,'quantity'=>1,'reason'=>'Coverage damage hold']);
+    $written=e2_dispatch('inventory.quarantine_resolve',$approver,['id'=>(int)$hold2['id'],'action'=>'write_off','reason'=>'Confirmed damaged stock']);
+    if(($written['status']??'')!=='written_off'||(int)($written['journal_entry_id']??0)<1)throw new RuntimeException('quarantine write-off journal missing');
+    $afterWriteoff=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    if(abs($afterWriteoff-($before-1))>0.001)throw new RuntimeException('quarantine write-off stock mismatch');
+    foreach(e2_dispatch('reports.finance_reconciliation',$approver,['branch_id'=>1]) as$r)if(($r['status']??'')!=='matched')throw new RuntimeException('quarantine write-off reconciliation mismatch: '.json_encode($r));
+});
+
 e2_case('e2_branch_closing_blocks_posting_and_reopens',function()use($maker,$approver,$wpdb){
     $date=e2_date();
     $pre=e2_dispatch('finance.closing_preflight',$maker,['branch_id'=>1,'business_date'=>$date]);

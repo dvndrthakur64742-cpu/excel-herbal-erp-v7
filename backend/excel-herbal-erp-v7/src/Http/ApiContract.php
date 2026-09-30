@@ -56,6 +56,7 @@ final class ApiContract
             'salary_revision_approval'=>true,
             'payroll_working_day_proration'=>true,
             'private_document_download'=>true,
+            'stock_quarantine_workflow'=>true,
         ];
     }
 
@@ -110,6 +111,7 @@ final class ApiContract
             'inventory.transfer_cancel'=>['reason'],
             'inventory.adjustment'=>['branch_id','reason','lines'],
             'inventory.adjustment_decision'=>['approve'],
+            'inventory.quarantine_hold'=>['branch_id','product_id','quantity','reason'],
             'inventory.quarantine_resolve'=>['action','reason'],
             'sales.customer_create'=>['branch_id','name'],
             'sales.customer_status'=>['active'],
@@ -209,7 +211,7 @@ final class ApiContract
         }
 
         // Direct scalar IDs: reject floats, text and zero rather than silently casting to 0.
-        foreach(['branch_id','employee_id','delegator_employee_id','delegate_employee_id','primary_employee_id','maker_employee_id','reporting_employee_id','assigned_employee_id','source_branch_id','destination_branch_id','supplier_id','sale_id','purchase_bill_id','payment_account_id','expense_head_id','expense_account_id','account_id','source_id','journal_line_id','attachment_id','field_visit_id','party_id','customer_id','client_build','limit','offset'] as$key){
+        foreach(['branch_id','employee_id','delegator_employee_id','delegate_employee_id','primary_employee_id','maker_employee_id','reporting_employee_id','assigned_employee_id','source_branch_id','destination_branch_id','supplier_id','sale_id','purchase_bill_id','payment_account_id','expense_head_id','expense_account_id','account_id','source_id','journal_line_id','attachment_id','field_visit_id','party_id','customer_id','product_id','batch_id','client_build','limit','offset'] as$key){
             $v=$request->get_param($key);if($v===null||$v==='')continue;
             if(!is_int($v)&&!(is_string($v)&&ctype_digit($v)))throw new DomainException($key.' must be an integer.','parameter_invalid',422);
             $n=(int)$v;
@@ -232,7 +234,7 @@ final class ApiContract
             Input::date((string)$v,str_replace('_',' ',$key));
         }
 
-        foreach(['amount','cash','upi','opening_balance','closing_balance','bonus','allowances','deductions','target_points','monthly_salary','mrp','sale_price','ho_amount','bm_profit','salary_fund','office_expense','points','purchase_cost','offered_monthly_salary'] as$key){
+        foreach(['amount','quantity','cash','upi','opening_balance','closing_balance','bonus','allowances','deductions','target_points','monthly_salary','mrp','sale_price','ho_amount','bm_profit','salary_fund','office_expense','points','purchase_cost','offered_monthly_salary'] as$key){
             $v=$request->get_param($key);if($v===null||$v==='')continue;
             if(!is_numeric($v)||!is_finite((float)$v))throw new DomainException($key.' must be a finite number.','parameter_invalid',422);
         }

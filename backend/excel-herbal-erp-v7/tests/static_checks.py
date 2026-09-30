@@ -68,7 +68,7 @@ for metric in [
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
 print('PASS operational diagnostics anomaly coverage')
 schema=(root/'src/Database/Schema.php').read_text()
-assert "7.3.5-business-fixes-2" in schema,'schema version was not advanced for checkout exception migration'
+assert "7.3.5-business-fixes-3" in schema,'schema version was not advanced for business integrity migration'
 for token in [
  'checkout_exception',
  'checkout_exception_reason',
@@ -173,6 +173,20 @@ for token in [
 ]:
  assert token in inventory,('missing quarantine resolution control',token)
 print('PASS Daily Order lifecycle audit and quarantine resolution controls')
+quarantine=(root/'src/Inventory/InventoryService.php').read_text()
+for token in [
+ 'function quarantineHold',
+ "'stock_quarantine.hold'",
+ "'stock_quarantine_writeoff'",
+]:
+ assert token in quarantine,('missing end-to-end quarantine workflow control',token)
+accounting=(root/'src/Finance/AccountingService.php').read_text()
+assert "'stock_quarantine_writeoff'=>'stock_quarantine'" in accounting,'quarantine write-off journal source missing'
+reporting=(root/'src/Reporting/ReportingService.php').read_text()
+assert "q.quantity*q.unit_cost_snapshot" in reporting,'open quarantine value missing from finance reconciliation'
+for token in ["unit_cost_snapshot","journal_entry_id"]:
+ assert token in schema,('missing quarantine valuation schema field',token)
+print('PASS quarantine hold/release/write-off valuation workflow')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')

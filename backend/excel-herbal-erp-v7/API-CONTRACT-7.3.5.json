@@ -43,7 +43,8 @@
     "hr_separation_workflow": true,
     "salary_revision_approval": true,
     "payroll_working_day_proration": true,
-    "private_document_download": true
+    "private_document_download": true,
+    "stock_quarantine_workflow": true
   },
   "routes": [
     {
@@ -913,6 +914,18 @@
       "auth": true,
       "idempotency_required": false,
       "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/quarantine",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "product_id",
+        "quantity",
+        "reason"
+      ]
     },
     {
       "method": "POST",
