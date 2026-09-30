@@ -135,28 +135,7 @@ abstract final class TransactionGuardrails {
 
     final rawMobile = mobile.trim();
     if (rawMobile.isNotEmpty) {
-      if (!RegExp(r'^[0-9+\-\s()]+
-    if (!_validIsoDate(from) || !_validIsoDate(to)) {
-      return 'Valid date range YYYY-MM-DD format me enter karein.';
-    }
-    final start = DateTime.parse(from.trim());
-    final end = DateTime.parse(to.trim());
-    if (start.isAfter(end)) return 'From date To date ke baad nahi ho sakti.';
-    return null;
-  }
-
-  static bool _validIsoDate(String raw) {
-    final value = raw.trim();
-    final match = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value);
-    if (!match) return false;
-    final parsed = DateTime.tryParse(value);
-    if (parsed == null) return false;
-    final normalized =
-        '${parsed.year.toString().padLeft(4, '0')}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
-    return normalized == value;
-  }
-}
-).hasMatch(rawMobile)) {
+      if (!RegExp(r'^[0-9+\-\s()]+$').hasMatch(rawMobile)) {
         return 'Mobile number contains invalid characters.';
       }
       final digits = rawMobile.replaceAll(RegExp(r'\D'), '');
@@ -167,28 +146,7 @@ abstract final class TransactionGuardrails {
 
     final cleanEmail = email.trim();
     if (cleanEmail.isNotEmpty &&
-        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+
-    if (!_validIsoDate(from) || !_validIsoDate(to)) {
-      return 'Valid date range YYYY-MM-DD format me enter karein.';
-    }
-    final start = DateTime.parse(from.trim());
-    final end = DateTime.parse(to.trim());
-    if (start.isAfter(end)) return 'From date To date ke baad nahi ho sakti.';
-    return null;
-  }
-
-  static bool _validIsoDate(String raw) {
-    final value = raw.trim();
-    final match = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value);
-    if (!match) return false;
-    final parsed = DateTime.tryParse(value);
-    if (parsed == null) return false;
-    final normalized =
-        '${parsed.year.toString().padLeft(4, '0')}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
-    return normalized == value;
-  }
-}
-).hasMatch(cleanEmail)) {
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(cleanEmail)) {
       return 'Enter a valid employee email address.';
     }
     if (!_validIsoDate(joiningDate)) {
