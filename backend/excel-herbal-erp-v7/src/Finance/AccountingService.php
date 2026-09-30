@@ -15,7 +15,7 @@ final class AccountingService{
  public static function assertPeriodOpen(Actor $a,string $date):void{$businessDate=Input::date(substr(trim($date),0,10),'Journal business date');$db=Db::wpdb();if((int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('accounting_periods')." WHERE company_id=%d AND status='closed' AND %s BETWEEN period_start AND period_end",$a->companyId,$businessDate)))throw new DomainException('Accounting period closed.','accounting_period_closed',409);}
 
  private static function sourceTable(string $source):string{
-  $map=['counter_sale'=>'counter_sales','customer_receipt'=>'customer_receipts','daily_cycle'=>'daily_cycles','expense'=>'expenses','payroll'=>'payroll_runs','payroll_payment'=>'payroll_runs','purchase_bill'=>'purchase_bills','supplier_payment'=>'supplier_payments','stock_transfer_dispatch'=>'stock_transfers','stock_transfer_receive'=>'stock_transfers','stock_transfer_cancel'=>'stock_transfers','stock_transfer_variance'=>'stock_transfers','stock_adjustment'=>'stock_adjustments','reversal'=>'reversals'];
+  $map=['counter_sale'=>'counter_sales','customer_receipt'=>'customer_receipts','daily_cycle'=>'daily_cycles','expense'=>'expenses','payroll'=>'payroll_runs','payroll_payment'=>'payroll_runs','purchase_bill'=>'purchase_bills','supplier_payment'=>'supplier_payments','stock_transfer_dispatch'=>'stock_transfers','stock_transfer_receive'=>'stock_transfers','stock_transfer_cancel'=>'stock_transfers','stock_transfer_variance'=>'stock_transfers','stock_adjustment'=>'stock_adjustments','stock_quarantine_writeoff'=>'stock_quarantine','reversal'=>'reversals'];
   if(!isset($map[$source]))throw new DomainException('Unsupported journal source.','journal_source_invalid',422);
   return $map[$source];
  }

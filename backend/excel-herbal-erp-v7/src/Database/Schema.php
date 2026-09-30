@@ -1,7 +1,7 @@
 <?php
 namespace ExcelHerbal\ERP7\Database;
 final class Schema {
-    public const VERSION='7.3.5-business-fixes-2';
+    public const VERSION='7.3.5-business-fixes-3';
     /** @return array<string,string> */
     public static function definitions():array{$c=[];
 $c['companies']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,name VARCHAR(190) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'active',created_at DATETIME NOT NULL,PRIMARY KEY(id)";
@@ -27,7 +27,7 @@ $c['stock_transfers']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIG
 $c['stock_transfer_lines']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,transfer_id BIGINT UNSIGNED NOT NULL,product_id BIGINT UNSIGNED NOT NULL,batch_id BIGINT UNSIGNED NULL,quantity DECIMAL(14,3) NOT NULL,received_quantity DECIMAL(14,3) NOT NULL DEFAULT 0,unit_cost_snapshot DECIMAL(14,4) NOT NULL DEFAULT 0,PRIMARY KEY(id),UNIQUE KEY uq_transfer_line(transfer_id,product_id,batch_id)";
 $c['stock_adjustments']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,branch_id BIGINT UNSIGNED NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'pending',reason VARCHAR(255) NOT NULL,created_by BIGINT UNSIGNED NOT NULL,decided_by BIGINT UNSIGNED NULL,journal_entry_id BIGINT UNSIGNED NULL,created_at DATETIME NOT NULL,decided_at DATETIME NULL,PRIMARY KEY(id)";
 $c['stock_adjustment_lines']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,adjustment_id BIGINT UNSIGNED NOT NULL,product_id BIGINT UNSIGNED NOT NULL,batch_id BIGINT UNSIGNED NULL,quantity_delta DECIMAL(14,3) NOT NULL,unit_cost_snapshot DECIMAL(14,4) NOT NULL DEFAULT 0,PRIMARY KEY(id)";
-$c['stock_quarantine']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,branch_id BIGINT UNSIGNED NOT NULL,product_id BIGINT UNSIGNED NOT NULL,batch_id BIGINT UNSIGNED NULL,quantity DECIMAL(14,3) NOT NULL,reason VARCHAR(255) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'open',created_by BIGINT UNSIGNED NOT NULL,resolved_by BIGINT UNSIGNED NULL,created_at DATETIME NOT NULL,resolved_at DATETIME NULL,PRIMARY KEY(id)";
+$c['stock_quarantine']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,branch_id BIGINT UNSIGNED NOT NULL,product_id BIGINT UNSIGNED NOT NULL,batch_id BIGINT UNSIGNED NULL,quantity DECIMAL(14,3) NOT NULL,unit_cost_snapshot DECIMAL(14,4) NOT NULL DEFAULT 0,reason VARCHAR(255) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'open',created_by BIGINT UNSIGNED NOT NULL,resolved_by BIGINT UNSIGNED NULL,journal_entry_id BIGINT UNSIGNED NULL,created_at DATETIME NOT NULL,resolved_at DATETIME NULL,PRIMARY KEY(id),KEY branch_status(company_id,branch_id,status)";
 $c['parties']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,branch_id BIGINT UNSIGNED NOT NULL,type VARCHAR(20) NOT NULL DEFAULT 'customer',name VARCHAR(190) NOT NULL,mobile VARCHAR(30) NULL,email VARCHAR(190) NULL,address TEXT NULL,status VARCHAR(20) NOT NULL DEFAULT 'active',created_at DATETIME NOT NULL,PRIMARY KEY(id)";
 $c['counter_sales']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,branch_id BIGINT UNSIGNED NOT NULL,customer_id BIGINT UNSIGNED NULL,sale_no VARCHAR(80) NOT NULL,sale_date DATETIME NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'posted',gross_amount DECIMAL(14,2) NOT NULL,paid_amount DECIMAL(14,2) NOT NULL DEFAULT 0,outstanding_amount DECIMAL(14,2) NOT NULL DEFAULT 0,payment_account_id BIGINT UNSIGNED NULL,journal_entry_id BIGINT UNSIGNED NULL,created_by BIGINT UNSIGNED NOT NULL,created_at DATETIME NOT NULL,PRIMARY KEY(id),UNIQUE KEY uq_sale_no(company_id,sale_no)";
 $c['counter_sale_lines']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,sale_id BIGINT UNSIGNED NOT NULL,product_id BIGINT UNSIGNED NOT NULL,batch_id BIGINT UNSIGNED NULL,quantity DECIMAL(14,3) NOT NULL,unit_price DECIMAL(14,2) NOT NULL,line_total DECIMAL(14,2) NOT NULL,points_snapshot DECIMAL(14,2) NOT NULL DEFAULT 0,salary_fund_snapshot DECIMAL(14,2) NOT NULL DEFAULT 0,purchase_cost_snapshot DECIMAL(14,4) NOT NULL DEFAULT 0,PRIMARY KEY(id)";
@@ -121,6 +121,8 @@ return$c;}
         self::ensureColumn('attendance','checkout_exception_reason','VARCHAR(255) NULL AFTER checkout_exception');
         self::ensureColumn('attendance','checkout_exception_by','BIGINT UNSIGNED NULL AFTER checkout_exception_reason');
         self::ensureColumn('attendance','checkout_exception_at','DATETIME NULL AFTER checkout_exception_by');
+        self::ensureColumn('stock_quarantine','unit_cost_snapshot','DECIMAL(14,4) NOT NULL DEFAULT 0 AFTER quantity');
+        self::ensureColumn('stock_quarantine','journal_entry_id','BIGINT UNSIGNED NULL AFTER resolved_by');
 
         $salaryTable=Db::table('salary_revisions');$employeeTable=Db::table('employees');
         Db::mustQuery($db,$db->prepare("INSERT INTO {$salaryTable} (company_id,employee_id,effective_from,monthly_salary,status,reason,created_at) SELECT e.company_id,e.id,GREATEST(COALESCE(e.joining_date,%s),%s),e.monthly_salary,'baseline','Upgrade snapshot; earlier salary must be independently confirmed',%s FROM {$employeeTable} e WHERE NOT EXISTS(SELECT 1 FROM {$salaryTable} s WHERE s.company_id=e.company_id AND s.employee_id=e.id)",Db::today(),Db::today(),Db::now()));
