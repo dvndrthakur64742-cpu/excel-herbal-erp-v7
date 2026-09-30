@@ -78,6 +78,15 @@ final class Input
         return[$start,$end];
     }
 
+    public static function email(string $value,string $label='Email'): string
+    {
+        $value=trim($value);
+        if($value===''||strlen($value)>190||filter_var($value,FILTER_VALIDATE_EMAIL)===false){
+            throw new DomainException($label.' must be a valid email address.','email_invalid',422);
+        }
+        return $value;
+    }
+
     public static function optionalDate(string $value,string $label='Date'): ?string
     {
         $value=trim($value);
