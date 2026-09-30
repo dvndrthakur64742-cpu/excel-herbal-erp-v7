@@ -19,9 +19,28 @@ class TasksScreen extends ConsumerStatefulWidget {
 class _TasksScreenState extends ConsumerState<TasksScreen> {
   int? completingId;
   String? message;
+  late List<Map<String, dynamic>> _tasks;
 
-  List<Map<String, dynamic>> get _tasks =>
-      widget.initialTasks ?? const <Map<String, dynamic>>[];
+  @override
+  void initState() {
+    super.initState();
+    _tasks = _copyTasks(widget.initialTasks);
+  }
+
+  @override
+  void didUpdateWidget(covariant TasksScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.initialTasks, widget.initialTasks)) {
+      _tasks = _copyTasks(widget.initialTasks);
+    }
+  }
+
+  static List<Map<String, dynamic>> _copyTasks(
+    List<Map<String, dynamic>>? rows,
+  ) =>
+      (rows ?? const <Map<String, dynamic>>[])
+          .map(Map<String, dynamic>.from)
+          .toList();
 
   @override
   Widget build(BuildContext context) {
@@ -69,12 +88,12 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (_, i) {
                     final task = _tasks[i];
-                  final id = int.parse('${task['id']}');
-                  final busy = completingId == id;
-                  final due = task['due_at'] == null
-                      ? 'No due date'
-                      : BusinessFormat.dateTime(task['due_at']);
-                  return Card(
+                    final id = int.parse('${task['id']}');
+                    final busy = completingId == id;
+                    final due = task['due_at'] == null
+                        ? 'No due date'
+                        : BusinessFormat.dateTime(task['due_at']);
+                    return Card(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
                       child: Row(
@@ -132,7 +151,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                         ],
                       ),
                     ),
-                  );
+                    );
                   },
                 ),
         ),
@@ -171,6 +190,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         setState(() {
           completingId = null;
           message = 'Task completed.';
+          _tasks.removeWhere((task) => int.tryParse('${task['id']}') == id);
         });
       }
     } catch (e) {
