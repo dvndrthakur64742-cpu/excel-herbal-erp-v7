@@ -265,6 +265,11 @@ deactivate_doc=documents[documents.index('public static function deactivate'):]
 for token in ["Transaction::run","FOR UPDATE","'unchanged'=>true"]:
  assert token in deactivate_doc,('employee document deactivation is not idempotent/locked',token)
 print('PASS employee document deactivation locking')
+closing=(root/'src/Finance/FinanceClosingService.php').read_text()
+reopen=closing[closing.index('public static function reopenBranch'):]
+for token in ["Transaction::run","FOR UPDATE","'closing_state_invalid'"]:
+ assert token in reopen,('branch closing reopen is not concurrency-safe',token)
+print('PASS branch closing reopen state locking')
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
 assert len(contract['routes'])==len(rows)
 print('PASS generated contract count and JSON')

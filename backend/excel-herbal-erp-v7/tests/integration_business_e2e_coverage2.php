@@ -470,6 +470,8 @@ e2_case('e2_branch_closing_blocks_posting_and_reopens',function()use($maker,$app
         if($salesAfter!==$salesBefore)throw new RuntimeException('closed-day mutation partially persisted');
         $reopened=e2_dispatch('finance.closing_reopen',$approver,['id'=>(int)$draft['id'],'reason'=>'Coverage controlled reopen']);
         if(($reopened['status']??'')!=='reopened')throw new RuntimeException('branch reopen failed');
+        try{e2_dispatch('finance.closing_reopen',$approver,['id'=>(int)$draft['id'],'reason'=>'Duplicate reopen must fail']);throw new RuntimeException('branch closing reopened twice');}
+        catch(DomainException $e){if($e->codeKey!=='closing_state_invalid')throw $e;}
         return;
     }
     throw new RuntimeException('posting succeeded on closed branch day');
