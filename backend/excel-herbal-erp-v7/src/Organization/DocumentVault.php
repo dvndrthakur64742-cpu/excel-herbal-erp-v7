@@ -45,8 +45,7 @@ final class DocumentVault {
         $db=Db::wpdb();$candidate=$kind==='candidate';$owners=Db::table($candidate?'hr_candidates':'employees');$branch=$candidate?'branch_id':'assigned_branch_id';
         $e=$db->get_row($db->prepare("SELECT {$branch} branch_id FROM {$owners} WHERE id=%d AND company_id=%d",$owner,$a->companyId),ARRAY_A);
         if(!$e)throw new DomainException('Document owner not found.','document_not_found',404);
-        Guard::branch($a,(int)$e['branch_id'],$candidate?Capabilities::HR_VIEW:Capabilities::EMP_VIEW);
-        if(!$candidate)\ExcelHerbal\ERP7\Security\HierarchyScope::assertCanViewEmployee($a,$owner);
+        if($candidate){Guard::branch($a,(int)$e['branch_id'],Capabilities::HR_DOCUMENT_DOWNLOAD);}elseif($owner===$a->employeeId){Guard::cap($a,Capabilities::ACCESS);}else{Guard::branch($a,(int)$e['branch_id'],Capabilities::EMP_DOCUMENT_DOWNLOAD);\ExcelHerbal\ERP7\Security\HierarchyScope::assertCanViewEmployee($a,$owner);}
         $t=Db::table($candidate?'hr_candidate_documents':'employee_documents');$field=$candidate?'candidate_id':'employee_id';
         $r=$db->get_row($db->prepare("SELECT private_file_id FROM {$t} WHERE id=%d AND {$field}=%d AND company_id=%d AND status='active'",$document,$owner,$a->companyId),ARRAY_A);
         if(!$r||empty($r['private_file_id']))throw new DomainException('Private document unavailable; legacy media requires migration.','document_not_found',404);

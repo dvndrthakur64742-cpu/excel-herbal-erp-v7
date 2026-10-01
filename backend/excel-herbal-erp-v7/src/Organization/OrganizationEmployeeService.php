@@ -5,19 +5,22 @@ final class OrganizationEmployeeService{
  public static function employees(Actor $a,int $branch,string $status='active'):array{
   Guard::branch($a,$branch,Capabilities::EMP_VIEW);$status=strtolower(trim($status))?:'active';if(!in_array($status,['active','inactive','all'],true))throw new DomainException('Employee status filter is invalid.','employee_status_invalid',422);
   $where=$status==='all'?"status IN ('active','inactive')":"status='".$status."'";
+  $showContact=$a->can(Capabilities::EMP_CONTACT_VIEW)||$a->can(Capabilities::EMP_MANAGE);
+  $showSalary=$a->can(Capabilities::SALARY_VIEW)||$a->can(Capabilities::SALARY_MANAGE)||$a->can(Capabilities::SALARY_APPROVE);
+  $showLogin=$a->can(Capabilities::EMP_MANAGE);
   $rows=(array)Db::wpdb()->get_results(Db::wpdb()->prepare(
    "SELECT id,employee_code,full_name,mobile,email,designation_code,reporting_designation_code,assigned_branch_id,reporting_employee_id,monthly_salary,joining_date,separation_date,status,CASE WHEN wp_user_id IS NULL THEN 0 ELSE 1 END login_enabled FROM ".Db::table('employees')." WHERE company_id=%d AND assigned_branch_id=%d AND {$where} ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,full_name",
    $a->companyId,$branch
   ),ARRAY_A);
   $visible=array_flip(HierarchyScope::visibleEmployeeIds($a,$branch));
   $rows=array_values(array_filter($rows,fn($r)=>isset($visible[(int)$r['id']])));
-  foreach($rows as&$r)$r['reporting_category']=HierarchyScope::reportingCategoryForCode((string)$r['designation_code'],(string)($r['reporting_designation_code']??''));unset($r);return $rows;
+  foreach($rows as&$r){if(!$showContact){unset($r['mobile'],$r['email']);}if(!$showSalary)unset($r['monthly_salary']);if(!$showLogin)unset($r['login_enabled']);$r['reporting_category']=HierarchyScope::reportingCategoryForCode((string)$r['designation_code'],(string)($r['reporting_designation_code']??''));}unset($r);return $rows;
  }
  public static function createEmployee(Actor $a,array $data,string $requiredCapability=Capabilities::EMP_MANAGE):array{
   $branch=(int)($data['assigned_branch_id']??0);Guard::branch($a,$branch,$requiredCapability);
   $code=strtoupper(trim((string)($data['employee_code']??'')));$name=trim((string)($data['full_name']??''));$designation=strtoupper(trim((string)($data['designation_code']??'')));$reportingDesignation=HierarchyScope::normaliseCode((string)($data['reporting_designation_code']??''));if($reportingDesignation!==''&&!in_array($reportingDesignation,HierarchyScope::allowedReportingCategories(),true))throw new DomainException('Invalid reporting designation category.','reporting_designation_invalid',422);
   if($code===''||$name===''||$designation==='')throw new DomainException('Employee code, name and designation are required.');
-  $mobile=self::normaliseMobile((string)($data['mobile']??''));$email=trim((string)($data['email']??''));$joiningRaw=trim((string)($data['joining_date']??''));$joining=$joiningRaw===''?Db::today():Input::date($joiningRaw,'Joining date');
+  $mobile=self::normaliseMobile((string)($data['mobile']??''));$email=trim((string)($data['email']??''));$joiningRaw=trim((string)($data['joining_date']??''));$joining=$joiningRaw===''?Db::today():Input::date($joiningRaw,'Joining date');$openingSalary=max(0,round((float)($data['monthly_salary']??0),2));if($openingSalary>0)Guard::cap($a,Capabilities::SALARY_MANAGE);
   if($mobile!==''&&(strlen($mobile)<8||strlen($mobile)>15))throw new DomainException('Mobile number must contain 8 to 15 digits.','mobile_invalid',422);
   if($email!==''&&!is_email($email))throw new DomainException('Valid employee email is required.','email_invalid',422);
   self::assertMobileAvailable($mobile);
@@ -27,7 +30,7 @@ final class OrganizationEmployeeService{
   $reporting=isset($data['reporting_employee_id'])?(int)$data['reporting_employee_id']:null;
   if($reporting){$manager=$db->get_row($db->prepare("SELECT id,assigned_branch_id FROM ".Db::table('employees')." WHERE company_id=%d AND id=%d AND status='active'",$a->companyId,$reporting),ARRAY_A);if(!$manager)throw new DomainException('Reporting employee not found.','reporting_employee_invalid',422);Guard::branch($a,(int)$manager['assigned_branch_id'],$requiredCapability);}
   $roleIds=[];foreach((array)($data['role_ids']??[]) as $roleId){$rid=(int)$roleId;if($rid<1||in_array($rid,$roleIds,true))throw new DomainException('Invalid or duplicate role assignment.','role_invalid',422);$ok=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('roles')." WHERE id=%d AND company_id=%d AND active=1",$rid,$a->companyId));if(!$ok)throw new DomainException('Invalid role assignment.','role_invalid',422);$roleIds[]=$rid;}if($roleIds)Guard::cap($a,Capabilities::ACCESS_MANAGE);
-  $result=Transaction::run(function()use($a,$data,$branch,$code,$name,$designation,$reportingDesignation,$reporting,$mobile,$email,$roleIds,$joining){
+  $result=Transaction::run(function()use($a,$data,$branch,$code,$name,$designation,$reportingDesignation,$reporting,$mobile,$email,$roleIds,$joining,$openingSalary){
    \ExcelHerbal\ERP7\Payroll\SalaryService::lockCompany($a->companyId);$db=Db::wpdb();$payrollConflict=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('payroll_runs')." WHERE company_id=%d AND branch_id=%d AND period_end>=%s",$a->companyId,$branch,$joining));if($payrollConflict)throw new DomainException('Employee joining date conflicts with an existing payroll period. Regenerate or review payroll first.','employee_create_payroll_conflict',409);$requestedUid=(int)($data['wp_user_id']??0);$password=(string)($data['password']??'');$provisionLogin=!array_key_exists('provision_login',$data)||!empty($data['provision_login']);$provisioned=false;$generatedPassword=false;$notify=false;$uid=null;
    if($requestedUid>0){
     if(!get_user_by('id',$requestedUid))throw new DomainException('WordPress user not found.','wp_user_invalid',422);
@@ -41,10 +44,10 @@ final class OrganizationEmployeeService{
    }
    Db::mustInsert($db,Db::table('employees'),[
     'company_id'=>$a->companyId,'employee_code'=>$code,'wp_user_id'=>$uid,'designation_code'=>$designation,'reporting_designation_code'=>$reportingDesignation?:null,'assigned_branch_id'=>$branch,'reporting_employee_id'=>$reporting,
-    'full_name'=>$name,'mobile'=>$mobile?:null,'email'=>$email?:null,'monthly_salary'=>max(0,(float)($data['monthly_salary']??0)),'joining_date'=>$joining,'status'=>'active','created_at'=>Db::now()
+    'full_name'=>$name,'mobile'=>$mobile?:null,'email'=>$email?:null,'monthly_salary'=>$openingSalary,'joining_date'=>$joining,'status'=>'active','created_at'=>Db::now()
    ],'Employee code or WordPress user is already linked.','employee_duplicate');
    $id=(int)$db->insert_id;
-   Db::mustInsert($db,Db::table('salary_revisions'),['company_id'=>$a->companyId,'employee_id'=>$id,'effective_from'=>$joining,'monthly_salary'=>max(0,(float)($data['monthly_salary']??0)),'status'=>'baseline','reason'=>'Employee onboarding salary','created_by'=>$a->employeeId,'created_at'=>Db::now()]);
+   Db::mustInsert($db,Db::table('salary_revisions'),['company_id'=>$a->companyId,'employee_id'=>$id,'effective_from'=>$joining,'monthly_salary'=>$openingSalary,'status'=>'baseline','reason'=>'Employee onboarding salary','created_by'=>$a->employeeId,'created_at'=>Db::now()]);
    Db::mustInsert($db,Db::table('employee_branch_history'),['company_id'=>$a->companyId,'employee_id'=>$id,'branch_id'=>$branch,'effective_from'=>$joining,'effective_to'=>null,'reason'=>'Employee onboarding','changed_by'=>$a->employeeId,'created_at'=>Db::now()]);
    foreach($roleIds as $rid)Db::mustInsert($db,Db::table('employee_roles'),['company_id'=>$a->companyId,'employee_id'=>$id,'role_id'=>$rid,'active'=>1,'assigned_by'=>$a->employeeId,'assigned_at'=>Db::now()]);
    Audit::add($a,'employee.create','employee',$id,['branch_id'=>$branch,'designation'=>$designation,'login_provisioned'=>$uid!==null]);
@@ -208,7 +211,7 @@ final class OrganizationEmployeeService{
    return['id'=>$employeeId,'assigned_branch_id'=>$newBranch,'effective_date'=>$date];
   });
  }
- public static function employeeHistory(Actor $a,int $employeeId):array{$db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT assigned_branch_id FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::EMP_VIEW);return(array)$db->get_results($db->prepare("SELECT h.*,b.code branch_code,b.name branch_name FROM ".Db::table('employee_branch_history')." h JOIN ".Db::table('branches')." b ON b.id=h.branch_id WHERE h.company_id=%d AND h.employee_id=%d ORDER BY h.effective_from DESC,h.id DESC",$a->companyId,$employeeId),ARRAY_A);}
+ public static function employeeHistory(Actor $a,int $employeeId):array{$db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT assigned_branch_id FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::EMP_VIEW);HierarchyScope::assertCanViewEmployee($a,$employeeId);return(array)$db->get_results($db->prepare("SELECT h.*,b.code branch_code,b.name branch_name FROM ".Db::table('employee_branch_history')." h JOIN ".Db::table('branches')." b ON b.id=h.branch_id WHERE h.company_id=%d AND h.employee_id=%d ORDER BY h.effective_from DESC,h.id DESC",$a->companyId,$employeeId),ARRAY_A);}
  public static function updateEmployee(Actor $a,int $employeeId,array $data):array{
   return Transaction::run(function()use($a,$employeeId,$data){
   \ExcelHerbal\ERP7\Payroll\SalaryService::lockCompany($a->companyId);
