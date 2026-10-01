@@ -30,7 +30,30 @@ final class FreshUatBootstrap {
             'admin_employee_present'=>$adminPresent,
             'limited_employee_present'=>$limitedPresent,
             'seeded_at'=>$seededAt?:null,
+            'attested_at'=>((string)get_option('eh7_uat_seed_attested_at',''))?:null,
         ];
+    }
+
+    public static function attestCurrentSource():array {
+        self::assertSafeTarget();
+        $db=Db::wpdb();
+        $source=(string)EH7_SOURCE_HEAD;
+        $previous=(string)get_option('eh7_uat_seed_source_head','');
+        $seededAt=(string)get_option('eh7_uat_seeded_at','');
+        $mode=(string)get_option('eh7_uat_seed_mode','');
+        $adminId=(int)get_option('eh7_uat_admin_employee_id',0);
+        $limitedId=(int)get_option('eh7_uat_limited_employee_id',0);
+        if($seededAt===''||$mode!=='fresh_synthetic')throw new \RuntimeException('Current UAT database is not an attested fresh_synthetic seed.');
+        $adminPresent=$adminId>0&&(int)$db->get_var($db->prepare('SELECT COUNT(*) FROM '.Db::table('employees').' WHERE id=%d AND status=%s',$adminId,'active'))===1;
+        $limitedPresent=$limitedId>0&&(int)$db->get_var($db->prepare('SELECT COUNT(*) FROM '.Db::table('employees').' WHERE id=%d AND status=%s',$limitedId,'active'))===1;
+        if(!$adminPresent||!$limitedPresent)throw new \RuntimeException('Synthetic UAT identities are missing; source attestation refused.');
+        $setup=SetupService::status();
+        if(($setup['initialized']??false)!==true)throw new \RuntimeException('UAT setup is not initialized; source attestation refused.');
+        update_option('eh7_uat_seed_source_head',$source,false);
+        update_option('eh7_uat_seed_attested_at',Db::now(),false);
+        $final=self::status();
+        if(($final['seeded']??false)!==true)throw new \RuntimeException('Synthetic UAT source attestation verification failed.');
+        return ['attested'=>true,'previous_source_head'=>$previous,'source_head'=>$source]+$final;
     }
 
     public static function assertSafeTarget():void {
