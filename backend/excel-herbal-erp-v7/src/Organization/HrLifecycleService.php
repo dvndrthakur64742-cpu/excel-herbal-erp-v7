@@ -27,15 +27,20 @@ final class HrLifecycleService {
         if(!$branchIds)return[];
         $ids=implode(',',array_map('intval',$branchIds));
         $where=$status==='all'?'1=1':($status==='open'?"c.status IN ('registered','selected')":$db->prepare('c.status=%s',$status));
-        return (array)$db->get_results($db->prepare(
+        $rows=(array)$db->get_results($db->prepare(
             "SELECT c.*,b.code branch_code,b.name branch_name,d.name designation_name,e.employee_code joined_employee_code FROM ".Db::table('hr_candidates')." c JOIN ".Db::table('branches')." b ON b.id=c.branch_id AND b.company_id=c.company_id LEFT JOIN ".Db::table('designations')." d ON d.company_id=c.company_id AND d.code=c.proposed_designation_code LEFT JOIN ".Db::table('employees')." e ON e.id=c.joined_employee_id AND e.company_id=c.company_id WHERE c.company_id=%d AND c.branch_id IN ({$ids}) AND {$where} ORDER BY CASE c.status WHEN 'registered' THEN 0 WHEN 'selected' THEN 1 ELSE 2 END,c.id DESC",
             $a->companyId
         ),ARRAY_A);
+        if(!$a->can(Capabilities::SALARY_VIEW)&&!$a->can(Capabilities::SALARY_MANAGE)&&!$a->can(Capabilities::SALARY_APPROVE)){
+            foreach($rows as&$row)unset($row['offered_monthly_salary']);unset($row);
+        }
+        return $rows;
     }
 
     public static function candidate(Actor $a,int $candidateId):array {
         $c=self::candidateRow($a,$candidateId,Capabilities::HR_VIEW);
-        $c['documents']=self::candidateDocuments($a,$candidateId);
+        if(!$a->can(Capabilities::SALARY_VIEW)&&!$a->can(Capabilities::SALARY_MANAGE)&&!$a->can(Capabilities::SALARY_APPROVE))unset($c['offered_monthly_salary']);
+        $c['documents']=$a->can(Capabilities::HR_DOCUMENT_VIEW)?self::candidateDocuments($a,$candidateId):[];
         return$c;
     }
 
@@ -50,7 +55,7 @@ final class HrLifecycleService {
         $db=Db::wpdb();$valid=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('designations')." WHERE company_id=%d AND code=%s AND status='active'",$a->companyId,$designation));if(!$valid)throw new DomainException('Active proposed designation not found.','designation_invalid',422);if(DesignationDefaults::requiresAccessManagement($designation))Guard::cap($a,Capabilities::ACCESS_MANAGE);
         if($mobile!==''){$dup=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('hr_candidates')." WHERE company_id=%d AND mobile=%s AND status IN ('registered','selected')",$a->companyId,$mobile));if($dup)throw new DomainException('An open candidate already uses this mobile number.','candidate_duplicate',409);}
         if($email!==''){$dup=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('hr_candidates')." WHERE company_id=%d AND email=%s AND status IN ('registered','selected')",$a->companyId,$email));if($dup)throw new DomainException('An open candidate already uses this email address.','candidate_duplicate',409);}
-        $salary=max(0,round((float)($data['offered_monthly_salary']??0),2));$source=trim((string)($data['source']??''));$notes=trim((string)($data['notes']??''));
+        $salary=max(0,round((float)($data['offered_monthly_salary']??0),2));if($salary>0)Guard::cap($a,Capabilities::SALARY_MANAGE);$source=trim((string)($data['source']??''));$notes=trim((string)($data['notes']??''));
         return Transaction::run(function()use($a,$branch,$name,$mobile,$email,$designation,$salary,$source,$notes){
             $db=Db::wpdb();$t=Db::table('hr_candidates');$now=Db::now();
             Db::mustInsert($db,$t,['company_id'=>$a->companyId,'candidate_code'=>null,'branch_id'=>$branch,'full_name'=>$name,'mobile'=>$mobile?:null,'email'=>$email?:null,'proposed_employee_code'=>null,'proposed_designation_code'=>$designation,'offered_monthly_salary'=>$salary,'expected_joining_date'=>null,'status'=>'registered','source'=>$source?:null,'notes'=>$notes?:null,'created_by'=>$a->employeeId,'created_at'=>$now,'updated_at'=>$now]);
@@ -72,7 +77,7 @@ final class HrLifecycleService {
                 $employeeDup=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('employees')." WHERE company_id=%d AND employee_code=%s",$a->companyId,$employeeCode));if($employeeDup)throw new DomainException('Employee code already exists.','employee_duplicate',409);
                 $candidateDup=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$t} WHERE company_id=%d AND proposed_employee_code=%s AND id<>%d AND status='selected'",$a->companyId,$employeeCode,$candidateId));if($candidateDup)throw new DomainException('Employee code is reserved by another selected candidate.','employee_duplicate',409);
                 $chg['proposed_employee_code']=$employeeCode;$chg['expected_joining_date']=$join;$chg['proposed_designation_code']=$designation;
-                if(array_key_exists('offered_monthly_salary',$data)){$salary=(float)$data['offered_monthly_salary'];if(!is_finite($salary)||$salary<0)throw new DomainException('Offered salary must be non-negative.','candidate_fields_invalid',422);$chg['offered_monthly_salary']=round($salary,2);}
+                if(array_key_exists('offered_monthly_salary',$data)){Guard::cap($a,Capabilities::SALARY_MANAGE);$salary=(float)$data['offered_monthly_salary'];if(!is_finite($salary)||$salary<0)throw new DomainException('Offered salary must be non-negative.','candidate_fields_invalid',422);$chg['offered_monthly_salary']=round($salary,2);}
             }
             Db::mustUpdate($db,$t,$chg,['id'=>$candidateId,'company_id'=>$a->companyId]);Audit::add($a,'hr.candidate.review','hr_candidate',$candidateId,['branch_id'=>(int)$c['branch_id'],'decision'=>$decision,'reason'=>$reason]);return['id'=>$candidateId,'status'=>$decision,'employee_code'=>$chg['proposed_employee_code']??null,'expected_joining_date'=>$chg['expected_joining_date']??null];
         });
@@ -84,7 +89,7 @@ final class HrLifecycleService {
             $joining=Input::date((string)($data['joining_date']??''),'Joining date');if($joining>Db::today())throw new DomainException('Joining confirmation cannot use a future date.','joining_date_invalid',422);
             $branch=(int)($data['branch_id']??$c['branch_id']);Guard::branch($a,$branch,Capabilities::HR_REVIEW);
             $employeeCode=strtoupper(trim((string)($data['employee_code']??$c['proposed_employee_code'])));if($employeeCode==='')throw new DomainException('Employee code is required.','employee_code_required',422);
-            $designation=strtoupper(trim((string)($data['designation_code']??$c['proposed_designation_code'])));if(DesignationDefaults::requiresAccessManagement($designation))Guard::cap($a,Capabilities::ACCESS_MANAGE);$reserved=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$t} WHERE company_id=%d AND proposed_employee_code=%s AND id<>%d AND status='selected'",$a->companyId,$employeeCode,$candidateId));if($reserved)throw new DomainException('Employee code is reserved by another selected candidate.','employee_duplicate',409);$salary=array_key_exists('monthly_salary',$data)?(float)$data['monthly_salary']:(float)$c['offered_monthly_salary'];if(!is_finite($salary)||$salary<0)throw new DomainException('Monthly salary must be non-negative.','employee_fields_invalid',422);
+            $designation=strtoupper(trim((string)($data['designation_code']??$c['proposed_designation_code'])));if(DesignationDefaults::requiresAccessManagement($designation))Guard::cap($a,Capabilities::ACCESS_MANAGE);$reserved=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$t} WHERE company_id=%d AND proposed_employee_code=%s AND id<>%d AND status='selected'",$a->companyId,$employeeCode,$candidateId));if($reserved)throw new DomainException('Employee code is reserved by another selected candidate.','employee_duplicate',409);$salary=array_key_exists('monthly_salary',$data)?(float)$data['monthly_salary']:(float)$c['offered_monthly_salary'];if(!is_finite($salary)||$salary<0)throw new DomainException('Monthly salary must be non-negative.','employee_fields_invalid',422);if(array_key_exists('monthly_salary',$data))Guard::cap($a,Capabilities::SALARY_MANAGE);
             $roleIds=(array)($data['role_ids']??[]);if($roleIds)throw new DomainException('Joining confirmation cannot assign security roles. Use Access Management after joining.','role_assignment_forbidden',403);
             $employeeData=['assigned_branch_id'=>$branch,'employee_code'=>$employeeCode,'full_name'=>(string)$c['full_name'],'designation_code'=>$designation,'mobile'=>(string)($c['mobile']??''),'email'=>(string)($c['email']??''),'monthly_salary'=>round($salary,2),'joining_date'=>$joining,'reporting_employee_id'=>$data['reporting_employee_id']??null,'role_ids'=>[],'provision_login'=>false];
             $employee=OrganizationService::createEmployee($a,$employeeData,Capabilities::HR_REVIEW);$employeeId=(int)$employee['id'];
@@ -106,17 +111,17 @@ final class HrLifecycleService {
     }
 
     public static function candidateDocuments(Actor $a,int $candidateId):array {
-        $c=self::candidateRow($a,$candidateId,Capabilities::HR_VIEW);$db=Db::wpdb();$rows=(array)$db->get_results($db->prepare("SELECT id,attachment_id,private_file_id,document_type,title,status,uploaded_by,created_at,updated_at FROM ".Db::table('hr_candidate_documents')." WHERE company_id=%d AND candidate_id=%d AND status='active' ORDER BY id DESC",$a->companyId,$candidateId),ARRAY_A);foreach($rows as&$row){$row['url']=!empty($row['private_file_id'])?DocumentVault::url('candidate',$candidateId,(int)$row['id']):null;$row['requires_auth']=true;$row['migration_required']=empty($row['private_file_id']);}unset($row);return$rows;
+        $c=self::candidateRow($a,$candidateId,Capabilities::HR_DOCUMENT_VIEW);$db=Db::wpdb();$rows=(array)$db->get_results($db->prepare("SELECT id,attachment_id,private_file_id,document_type,title,status,uploaded_by,created_at,updated_at FROM ".Db::table('hr_candidate_documents')." WHERE company_id=%d AND candidate_id=%d AND status='active' ORDER BY id DESC",$a->companyId,$candidateId),ARRAY_A);foreach($rows as&$row){$row['url']=!empty($row['private_file_id'])?DocumentVault::url('candidate',$candidateId,(int)$row['id']):null;$row['requires_auth']=true;$row['migration_required']=empty($row['private_file_id']);}unset($row);return$rows;
     }
 
     public static function uploadCandidateDocument(Actor $a,int $candidateId,array $data):array {
-        $c=self::candidateRow($a,$candidateId,Capabilities::HR_MANAGE);$type=trim((string)($data['document_type']??''));$title=trim((string)($data['title']??''));
+        $c=self::candidateRow($a,$candidateId,Capabilities::HR_DOCUMENT_MANAGE);$type=trim((string)($data['document_type']??''));$title=trim((string)($data['title']??''));
         if($type===''||$title===''||strlen($type)>60||strlen($title)>190)throw new DomainException('Valid document type and title are required.','candidate_document_invalid',422);
         return Transaction::run(function()use($a,$candidateId,$c,$type,$title){$file=DocumentVault::storeUpload();$db=Db::wpdb();Db::mustInsert($db,Db::table('hr_candidate_documents'),['company_id'=>$a->companyId,'candidate_id'=>$candidateId,'attachment_id'=>0,'private_file_id'=>$file,'document_type'=>$type,'title'=>$title,'status'=>'active','uploaded_by'=>$a->employeeId,'created_at'=>Db::now()]);$id=(int)$db->insert_id;Audit::add($a,'hr.candidate.document_upload','hr_candidate_document',$id,['candidate_id'=>$candidateId,'branch_id'=>(int)$c['branch_id']]);return ['id'=>$id,'candidate_id'=>$candidateId,'attachment_id'=>0,'status'=>'active','url'=>DocumentVault::url('candidate',$candidateId,$id),'requires_auth'=>true];});
     }
 
     public static function deactivateCandidateDocument(Actor $a,int $candidateId,int $documentId):array {
-        self::candidateRow($a,$candidateId,Capabilities::HR_MANAGE);return Transaction::run(function()use($a,$candidateId,$documentId){$db=Db::wpdb();$t=Db::table('hr_candidate_documents');$r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND candidate_id=%d AND company_id=%d FOR UPDATE",$documentId,$candidateId,$a->companyId),ARRAY_A);if(!$r)throw new DomainException('Candidate document not found.','candidate_document_not_found',404);if($r['status']==='inactive')return['id'=>$documentId,'status'=>'inactive','unchanged'=>true];Db::mustUpdate($db,$t,['status'=>'inactive','updated_at'=>Db::now()],['id'=>$documentId]);Audit::add($a,'hr.candidate.document_deactivate','hr_candidate_document',$documentId,['candidate_id'=>$candidateId]);return['id'=>$documentId,'status'=>'inactive','unchanged'=>false];});
+        self::candidateRow($a,$candidateId,Capabilities::HR_DOCUMENT_MANAGE);return Transaction::run(function()use($a,$candidateId,$documentId){$db=Db::wpdb();$t=Db::table('hr_candidate_documents');$r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND candidate_id=%d AND company_id=%d FOR UPDATE",$documentId,$candidateId,$a->companyId),ARRAY_A);if(!$r)throw new DomainException('Candidate document not found.','candidate_document_not_found',404);if($r['status']==='inactive')return['id'=>$documentId,'status'=>'inactive','unchanged'=>true];Db::mustUpdate($db,$t,['status'=>'inactive','updated_at'=>Db::now()],['id'=>$documentId]);Audit::add($a,'hr.candidate.document_deactivate','hr_candidate_document',$documentId,['candidate_id'=>$candidateId]);return['id'=>$documentId,'status'=>'inactive','unchanged'=>false];});
     }
 
     public static function separations(Actor $a,?int $branchId,string $status='open'):array {
