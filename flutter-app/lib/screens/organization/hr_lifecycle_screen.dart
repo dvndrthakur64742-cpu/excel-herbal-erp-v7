@@ -887,7 +887,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     try {
       final data = await ref
           .read(apiClientProvider)
-          .get(HrApiPaths.candidateDocuments(candidateId));
+          .get(ApiPaths.candidateDocuments(candidateId));
       final rows = _rows(data);
       if (!mounted) return;
       await showDialog<void>(
@@ -1018,7 +1018,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (ok != true) return;
     try {
       await ref.read(apiClientProvider).uploadBytes(
-        HrApiPaths.candidateDocumentUpload(candidateId),
+        ApiPaths.candidateDocumentUpload(candidateId),
         bytes: bytes,
         filename: file.name,
         fields: {
@@ -1035,7 +1035,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
   Future<void> _deactivateDocument(int candidateId, int documentId) async {
     try {
       await ref.read(apiClientProvider).post(
-        HrApiPaths.candidateDocumentDeactivate(candidateId, documentId),
+        ApiPaths.candidateDocumentDeactivate(candidateId, documentId),
         data: const {},
       );
       _success('Candidate document deactivated.');
@@ -1131,7 +1131,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       reason.dispose();
       if (ok != true || employeeId == null) return;
       final result = await ref.read(apiClientProvider).post(
-        HrApiPaths.employeeSeparation(employeeId!),
+        ApiPaths.employeeSeparation(employeeId!),
         data: payload,
       );
       final blockers = (result['current_blockers'] as List?) ?? const [];
