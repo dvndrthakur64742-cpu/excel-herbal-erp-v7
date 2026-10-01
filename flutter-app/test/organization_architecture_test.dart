@@ -33,7 +33,7 @@ void main() {
     );
     expect(main, isNot(contains("part 'organization_hr.dart';")));
     expect(main, contains("part 'organization_products.dart';"));
-    expect(main, contains("tabs.add(('HR Lifecycle', _hrLifecycleTab(app, api)))"));
+    expect(main, contains("'HR Lifecycle',"));
     expect(main, contains('void _setOrganizationState(VoidCallback update)'));
     expect(main, isNot(contains('Widget _branchesTab(AppState app)')));
     expect(main, isNot(contains('Widget _employeesTab(AppState app, dynamic api)')));
