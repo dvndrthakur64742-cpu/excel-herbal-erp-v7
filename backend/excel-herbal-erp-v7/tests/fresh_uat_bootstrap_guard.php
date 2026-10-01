@@ -39,3 +39,7 @@ $testHost='uat.example.test';$testEnv='production';
 try{\ExcelHerbal\ERP7\Administration\FreshUatBootstrap::assertSafeTarget();fwrite(STDERR,"FAIL fresh_uat_production_refusal\n");exit(1);}
 catch(RuntimeException $e){if(!str_contains($e->getMessage(),'non-staging')){fwrite(STDERR,"FAIL fresh_uat_production_message\n");exit(1);}}
 echo "PASS fresh_uat_refuses_non_staging\n";
+
+$src=file_get_contents(__DIR__.'/../src/Administration/FreshUatBootstrap.php');
+if(strpos($src,'public static function attestCurrentSource():array')===false||strpos($src,"mode!=='fresh_synthetic'")===false||strpos($src,'Synthetic UAT identities are missing; source attestation refused.')===false||strpos($src,"update_option('eh7_uat_seed_attested_at'")===false){fwrite(STDERR,'FAIL fresh_uat_bootstrap_guard source attestation guard'.PHP_EOL);exit(1);}
+echo 'PASS fresh_uat_bootstrap_guard source attestation guard'.PHP_EOL;
