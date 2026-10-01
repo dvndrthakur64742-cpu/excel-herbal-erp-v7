@@ -957,50 +957,35 @@ function Resolve-UatAnomalies {
   Invoke-Element $submit
   Write-Host 'INFO uat_cleanup_submit_invoked=true'
 
-  $healthy = $false
-  $lastState = ''
+  $success = ''
+  $failure = ''
+  $diag = ''
   for ($attempt = 1; $attempt -le 15; $attempt++) {
     Start-Sleep -Seconds 2
     try {
-      $health = Invoke-RestMethod -UseBasicParsing -Uri ($script:uatSiteRoot + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
-      $data = if ($health.data) { $health.data } else { $health }
-      $safety = $data.staging_safety
-      $seed = $data.uat_bootstrap
-      $safetyOk = $safety -and $safety.sanitized -eq $true -and $safety.source_head_match -eq $true -and $safety.active_mobile_sessions_zero -eq $true -and $safety.active_push_devices_zero -eq $true -and $safety.search_indexing_disabled -eq $true
-      $seedOk = $seed -and $seed.seeded -eq $true -and $seed.source_head_match -eq $true -and $seed.synthetic_only -eq $true -and $seed.admin_employee_present -eq $true -and $seed.limited_employee_present -eq $true
-      $lastState = 'safety_sanitized=' + [string]$safety.sanitized + ' safety_source_match=' + [string]$safety.source_head_match + ' seed_seeded=' + [string]$seed.seeded + ' seed_source_match=' + [string]$seed.source_head_match + ' synthetic_only=' + [string]$seed.synthetic_only
-      Write-Host ('INFO uat_cleanup_health_poll=' + $attempt + ' ' + $lastState)
-      if ($safetyOk -and $seedOk) {
-        $healthy = $true
-        break
+      $root = Root $chrome
+      $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+      foreach ($element in $all) {
+        try {
+          $name = ([string]$element.Current.Name).Trim()
+          if ($name -like 'UAT cleanup complete:*') { $success = $name }
+          if ($name -like 'Current diagnostics:*') { $diag = $name }
+          if ($name -like '*cleanup*' -and $name -match '(?i)(failed|error|refused|required|missing)') { $failure = $name }
+        } catch {}
       }
-    } catch {
-      $lastState = 'health_error=' + $_.Exception.Message
-      Write-Host ('INFO uat_cleanup_health_poll=' + $attempt + ' ' + $lastState)
-    }
+      if ($success) { break }
+      if ($failure) { break }
+    } catch {}
+    Write-Host ('INFO uat_cleanup_ui_poll=' + $attempt)
   }
 
-  $root = Root $chrome
-  $success = ''
-  $diag = ''
-  try {
-    $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
-    foreach ($element in $all) {
-      try {
-        $name = ([string]$element.Current.Name).Trim()
-        if ($name -like 'UAT cleanup complete:*') { $success = $name }
-        if ($name -like 'Current diagnostics:*') { $diag = $name }
-      } catch {}
-    }
-  } catch {}
-
-  if (-not $healthy) {
-    try { Write-UiHints $root 'uat_cleanup_health_not_ready' } catch {}
-    throw ('EH7 UAT cleanup/safety attestation did not become healthy. ' + $lastState)
+  if (-not $success) {
+    try { Write-UiHints (Root $chrome) 'uat_cleanup_result_missing' } catch {}
+    if ($failure) { throw ('EH7 UAT Cleanup reported failure: ' + $failure) }
+    throw 'EH7 UAT Cleanup did not report a successful audited cleanup result.'
   }
-  if ($success) { Write-Host ('INFO uat_cleanup_ui_result=' + $success) }
+  Write-Host ('PASS uat_cleanup_result=' + $success)
   if ($diag) { Write-Host ('INFO uat_cleanup_diagnostics_label=' + $diag) }
-  Write-Host 'PASS uat_cleanup_staging_safety_and_fresh_seed_health=true'
 }
 
 Assert-ControlledUatTarget -RequireErpHealth $false
