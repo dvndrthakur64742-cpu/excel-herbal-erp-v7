@@ -67,6 +67,10 @@ final class UatCleanupAdmin {
                 'confirmation'=>'RESOLVE_UAT_ANOMALIES',
                 'reason'=>$reason,
             ]);
+            if(Environment::type()==='staging'){
+                $result['uat_seed_attestation']=FreshUatBootstrap::attestCurrentSource();
+                $result['staging_safety']=StagingSafety::sanitize();
+            }
             $message=sprintf(
                 'UAT cleanup complete: attendance %d, daily %d, payroll %d, roles %d, designations %d, skipped %d.',
                 (int)($result['attendance_acknowledged']??0),
