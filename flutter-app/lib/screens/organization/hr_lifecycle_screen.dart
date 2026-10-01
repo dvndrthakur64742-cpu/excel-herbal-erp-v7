@@ -25,6 +25,16 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
 
   bool _manage(AppState app) => app.can('organization.hr.manage');
   bool _review(AppState app) => app.can('organization.hr.review');
+  bool _documentView(AppState app) => app.canAny(const [
+        'organization.hr.document.view',
+        'organization.hr.document.download',
+        'organization.hr.document.manage',
+      ]);
+  bool _documentDownload(AppState app) =>
+      app.can('organization.hr.document.download');
+  bool _documentManage(AppState app) =>
+      app.can('organization.hr.document.manage');
+  bool _salaryManage(AppState app) => app.can('payroll.salary.manage');
 
   @override
   Widget build(BuildContext context) {
@@ -365,16 +375,18 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(labelText: 'Email'),
                     ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: salary,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                    if (_salaryManage(app)) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: salary,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Offered Monthly Salary',
+                        ),
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Offered Monthly Salary',
-                      ),
-                    ),
+                    ],
                     const SizedBox(height: 10),
                     TextField(
                       controller: source,
@@ -423,7 +435,8 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
         'proposed_designation_code': designationCode,
         if (mobile.text.trim().isNotEmpty) 'mobile': mobile.text.trim(),
         if (email.text.trim().isNotEmpty) 'email': email.text.trim(),
-        'offered_monthly_salary': double.tryParse(salary.text) ?? 0,
+        if (_salaryManage(app))
+          'offered_monthly_salary': double.tryParse(salary.text) ?? 0,
         if (source.text.trim().isNotEmpty) 'source': source.text.trim(),
         if (notes.text.trim().isNotEmpty) 'notes': notes.text.trim(),
       };
@@ -477,14 +490,15 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
               _showCandidateDetail(detail);
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.folder_outlined),
-            title: const Text('Candidate Documents'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              _showCandidateDocuments(id);
-            },
-          ),
+          if (_documentView(app))
+            ListTile(
+              leading: const Icon(Icons.folder_outlined),
+              title: const Text('Candidate Documents'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _showCandidateDocuments(id);
+              },
+            ),
           if (status == 'registered' && _review(app))
             ListTile(
               leading: const Icon(Icons.fact_check_outlined),
@@ -706,14 +720,18 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                         labelText: 'Joining Date YYYY-MM-DD',
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: salary,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                    if (_salaryManage(app)) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: salary,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Monthly Salary',
+                        ),
                       ),
-                      decoration: const InputDecoration(labelText: 'Monthly Salary'),
-                    ),
+                    ],
                     const SizedBox(height: 10),
                     DropdownButtonFormField<int?>(
                       initialValue: reportingId,
@@ -768,7 +786,8 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
         'employee_code': employeeCodeValue,
         'designation_code': '${candidate['proposed_designation_code'] ?? ''}',
         'joining_date': joining.text.trim(),
-        'monthly_salary': double.tryParse(salary.text) ?? 0,
+        if (_salaryManage(app))
+          'monthly_salary': double.tryParse(salary.text) ?? 0,
         if (reportingId != null) 'reporting_employee_id': reportingId,
       };
       employeeCode.dispose();
@@ -911,7 +930,10 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                         subtitle: Text(row['migration_required'] == true
                             ? 'Administrator migration required'
                             : '${row['document_type'] ?? ''}'),
-                        onTap: url.isEmpty
+                        onTap: url.isEmpty ||
+                                !_documentDownload(
+                                  ref.read(appStateProvider),
+                                )
                             ? null
                             : () async {
                                 try {
@@ -920,7 +942,8 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                                   if (mounted) _failure(error);
                                 }
                               },
-                        trailing: _manage(ref.read(appStateProvider)) && docId != null
+                        trailing: _documentManage(ref.read(appStateProvider)) &&
+                                docId != null
                             ? IconButton(
                                 tooltip: 'Deactivate document',
                                 onPressed: () async {
@@ -935,7 +958,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                   ),
           ),
           actions: [
-            if (_manage(ref.read(appStateProvider)))
+            if (_documentManage(ref.read(appStateProvider)))
               FilledButton.icon(
                 onPressed: () {
                   Navigator.pop(dialogContext);

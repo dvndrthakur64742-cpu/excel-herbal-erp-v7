@@ -115,6 +115,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
       'payroll.generate',
       'payroll.approve',
       'payroll.pay',
+      'payroll.salary.view',
+      'payroll.salary.manage',
+      'payroll.salary.approve',
     ])) {
       tabs.add((
         'Payroll',
@@ -123,6 +126,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             if (app.canAny(const [
               'payroll.generate',
               'payroll.approve',
+              'payroll.salary.view',
+              'payroll.salary.manage',
+              'payroll.salary.approve',
             ]))
               Padding(
                 padding: const EdgeInsets.all(12),
@@ -138,7 +144,12 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           icon: const Icon(Icons.calculate_outlined),
                           label: const Text('Generate Payroll Draft'),
                         ),
-                      if (app.can('payroll.generate'))
+                      if (app.can('organization.employee.view') &&
+                          app.canAny(const [
+                            'payroll.salary.view',
+                            'payroll.salary.manage',
+                            'payroll.salary.approve',
+                          ]))
                         OutlinedButton.icon(
                           onPressed: _salaryRevisionWorkspace,
                           icon: const Icon(Icons.history_toggle_off_outlined),
@@ -538,7 +549,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                         ),
                       ),
                       FilledButton.icon(
-                        onPressed: employeeId == currentActorId
+                        onPressed: employeeId == currentActorId ||
+                                !app.can('payroll.salary.manage')
                             ? null
                             : requestRevision,
                         icon: const Icon(Icons.add_card_outlined),
@@ -580,7 +592,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                             final creatorId =
                                 int.tryParse("\${row['created_by']}") ?? 0;
                             final canReview = status == 'pending' &&
-                                app.can('payroll.approve') &&
+                                app.can('payroll.salary.approve') &&
                                 creatorId != currentActorId &&
                                 employeeId != currentActorId;
 

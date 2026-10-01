@@ -80,6 +80,8 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
           ),
         ),
       ));
+    }
+    if (app.can('workforce.gps.team.view')) {
       tabs.add((
         'GPS Team',
         AsyncPanel(
