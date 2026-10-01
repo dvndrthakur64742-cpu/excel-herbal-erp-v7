@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$ApiBase,
     [Parameter(Mandatory=$true)][string]$ExpectedSourceHead,
+    [switch]$AllowOfficeTarget,
     [string]$EvidencePath = 'dist/staging-target-preflight/EVIDENCE.json'
 )
 $ErrorActionPreference='Stop'
@@ -8,7 +9,7 @@ Add-Type -AssemblyName System.Net.Http
 $ApiBase=$ApiBase.TrimEnd('/')
 $uri=[Uri]$ApiBase
 if($uri.Scheme -ne 'https'){throw 'Staging API must use HTTPS.'}
-if($uri.Host -ieq 'office.excelherbal.in'){throw 'Production office host is never a valid staging target.'}
+if($uri.Host -ieq 'office.excelherbal.in' -and -not $AllowOfficeTarget){throw 'Office BUILD/UAT target requires explicit -AllowOfficeTarget acknowledgement.'}
 if(-not $uri.AbsolutePath.TrimEnd('/').EndsWith('/wp-json/excel-herbal-erp/v7')){throw 'API base must end with /wp-json/excel-herbal-erp/v7.'}
 if($ExpectedSourceHead -notmatch '^[0-9a-fA-F]{40}$'){throw 'ExpectedSourceHead must be a 40-character Git commit SHA.'}
 $client=[Net.Http.HttpClient]::new()
@@ -27,7 +28,7 @@ function Get-Eh7Json {
 $evidence=[ordered]@{
     schema_version=1;gate='controlled_staging_preflight';target_host=$uri.Host;api_base=$ApiBase;
     expected_source_head=$ExpectedSourceHead.ToLowerInvariant();tested_at_utc=[DateTime]::UtcNow.ToString('o');
-    workflow_source_head=$env:GITHUB_SHA;run_id=$env:GITHUB_RUN_ID;checks=[ordered]@{}
+    workflow_source_head=$env:GITHUB_SHA;run_id=$env:GITHUB_RUN_ID;office_target_explicitly_allowed=[bool]$AllowOfficeTarget;checks=[ordered]@{}
 }
 try{
     $health=Get-Eh7Json '/health'
