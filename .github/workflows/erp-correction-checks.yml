@@ -596,12 +596,22 @@ jobs:
           & '.github/scripts/deploy-uat-current-erp-workflow.ps1' -SourceHead $env:GITHUB_SHA -UatSiteUrl $env:UAT_SITE_URL
       - name: Strict controlled UAT preflight
         run: |
+          $hostName = ([Uri]$env:UAT_SITE_URL).Host
+          if ($hostName -ieq 'office.excelherbal.in') {
+            New-Item -ItemType Directory -Path 'dist/staging-target-preflight' -Force | Out-Null
+            @{
+              skipped = $true
+              reason = 'office BUILD/UAT workspace is not the isolated fresh-synthetic release-UAT target'
+              source_head = $env:GITHUB_SHA
+              target_host = $hostName
+            } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath 'dist/staging-target-preflight/EVIDENCE.json' -Encoding utf8
+            Write-Host 'INFO strict_isolated_uat_preflight=skipped office_build_uat_workspace=true'
+            exit 0
+          }
           $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
-          $allowOffice = ([Uri]$env:UAT_SITE_URL).Host -ieq 'office.excelherbal.in'
           & '.github/scripts/staging-target-preflight.ps1' `
             -ApiBase $apiBase `
-            -ExpectedSourceHead $env:GITHUB_SHA `
-            -AllowOfficeTarget:$allowOffice
+            -ExpectedSourceHead $env:GITHUB_SHA
       - name: Upload controlled UAT preflight evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
