@@ -9,11 +9,13 @@ use ExcelHerbal\ERP7\Security\Guard;
 final class UatWebDeployAdmin{
     private const PAGE='eh7-uat-web-deploy';
     private const ACTION='eh7_uat_web_deploy';
+    private const ATTEST_ACTION='eh7_uat_web_attest';
     private const MAX_BYTES=52428800;
 
     public static function boot():void{
         add_action('admin_menu',[self::class,'menu']);
         add_action('admin_post_'.self::ACTION,[self::class,'handle']);
+        add_action('admin_post_'.self::ATTEST_ACTION,[self::class,'handleAttest']);
     }
 
     public static function menu():void{
@@ -47,6 +49,18 @@ final class UatWebDeployAdmin{
             echo '<p><label for="eh7_reason"><strong>Audit reason</strong></label><br><input id="eh7_reason" name="reason" class="regular-text" value="Deploy certified UAT web runtime" required minlength="10"></p>';
             echo '<p><label for="eh7_confirm"><input id="eh7_confirm" type="checkbox" name="confirm" value="1" required> I confirm this certified BUILD/UAT web deployment.</label></p>';
             submit_button('Deploy Certified Web Bundle','primary','submit',false,['id'=>'eh7_submit']);
+            echo '</form>';
+            echo '<hr><h2>Attest Byte-Identical Certified Runtime</h2>';
+            echo '<p>Use only when the live web runtime already matches the certified bundle hashes. The server re-verifies both hashes and manifest integrity before advancing the source marker.</p>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">';
+            wp_nonce_field(self::ATTEST_ACTION);
+            echo '<input type="hidden" name="action" value="'.esc_attr(self::ATTEST_ACTION).'">';
+            echo '<p><label for="eh7_attest_source_head"><strong>Certified source head</strong></label><br><input id="eh7_attest_source_head" name="source_head" class="regular-text code" pattern="[0-9a-f]{40}" maxlength="40" required></p>';
+            echo '<p><label for="eh7_attest_main_sha256"><strong>Certified main.dart.js SHA-256</strong></label><br><input id="eh7_attest_main_sha256" name="main_sha256" class="large-text code" pattern="[0-9a-f]{64}" maxlength="64" required></p>';
+            echo '<p><label for="eh7_attest_manifest_sha256"><strong>Certified SHA256SUMS.txt SHA-256</strong></label><br><input id="eh7_attest_manifest_sha256" name="manifest_sha256" class="large-text code" pattern="[0-9a-f]{64}" maxlength="64" required></p>';
+            echo '<p><label for="eh7_attest_reason"><strong>Audit reason</strong></label><br><input id="eh7_attest_reason" name="reason" class="regular-text" value="Attest byte-identical certified UAT web runtime" required minlength="10"></p>';
+            echo '<p><label for="eh7_attest_confirm"><input id="eh7_attest_confirm" type="checkbox" name="confirm" value="1" required> I confirm the live runtime is being attested against the certified hashes.</label></p>';
+            submit_button('Attest Existing Certified Runtime','secondary','submit',false,['id'=>'eh7_attest_submit']);
             echo '</form>';
         }catch(\Throwable $e){
             echo '<div class="notice notice-error"><p>'.esc_html($e->getMessage()).'</p></div>';
@@ -91,6 +105,69 @@ final class UatWebDeployAdmin{
         }
         wp_safe_redirect(admin_url('tools.php?page='.self::PAGE));
         exit;
+    }
+
+    public static function handleAttest():void{
+        if(!current_user_can('manage_options'))wp_die('Administrator access required.');
+        check_admin_referer(self::ATTEST_ACTION);
+        $reason=sanitize_text_field((string)($_POST['reason']??''));
+        $sourceHead=strtolower(trim((string)($_POST['source_head']??'')));
+        $mainHash=strtolower(trim((string)($_POST['main_sha256']??'')));
+        $manifestHash=strtolower(trim((string)($_POST['manifest_sha256']??'')));
+        try{
+            if(empty($_POST['confirm']))throw new \RuntimeException('Explicit runtime attestation confirmation is required.');
+            if(strlen($reason)<10)throw new \RuntimeException('A runtime attestation audit reason is required.');
+            if(!preg_match('/^[0-9a-f]{40}$/',$sourceHead))throw new \RuntimeException('Certified source head is invalid.');
+            if(!preg_match('/^[0-9a-f]{64}$/',$mainHash)||!preg_match('/^[0-9a-f]{64}$/',$manifestHash))throw new \RuntimeException('Certified runtime hashes are invalid.');
+            if(Environment::type()!=='staging')throw new \RuntimeException('Runtime attestation is restricted to staging/UAT.');
+            if(!defined('EH7_SOURCE_HEAD')||strtolower((string)EH7_SOURCE_HEAD)!==$sourceHead)throw new \RuntimeException('Installed backend source head does not match the requested web attestation head.');
+            $actor=self::deploymentActor();
+            $result=self::attestExisting($sourceHead,$mainHash,$manifestHash);
+            $auditContext=[
+                'source_head'=>$sourceHead,
+                'main_sha256'=>$result['main_sha256'],
+                'manifest_sha256'=>$result['manifest_sha256'],
+                'reason'=>$reason,
+                'mode'=>'byte_identical_attestation',
+            ];
+            if($actor){
+                Audit::add($actor,'administration.uat_web_attest','web_runtime',$sourceHead,$auditContext);
+            }else{
+                update_option('eh7_uat_web_attest_last_wp_admin_audit',[
+                    'wp_user_id'=>get_current_user_id(),
+                    'source_head'=>$sourceHead,
+                    'main_sha256'=>$result['main_sha256'],
+                    'manifest_sha256'=>$result['manifest_sha256'],
+                    'reason'=>$reason,
+                    'created_at'=>gmdate('c'),
+                ],false);
+            }
+            set_transient(self::resultKey(),['ok'=>true,'message'=>'Existing certified UAT runtime attested. Source '.$sourceHead.' · main.dart.js '.$result['main_sha256']],180);
+        }catch(\Throwable $e){
+            set_transient(self::resultKey(),['ok'=>false,'message'=>$e->getMessage()],180);
+        }
+        wp_safe_redirect(admin_url('tools.php?page='.self::PAGE));
+        exit;
+    }
+
+    private static function attestExisting(string $sourceHead,string $expectedMainHash,string $expectedManifestHash):array{
+        $uploads=wp_upload_dir();
+        if(!empty($uploads['error']))throw new \RuntimeException((string)$uploads['error']);
+        $target=rtrim((string)$uploads['basedir'],'/\\').'/eh7-flutter-web';
+        foreach(['index.html','main.dart.js','flutter_bootstrap.js','SHA256SUMS.txt'] as $required)if(!is_file($target.'/'.$required))throw new \RuntimeException('Live web runtime missing required file: '.$required);
+        self::verifyManifest($target);
+        $actualMain=strtolower((string)(hash_file('sha256',$target.'/main.dart.js')?:''));
+        $actualManifest=strtolower((string)(hash_file('sha256',$target.'/SHA256SUMS.txt')?:''));
+        if(!hash_equals($expectedMainHash,$actualMain))throw new \RuntimeException('Live main.dart.js SHA-256 does not match the certified hash.');
+        if(!hash_equals($expectedManifestHash,$actualManifest))throw new \RuntimeException('Live SHA256SUMS.txt SHA-256 does not match the certified hash.');
+        $id=bin2hex(random_bytes(8));
+        $markerTmp=$target.'/EH7-SOURCE-HEAD.txt.__new_'.$id;
+        if(file_put_contents($markerTmp,$sourceHead."\n",LOCK_EX)===false)throw new \RuntimeException('Web source marker could not be staged.');
+        if(!rename($markerTmp,$target.'/EH7-SOURCE-HEAD.txt')){
+            @unlink($markerTmp);
+            throw new \RuntimeException('Web source marker could not be activated.');
+        }
+        return ['main_sha256'=>$actualMain,'manifest_sha256'=>$actualManifest];
     }
 
     private static function deploymentActor():?\ExcelHerbal\ERP7\Security\Actor{
