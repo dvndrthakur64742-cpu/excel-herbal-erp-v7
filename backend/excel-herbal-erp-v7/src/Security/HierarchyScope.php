@@ -60,12 +60,12 @@ final class HierarchyScope {
         foreach($rows as$r){$id=(int)$r['id'];$byId[$id]=$r;$mgr=(int)($r['reporting_employee_id']??0);if($mgr>0)$children[$mgr][]=$id;}
         if(!isset($byId[$a->employeeId]))return[$a->employeeId];
 
-        $allCompany=in_array($actorCode,['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR','ZI','ZONAL_INSPECTOR','CM','CHAIRMAN','CHAIRMAN_MANAGING_DIRECTOR','MD','MANAGING_DIRECTOR'],true);
+        $allCompany=in_array($actorCode,['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true);
         if($allCompany){$ids=array_keys($byId);}
         elseif(in_array($actorCode,['BM','BRANCH_MANAGER'],true)){
             $ownBranch=(int)$byId[$a->employeeId]['assigned_branch_id'];$ids=[];foreach($byId as$id=>$r)if((int)$r['assigned_branch_id']===$ownBranch)$ids[]=$id;
         }
-        elseif(in_array($actorCode,['RM','REGIONAL_MANAGER','RC','REGIONAL_COORDINATOR','AGM','ASSISTANT_GENERAL_MANAGER'],true)){
+        elseif(in_array($actorCode,['RM','REGIONAL_MANAGER','RC','REGIONAL_COORDINATOR','AGM','ASSISTANT_GENERAL_MANAGER','ZI','ZONAL_INSPECTOR','CM','CHAIRMAN','CHAIRMAN_MANAGING_DIRECTOR','MD','MANAGING_DIRECTOR'],true)){
             $allowed=array_flip(array_map('intval',$a->branchIds));$ids=[];foreach($byId as$id=>$r)if(isset($allowed[(int)$r['assigned_branch_id']]))$ids[]=$id;
         }
         elseif(in_array($actorCode,['ASM','ASSISTANT_SALES_MANAGER','SM','SALES_MANAGER'],true)){
