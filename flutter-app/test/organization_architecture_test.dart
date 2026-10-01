@@ -46,8 +46,8 @@ void main() {
     expect(documents, contains('openErpDocument'));
     expect(employees, contains('extension _OrganizationEmployeesFeature'));
     expect(hr, contains('class HrLifecycleScreen'));
-    expect(hr, contains('New Candidate'));
-    expect(hr, contains('Initiate Separation'));
+    expect(hr, contains("label: const Text('Register')"));
+    expect(hr, contains("label: const Text('New Separation')"));
     expect(products, contains('extension _OrganizationProductsFeature'));
     expect(apiPaths, contains("hrCandidates = '/organization/candidates'"));
     expect(apiPaths, contains("hrSeparations = '/organization/separations'"));
