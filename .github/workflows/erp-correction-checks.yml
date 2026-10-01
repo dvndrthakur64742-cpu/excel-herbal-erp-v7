@@ -25,7 +25,7 @@ defaults:
 jobs:
   php-regression:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: windows-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -54,7 +54,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $toolRoot = 'C:\actions-runner\eh7-toolcache'
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
           $phpDir = Join-Path $toolRoot 'php-8.3.33'
           $phpExe = Join-Path $phpDir 'php.exe'
           if (-not (Test-Path -LiteralPath $phpExe -PathType Leaf)) {
@@ -108,7 +108,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $toolRoot = 'C:\actions-runner\eh7-toolcache'
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
           $pythonDir = Join-Path $toolRoot 'python-3.13.7-embed'
           $pythonExe = Join-Path $pythonDir 'python.exe'
           if (-not (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
@@ -129,7 +129,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $toolRoot = 'C:\actions-runner\eh7-toolcache'
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
           $mariaRoot = Join-Path $toolRoot 'mariadb-11.8.9'
           $serverExe = Join-Path $mariaRoot 'bin\mariadbd.exe'
           $serverProcess = $null
@@ -312,11 +312,11 @@ jobs:
           }
   flutter-integration:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: windows-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Locate existing Flutter toolchain
+      - name: Locate or install Flutter 3.44.9
         run: |
           $ErrorActionPreference = 'Stop'
           if (-not ${env:ProgramFiles(x86)}) {
@@ -327,14 +327,30 @@ jobs:
             "ProgramFiles(x86)=$pf86" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             ${env:ProgramFiles(x86)} = $pf86
           }
+
           $flutterExe = 'C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat'
           if (-not (Test-Path -LiteralPath $flutterExe -PathType Leaf)) {
             $flutter = Get-Command flutter.bat -ErrorAction SilentlyContinue
-            if (-not $flutter) { throw 'Flutter is not available. Start ERP-PC with its existing Flutter toolcache or add flutter.bat to the runner PATH.' }
-            $flutterExe = $flutter.Source
+            if ($flutter) {
+              $flutterExe = $flutter.Source
+            } else {
+              $flutterRoot = Join-Path $env:RUNNER_TEMP 'eh7-flutter-3.44.9'
+              $flutterSdk = Join-Path $flutterRoot 'flutter'
+              $flutterExe = Join-Path $flutterSdk 'bin\flutter.bat'
+              if (-not (Test-Path -LiteralPath $flutterExe -PathType Leaf)) {
+                if (Test-Path -LiteralPath $flutterRoot) {
+                  Remove-Item -LiteralPath $flutterRoot -Recurse -Force
+                }
+                New-Item -ItemType Directory -Path $flutterRoot -Force | Out-Null
+                & git clone --depth 1 --branch 3.44.9 https://github.com/flutter/flutter.git $flutterSdk
+                if ($LASTEXITCODE -ne 0) { throw 'Flutter 3.44.9 clone failed.' }
+              }
+            }
           }
           & $flutterExe --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = (& $flutterExe --version --machine | ConvertFrom-Json).frameworkVersion
+          if ($version -ne '3.44.9') { throw ('Flutter version mismatch: ' + $version) }
           "EH7_FLUTTER_EXE=$flutterExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Dependencies
         working-directory: flutter-app
