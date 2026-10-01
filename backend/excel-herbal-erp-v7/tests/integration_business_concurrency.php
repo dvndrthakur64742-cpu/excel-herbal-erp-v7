@@ -152,7 +152,7 @@ function bc_worker(string $mode, float $startAt): never {
                 bc_actor([Capabilities::EMP_MANAGE]), 10, 2, EH7_BC_DATE, 'Concurrency transfer test'
             ),
             'salary-approve' => SalaryService::approve(
-                bc_actor([Capabilities::PAYROLL_APPROVE]), 2, true
+                bc_actor([Capabilities::SALARY_APPROVE]), 2, true
             ),
             'report-a-to-b' => OrganizationEmployeeService::setReportingManager(
                 bc_actor([Capabilities::EMP_MANAGE]), 10, 11, 'Concurrent reporting assignment A to B'
