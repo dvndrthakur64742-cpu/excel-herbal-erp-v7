@@ -6,6 +6,7 @@ import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
+import '../tools/erp_tools_screen.dart';
 import 'employee_id_card_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -121,6 +122,16 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const ErpToolsScreen(accountOnly: true),
+            ),
+          ),
+          icon: const Icon(Icons.security_outlined),
+          label: const Text('Account & Security'),
         ),
         const SizedBox(height: 12),
         const _ActingDutySummary(),

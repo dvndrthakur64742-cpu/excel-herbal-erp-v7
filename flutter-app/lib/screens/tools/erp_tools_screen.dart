@@ -12,7 +12,9 @@ import '../../theme/excel_brand.dart';
 import '../../state/app_state.dart';
 
 class ErpToolsScreen extends ConsumerStatefulWidget {
-  const ErpToolsScreen({super.key});
+  const ErpToolsScreen({super.key, this.accountOnly = false});
+
+  final bool accountOnly;
 
   @override
   ConsumerState<ErpToolsScreen> createState() => _ErpToolsScreenState();
@@ -26,12 +28,12 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     final tabs = <(String, IconData, Widget)>[
-      if (app.can('workforce.attendance.self'))
+      if (!widget.accountOnly && app.can('workforce.attendance.self'))
         ('Duty', Icons.location_on_outlined, _dutyTab(app)),
       ('My Account', Icons.badge_outlined, _accountTab(app)),
-      if (app.can('communication.view'))
+      if (!widget.accountOnly && app.can('communication.view'))
         ('Communication', Icons.notifications_outlined, _communicationTab(app)),
-      if (app.can('organization.employee.manage'))
+      if (!widget.accountOnly && app.can('organization.employee.manage'))
         ('Team Access', Icons.manage_accounts_outlined, _teamAccessTab()),
     ];
 
@@ -39,7 +41,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('My Account & Duty'),
+          title: Text(widget.accountOnly ? 'Account & Security' : 'My Account & Duty'),
           actions: [
             IconButton(
               tooltip: 'Refresh',

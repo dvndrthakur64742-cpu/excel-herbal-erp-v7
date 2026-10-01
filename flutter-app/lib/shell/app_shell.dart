@@ -208,12 +208,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                     'Global Search',
                     Icons.manage_search_outlined,
                   ),
-                if (app.erpToolsVisible)
-                  _desktopTile(
-                    'erp_tools',
-                    'Account & Duty',
-                    Icons.badge_outlined,
-                  ),
                 const SizedBox(height: 10),
                 _sectionLabel(context, 'MODULES'),
                 ...app.sections
@@ -490,19 +484,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                         icon: _icon('${section['id']}'),
                       ),
                   ],
-                  if (app.erpToolsVisible ||
-                      _approvalVisible(app) ||
+                  if (_approvalVisible(app) ||
                       !app.businessAccessBlocked) ...[
                     const SizedBox(height: 12),
                     _drawerSectionLabel('WORKSPACE TOOLS'),
                   ],
-                  if (app.erpToolsVisible)
-                    _drawerTile(
-                      app: app,
-                      id: 'erp_tools',
-                      label: 'My Account & Duty',
-                      icon: Icons.badge_outlined,
-                    ),
                   if (_approvalVisible(app))
                     _drawerTile(
                       app: app,
