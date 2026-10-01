@@ -31,8 +31,8 @@ if(
  strpos($webAdmin,"ATTEST_ACTION='eh7_uat_web_attest'")===false||
  strpos($webAdmin,'Installed backend source head does not match the requested web attestation head.')===false||
  strpos($webAdmin,'self::verifyManifest($target);')===false||
- strpos($webAdmin,"hash_equals($expectedMainHash,$actualMain)")===false||
- strpos($webAdmin,"hash_equals($expectedManifestHash,$actualManifest)")===false||
+ strpos($webAdmin,'hash_equals($expectedMainHash,$actualMain)')===false||
+ strpos($webAdmin,'hash_equals($expectedManifestHash,$actualManifest)')===false||
  strpos($deployScript,'Attest-ExistingWebRuntime')===false||
  strpos($deployScript,'expectedManifestHash')===false
 ){fwrite(STDERR,"FAIL web_runtime_attestation_guard\n");exit(1);}
