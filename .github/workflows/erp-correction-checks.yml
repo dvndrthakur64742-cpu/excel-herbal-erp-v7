@@ -594,6 +594,21 @@ jobs:
       - name: Deploy backend and certified web through current ERP workflow
         run: |
           & '.github/scripts/deploy-uat-current-erp-workflow.ps1' -SourceHead $env:GITHUB_SHA -UatSiteUrl $env:UAT_SITE_URL
+      - name: Strict controlled UAT preflight
+        run: |
+          $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
+          $allowOffice = ([Uri]$env:UAT_SITE_URL).Host -ieq 'office.excelherbal.in'
+          & '.github/scripts/staging-target-preflight.ps1' `
+            -ApiBase $apiBase `
+            -ExpectedSourceHead $env:GITHUB_SHA `
+            -AllowOfficeTarget:$allowOffice
+      - name: Upload controlled UAT preflight evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-Controlled-UAT-Preflight-Evidence
+          path: dist/staging-target-preflight/EVIDENCE.json
+          if-no-files-found: warn
       - name: Verify live backend head and certified web artifact SHA
         run: |
           $ErrorActionPreference = 'Stop'
