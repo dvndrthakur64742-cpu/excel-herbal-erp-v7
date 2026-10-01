@@ -24,3 +24,16 @@ catch(Throwable $e){fwrite(STDERR,"FAIL build_uat_fresh_guard ".$e->getMessage()
 echo "PASS build_uat_environment_override\n";
 echo "PASS build_uat_office_marker\n";
 echo "PASS build_uat_fresh_guard\n";
+
+$webAdmin=file_get_contents(__DIR__.'/../src/Administration/UatWebDeployAdmin.php');
+$deployScript=file_get_contents(__DIR__.'/../../../.github/scripts/deploy-uat-current-erp-workflow.ps1');
+if(
+ strpos($webAdmin,"ATTEST_ACTION='eh7_uat_web_attest'")===false||
+ strpos($webAdmin,'Installed backend source head does not match the requested web attestation head.')===false||
+ strpos($webAdmin,'self::verifyManifest($target);')===false||
+ strpos($webAdmin,"hash_equals($expectedMainHash,$actualMain)")===false||
+ strpos($webAdmin,"hash_equals($expectedManifestHash,$actualManifest)")===false||
+ strpos($deployScript,'Attest-ExistingWebRuntime')===false||
+ strpos($deployScript,'expectedManifestHash')===false
+){fwrite(STDERR,"FAIL web_runtime_attestation_guard\n");exit(1);}
+echo "PASS web_runtime_attestation_guard\n";
