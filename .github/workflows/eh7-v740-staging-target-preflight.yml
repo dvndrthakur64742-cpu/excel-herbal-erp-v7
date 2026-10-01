@@ -11,6 +11,11 @@ on:
         description: '40-char commit SHA embedded in the installed staging backend package'
         required: true
         type: string
+      allow_office_target:
+        description: 'Explicitly allow office.excelherbal.in only when it is the controlled BUILD/UAT target'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -30,10 +35,13 @@ jobs:
         env:
           STAGING_API: ${{ inputs.staging_api_base_url }}
           EXPECTED_SOURCE_HEAD: ${{ inputs.expected_source_head }}
+          ALLOW_OFFICE: ${{ inputs.allow_office_target }}
         run: |
+          $allowOffice = $env:ALLOW_OFFICE -eq 'true'
           & '.github/scripts/staging-target-preflight.ps1' `
             -ApiBase $env:STAGING_API `
-            -ExpectedSourceHead $env:EXPECTED_SOURCE_HEAD
+            -ExpectedSourceHead $env:EXPECTED_SOURCE_HEAD `
+            -AllowOfficeTarget:$allowOffice
 
       - name: Upload staging-target evidence
         if: always()
