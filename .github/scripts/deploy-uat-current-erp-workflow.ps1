@@ -82,12 +82,14 @@ $repoRoot = $env:GITHUB_WORKSPACE
 $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $SourceHead)
 $webZip = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
 $candidateMain = Join-Path $releaseRoot 'web\main.dart.js'
-foreach ($required in @($webZip,$candidateMain)) {
+$candidateManifest = Join-Path $releaseRoot 'web\SHA256SUMS.txt'
+foreach ($required in @($webZip,$candidateMain,$candidateManifest)) {
   if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
     throw ('Required certified web candidate file is missing: ' + $required)
   }
 }
 $expectedMainHash = (Get-FileHash -LiteralPath $candidateMain -Algorithm SHA256).Hash.ToLowerInvariant()
+$expectedManifestHash = (Get-FileHash -LiteralPath $candidateManifest -Algorithm SHA256).Hash.ToLowerInvariant()
 
 function Get-ChromeExe {
   $candidate = @(
@@ -778,22 +780,73 @@ function Deploy-BackendPlugin([string]$ZipPath) {
   throw ('Backend replacement finished but live source_head is not ' + $SourceHead + '. Current: ' + $current)
 }
 
+function Attest-ExistingWebRuntime {
+  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy') -TitlePattern 'EH7 UAT Web Deploy'
+  Activate-OwnedChromeWindow $chrome
+  Start-Sleep -Seconds 4
+  Wait-ForWordPressAdminAuthentication $chrome ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy')
+
+  $root = Root $chrome
+  $source = Find-ById $root 'eh7_attest_source_head'
+  $main = Find-ById $root 'eh7_attest_main_sha256'
+  $manifest = Find-ById $root 'eh7_attest_manifest_sha256'
+  $reason = Find-ById $root 'eh7_attest_reason'
+  $confirm = Find-ById $root 'eh7_attest_confirm'
+  $submit = Find-ById $root 'eh7_attest_submit'
+  if (-not $source -or -not $main -or -not $manifest -or -not $reason -or -not $confirm -or -not $submit) {
+    try { Write-UiHints $root 'web_attest_controls_missing' } catch {}
+    throw 'Byte-identical runtime attestation controls were not found.'
+  }
+
+  Set-ElementValue $source $SourceHead
+  Set-ElementValue $main $expectedMainHash
+  Set-ElementValue $manifest $expectedManifestHash
+  Set-ElementValue $reason 'Attest byte-identical exact-head build on controlled UAT'
+  $toggle = $confirm.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+  if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) { $toggle.Toggle() }
+  Invoke-Element $submit
+  Write-Host 'INFO web_attest_submit_invoked=true'
+
+  for ($attempt = 1; $attempt -le 12; $attempt++) {
+    Start-Sleep -Seconds 3
+    $runtime = Get-WebRuntimeHealth
+    $marker = if ($runtime -and $runtime.source_head) { [string]$runtime.source_head } else { '' }
+    $mainHash = if ($runtime -and $runtime.main_sha256) { [string]$runtime.main_sha256 } else { '' }
+    $manifestHash = if ($runtime -and $runtime.manifest_sha256) { [string]$runtime.manifest_sha256 } else { '' }
+    Write-Host ('INFO web_attest_poll=' + $attempt + ' source_marker=' + $marker + ' main_sha256=' + $mainHash + ' manifest_sha256=' + $manifestHash)
+    if ($marker -eq $SourceHead -and $mainHash -eq $expectedMainHash -and $manifestHash -eq $expectedManifestHash) {
+      Write-Host ('PASS live_web_source_head=' + $marker)
+      Write-Host ('PASS live_web_sha256=' + $mainHash)
+      Write-Host ('PASS live_web_manifest_sha256=' + $manifestHash)
+      return
+    }
+  }
+  throw 'Byte-identical UAT web runtime attestation did not advance the certified source marker.'
+}
+
 function Deploy-WebRuntime {
   $before = Get-LiveMainHash
   Write-Host ('INFO current_live_main_sha256=' + $before)
   Write-Host ('INFO expected_main_sha256=' + $expectedMainHash)
+  Write-Host ('INFO expected_manifest_sha256=' + $expectedManifestHash)
 
   $runtime = Get-WebRuntimeHealth
   $currentMarker = if ($runtime -and $runtime.source_head) { [string]$runtime.source_head } else { '' }
   $serverMainHash = if ($runtime -and $runtime.main_sha256) { [string]$runtime.main_sha256 } else { '' }
+  $serverManifestHash = if ($runtime -and $runtime.manifest_sha256) { [string]$runtime.manifest_sha256 } else { '' }
 
-  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash -and $currentMarker -eq $SourceHead) {
-    Write-Host 'PASS certified web runtime SHA and source marker are already live.'
+  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash -and $serverManifestHash -eq $expectedManifestHash -and $currentMarker -eq $SourceHead) {
+    Write-Host 'PASS certified web runtime hashes and source marker are already live.'
     Write-Host ('INFO live_web_source_marker=' + $currentMarker)
     return
   }
-  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash -and $currentMarker -ne $SourceHead) {
-    Write-Host ('INFO web_binary_matches_but_source_marker_requires_refresh=' + $currentMarker)
+  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash -and $serverManifestHash -eq $expectedManifestHash -and $currentMarker -ne $SourceHead) {
+    Write-Host ('INFO web_runtime_byte_identical_marker_requires_attestation=' + $currentMarker)
+    Attest-ExistingWebRuntime
+    return
+  }
+  if ($before -eq $expectedMainHash -and $serverMainHash -eq $expectedMainHash -and $serverManifestHash -ne $expectedManifestHash) {
+    Write-Host ('INFO main_hash_matches_but_manifest_differs=' + $serverManifestHash)
   } elseif ($before -eq $expectedMainHash) {
     Write-Host ('INFO browser_web_hash_matches_but_server_hash_differs=' + $serverMainHash)
   }
@@ -844,6 +897,7 @@ function Deploy-WebRuntime {
 
   $marker = ''
   $serverHash = ''
+  $serverManifest = ''
   $runtime = $null
   for ($attempt = 1; $attempt -le 18; $attempt++) {
     Start-Sleep -Seconds 5
@@ -851,8 +905,9 @@ function Deploy-WebRuntime {
       $runtime = Get-WebRuntimeHealth
       $marker = if ($runtime -and $runtime.source_head) { [string]$runtime.source_head } else { '' }
       $serverHash = if ($runtime -and $runtime.main_sha256) { [string]$runtime.main_sha256 } else { '' }
-      Write-Host ('INFO web_deploy_poll=' + $attempt + ' source_marker=' + $marker + ' main_sha256=' + $serverHash)
-      if ($marker -eq $SourceHead -and $serverHash -eq $expectedMainHash) { break }
+      $serverManifest = if ($runtime -and $runtime.manifest_sha256) { [string]$runtime.manifest_sha256 } else { '' }
+      Write-Host ('INFO web_deploy_poll=' + $attempt + ' source_marker=' + $marker + ' main_sha256=' + $serverHash + ' manifest_sha256=' + $serverManifest)
+      if ($marker -eq $SourceHead -and $serverHash -eq $expectedMainHash -and $serverManifest -eq $expectedManifestHash) { break }
     } catch {
       Write-Host ('INFO web_deploy_poll=' + $attempt + ' health_error=' + $_.Exception.Message)
     }
@@ -860,6 +915,7 @@ function Deploy-WebRuntime {
 
   if ($marker -ne $SourceHead) { throw ('Live server-side web source marker mismatch after deployment wait: ' + $marker) }
   if ($serverHash -ne $expectedMainHash) { throw ('Live server-side web main.dart.js hash mismatch: ' + $serverHash) }
+  if ($serverManifest -ne $expectedManifestHash) { throw ('Live server-side web manifest hash mismatch: ' + $serverManifest) }
 
   $actual = Get-LiveMainHash
   Write-Host ('INFO final_live_main_sha256=' + $actual)
@@ -868,6 +924,7 @@ function Deploy-WebRuntime {
   }
   Write-Host ('PASS live_web_source_head=' + $marker)
   Write-Host ('PASS live_web_sha256=' + $serverHash)
+  Write-Host ('PASS live_web_manifest_sha256=' + $serverManifest)
 }
 
 function Resolve-UatAnomalies {
