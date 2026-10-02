@@ -9,6 +9,7 @@ import '../../core/providers.dart';
 import '../../core/business_format.dart';
 import '../../core/ui_error.dart';
 import '../../theme/excel_brand.dart';
+import '../../widgets/business_date_field.dart';
 import '../../state/app_state.dart';
 
 class ErpToolsScreen extends ConsumerStatefulWidget {
@@ -670,9 +671,11 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            BusinessDateField(
               controller: date,
-              decoration: const InputDecoration(labelText: 'Date YYYY-MM-DD'),
+              label: 'Holiday Date',
+              firstDate: DateTime(DateTime.now().year - 1, 1, 1),
+              lastDate: DateTime(DateTime.now().year + 2, 12, 31),
             ),
             const SizedBox(height: 10),
             TextField(
