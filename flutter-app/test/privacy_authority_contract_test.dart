@@ -74,4 +74,22 @@ void main() {
     expect(access, contains('self::assertCanDelegateCapabilities(\$a,\$grants)'));
   });
 
+  test('shared-role and subordinate access scope are fail closed', () {
+    final access = File(
+      '../backend/excel-herbal-erp-v7/src/Security/AccessService.php',
+    ).readAsStringSync();
+    final hierarchy = File(
+      '../backend/excel-herbal-erp-v7/src/Security/HierarchyScope.php',
+    ).readAsStringSync();
+
+    expect(hierarchy, contains('manageableEmployeeIds'));
+    expect(hierarchy, contains('assertCanManageEmployeeAccess'));
+    expect(hierarchy, contains("'employee_access_scope_forbidden',403"));
+    expect(access, contains('assertRoleWithinAuthority'));
+    expect(access, contains("'role_scope_forbidden',403"));
+    expect(access, contains('array_merge(\$before,\$wanted)'));
+    expect(access, contains('array_merge(\$grants,\$denies)'));
+    expect(access, contains('array_column(\$before,\'capability\')'));
+  });
+
 }
