@@ -50,14 +50,14 @@ extension _FinancePeriodsFeature on _FinanceScreenState {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              BusinessDateField(
                 controller: from,
-                decoration: const InputDecoration(labelText: 'From YYYY-MM-DD'),
+                label: 'Period From',
               ),
               const SizedBox(height: 10),
-              TextField(
+              BusinessDateField(
                 controller: to,
-                decoration: const InputDecoration(labelText: 'To YYYY-MM-DD'),
+                label: 'Period To',
               ),
             ],
           ),
