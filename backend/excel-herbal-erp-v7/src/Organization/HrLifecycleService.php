@@ -40,7 +40,7 @@ final class HrLifecycleService {
     public static function candidate(Actor $a,int $candidateId):array {
         $c=self::candidateRow($a,$candidateId,Capabilities::HR_VIEW);
         if(!$a->can(Capabilities::SALARY_VIEW)&&!$a->can(Capabilities::SALARY_MANAGE)&&!$a->can(Capabilities::SALARY_APPROVE))unset($c['offered_monthly_salary']);
-        $c['documents']=$a->can(Capabilities::HR_DOCUMENT_VIEW)?self::candidateDocuments($a,$candidateId):[];
+        $c['documents']=($a->can(Capabilities::HR_DOCUMENT_VIEW)||$a->can(Capabilities::HR_DOCUMENT_MANAGE))?self::candidateDocuments($a,$candidateId):[];
         return$c;
     }
 
@@ -111,7 +111,8 @@ final class HrLifecycleService {
     }
 
     public static function candidateDocuments(Actor $a,int $candidateId):array {
-        $c=self::candidateRow($a,$candidateId,Capabilities::HR_DOCUMENT_VIEW);$db=Db::wpdb();$rows=(array)$db->get_results($db->prepare("SELECT id,attachment_id,private_file_id,document_type,title,status,uploaded_by,created_at,updated_at FROM ".Db::table('hr_candidate_documents')." WHERE company_id=%d AND candidate_id=%d AND status='active' ORDER BY id DESC",$a->companyId,$candidateId),ARRAY_A);foreach($rows as&$row){$row['url']=!empty($row['private_file_id'])?DocumentVault::url('candidate',$candidateId,(int)$row['id']):null;$row['requires_auth']=true;$row['migration_required']=empty($row['private_file_id']);}unset($row);return$rows;
+        $readCap=$a->can(Capabilities::HR_DOCUMENT_VIEW)?Capabilities::HR_DOCUMENT_VIEW:Capabilities::HR_DOCUMENT_MANAGE;
+        $c=self::candidateRow($a,$candidateId,$readCap);$db=Db::wpdb();$rows=(array)$db->get_results($db->prepare("SELECT id,attachment_id,private_file_id,document_type,title,status,uploaded_by,created_at,updated_at FROM ".Db::table('hr_candidate_documents')." WHERE company_id=%d AND candidate_id=%d AND status='active' ORDER BY id DESC",$a->companyId,$candidateId),ARRAY_A);foreach($rows as&$row){$row['url']=!empty($row['private_file_id'])?DocumentVault::url('candidate',$candidateId,(int)$row['id']):null;$row['requires_auth']=true;$row['migration_required']=empty($row['private_file_id']);}unset($row);return$rows;
     }
 
     public static function uploadCandidateDocument(Actor $a,int $candidateId,array $data):array {

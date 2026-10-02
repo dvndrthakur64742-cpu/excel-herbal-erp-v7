@@ -17,7 +17,10 @@ final class SalaryService {
         if (!$id || !empty($db->last_error)) throw new DomainException('Unable to lock payroll company.', 'payroll_lock_failed', 500);
     }
     public static function history(Actor $a,int $employee):array {
-        self::employee($a,$employee,Capabilities::SALARY_VIEW);
+        $readCap=$a->can(Capabilities::SALARY_VIEW)
+            ?Capabilities::SALARY_VIEW
+            :($a->can(Capabilities::SALARY_MANAGE)?Capabilities::SALARY_MANAGE:Capabilities::SALARY_APPROVE);
+        self::employee($a,$employee,$readCap);
         $db=Db::wpdb();
         return (array)$db->get_results($db->prepare('SELECT * FROM '.Db::table('salary_revisions').' WHERE company_id=%d AND employee_id=%d ORDER BY effective_from,id',$a->companyId,$employee),ARRAY_A);
     }

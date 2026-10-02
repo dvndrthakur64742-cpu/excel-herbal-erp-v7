@@ -27,7 +27,6 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
   bool _review(AppState app) => app.can('organization.hr.review');
   bool _documentView(AppState app) => app.canAny(const [
         'organization.hr.document.view',
-        'organization.hr.document.download',
         'organization.hr.document.manage',
       ]);
   bool _documentDownload(AppState app) =>
