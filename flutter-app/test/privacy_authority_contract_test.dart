@@ -62,4 +62,16 @@ void main() {
     expect(performance, contains("'payroll.approve'"));
     expect(performance, contains("'payroll.pay'"));
   });
+  test('access management blocks hierarchy escape and privilege escalation', () {
+    final access = File(
+      '../backend/excel-herbal-erp-v7/src/Security/AccessService.php',
+    ).readAsStringSync();
+
+    expect(access, contains('HierarchyScope::assertCanViewEmployee(\$a,\$employeeId)'));
+    expect(access, contains('assertCanDelegateCapabilities'));
+    expect(access, contains("'authority_escalation_forbidden',403"));
+    expect(access, contains('self::assertCanDelegateCapabilities(\$a,\$delegated)'));
+    expect(access, contains('self::assertCanDelegateCapabilities(\$a,\$grants)'));
+  });
+
 }
