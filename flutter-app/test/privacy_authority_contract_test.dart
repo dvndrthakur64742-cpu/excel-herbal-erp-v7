@@ -155,4 +155,48 @@ void main() {
     expect(home, contains('Future<List<Map<String, dynamic>>> _safeRows'));
   });
 
+  test('business date inputs use picker widgets instead of raw format typing', () {
+    final finance = File('lib/screens/finance/finance_screen.dart').readAsStringSync();
+    final bank = File('lib/screens/finance/finance_bank.dart').readAsStringSync();
+    final periods = File('lib/screens/finance/finance_periods.dart').readAsStringSync();
+    final organization = File(
+      'lib/screens/organization/organization_screen.dart',
+    ).readAsStringSync();
+    final employees = File(
+      'lib/screens/organization/organization_employees.dart',
+    ).readAsStringSync();
+    final products = File(
+      'lib/screens/organization/organization_products.dart',
+    ).readAsStringSync();
+    final hr = File(
+      'lib/screens/organization/hr_lifecycle_screen.dart',
+    ).readAsStringSync();
+    final performance = File(
+      'lib/screens/performance/performance_screen.dart',
+    ).readAsStringSync();
+    final acting = File(
+      'lib/screens/administration/acting_duty_admin_panel.dart',
+    ).readAsStringSync();
+
+    expect(finance, contains("business_date_field.dart"));
+    expect(organization, contains("business_date_field.dart"));
+    expect(hr, contains("business_date_field.dart"));
+    expect(performance, contains("business_date_field.dart"));
+    expect(bank, contains('BusinessDateField('));
+    expect(periods, contains('BusinessDateField('));
+    expect(employees, contains('BusinessDateField('));
+    expect(products, contains('BusinessDateField('));
+    expect(acting, contains('BusinessDateTimeField('));
+
+    for (final source in [bank, periods, employees, products, hr, performance]) {
+      expect(source, isNot(contains('labelText: \'From YYYY-MM-DD\'')));
+      expect(source, isNot(contains('labelText: \'To YYYY-MM-DD\'')));
+      expect(source, isNot(contains('Joining Date YYYY-MM-DD')));
+      expect(source, isNot(contains('Effective Date YYYY-MM-DD')));
+      expect(source, isNot(contains('Payment Date (YYYY-MM-DD)')));
+    }
+    expect(acting, isNot(contains('Starts At YYYY-MM-DDTHH:MM')));
+    expect(acting, isNot(contains('Ends At YYYY-MM-DDTHH:MM')));
+  });
+
 }
