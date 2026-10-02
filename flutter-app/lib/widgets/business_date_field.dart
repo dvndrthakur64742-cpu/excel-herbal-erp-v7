@@ -41,8 +41,8 @@ class BusinessDateField extends StatelessWidget {
 
   Future<void> _pick(BuildContext context) async {
     final now = DateTime.now();
-    final min = _dateOnly(firstDate ?? DateTime(now.year - 20, 1, 1));
-    final max = _dateOnly(lastDate ?? DateTime(now.year + 20, 12, 31));
+    final min = _dateOnly(firstDate ?? DateTime(1900, 1, 1));
+    final max = _dateOnly(lastDate ?? DateTime(2100, 12, 31));
     var initial = DateTime.tryParse(controller.text.trim()) ?? now;
     initial = _dateOnly(initial);
     if (initial.isBefore(min)) initial = min;
