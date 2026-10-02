@@ -138,7 +138,7 @@ void main() {
     expect(communication, contains('Future<void> _createTask()'));
     expect(communication, contains('Future<void> _createAnnouncement'));
     expect(communication, contains('Future<void> _createNotification()'));
-    expect(communication, contains('const BranchSelector()'));
+    expect(communication, contains('child: BranchSelector()'));
     expect(communication, isNot(contains('Due At (optional ISO date/time)')));
     expect(appState, isNot(contains("'communication.view',")));
     expect(navigation, contains("['id'=>'tasks','label'=>'My Tasks']"));
