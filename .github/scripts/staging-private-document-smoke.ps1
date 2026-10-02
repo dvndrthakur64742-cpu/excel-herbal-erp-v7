@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$ApiBase,
     [Parameter(Mandatory=$true)][string]$Mobile,
     [Parameter(Mandatory=$true)][string]$Password,
-    [Parameter(Mandatory=$true)][int]$EmployeeId,
+    [int]$EmployeeId = 0,
     [string]$EvidencePath = 'dist/staging-private-document/EVIDENCE.json'
 )
 
@@ -84,6 +84,16 @@ try {
     $access = [string]$login.Json.data.access_token
     if (-not $access) { throw 'Login did not return access token.' }
     $evidence.results['login'] = 'passed'
+
+    if ($EmployeeId -lt 1) {
+        $me = Send-Json -Method GET -Path '/me' -Bearer $access
+        Assert-Status $me 200 'resolve_employee'
+        $EmployeeId = [int]$me.Json.data.employee.id
+        if ($EmployeeId -lt 1) { throw '/me did not return a valid authenticated employee id.' }
+        $evidence['employee_id'] = $EmployeeId
+        $evidence.results['employee_auto_resolve'] = 'passed'
+        Write-Host "PASS employee_auto_resolve id=$EmployeeId"
+    }
 
     $uploadPath = "/organization/employees/$EmployeeId/documents/upload"
     $req = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Post, $ApiBase + $uploadPath)
