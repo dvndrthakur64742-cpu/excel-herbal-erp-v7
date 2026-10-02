@@ -67,7 +67,7 @@ void main() {
       '../backend/excel-herbal-erp-v7/src/Security/AccessService.php',
     ).readAsStringSync();
 
-    expect(access, contains('HierarchyScope::assertCanViewEmployee(\$a,\$employeeId)'));
+    expect(access, contains('HierarchyScope::assertCanManageEmployeeAccess(\$a,\$employeeId)'));
     expect(access, contains('assertCanDelegateCapabilities'));
     expect(access, contains("'authority_escalation_forbidden',403"));
     expect(access, contains('self::assertCanDelegateCapabilities(\$a,\$delegated)'));
