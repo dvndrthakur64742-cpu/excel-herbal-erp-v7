@@ -1410,6 +1410,13 @@
       "required_params": []
     },
     {
+      "method": "GET",
+      "path": "/performance/target-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
       "method": "POST",
       "path": "/performance/targets",
       "auth": true,
