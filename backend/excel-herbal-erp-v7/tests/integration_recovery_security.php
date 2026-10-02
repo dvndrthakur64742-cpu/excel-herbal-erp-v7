@@ -222,7 +222,7 @@ function rs_seed_document_recovery(): never {
         'created_at' => '2026-09-18 00:00:00',
     ]);
 
-    $actor = new Actor(501, 10, 1, 1, [1], [Capabilities::HR_VIEW], 'SYSADMIN');
+    $actor = new Actor(501, 10, 1, 1, [1], [Capabilities::HR_VIEW, Capabilities::HR_DOCUMENT_DOWNLOAD], 'SYSADMIN');
     rs_case('document_recovery_seed_readable', function () use ($actor) {
         $out = DocumentVault::download($actor, 'candidate', 44, 55);
         if (($out['bytes'] ?? '') !== EH7_RS_PLAINTEXT) throw new RuntimeException('seed document plaintext mismatch');
@@ -234,7 +234,7 @@ function rs_seed_document_recovery(): never {
 
 function rs_verify_document_recovery(): never {
     $db = eh7_setup_global_db();
-    $actor = new Actor(501, 10, 1, 1, [1], [Capabilities::HR_VIEW], 'SYSADMIN');
+    $actor = new Actor(501, 10, 1, 1, [1], [Capabilities::HR_VIEW, Capabilities::HR_DOCUMENT_DOWNLOAD], 'SYSADMIN');
 
     rs_case('document_restore_matching_key', function () use ($actor) {
         $out = DocumentVault::download($actor, 'candidate', 44, 55);
