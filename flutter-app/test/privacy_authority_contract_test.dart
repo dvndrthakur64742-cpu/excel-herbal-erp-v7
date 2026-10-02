@@ -92,4 +92,28 @@ void main() {
     expect(access, contains('array_column(\$before,\'capability\')'));
   });
 
+  test('reserved system roles and employee mutations use central authority policy', () {
+    final access = File(
+      '../backend/excel-herbal-erp-v7/src/Security/AccessService.php',
+    ).readAsStringSync();
+    final branchAuthority = File(
+      '../backend/excel-herbal-erp-v7/src/Security/BranchAuthority.php',
+    ).readAsStringSync();
+    final employee = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationEmployeeService.php',
+    ).readAsStringSync();
+    final branch = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationBranchService.php',
+    ).readAsStringSync();
+
+    expect(access, contains("'reserved_system_role_forbidden',403"));
+    expect(access, contains('assertCanAdministerEmployeeIdentity'));
+    expect(branchAuthority, contains('isCompanyWideAdmin'));
+    expect(branchAuthority, contains('Capabilities::ACCESS_MANAGE'));
+    expect(employee, contains('AccessService::assertCanDelegateCapabilities'));
+    expect(employee, contains('AccessService::assertCanAdministerEmployeeIdentity'));
+    expect(branch, contains('HierarchyScope::assertCanManageEmployeeAccess'));
+    expect(branch, contains('HierarchyScope::hasCompanyWideSystemAuthority'));
+  });
+
 }
