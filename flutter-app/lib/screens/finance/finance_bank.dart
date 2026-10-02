@@ -83,18 +83,14 @@ extension _FinanceBankFeature on _FinanceScreenState {
                     onChanged: (v) => setLocal(() => accountId = v),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateField(
                     controller: from,
-                    decoration: const InputDecoration(
-                      labelText: 'Statement From YYYY-MM-DD',
-                    ),
+                    label: 'Statement From',
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateField(
                     controller: to,
-                    decoration: const InputDecoration(
-                      labelText: 'Statement To YYYY-MM-DD',
-                    ),
+                    label: 'Statement To',
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -288,11 +284,9 @@ extension _FinanceBankFeature on _FinanceScreenState {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              BusinessDateField(
                 controller: date,
-                decoration: const InputDecoration(
-                  labelText: 'Transaction Date YYYY-MM-DD',
-                ),
+                label: 'Transaction Date',
               ),
               const SizedBox(height: 10),
               TextField(
