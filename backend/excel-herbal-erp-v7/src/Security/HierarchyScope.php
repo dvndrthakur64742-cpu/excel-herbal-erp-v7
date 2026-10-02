@@ -51,13 +51,7 @@ final class HierarchyScope {
     }
 
     public static function hasCompanyWideSystemAuthority(Actor $a):bool {
-        $code=self::normaliseCode($a->designationCode);
-        if(in_array($code,['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true))return true;
-        $db=Db::wpdb();
-        return (bool)$db->get_var($db->prepare(
-            "SELECT 1 FROM ".Db::table('employee_roles')." er JOIN ".Db::table('roles')." r ON r.id=er.role_id AND r.company_id=er.company_id AND r.active=1 WHERE er.company_id=%d AND er.employee_id=%d AND er.active=1 AND UPPER(r.code) IN ('SYSTEM_ADMIN','SYSADMIN','ADMIN','ADMINISTRATOR') LIMIT 1",
-            $a->companyId,$a->employeeId
-        ));
+        return BranchAuthority::isCompanyWideAdmin($a->employeeId,$a->companyId,$a->designationCode);
     }
 
     /** @return int[] */
