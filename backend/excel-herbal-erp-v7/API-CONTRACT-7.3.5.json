@@ -1536,6 +1536,13 @@
     },
     {
       "method": "GET",
+      "path": "/communication/target-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/communication/tasks/manage",
       "auth": true,
       "idempotency_required": false,

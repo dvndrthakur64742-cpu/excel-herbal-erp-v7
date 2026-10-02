@@ -273,12 +273,8 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
     final branchId = app.currentBranchId;
     if (branchId == null) return const [];
     final data = await ref.read(apiClientProvider).get(
-      ApiPaths.employees,
-      query: {
-        'branch_id': branchId,
-        'status': 'active',
-        'limit': 200,
-      },
+      ApiPaths.communicationTargetEmployees,
+      query: {'branch_id': branchId},
     );
     return ((data as List?) ?? const [])
         .whereType<Map>()
@@ -291,7 +287,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
       final employees = await _employeeChoices();
       if (!mounted) return;
       if (employees.isEmpty) {
-        setState(() => message = 'No active employee is available in the selected branch.');
+        setState(() => message = 'No eligible employee is available in your reporting scope.');
         return;
       }
       var employeeId = int.tryParse('${employees.first['id']}') ?? 0;
@@ -479,7 +475,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
       final employees = await _employeeChoices();
       if (!mounted) return;
       if (employees.isEmpty) {
-        setState(() => message = 'No active employee is available in the selected branch.');
+        setState(() => message = 'No eligible employee is available in your reporting scope.');
         return;
       }
       var employeeId = int.tryParse('${employees.first['id']}') ?? 0;

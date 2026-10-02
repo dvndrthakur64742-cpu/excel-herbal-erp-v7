@@ -99,6 +99,53 @@ void main() {
     expect(service, contains('SELECT id,employee_code,full_name,designation_code'));
   });
 
+  test('communication employee targeting is hierarchy scoped end to end', () {
+    final screen = File(
+      'lib/screens/communication/communication_screen.dart',
+    ).readAsStringSync();
+    final paths = File('lib/core/api_paths.dart').readAsStringSync();
+    final routes = File(
+      '../backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php',
+    ).readAsStringSync();
+    final adminService = File(
+      '../backend/excel-herbal-erp-v7/src/Communication/CommunicationAdminService.php',
+    ).readAsStringSync();
+    final recoveryService = File(
+      '../backend/excel-herbal-erp-v7/src/Recovery/RecoveryService.php',
+    ).readAsStringSync();
+
+    expect(
+      paths,
+      contains("communicationTargetEmployees = '/communication/target-employees'"),
+    );
+    expect(screen, contains('ApiPaths.communicationTargetEmployees'));
+    expect(screen, isNot(contains('ApiPaths.employees')));
+    expect(
+      routes,
+      contains(
+        "['GET','/communication/target-employees','comm.target_employees',true]",
+      ),
+    );
+    expect(adminService, contains('public static function targetEmployees'));
+    expect(adminService, contains('Capabilities::COMM_MANAGE'));
+    expect(
+      adminService,
+      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branchId)'),
+    );
+    expect(
+      adminService,
+      contains('HierarchyScope::assertCanViewEmployee(\$a,\$employeeId)'),
+    );
+    expect(
+      adminService,
+      contains('SELECT id,employee_code,full_name,designation_code'),
+    );
+    expect(
+      recoveryService,
+      contains('HierarchyScope::assertCanViewEmployee(\$a,\$employeeId)'),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

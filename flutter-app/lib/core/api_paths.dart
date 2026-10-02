@@ -87,6 +87,7 @@ abstract final class ApiPaths {
       priceDistribution = '/reports/price-distribution';
 
   static const communicationSummary = '/communication/summary',
+      communicationTargetEmployees = '/communication/target-employees',
       taskManage = '/communication/tasks/manage',
       announcementManage = '/communication/announcements/manage',
       announcements = '/communication/announcements',
