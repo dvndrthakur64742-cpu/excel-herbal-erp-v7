@@ -70,8 +70,8 @@ void main() {
     expect(access, contains('HierarchyScope::assertCanManageEmployeeAccess(\$a,\$employeeId)'));
     expect(access, contains('assertCanDelegateCapabilities'));
     expect(access, contains("'authority_escalation_forbidden',403"));
-    expect(access, contains('self::assertCanDelegateCapabilities(\$a,\$delegated)'));
-    expect(access, contains('self::assertCanDelegateCapabilities(\$a,\$grants)'));
+    expect(access, contains('self::assertCanDelegateCapabilities(\$a,\$affectedCaps)'));
+    expect(access, contains('self::assertCanDelegateCapabilities(\$a,array_merge(\$grants,\$denies))'));
   });
 
   test('shared-role and subordinate access scope are fail closed', () {
