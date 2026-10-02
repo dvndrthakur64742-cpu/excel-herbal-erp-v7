@@ -268,6 +268,22 @@ overrides=access_service[access_service.index('public static function setEmploye
 for token in ["Capabilities::ACCESS,Capabilities::ACCESS_MANAGE","'self_access_lockout'"]:
  assert token in overrides,('self access override lockout guard incomplete',token)
 print('PASS self access/access-management override lockout coverage')
+hierarchy_scope=(root/'src/Security/HierarchyScope.php').read_text()
+branch_authority=(root/'src/Security/BranchAuthority.php').read_text()
+access_service=(root/'src/Security/AccessService.php').read_text()
+branch_service=(root/'src/Organization/OrganizationBranchService.php').read_text()
+employee_service=(root/'src/Organization/OrganizationEmployeeService.php').read_text()
+for token in ["manageableEmployeeIds","assertCanManageEmployeeAccess","hasCompanyWideSystemAuthority","'employee_access_scope_forbidden'"]:
+ assert token in hierarchy_scope,('missing central hierarchy access-management guard',token)
+for token in ["isCompanyWideAdmin","Capabilities::ACCESS_MANAGE","role_capabilities"]:
+ assert token in branch_authority,('company-wide system authority is not centrally constrained',token)
+for token in ["assertCanDelegateCapabilities","assertRoleWithinAuthority","assertCanAdministerEmployeeIdentity","'reserved_system_role_forbidden'","'role_scope_forbidden'","'authority_escalation_forbidden'"]:
+ assert token in access_service,('missing anti-escalation access guard',token)
+for token in ["assertCanManageEmployeeAccess($a,$employeeId)","hasCompanyWideSystemAuthority($a)"]:
+ assert token in branch_service,('branch authority mutation is not hierarchy/system scoped',token)
+for token in ["AccessService::assertCanDelegateCapabilities","AccessService::assertCanAdministerEmployeeIdentity","HierarchyScope::assertCanManageEmployeeAccess"]:
+ assert token in employee_service,('employee mutation is not authority scoped',token)
+print('PASS hierarchy-scoped authority hardening and reserved-role controls')
 employee_service=(root/'src/Organization/OrganizationEmployeeService.php').read_text()
 designation_off=employee_service[employee_service.index('public static function deactivateEmployeeDesignation'):]
 for token in ["Transaction::run","FOR UPDATE","'unchanged'=>true"]:
