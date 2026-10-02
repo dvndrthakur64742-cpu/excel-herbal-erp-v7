@@ -50,6 +50,16 @@ final class HierarchyScope {
         return self::reportingCategoryForCode((string)$row['designation_code'],(string)($row['reporting_designation_code']??''));
     }
 
+    public static function hasCompanyWideSystemAuthority(Actor $a):bool {
+        $code=self::normaliseCode($a->designationCode);
+        if(in_array($code,['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true))return true;
+        $db=Db::wpdb();
+        return (bool)$db->get_var($db->prepare(
+            "SELECT 1 FROM ".Db::table('employee_roles')." er JOIN ".Db::table('roles')." r ON r.id=er.role_id AND r.company_id=er.company_id AND r.active=1 WHERE er.company_id=%d AND er.employee_id=%d AND er.active=1 AND UPPER(r.code) IN ('SYSTEM_ADMIN','SYSADMIN','ADMIN','ADMINISTRATOR') LIMIT 1",
+            $a->companyId,$a->employeeId
+        ));
+    }
+
     /** @return int[] */
     public static function visibleEmployeeIds(Actor $a,?int $branchId=null):array {
         $db=Db::wpdb();
@@ -60,7 +70,7 @@ final class HierarchyScope {
         foreach($rows as$r){$id=(int)$r['id'];$byId[$id]=$r;$mgr=(int)($r['reporting_employee_id']??0);if($mgr>0)$children[$mgr][]=$id;}
         if(!isset($byId[$a->employeeId]))return[$a->employeeId];
 
-        $allCompany=in_array($actorCode,['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true);
+        $allCompany=self::hasCompanyWideSystemAuthority($a);
         if($allCompany){$ids=array_keys($byId);}
         elseif(in_array($actorCode,['BM','BRANCH_MANAGER'],true)){
             $ownBranch=(int)$byId[$a->employeeId]['assigned_branch_id'];$ids=[];foreach($byId as$id=>$r)if((int)$r['assigned_branch_id']===$ownBranch)$ids[]=$id;
@@ -87,7 +97,7 @@ final class HierarchyScope {
         $byId=[];$children=[];
         foreach($rows as$r){$id=(int)$r['id'];$byId[$id]=$r;$mgr=(int)($r['reporting_employee_id']??0);if($mgr>0)$children[$mgr][]=$id;}
         $actorCode=self::normaliseCode($a->designationCode);
-        if(in_array($actorCode,['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true)){ $ids=array_keys($byId);sort($ids);return$ids; }
+        if(self::hasCompanyWideSystemAuthority($a)){ $ids=array_keys($byId);sort($ids);return$ids; }
         $ids=[$a->employeeId];$queue=$children[$a->employeeId]??[];$seen=[];$allowed=array_flip(array_values(array_unique(array_merge([(int)$a->branchId],array_map('intval',$a->branchIds)))));
         while($queue){$id=(int)array_shift($queue);if(isset($seen[$id]))continue;$seen[$id]=1;if(!isset($byId[$id]))continue;$branch=(int)$byId[$id]['assigned_branch_id'];if(!isset($allowed[$branch]))continue;$ids[]=$id;foreach(($children[$id]??[]) as$child)$queue[]=(int)$child;}
         $ids=array_values(array_unique(array_map('intval',$ids)));sort($ids);return$ids;
