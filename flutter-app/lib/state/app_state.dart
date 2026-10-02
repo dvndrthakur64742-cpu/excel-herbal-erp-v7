@@ -79,14 +79,12 @@ class AppState {
   bool get managementDashboardVisible =>
       sectionVisible('team') && can('reports.view');
 
-  /// This business-facing workspace contains self-service, communication and
-  /// employee-login management only. Technical administration capabilities do
-  /// not make the workspace visible by themselves.
+  /// Legacy tools are limited to self-service and employee-login management.
+  /// Communication has its own canonical module and must not expose this route.
   bool get erpToolsVisible => canAny(const [
         'workforce.attendance.self',
         'workforce.leave.self',
         'workforce.field_visit.self',
-        'communication.view',
         'organization.employee.manage',
       ]);
 
