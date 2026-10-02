@@ -116,4 +116,28 @@ void main() {
     expect(branch, contains('HierarchyScope::hasCompanyWideSystemAuthority'));
   });
 
+  test('canonical communication and password UX stay aligned', () {
+    final tools = File(
+      'lib/screens/tools/erp_tools_screen.dart',
+    ).readAsStringSync();
+    final appState = File('lib/state/app_state.dart').readAsStringSync();
+    final shell = File('lib/shell/app_shell.dart').readAsStringSync();
+    final navigation = File(
+      '../backend/excel-herbal-erp-v7/src/App/NavigationProjection.php',
+    ).readAsStringSync();
+
+    expect(tools, contains('includeLegacyCommunication = false'));
+    expect(
+      tools,
+      contains(
+        'widget.includeLegacyCommunication &&',
+      ),
+    );
+    expect(tools, contains('password.text.length < 10'));
+    expect(tools, contains('Password must contain at least 10 characters.'));
+    expect(appState, isNot(contains("'communication.view',")));
+    expect(navigation, contains("['id'=>'tasks','label'=>'My Tasks']"));
+    expect(shell, contains("_desktopTile('tasks', 'My Tasks'"));
+  });
+
 }
