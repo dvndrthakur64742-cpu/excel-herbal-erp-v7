@@ -5,6 +5,7 @@ import '../../core/api_paths.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
+import '../../widgets/business_datetime_field.dart';
 import '../../widgets/module_workspace.dart';
 
 class ActingDutyAdminPanel extends ConsumerStatefulWidget {
@@ -273,18 +274,14 @@ class _ActingDutyAdminPanelState extends ConsumerState<ActingDutyAdminPanel> {
                     onChanged: (value) => setLocal(() => action = value),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateTimeField(
                     controller: start,
-                    decoration: const InputDecoration(
-                      labelText: 'Starts At YYYY-MM-DDTHH:MM',
-                    ),
+                    label: 'Starts At',
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateTimeField(
                     controller: end,
-                    decoration: const InputDecoration(
-                      labelText: 'Ends At YYYY-MM-DDTHH:MM',
-                    ),
+                    label: 'Ends At',
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -492,12 +489,7 @@ class _ActingDutyAdminPanelState extends ConsumerState<ActingDutyAdminPanel> {
     });
   }
 
-  String _localDateTime(DateTime value) =>
-      '${value.year.toString().padLeft(4, '0')}-'
-      '${value.month.toString().padLeft(2, '0')}-'
-      '${value.day.toString().padLeft(2, '0')}T'
-      '${value.hour.toString().padLeft(2, '0')}:'
-      '${value.minute.toString().padLeft(2, '0')}';
+  String _localDateTime(DateTime value) => BusinessDateTimeField.format(value);
 
   String _actionLabel(String action) => switch (action) {
         'daily.approve' => 'Approve Daily Order',
