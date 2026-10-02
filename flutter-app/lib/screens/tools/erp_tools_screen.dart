@@ -12,9 +12,14 @@ import '../../theme/excel_brand.dart';
 import '../../state/app_state.dart';
 
 class ErpToolsScreen extends ConsumerStatefulWidget {
-  const ErpToolsScreen({super.key, this.accountOnly = false});
+  const ErpToolsScreen({
+    super.key,
+    this.accountOnly = false,
+    this.includeLegacyCommunication = false,
+  });
 
   final bool accountOnly;
+  final bool includeLegacyCommunication;
 
   @override
   ConsumerState<ErpToolsScreen> createState() => _ErpToolsScreenState();
@@ -31,6 +36,10 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       if (!widget.accountOnly && app.can('workforce.attendance.self'))
         ('Duty', Icons.location_on_outlined, _dutyTab(app)),
       ('My Account', Icons.badge_outlined, _accountTab(app)),
+      if (!widget.accountOnly &&
+          widget.includeLegacyCommunication &&
+          app.can('communication.view'))
+        ('Communication', Icons.notifications_outlined, _communicationTab(app)),
       if (!widget.accountOnly && app.can('organization.employee.manage'))
         ('Team Access', Icons.manage_accounts_outlined, _teamAccessTab()),
     ];
