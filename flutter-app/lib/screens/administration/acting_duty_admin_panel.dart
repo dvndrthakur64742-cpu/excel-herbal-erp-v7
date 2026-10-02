@@ -383,18 +383,14 @@ class _ActingDutyAdminPanelState extends ConsumerState<ActingDutyAdminPanel> {
                   ),
                   const SizedBox(height: 10),
                 ],
-                TextField(
+                BusinessDateTimeField(
                   controller: start,
-                  decoration: const InputDecoration(
-                    labelText: 'Starts At YYYY-MM-DDTHH:MM',
-                  ),
+                  label: 'Starts At',
                 ),
                 const SizedBox(height: 10),
-                TextField(
+                BusinessDateTimeField(
                   controller: end,
-                  decoration: const InputDecoration(
-                    labelText: 'Ends At YYYY-MM-DDTHH:MM',
-                  ),
+                  label: 'Ends At',
                 ),
                 const SizedBox(height: 10),
                 TextField(
