@@ -2,6 +2,8 @@ name: ERP correction verification
 on:
   push:
     branches: [codex/erp735-document-integration]
+  pull_request:
+    branches: [codex/erp735-document-integration]
   workflow_dispatch:
     inputs:
       controlled_uat_site_url:
@@ -24,7 +26,7 @@ defaults:
     shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
 jobs:
   php-regression:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
+    if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/erp735-document-integration') && (github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[deploy-only-session-race]'))
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -311,7 +313,7 @@ jobs:
             }
           }
   flutter-integration:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration' && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
+    if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/erp735-document-integration') && (github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[deploy-only-session-race]'))
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
