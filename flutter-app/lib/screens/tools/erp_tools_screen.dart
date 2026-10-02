@@ -660,17 +660,6 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     );
   }
 
-  Widget _sectionTitle(String value) => Padding(
-        padding: const EdgeInsets.only(top: 14, bottom: 6),
-        child: Text(
-          value,
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
-        ),
-      );
-
   Future<void> _createHoliday(AppState app) async {
     final name = TextEditingController();
     final date = TextEditingController(text: _today());
