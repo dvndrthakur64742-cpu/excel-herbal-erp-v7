@@ -140,4 +140,14 @@ void main() {
     expect(shell, contains("_desktopTile('tasks', 'My Tasks'"));
   });
 
+  test('management dashboard loads independent summaries concurrently', () {
+    final home = File('lib/screens/home/home_screen.dart').readAsStringSync();
+
+    expect(home, contains('final salesFuture = _safeRows('));
+    expect(home, contains("app.can('daily_order.others')"));
+    expect(home, contains("app.can('performance.view')"));
+    expect(home, contains('final rows = await Future.wait(['));
+    expect(home, contains('Future<List<Map<String, dynamic>>> _safeRows'));
+  });
+
 }
