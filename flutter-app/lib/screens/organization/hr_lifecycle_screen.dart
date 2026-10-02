@@ -9,6 +9,7 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
+import '../../widgets/business_date_field.dart';
 
 class HrLifecycleScreen extends ConsumerStatefulWidget {
   const HrLifecycleScreen({super.key, this.embedded = false});
@@ -619,11 +620,9 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                     decoration: const InputDecoration(labelText: 'Employee Code'),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateField(
                     controller: joining,
-                    decoration: const InputDecoration(
-                      labelText: 'Expected Joining Date YYYY-MM-DD',
-                    ),
+                    label: 'Expected Joining Date',
                   ),
                 ],
                 const SizedBox(height: 10),
@@ -713,11 +712,9 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                       decoration: const InputDecoration(labelText: 'Employee Code'),
                     ),
                     const SizedBox(height: 10),
-                    TextField(
+                    BusinessDateField(
                       controller: joining,
-                      decoration: const InputDecoration(
-                        labelText: 'Joining Date YYYY-MM-DD',
-                      ),
+                      label: 'Joining Date',
                     ),
                     if (_salaryManage(app)) ...[
                       const SizedBox(height: 10),
@@ -1113,11 +1110,9 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                     onChanged: (v) => setLocal(() => employeeId = v),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateField(
                     controller: date,
-                    decoration: const InputDecoration(
-                      labelText: 'Separation Date YYYY-MM-DD',
-                    ),
+                    label: 'Separation Date',
                   ),
                   const SizedBox(height: 10),
                   TextField(
