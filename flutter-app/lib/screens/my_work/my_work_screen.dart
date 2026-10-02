@@ -125,7 +125,6 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     }
     if (app.canAny(const [
       'workforce.leave.self',
-      'workforce.leave.manage',
       'workforce.field_visit.self',
     ])) {
       tabs.add(('Leave & Visit', _leaveVisit()));
