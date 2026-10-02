@@ -7,6 +7,7 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
+import '../../widgets/business_date_field.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 
@@ -382,11 +383,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        TextField(
+                        BusinessDateField(
                           controller: effective,
-                          decoration: const InputDecoration(
-                            labelText: 'Effective From YYYY-MM-DD',
-                          ),
+                          label: 'Effective From',
                         ),
                         const SizedBox(height: 10),
                         TextField(
@@ -907,11 +906,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                         setLocal(() => paymentAccountId = value),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateField(
                     controller: paymentDate,
-                    decoration: const InputDecoration(
-                      labelText: 'Payment Date (YYYY-MM-DD)',
-                    ),
+                    label: 'Payment Date',
                   ),
                   if (validation != null) ...[
                     const SizedBox(height: 8),
