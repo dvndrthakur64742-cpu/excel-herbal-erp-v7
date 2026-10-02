@@ -68,6 +68,13 @@ function bc_seed_payroll(Eh7IntegrationWpdb $db, bool $pendingSalary = false): v
         'assigned_branch_id' => 1, 'full_name' => 'Concurrency Employee', 'monthly_salary' => 1000,
         'joining_date' => '2026-01-01', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00',
     ]);
+    // The synthetic actor must exist in the hierarchy engine. Its future joining
+    // date keeps it outside the September payroll snapshot under test.
+    bc_insert($db, 'employees', [
+        'id' => 101, 'company_id' => 1, 'employee_code' => 'ADMIN101', 'designation_code' => 'SYSADMIN',
+        'assigned_branch_id' => 1, 'full_name' => 'Concurrency Admin', 'monthly_salary' => 0,
+        'joining_date' => '2026-10-01', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00',
+    ]);
     bc_insert($db, 'employee_branch_history', [
         'id' => 1, 'company_id' => 1, 'employee_id' => 10, 'branch_id' => 1,
         'effective_from' => '2026-01-01', 'effective_to' => null, 'reason' => 'Initial assignment',
