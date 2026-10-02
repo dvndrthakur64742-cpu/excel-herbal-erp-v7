@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
-import '../../core/app_config.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -11,7 +10,6 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 
-import 'compensation_workspace.dart';
 import 'payroll_policy_dialog.dart';
 
 class PerformanceScreen extends ConsumerStatefulWidget {
@@ -89,28 +87,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
         ),
       ));
     }
-    // Advanced compensation APIs are contract-stage in 7.3.5. Keep the
-    // workspace available for UAT builds only; production must not expose an
-    // incomplete workflow even if an external/misconfigured capability string
-    // is present in bootstrap data.
-    if (AppConfig.isUat &&
-        app.canAny(const [
-          'salary.view',
-          'salary.manage',
-          'salary.approve',
-          'rewards.view',
-          'rewards.manage',
-          'rewards.approve',
-          'rewards.pay',
-          'promotion.view',
-          'promotion.request',
-          'promotion.approve',
-        ])) {
-      tabs.add((
-        'Compensation',
-        const CompensationWorkspace(),
-      ));
-    }
+    // Salary structures, rewards and promotions remain design-contract work
+    // until backend routes, persistence and server capabilities are implemented.
+    // Do not expose an interactive UAT workflow that can only fail at runtime.
     if (app.can('organization.employee.view') &&
         app.canAny(const [
           'payroll.salary.view',
