@@ -138,7 +138,7 @@ uat_seed($wpdb);
 $self = uat_actor(10, [1], [Capabilities::ATT_SELF, Capabilities::DAILY_SELF], 'FE');
 $manager = uat_actor(20, [1,2], [
     Capabilities::DAILY_APPROVE,Capabilities::DAILY_ISSUE,Capabilities::DAILY_REVIEW,
-    Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE,Capabilities::HR_VIEW,
+    Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE,Capabilities::EMP_DOCUMENT_DOWNLOAD,Capabilities::EMP_DOCUMENT_MANAGE,Capabilities::HR_VIEW,
     Capabilities::INVENTORY_VIEW,Capabilities::TRANSFER_RECEIVE,Capabilities::EXPENSE_APPROVE,
     Capabilities::PAYROLL_APPROVE,Capabilities::PAYROLL_PAY,
 ], 'SYSADMIN');
