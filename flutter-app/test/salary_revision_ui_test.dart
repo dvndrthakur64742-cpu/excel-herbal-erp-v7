@@ -10,9 +10,10 @@ void main() {
 
     expect(paths, contains('salaryRevisions(int employeeId)'));
     expect(paths, contains('salaryRevisionReview(int id)'));
-    expect(screen, contains("label: const Text('Salary Revisions')"));
+    expect(screen, contains("title: const Text('Salary Revisions')"));
     expect(screen, contains('Salary revision submitted for independent approval.'));
-    expect(screen, contains("app.can('payroll.approve')"));
+    expect(screen, contains("app.can('payroll.salary.approve')"));
+    expect(screen, contains("app.can('payroll.salary.manage')"));
     expect(screen, contains('creatorId != currentActorId'));
     expect(screen, contains('employeeId != currentActorId'));
     expect(

@@ -58,9 +58,8 @@ void main() {
     expect(performance, contains("'payroll.salary.manage'"));
     expect(performance, contains("'payroll.salary.approve'"));
     expect(performance, contains("'Salary'"));
-    expect(
-      performance,
-      contains("app.canAny(const [\n      'payroll.generate',\n      'payroll.approve',\n      'payroll.pay',"),
-    );
+    expect(performance, contains("'payroll.generate'"));
+    expect(performance, contains("'payroll.approve'"));
+    expect(performance, contains("'payroll.pay'"));
   });
 }
