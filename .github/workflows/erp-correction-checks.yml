@@ -877,3 +877,51 @@ jobs:
           name: EH7-UAT-Runtime-Screen-Evidence
           path: dist/uat-runtime-screen-smoke/EVIDENCE.json
           if-no-files-found: warn
+
+  uat-private-document-http-smoke:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
+    needs: [deploy-uat-current-erp]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify controlled UAT staging environment
+        env:
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $health = Invoke-RestMethod -UseBasicParsing -Uri ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+          $data = if ($health.data) { $health.data } else { $health }
+          if ([string]$data.environment -ne 'staging') { throw ('Private-document smoke refuses non-staging environment: ' + [string]$data.environment) }
+          if ([string]$data.source_head -ne $env:GITHUB_SHA) { throw ('Private-document smoke source mismatch: ' + [string]$data.source_head) }
+          Write-Host "PASS private_document_target environment=staging source_head=$($data.source_head)"
+      - name: Multipart upload encrypted authenticated download and deactivate
+        env:
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
+            throw 'EH7_STAGING_UAT_MOBILE / EH7_STAGING_UAT_PASSWORD secrets are required.'
+          }
+          $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
+          & '.github/scripts/staging-private-document-smoke.ps1' -ApiBase $apiBase -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Print private-document evidence
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath 'dist/staging-private-document/EVIDENCE.json' -PathType Leaf) {
+            Get-Content -LiteralPath 'dist/staging-private-document/EVIDENCE.json'
+          } else {
+            Write-Host 'INFO private-document evidence file was not created.'
+          }
+      - name: Upload private-document evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-UAT-Private-Document-HTTP-Evidence
+          path: dist/staging-private-document/EVIDENCE.json
+          if-no-files-found: warn
+
