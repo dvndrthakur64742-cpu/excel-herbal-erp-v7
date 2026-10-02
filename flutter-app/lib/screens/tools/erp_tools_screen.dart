@@ -31,8 +31,6 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       if (!widget.accountOnly && app.can('workforce.attendance.self'))
         ('Duty', Icons.location_on_outlined, _dutyTab(app)),
       ('My Account', Icons.badge_outlined, _accountTab(app)),
-      if (!widget.accountOnly && app.can('communication.view'))
-        ('Communication', Icons.notifications_outlined, _communicationTab(app)),
       if (!widget.accountOnly && app.can('organization.employee.manage'))
         ('Team Access', Icons.manage_accounts_outlined, _teamAccessTab()),
     ];
@@ -41,7 +39,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.accountOnly ? 'Account & Security' : 'My Account & Duty'),
+          title: Text(widget.accountOnly ? 'Account & Security' : 'Work & Account Tools'),
           actions: [
             IconButton(
               tooltip: 'Refresh',
@@ -1179,8 +1177,8 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
             ),
             FilledButton(
               onPressed: () async {
-                if (password.text.length < 8) {
-                  _msg('Password must contain at least 8 characters.');
+                if (password.text.length < 10) {
+                  _msg('Password must contain at least 10 characters.');
                   return;
                 }
                 try {
