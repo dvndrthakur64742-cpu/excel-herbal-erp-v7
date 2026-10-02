@@ -161,11 +161,9 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    TextField(
+                    BusinessDateField(
                       controller: joining,
-                      decoration: const InputDecoration(
-                        labelText: 'Joining Date YYYY-MM-DD',
-                      ),
+                      label: 'Joining Date',
                     ),
                   ],
                 ),
@@ -375,11 +373,9 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                   onChanged: (v) => setLocal(() => branchId = v),
                 ),
                 const SizedBox(height: 10),
-                TextField(
+                BusinessDateField(
                   controller: date,
-                  decoration: const InputDecoration(
-                    labelText: 'Effective Date YYYY-MM-DD',
-                  ),
+                  label: 'Transfer Effective Date',
                 ),
                 const SizedBox(height: 10),
                 TextField(
