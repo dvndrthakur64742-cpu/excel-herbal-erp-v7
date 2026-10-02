@@ -199,7 +199,7 @@ e2_case('e2_missing_capability_mutations_fail_closed',function()use($limited,$wp
 });
 
 e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
-    $master=e2_actor(20,[Capabilities::PRODUCT_MANAGE,Capabilities::SALES_CREATE,Capabilities::PURCHASE_CREATE,Capabilities::EMP_MANAGE,Capabilities::PERFORMANCE_MANAGE]);
+    $master=e2_actor(20,[Capabilities::PRODUCT_MANAGE,Capabilities::SALES_CREATE,Capabilities::PURCHASE_CREATE,Capabilities::EMP_MANAGE,Capabilities::EMP_DOCUMENT_MANAGE,Capabilities::SALARY_MANAGE,Capabilities::PERFORMANCE_MANAGE]);
     $cases=[
         ['expiry_requires_batch',fn()=>e2_dispatch('catalog.product_create',$master,[],[
             'sku'=>'EXP-OFF','name'=>'Expiry Invalid','uom'=>'PCS','batch_tracking'=>'off','expiry_tracking'=>true,
