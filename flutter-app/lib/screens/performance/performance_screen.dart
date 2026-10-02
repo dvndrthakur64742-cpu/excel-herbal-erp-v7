@@ -969,68 +969,123 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
   Future<void> _createTarget() async {
     final app = ref.read(appStateProvider);
-    if (app.currentBranchId == null) return;
-    final employee = TextEditingController();
+    final branchId = app.currentBranchId;
+    if (branchId == null) return;
     final points = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New Performance Target'),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: employee,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Employee ID'),
+    try {
+      final rawEmployees = await ref.read(apiClientProvider).get(
+        ApiPaths.performanceTargetEmployees,
+        query: {'branch_id': branchId},
+      );
+      final employees = (rawEmployees as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (!mounted) return;
+      if (employees.isEmpty) {
+        setState(() => message = 'No eligible employees in your reporting scope.');
+        return;
+      }
+
+      int? employeeId;
+      double? targetPoints;
+      String? validation;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: const Text('New Performance Target'),
+            content: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: employeeId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Employee'),
+                    items: employees
+                        .map(
+                          (employee) => DropdownMenuItem<int>(
+                            value: int.parse('${employee['id']}'),
+                            child: Text(
+                              '${employee['full_name']} · '
+                              '${employee['employee_code']} · '
+                              '${employee['designation_code']}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setLocal(() {
+                      employeeId = value;
+                      validation = null;
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: points,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Target Points'),
+                    onChanged: (_) => setLocal(() => validation = null),
+                  ),
+                  if (validation != null) ...[
+                    const SizedBox(height: 8),
+                    Text(validation!),
+                  ],
+                ],
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: points,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Target Points'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final parsed = double.tryParse(points.text.trim());
+                  if (employeeId == null) {
+                    setLocal(() => validation = 'Select an employee.');
+                  } else if (parsed == null || !parsed.isFinite || parsed < 0) {
+                    setLocal(
+                      () => validation =
+                          'Target points must be a valid non-negative number.',
+                    );
+                  } else {
+                    targetPoints = parsed;
+                    Navigator.pop(context, true);
+                  }
+                },
+                child: const Text('Create'),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      try {
-        await ref.read(apiClientProvider).post(
-          ApiPaths.performanceTargets,
-          data: {
-            'branch_id': app.currentBranchId,
-            'employee_id': int.parse(employee.text.trim()),
-            'target_points': double.parse(points.text.trim()),
-            'period_start': app.businessMonthStart,
-            'period_end': app.businessDate,
-          },
-        );
-        if (mounted) {
-          setState(() {
-            message = 'Performance target created.';
-            refresh++;
-          });
-        }
-      } catch (e) {
-        if (mounted) setState(() => message = UiError.message(e));
+      );
+      if (ok != true || employeeId == null || targetPoints == null) return;
+
+      await ref.read(apiClientProvider).post(
+        ApiPaths.performanceTargets,
+        data: {
+          'branch_id': branchId,
+          'employee_id': employeeId,
+          'target_points': targetPoints,
+          'period_start': app.businessMonthStart,
+          'period_end': app.businessDate,
+        },
+      );
+      if (mounted) {
+        setState(() {
+          message = 'Performance target created.';
+          refresh++;
+        });
       }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      points.dispose();
     }
-    employee.dispose();
-    points.dispose();
   }
 
   Future<void> _targetAction(Map<String, dynamic> row) async {

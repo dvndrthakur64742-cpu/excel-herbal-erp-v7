@@ -68,6 +68,7 @@ abstract final class ApiPaths {
       salaryStructures = '/payroll/salary-structures',
       performanceSummary = '/performance/summary',
       performanceTargets = '/performance/targets',
+      performanceTargetEmployees = '/performance/target-employees',
       performanceRewards = '/performance/rewards',
       performancePromotions = '/performance/promotions';
 

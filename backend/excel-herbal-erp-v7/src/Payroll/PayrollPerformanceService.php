@@ -74,6 +74,23 @@ final class PayrollPerformanceService
         ), ARRAY_A);
     }
 
+    public static function targetEmployees(Actor $a, int $branch): array
+    {
+        Guard::branch($a, $branch, Capabilities::PERFORMANCE_MANAGE);
+        $visible = HierarchyScope::visibleEmployeeIds($a, $branch);
+        if (!$visible) return [];
+        $placeholders = implode(',', array_fill(0, count($visible), '%d'));
+        $args = array_merge([$a->companyId, $branch], $visible);
+        return (array) Db::wpdb()->get_results(Db::wpdb()->prepare(
+            "SELECT id,employee_code,full_name,designation_code
+             FROM ".Db::table('employees')."
+             WHERE company_id=%d AND assigned_branch_id=%d AND status='active'
+               AND id IN ({$placeholders})
+             ORDER BY full_name,id",
+            ...$args
+        ), ARRAY_A);
+    }
+
     public static function generate(Actor $a, int $branch, string $from, string $to): array
     {
         Guard::branch($a, $branch, Capabilities::PAYROLL_GENERATE);

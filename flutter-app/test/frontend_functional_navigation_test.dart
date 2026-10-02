@@ -71,6 +71,34 @@ void main() {
     expect(screen, contains('calculation version missing'));
   });
 
+  test('performance target picker is hierarchy scoped and hides raw employee ids', () {
+    final screen = File(
+      'lib/screens/performance/performance_screen.dart',
+    ).readAsStringSync();
+    final paths = File('lib/core/api_paths.dart').readAsStringSync();
+    final routes = File(
+      '../backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php',
+    ).readAsStringSync();
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Payroll/PayrollPerformanceService.php',
+    ).readAsStringSync();
+
+    expect(paths, contains("performanceTargetEmployees = '/performance/target-employees'"));
+    expect(screen, contains('ApiPaths.performanceTargetEmployees'));
+    expect(screen, contains("labelText: 'Employee'"));
+    expect(screen, isNot(contains("labelText: 'Employee ID'")));
+    expect(
+      routes,
+      contains(
+        "['GET','/performance/target-employees','performance.target_employees',true]",
+      ),
+    );
+    expect(service, contains('public static function targetEmployees'));
+    expect(service, contains('Capabilities::PERFORMANCE_MANAGE'));
+    expect(service, contains('HierarchyScope::visibleEmployeeIds(\$a, \$branch)'));
+    expect(service, contains('SELECT id,employee_code,full_name,designation_code'));
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
