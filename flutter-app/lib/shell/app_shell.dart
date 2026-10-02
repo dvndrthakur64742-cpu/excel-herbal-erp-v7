@@ -182,7 +182,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 if (app.sectionVisible('my_work'))
                   _desktopTile('my_work', 'My Work', Icons.work_outline),
                 if (app.can('communication.view'))
-                  _desktopTile('tasks', 'Tasks', Icons.task_alt_outlined),
+                  _desktopTile('tasks', 'My Tasks', Icons.task_alt_outlined),
                 if (_quickActionsVisible(app) ||
                     _approvalVisible(app) ||
                     !app.businessAccessBlocked ||
