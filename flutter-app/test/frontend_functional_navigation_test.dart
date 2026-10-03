@@ -675,6 +675,23 @@ void main() {
     );
   });
 
+  test('HR candidate setup can read designation master without employee-view coupling', () {
+    final hr = File(
+      'lib/screens/organization/hr_lifecycle_screen.dart',
+    ).readAsStringSync();
+    final masterData = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationMasterDataService.php',
+    ).readAsStringSync();
+
+    expect(hr, contains('apiClientProvider).get(ApiPaths.designations)'));
+    expect(
+      masterData,
+      contains(
+        'Guard::any(\$a,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE,Capabilities::HR_MANAGE])',
+      ),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
