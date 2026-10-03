@@ -146,6 +146,33 @@ void main() {
     );
   });
 
+  test('acting duty mutations cannot bypass reporting hierarchy', () {
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Administration/ActingDutyService.php',
+    ).readAsStringSync();
+
+    expect(
+      service,
+      contains('HierarchyScope::assertCanViewEmployee(\$a,\$delegator)'),
+    );
+    expect(
+      service,
+      contains('HierarchyScope::assertCanViewEmployee(\$a,\$delegate)'),
+    );
+    expect(
+      service,
+      contains('HierarchyScope::assertCanViewEmployee(\$a,\$employee)'),
+    );
+    expect(
+      service,
+      contains("HierarchyScope::canViewEmployee(\$a,(int)\$r['employee_id'])"),
+    );
+    expect(
+      service,
+      contains("HierarchyScope::canViewEmployee(\$a,(int)\$row['delegate_employee_id'])"),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
