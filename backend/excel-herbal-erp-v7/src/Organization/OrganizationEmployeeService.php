@@ -102,7 +102,7 @@ final class OrganizationEmployeeService{
    if($old===$managerId)return['id'=>$employeeId,'reporting_employee_id'=>$managerId,'unchanged'=>true];
    if($managerId!==null){
     $m=$db->get_row($db->prepare("SELECT id,assigned_branch_id,reporting_employee_id FROM {$t} WHERE id=%d AND company_id=%d AND status='active'",$managerId,$a->companyId),ARRAY_A);
-    if(!$m)throw new DomainException('Reporting employee not found.','reporting_employee_invalid',422);Guard::branch($a,(int)$m['assigned_branch_id'],Capabilities::EMP_MANAGE);
+    if(!$m)throw new DomainException('Reporting employee not found.','reporting_employee_invalid',422);Guard::branch($a,(int)$m['assigned_branch_id'],Capabilities::EMP_MANAGE);HierarchyScope::assertCanViewEmployee($a,$managerId);
     $seen=[];$cursor=$managerId;$depth=0;
     while($cursor&&$depth<100){if($cursor===$employeeId)throw new DomainException('Reporting-manager change would create a reporting cycle.','reporting_cycle',409);if(isset($seen[$cursor]))throw new DomainException('Existing reporting hierarchy contains a cycle.','reporting_cycle',409);$seen[$cursor]=1;$cursor=(int)$db->get_var($db->prepare("SELECT COALESCE(reporting_employee_id,0) FROM {$t} WHERE id=%d AND company_id=%d AND status='active'",$cursor,$a->companyId));$depth++;}
     if($depth>=100)throw new DomainException('Reporting hierarchy is too deep.','reporting_hierarchy_invalid',409);

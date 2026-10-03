@@ -173,6 +173,21 @@ void main() {
     );
   });
 
+  test('reporting manager changes cannot target hidden employees', () {
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationEmployeeService.php',
+    ).readAsStringSync();
+
+    expect(
+      service,
+      contains('HierarchyScope::assertCanViewEmployee(\$a,\$managerId)'),
+    );
+    expect(
+      service,
+      contains('HierarchyScope::assertCanManageEmployeeAccess(\$a,\$employeeId)'),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
