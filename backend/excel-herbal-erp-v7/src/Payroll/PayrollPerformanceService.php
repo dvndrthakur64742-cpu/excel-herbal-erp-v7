@@ -59,12 +59,19 @@ final class PayrollPerformanceService
 
     public static function targets(Actor $a, int $branch): array
     {
-        Guard::branch($a, $branch, Capabilities::PERFORMANCE_VIEW);
+        Guard::branchAny($a, $branch, [Capabilities::PERFORMANCE_VIEW,Capabilities::PERFORMANCE_MANAGE]);
         $db = Db::wpdb();
         $peerView = self::canViewPeerPerformance($a);
-        $where = $peerView ? '' : ' AND t.employee_id=%d';
         $args = [$a->companyId, $branch];
-        if (!$peerView) $args[] = $a->employeeId;
+        if ($peerView) {
+            $visible = HierarchyScope::visibleEmployeeIds($a, $branch);
+            if (!$visible) return [];
+            $where = ' AND t.employee_id IN ('.implode(',', array_fill(0, count($visible), '%d')).')';
+            $args = array_merge($args, $visible);
+        } else {
+            $where = ' AND t.employee_id=%d';
+            $args[] = $a->employeeId;
+        }
         return (array) $db->get_results($db->prepare(
             "SELECT t.*,e.full_name employee_name FROM ".Db::table('performance_targets')." t
              JOIN ".Db::table('employees')." e ON e.id=t.employee_id
@@ -441,6 +448,7 @@ final class PayrollPerformanceService
                 throw new DomainException('Target not found.', 'target_not_found', 404);
             }
             Guard::branch($a, (int) $row['branch_id'], Capabilities::PERFORMANCE_MANAGE);
+            HierarchyScope::assertCanViewEmployee($a, (int) $row['employee_id']);
             if ($row['status'] !== 'draft') {
                 throw new DomainException('Only draft target can be approved.', 'target_state_invalid', 409);
             }

@@ -95,6 +95,22 @@ void main() {
     );
     expect(service, contains('public static function targetEmployees'));
     expect(service, contains('Capabilities::PERFORMANCE_MANAGE'));
+    expect(
+      service,
+      contains(
+        'Guard::branchAny(\$a, \$branch, [Capabilities::PERFORMANCE_VIEW,Capabilities::PERFORMANCE_MANAGE])',
+      ),
+    );
+    expect(
+      service,
+      contains("t.employee_id IN ('.implode(',', array_fill(0, count(\$visible), '%d')).')"),
+    );
+    expect(
+      service,
+      contains(
+        "HierarchyScope::assertCanViewEmployee(\$a, (int) \$row['employee_id'])",
+      ),
+    );
     expect(service, contains('HierarchyScope::visibleEmployeeIds(\$a, \$branch)'));
     expect(service, contains('SELECT id,employee_code,full_name,designation_code'));
   });
