@@ -176,6 +176,18 @@ void main() {
         ),
         isNull,
       );
+      expect(
+        TransactionGuardrails.employeeCreate(
+          employeeCode: 'E-101',
+          fullName: 'No Extra Role Employee',
+          designationCode: 'FIELD_EXECUTIVE',
+          roleId: null,
+          mobile: '',
+          email: '',
+          joiningDate: '2026-09-30',
+        ),
+        isNull,
+      );
     });
 
     test('product creation validates master structure', () {

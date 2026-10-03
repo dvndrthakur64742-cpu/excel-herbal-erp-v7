@@ -131,8 +131,6 @@ abstract final class TransactionGuardrails {
     if (designationCode == null || designationCode.trim().isEmpty) {
       return 'Designation is required.';
     }
-    if (roleId == null) return 'Role is required.';
-
     final rawMobile = mobile.trim();
     if (rawMobile.isNotEmpty) {
       if (!RegExp(r'^[0-9+\-\s()]+$').hasMatch(rawMobile)) {

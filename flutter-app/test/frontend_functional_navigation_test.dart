@@ -188,6 +188,35 @@ void main() {
     );
   });
 
+  test('employee creation keeps designation baseline and extra role optional', () {
+    final screen = File(
+      'lib/screens/organization/organization_employees.dart',
+    ).readAsStringSync();
+    final guardrails = File(
+      'lib/core/transaction_guardrails.dart',
+    ).readAsStringSync();
+    final masterData = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationMasterDataService.php',
+    ).readAsStringSync();
+
+    expect(
+      screen,
+      contains("final canManageAccess = app.can('administration.access.manage')"),
+    );
+    expect(screen, contains("labelText: 'Additional Role (optional)'"));
+    expect(
+      screen,
+      contains("canManageAccess\n            ? api.get(ApiPaths.roles)"),
+    );
+    expect(guardrails, isNot(contains("return 'Role is required.'")));
+    expect(
+      masterData,
+      contains(
+        'public static function roles(Actor \$a):array{Guard::cap(\$a,Capabilities::ACCESS_MANAGE);',
+      ),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

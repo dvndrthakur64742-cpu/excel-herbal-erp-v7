@@ -43,9 +43,12 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
     try {
+      final canManageAccess = app.can('administration.access.manage');
       final results = await Future.wait([
         api.get(ApiPaths.designations),
-        api.get(ApiPaths.roles),
+        canManageAccess
+            ? api.get(ApiPaths.roles)
+            : Future<dynamic>.value(const <dynamic>[]),
         api.get(ApiPaths.employees, query: {'branch_id': app.currentBranchId}),
       ]);
       final designations = (results[0] as List)
@@ -105,20 +108,24 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       onChanged: (v) => setLocal(() => designationCode = v),
                     ),
                     const SizedBox(height: 10),
-                    DropdownButtonFormField<int?>(
-                      initialValue: roleId,
-                      decoration: const InputDecoration(labelText: 'Role'),
-                      items: roles
-                          .map(
-                            (r) => DropdownMenuItem<int?>(
-                              value: int.parse('${r['id']}'),
-                              child: Text('${r['name']}'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setLocal(() => roleId = v),
-                    ),
-                    const SizedBox(height: 10),
+                    if (canManageAccess) ...[
+                      DropdownButtonFormField<int?>(
+                        initialValue: roleId,
+                        decoration: const InputDecoration(
+                          labelText: 'Additional Role (optional)',
+                        ),
+                        items: roles
+                            .map(
+                              (r) => DropdownMenuItem<int?>(
+                                value: int.parse('${r['id']}'),
+                                child: Text('${r['name']}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) => setLocal(() => roleId = v),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     DropdownButtonFormField<int?>(
                       initialValue: reportingId,
                       decoration: const InputDecoration(
@@ -179,8 +186,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                   context,
                   code.text.trim().isNotEmpty &&
                       name.text.trim().isNotEmpty &&
-                      designationCode != null &&
-                      roleId != null,
+                      designationCode != null,
                 ),
                 child: const Text('Create'),
               ),
