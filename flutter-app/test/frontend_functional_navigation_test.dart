@@ -437,6 +437,31 @@ void main() {
     );
   });
 
+  test('workforce management data follows reporting hierarchy', () {
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Workforce/WorkforceService.php',
+    ).readAsStringSync();
+
+    expect(
+      service,
+      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branch)'),
+    );
+    expect(
+      service,
+      contains('a.employee_id IN ({\$visible})'),
+    );
+    expect(
+      service,
+      contains('lr.employee_id IN ({\$visible})'),
+    );
+    expect(
+      service,
+      contains(
+        "if(\$authority['mode']==='permanent')HierarchyScope::assertCanViewEmployee(\$a,(int)\$r['employee_id'])",
+      ),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
