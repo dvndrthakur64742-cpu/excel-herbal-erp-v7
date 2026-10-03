@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/open_document.dart';
 import '../../core/providers.dart';
+import '../../core/transaction_guardrails.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
@@ -332,6 +333,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       final salary = TextEditingController(text: '0');
       final source = TextEditingController();
       final notes = TextEditingController();
+      String? formError;
       final ok = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
@@ -403,6 +405,18 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                         labelText: 'Notes (optional)',
                       ),
                     ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(dialogContext).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -414,14 +428,19 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
               ),
               FilledButton(
                 onPressed: () {
-                  final hasContact =
-                      mobile.text.trim().isNotEmpty || email.text.trim().isNotEmpty;
-                  Navigator.pop(
-                    dialogContext,
-                    name.text.trim().isNotEmpty &&
-                        designationCode != null &&
-                        hasContact,
+                  final error = TransactionGuardrails.candidateRegister(
+                    fullName: name.text,
+                    designationCode: designationCode,
+                    mobile: mobile.text,
+                    email: email.text,
+                    validateSalary: _salaryManage(app),
+                    salaryText: salary.text,
                   );
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  Navigator.pop(dialogContext, true);
                 },
                 child: const Text('Register'),
               ),
@@ -438,23 +457,8 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
         notes.dispose();
         return;
       }
-      double? offeredSalary;
-      if (_salaryManage(app)) {
-        offeredSalary = double.tryParse(salary.text.trim());
-        if (offeredSalary == null ||
-            !offeredSalary.isFinite ||
-            offeredSalary < 0) {
-          name.dispose();
-          mobile.dispose();
-          email.dispose();
-          salary.dispose();
-          source.dispose();
-          notes.dispose();
-          throw const FormatException(
-            'Offered Monthly Salary must be a valid non-negative amount.',
-          );
-        }
-      }
+      final offeredSalary =
+          _salaryManage(app) ? double.parse(salary.text.trim()) : null;
       final payload = <String, dynamic>{
         'branch_id': branchId,
         'full_name': name.text.trim(),
@@ -720,6 +724,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       final salary = TextEditingController(
         text: '${candidate['offered_monthly_salary'] ?? 0}',
       );
+      String? formError;
       final ok = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
@@ -779,6 +784,18 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                         'Security roles joining ke waqt assign nahi hote. Role assignment Access Management se alag hoti hai.',
                       ),
                     ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(dialogContext).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -789,11 +806,24 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(
-                  dialogContext,
-                  employeeCode.text.trim().isNotEmpty &&
-                      joining.text.trim().isNotEmpty,
-                ),
+                onPressed: () {
+                  String? error;
+                  if (employeeCode.text.trim().isEmpty) {
+                    error = 'Employee Code is required.';
+                  } else if (joining.text.trim().isEmpty) {
+                    error = 'Joining Date is required.';
+                  } else if (_salaryManage(app)) {
+                    error = TransactionGuardrails.nonNegativeMoneyText(
+                      salary.text,
+                      label: 'Monthly Salary',
+                    );
+                  }
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  Navigator.pop(dialogContext, true);
+                },
                 child: const Text('Confirm Joining'),
               ),
             ],
@@ -807,18 +837,8 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
         return;
       }
       final employeeCodeValue = employeeCode.text.trim();
-      double? salaryValue;
-      if (_salaryManage(app)) {
-        salaryValue = double.tryParse(salary.text.trim());
-        if (salaryValue == null || !salaryValue.isFinite || salaryValue < 0) {
-          employeeCode.dispose();
-          joining.dispose();
-          salary.dispose();
-          throw const FormatException(
-            'Monthly Salary must be a valid non-negative amount.',
-          );
-        }
-      }
+      final salaryValue =
+          _salaryManage(app) ? double.parse(salary.text.trim()) : null;
       final payload = <String, dynamic>{
         if (branchId != null) 'branch_id': branchId,
         'employee_code': employeeCodeValue,

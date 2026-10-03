@@ -208,14 +208,11 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                     email: email.text.trim(),
                     joiningDate: joining.text.trim(),
                   );
-                  final salaryValue = canManageSalary
-                      ? double.tryParse(salary.text.trim())
-                      : null;
-                  final salaryError = canManageSalary &&
-                          (salaryValue == null ||
-                              !salaryValue.isFinite ||
-                              salaryValue < 0)
-                      ? 'Monthly Salary must be a valid non-negative amount.'
+                  final salaryError = canManageSalary
+                      ? TransactionGuardrails.nonNegativeMoneyText(
+                          salary.text,
+                          label: 'Monthly Salary',
+                        )
                       : null;
                   final error = validation ?? salaryError;
                   if (error != null) {

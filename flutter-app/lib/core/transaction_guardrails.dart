@@ -117,6 +117,45 @@ abstract final class TransactionGuardrails {
     return null;
   }
 
+  static String? nonNegativeMoneyText(
+    String raw, {
+    required String label,
+  }) {
+    final value = double.tryParse(raw.trim());
+    if (value == null || !value.isFinite || value < 0) {
+      return '$label must be a valid non-negative amount.';
+    }
+    return null;
+  }
+
+  static String? candidateRegister({
+    required String fullName,
+    required String? designationCode,
+    required String mobile,
+    required String email,
+    required bool validateSalary,
+    required String salaryText,
+  }) {
+    if (fullName.trim().isEmpty) return 'Full Name is required.';
+    if (designationCode == null || designationCode.trim().isEmpty) {
+      return 'Proposed Designation is required.';
+    }
+    final contactError = _personContact(
+      mobile: mobile,
+      email: email,
+      requireAny: true,
+      emailError: 'Enter a valid candidate email address.',
+    );
+    if (contactError != null) return contactError;
+    if (validateSalary) {
+      return nonNegativeMoneyText(
+        salaryText,
+        label: 'Offered Monthly Salary',
+      );
+    }
+    return null;
+  }
+
   static String? employeeCreate({
     required String employeeCode,
     required String fullName,
@@ -131,7 +170,30 @@ abstract final class TransactionGuardrails {
     if (designationCode == null || designationCode.trim().isEmpty) {
       return 'Designation is required.';
     }
+    final contactError = _personContact(
+      mobile: mobile,
+      email: email,
+      requireAny: false,
+      emailError: 'Enter a valid employee email address.',
+    );
+    if (contactError != null) return contactError;
+    if (!_validIsoDate(joiningDate)) {
+      return 'Joining Date must be a valid YYYY-MM-DD date.';
+    }
+    return null;
+  }
+
+  static String? _personContact({
+    required String mobile,
+    required String email,
+    required bool requireAny,
+    required String emailError,
+  }) {
     final rawMobile = mobile.trim();
+    final cleanEmail = email.trim();
+    if (requireAny && rawMobile.isEmpty && cleanEmail.isEmpty) {
+      return 'Mobile or Email is required.';
+    }
     if (rawMobile.isNotEmpty) {
       if (!RegExp(r'^[0-9+\-\s()]+$').hasMatch(rawMobile)) {
         return 'Mobile number contains invalid characters.';
@@ -141,14 +203,9 @@ abstract final class TransactionGuardrails {
         return 'Mobile number must contain 8 to 15 digits.';
       }
     }
-
-    final cleanEmail = email.trim();
     if (cleanEmail.isNotEmpty &&
         !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(cleanEmail)) {
-      return 'Enter a valid employee email address.';
-    }
-    if (!_validIsoDate(joiningDate)) {
-      return 'Joining Date must be a valid YYYY-MM-DD date.';
+      return emailError;
     }
     return null;
   }

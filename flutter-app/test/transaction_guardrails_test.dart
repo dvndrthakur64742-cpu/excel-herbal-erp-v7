@@ -190,6 +190,56 @@ void main() {
       );
     });
 
+    test('candidate registration validates contact and salary text', () {
+      expect(
+        TransactionGuardrails.candidateRegister(
+          fullName: 'Candidate',
+          designationCode: 'SM',
+          mobile: '',
+          email: '',
+          validateSalary: false,
+          salaryText: '0',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.candidateRegister(
+          fullName: 'Candidate',
+          designationCode: 'SM',
+          mobile: '9876543210',
+          email: '',
+          validateSalary: true,
+          salaryText: 'abc',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.candidateRegister(
+          fullName: 'Candidate',
+          designationCode: 'SM',
+          mobile: '9876543210',
+          email: 'candidate@example.com',
+          validateSalary: true,
+          salaryText: '25000',
+        ),
+        isNull,
+      );
+      expect(
+        TransactionGuardrails.nonNegativeMoneyText(
+          '-1',
+          label: 'Monthly Salary',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.nonNegativeMoneyText(
+          '0',
+          label: 'Monthly Salary',
+        ),
+        isNull,
+      );
+    });
+
     test('product creation validates master structure', () {
       expect(
         TransactionGuardrails.productCreate(

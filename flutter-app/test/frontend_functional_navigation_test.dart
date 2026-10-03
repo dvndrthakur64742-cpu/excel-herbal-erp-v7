@@ -605,6 +605,45 @@ void main() {
     );
   });
 
+  test('HR lifecycle forms validate before closing dialogs', () {
+    final hr = File(
+      'lib/screens/organization/hr_lifecycle_screen.dart',
+    ).readAsStringSync();
+    final employees = File(
+      'lib/screens/organization/organization_employees.dart',
+    ).readAsStringSync();
+    final guardrails = File(
+      'lib/core/transaction_guardrails.dart',
+    ).readAsStringSync();
+
+    expect(
+      hr,
+      contains("import '../../core/transaction_guardrails.dart';"),
+    );
+    expect(hr, contains('TransactionGuardrails.candidateRegister('));
+    expect(
+      hr,
+      contains('TransactionGuardrails.nonNegativeMoneyText('),
+    );
+    expect(hr, contains('setLocal(() => formError = error);'));
+    expect(
+      employees,
+      contains('TransactionGuardrails.nonNegativeMoneyText('),
+    );
+    expect(
+      guardrails,
+      contains('static String? candidateRegister({'),
+    );
+    expect(
+      guardrails,
+      contains('static String? nonNegativeMoneyText('),
+    );
+    expect(
+      hr,
+      isNot(contains("throw const FormatException(\n            'Offered Monthly Salary")),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
