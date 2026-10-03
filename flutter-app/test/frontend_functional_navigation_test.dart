@@ -516,6 +516,33 @@ void main() {
     );
   });
 
+  test('inventory and employee detail labels stay human readable', () {
+    final inventory = File(
+      'lib/screens/inventory/inventory_screen.dart',
+    ).readAsStringSync();
+    final organization = File(
+      'lib/screens/organization/organization_screen.dart',
+    ).readAsStringSync();
+    final employees = File(
+      'lib/screens/organization/organization_employees.dart',
+    ).readAsStringSync();
+
+    expect(
+      inventory,
+      contains("BusinessFormat.status((result as Map)['status'])"),
+    );
+    expect(
+      organization,
+      contains("import '../../core/business_format.dart';"),
+    );
+    expect(
+      employees,
+      contains(
+        "BusinessFormat.value('designation_code', employee['designation_code'])",
+      ),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

@@ -652,7 +652,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         if (mounted)
           setState(() {
             refresh++;
-            message = 'Transfer receipt: ${(result as Map)['status']}';
+            message = 'Transfer receipt: ${BusinessFormat.status((result as Map)['status'])}';
           });
       }
       for (final c in controllers.values) c.dispose();

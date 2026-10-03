@@ -270,7 +270,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
               title: Text(
                 '${employee['full_name']} · ${employee['employee_code']}',
               ),
-              subtitle: Text('${employee['designation_code']}'),
+              subtitle: Text(BusinessFormat.value('designation_code', employee['designation_code'])),
             ),
             ListTile(
               leading: const Icon(Icons.history),
