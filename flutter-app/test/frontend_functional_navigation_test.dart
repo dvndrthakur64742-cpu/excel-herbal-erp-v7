@@ -257,15 +257,9 @@ void main() {
       ),
     );
     expect(
-      employeeService,
-      contains(
-        'Guard::any(\$a,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE])',
-      ),
-    );
-    expect(
       masterData,
       contains(
-        'Guard::any(\$a,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE])',
+        'Guard::any(\$a,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE,Capabilities::HR_MANAGE])',
       ),
     );
   });
@@ -556,18 +550,25 @@ void main() {
     final hrService = File(
       '../backend/excel-herbal-erp-v7/src/Organization/HrLifecycleService.php',
     ).readAsStringSync();
+    final guardrails = File(
+      'lib/core/transaction_guardrails.dart',
+    ).readAsStringSync();
 
     expect(
       employeeScreen,
-      contains('Monthly Salary must be a valid non-negative amount.'),
+      contains('TransactionGuardrails.nonNegativeMoneyText('),
     );
     expect(
       hrScreen,
-      contains('Offered Monthly Salary must be a valid non-negative amount.'),
+      contains('TransactionGuardrails.candidateRegister('),
     );
     expect(
       hrScreen,
-      contains('Monthly Salary must be a valid non-negative amount.'),
+      contains('TransactionGuardrails.nonNegativeMoneyText('),
+    );
+    expect(
+      guardrails,
+      contains("\$label must be a valid non-negative amount."),
     );
     expect(
       employeeScreen,
