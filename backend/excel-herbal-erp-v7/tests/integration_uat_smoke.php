@@ -152,6 +152,14 @@ function uat_case(string $name, callable $fn): void {
     try { $fn(); echo "PASS {$name}\n"; }
     catch (Throwable $e) { $failed++; echo "FAIL {$name}: ".get_class($e).' '.$e->getMessage()."\n"; }
 }
+function uat_expect_forbidden(callable $fn,string $message): void {
+    try { $fn(); }
+    catch (DomainException $e) {
+        if ($e->codeKey === 'permission_denied' && $e->httpStatus === 403) return;
+        throw $e;
+    }
+    throw new RuntimeException($message);
+}
 
 uat_case('uat_bootstrap_contract_metadata', function () use ($self) {
     $bootstrap = uat_dispatch('bootstrap', $self);
@@ -214,6 +222,10 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
     $cycle=(int)$created['id']; $request=(int)$created['request_id'];
     if (($created['status'] ?? '') !== 'morning_draft') throw new RuntimeException('daily create status mismatch');
     if ((uat_dispatch('daily.submit',$self,['id'=>$cycle])['status'] ?? '') !== 'stock_requested') throw new RuntimeException('daily submit failed');
+    uat_expect_forbidden(
+        fn()=>uat_dispatch('daily.approve',$self,['id'=>$request]),
+        'self-service actor approved own daily request'
+    );
     if ((uat_dispatch('daily.approve',$manager,['id'=>$request])['status'] ?? '') !== 'approved') throw new RuntimeException('daily approve failed');
     $lineId=(int)$wpdb->get_var($wpdb->prepare('SELECT id FROM '.Db::table('daily_request_lines').' WHERE daily_request_id=%d LIMIT 1',$request));
     if ((uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[['request_line_id'=>$lineId,'quantity'=>2]]])['status'] ?? '') !== 'issued') throw new RuntimeException('daily issue failed');
@@ -240,6 +252,10 @@ uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($mak
     $id=(int)$created['id']; uat_dispatch('inventory.transfer_pack',$maker,['id'=>$id]);
     if((uat_dispatch('inventory.transfer_dispatch',$maker,['id'=>$id])['status']??'')!=='in_transit') throw new RuntimeException('transfer dispatch failed');
     $lineId=(int)$wpdb->get_var($wpdb->prepare('SELECT id FROM '.Db::table('stock_transfer_lines').' WHERE transfer_id=%d LIMIT 1',$id));
+    uat_expect_forbidden(
+        fn()=>uat_dispatch('inventory.transfer_receive',$maker,['id'=>$id,'lines'=>[['transfer_line_id'=>$lineId,'received_quantity'=>5]]]),
+        'transfer creator received own transfer without TRANSFER_RECEIVE'
+    );
     if((uat_dispatch('inventory.transfer_receive',$manager,['id'=>$id,'lines'=>[['transfer_line_id'=>$lineId,'received_quantity'=>5]]])['status']??'')!=='received') throw new RuntimeException('transfer receive failed');
     $source=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     $dest=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
@@ -250,6 +266,10 @@ uat_case('uat_finance_expense_maker_checker', function () use ($maker,$manager,$
     $expense=uat_dispatch('finance.expense',$maker,[
         'branch_id'=>1,'expense_head_id'=>1,'amount'=>75,'payment_account_id'=>1,'expense_date'=>uat_date(),'description'=>'UAT controlled expense',
     ]);
+    uat_expect_forbidden(
+        fn()=>uat_dispatch('finance.expense_decision',$maker,['id'=>(int)$expense['id'],'approve'=>true]),
+        'expense maker approved own expense'
+    );
     $decision=uat_dispatch('finance.expense_decision',$manager,['id'=>(int)$expense['id'],'approve'=>true]);
     $journal=(int)($decision['journal_entry_id']??0);
     if(($decision['status']??'')!=='approved'||$journal<1) throw new RuntimeException('expense approval/journal failed');
@@ -263,7 +283,15 @@ uat_case('uat_payroll_generate_approve_pay', function () use ($maker,$manager,$w
     $generated=uat_dispatch('payroll.generate',$maker,['branch_id'=>1,'period_start'=>$date,'period_end'=>$date]);
     $id=(int)$generated['id'];
     if(($generated['status']??'')!=='draft'||(float)$generated['net_total']<=0) throw new RuntimeException('payroll generation failed');
+    uat_expect_forbidden(
+        fn()=>uat_dispatch('payroll.approve',$maker,['id'=>$id]),
+        'payroll generator approved own payroll run'
+    );
     if((uat_dispatch('payroll.approve',$manager,['id'=>$id])['status']??'')!=='approved') throw new RuntimeException('payroll approval failed');
+    uat_expect_forbidden(
+        fn()=>uat_dispatch('payroll.pay',$maker,['id'=>$id,'payment_account_id'=>1,'payment_date'=>$date]),
+        'payroll generator paid payroll without PAYROLL_PAY'
+    );
     $paid=uat_dispatch('payroll.pay',$manager,['id'=>$id,'payment_account_id'=>1,'payment_date'=>$date]);
     if(($paid['status']??'')!=='paid'||(int)($paid['payment_journal_entry_id']??0)<1) throw new RuntimeException('payroll payment failed');
     $status=(string)$wpdb->get_var('SELECT status FROM '.Db::table('payroll_runs').' WHERE id='.$id);
