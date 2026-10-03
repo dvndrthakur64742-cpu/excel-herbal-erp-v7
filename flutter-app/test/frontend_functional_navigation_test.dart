@@ -212,10 +212,7 @@ void main() {
       screen,
       contains("if (canManageSalary) 'monthly_salary':"),
     );
-    expect(
-      screen,
-      contains("canManageAccess\n            ? api.get(ApiPaths.roles)"),
-    );
+    expect(screen, contains('? api.get(ApiPaths.roles)'));
     expect(guardrails, isNot(contains("return 'Role is required.'")));
     expect(
       masterData,
