@@ -887,17 +887,45 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Verify controlled UAT staging environment
+      - name: Classify private-document smoke target
+        id: private_doc_target
         env:
           UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $site = [Uri]$env:UAT_SITE_URL.TrimEnd('/')
           $health = Invoke-RestMethod -UseBasicParsing -Uri ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
           $data = if ($health.data) { $health.data } else { $health }
           if ([string]$data.environment -ne 'staging') { throw ('Private-document smoke refuses non-staging environment: ' + [string]$data.environment) }
           if ([string]$data.source_head -ne $env:GITHUB_SHA) { throw ('Private-document smoke source mismatch: ' + [string]$data.source_head) }
-          Write-Host "PASS private_document_target environment=staging source_head=$($data.source_head)"
+
+          if ($site.Host -ieq 'office.excelherbal.in') {
+            New-Item -ItemType Directory -Path 'dist/staging-private-document' -Force | Out-Null
+            @{
+              schema_version = 1
+              gate = 'hr_multipart_private_document'
+              target_host = $site.Host
+              source_head = [string]$data.source_head
+              tested_at_utc = [DateTime]::UtcNow.ToString('o')
+              commit = $env:GITHUB_SHA
+              run_id = $env:GITHUB_RUN_ID
+              status = 'skipped_build_uat'
+              reason = 'office BUILD/UAT workspace is not the isolated fresh-synthetic release-UAT target; real multipart document mutation is reserved for isolated staging'
+            } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath 'dist/staging-private-document/EVIDENCE.json' -Encoding utf8
+            "run_smoke=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "PASS private_document_target_build_uat_skip host=$($site.Host) source_head=$($data.source_head)"
+            exit 0
+          }
+
+          if ($data.staging_safety.sanitized -ne $true) { throw 'Private-document smoke requires a sanitized isolated staging target.' }
+          if ($data.staging_safety.source_head_match -ne $true) { throw 'Private-document smoke requires staging-safety source-head attestation.' }
+          if ($data.uat_bootstrap.seeded -ne $true) { throw 'Private-document smoke requires seeded isolated UAT data.' }
+          if ($data.uat_bootstrap.synthetic_only -ne $true) { throw 'Private-document smoke requires synthetic-only UAT data.' }
+          if ($data.uat_bootstrap.source_head_match -ne $true) { throw 'Private-document smoke requires UAT-bootstrap source-head attestation.' }
+          "run_smoke=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "PASS private_document_target_isolated environment=staging source_head=$($data.source_head)"
       - name: Multipart upload encrypted authenticated download and deactivate
+        if: steps.private_doc_target.outputs.run_smoke == 'true'
         env:
           UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
