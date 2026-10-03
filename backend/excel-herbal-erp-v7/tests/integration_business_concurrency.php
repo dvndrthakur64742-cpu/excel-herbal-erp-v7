@@ -121,6 +121,14 @@ function bc_seed_reporting(Eh7IntegrationWpdb $db): void {
             'joining_date' => '2026-01-01', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00',
         ]);
     }
+    // Reporting mutations run as synthetic SYSADMIN 101. Production actors are
+    // always backed by an active employee row, so keep the concurrency fixture
+    // subject to the same hierarchy-scope precondition.
+    bc_insert($db, 'employees', [
+        'id' => 101, 'company_id' => 1, 'employee_code' => 'ADMIN101', 'designation_code' => 'SYSADMIN',
+        'assigned_branch_id' => 1, 'full_name' => 'Concurrency Admin', 'monthly_salary' => 0,
+        'joining_date' => '2026-10-01', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00',
+    ]);
 }
 
 function bc_seed_transfer(Eh7IntegrationWpdb $db): void {
