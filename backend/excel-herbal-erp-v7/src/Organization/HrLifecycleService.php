@@ -10,6 +10,7 @@ use ExcelHerbal\ERP7\Security\Audit;
 use ExcelHerbal\ERP7\Security\Capabilities;
 use ExcelHerbal\ERP7\Security\DesignationDefaults;
 use ExcelHerbal\ERP7\Security\Guard;
+use ExcelHerbal\ERP7\Security\HierarchyScope;
 
 final class HrLifecycleService {
     private const CANDIDATE_OPEN=['registered','selected'];
@@ -17,6 +18,23 @@ final class HrLifecycleService {
     private const SEPARATION_STATUSES=['submitted','approved','rejected','completed'];
     private const MAX_DOCUMENT_BYTES=10485760;
     private const DOCUMENT_EXTENSIONS=['pdf','jpg','jpeg','png','webp'];
+
+    public static function employeeChoices(Actor $a,int $branch,string $purpose):array {
+        $purpose=strtolower(trim($purpose));
+        if($purpose==='reporting'){
+            Guard::branch($a,$branch,Capabilities::HR_REVIEW);
+            $ids=HierarchyScope::visibleEmployeeIds($a,$branch);
+        }elseif($purpose==='separation'){
+            Guard::branch($a,$branch,Capabilities::HR_MANAGE);
+            $ids=array_values(array_filter(HierarchyScope::manageableEmployeeIds($a),fn($id)=>(int)$id!==$a->employeeId));
+        }else{
+            throw new DomainException('HR employee-choice purpose is invalid.','parameter_invalid',422);
+        }
+        $ids=array_values(array_unique(array_filter(array_map('intval',$ids),fn($id)=>$id>0)));
+        if(!$ids)return[];
+        $db=Db::wpdb();$sql="SELECT id,employee_code,full_name,designation_code FROM ".Db::table('employees')." WHERE company_id=%d AND assigned_branch_id=%d AND status='active' AND id IN (".implode(',',array_map('intval',$ids)).") ORDER BY full_name,id";
+        return(array)$db->get_results($db->prepare($sql,$a->companyId,$branch),ARRAY_A);
+    }
 
     public static function candidates(Actor $a,?int $branchId,string $status='open'):array {
         Guard::cap($a,Capabilities::HR_VIEW);
@@ -131,7 +149,7 @@ final class HrLifecycleService {
 
     public static function initiateSeparation(Actor $a,int $employeeId,array $data):array {
         $date=Input::date((string)($data['separation_date']??''),'Separation date');$reason=trim((string)($data['reason']??''));if(strlen($reason)<5)throw new DomainException('Separation reason must be at least 5 characters.','separation_reason_required',422);if($employeeId===$a->employeeId)throw new DomainException('You cannot initiate your own ERP separation through management workflow.','self_offboarding_not_allowed',409);
-        return Transaction::run(function()use($a,$employeeId,$date,$reason){$db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT id,assigned_branch_id,joining_date,status FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d FOR UPDATE",$employeeId,$a->companyId),ARRAY_A);if(!$e||$e['status']!=='active')throw new DomainException('Active employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::HR_MANAGE);if(!empty($e['joining_date'])&&$date<(string)$e['joining_date'])throw new DomainException('Separation date cannot be before joining date.','separation_date_invalid',422);$open=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('hr_separations')." WHERE company_id=%d AND employee_id=%d AND status IN ('submitted','approved')",$a->companyId,$employeeId));if($open)throw new DomainException('Employee already has an open separation request.','separation_duplicate',409);Db::mustInsert($db,Db::table('hr_separations'),['company_id'=>$a->companyId,'employee_id'=>$employeeId,'branch_id'=>(int)$e['assigned_branch_id'],'separation_date'=>$date,'reason'=>$reason,'status'=>'submitted','initiated_by'=>$a->employeeId,'initiated_at'=>Db::now()]);$id=(int)$db->insert_id;$preflight=OrganizationService::offboardingPreflight($a,$employeeId,min($date,Db::today()),Capabilities::HR_MANAGE);Audit::add($a,'hr.separation.initiate','hr_separation',$id,['employee_id'=>$employeeId,'branch_id'=>(int)$e['assigned_branch_id'],'separation_date'=>$date,'reason'=>$reason]);return['id'=>$id,'employee_id'=>$employeeId,'status'=>'submitted','separation_date'=>$date,'current_blockers'=>$preflight['blockers']??[]];});
+        return Transaction::run(function()use($a,$employeeId,$date,$reason){$db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT id,assigned_branch_id,joining_date,status FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d FOR UPDATE",$employeeId,$a->companyId),ARRAY_A);if(!$e||$e['status']!=='active')throw new DomainException('Active employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::HR_MANAGE);HierarchyScope::assertCanManageEmployeeAccess($a,$employeeId);if(!empty($e['joining_date'])&&$date<(string)$e['joining_date'])throw new DomainException('Separation date cannot be before joining date.','separation_date_invalid',422);$open=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('hr_separations')." WHERE company_id=%d AND employee_id=%d AND status IN ('submitted','approved')",$a->companyId,$employeeId));if($open)throw new DomainException('Employee already has an open separation request.','separation_duplicate',409);Db::mustInsert($db,Db::table('hr_separations'),['company_id'=>$a->companyId,'employee_id'=>$employeeId,'branch_id'=>(int)$e['assigned_branch_id'],'separation_date'=>$date,'reason'=>$reason,'status'=>'submitted','initiated_by'=>$a->employeeId,'initiated_at'=>Db::now()]);$id=(int)$db->insert_id;$preflight=OrganizationService::offboardingPreflight($a,$employeeId,min($date,Db::today()),Capabilities::HR_MANAGE);Audit::add($a,'hr.separation.initiate','hr_separation',$id,['employee_id'=>$employeeId,'branch_id'=>(int)$e['assigned_branch_id'],'separation_date'=>$date,'reason'=>$reason]);return['id'=>$id,'employee_id'=>$employeeId,'status'=>'submitted','separation_date'=>$date,'current_blockers'=>$preflight['blockers']??[]];});
     }
 
     public static function reviewSeparation(Actor $a,int $separationId,array $data):array {

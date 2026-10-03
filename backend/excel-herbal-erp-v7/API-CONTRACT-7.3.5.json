@@ -399,6 +399,13 @@
     },
     {
       "method": "GET",
+      "path": "/organization/hr/employee-choices",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/organization/candidates",
       "auth": true,
       "idempotency_required": false,

@@ -12,6 +12,7 @@ abstract final class ApiPaths {
 
   static const branches = '/organization/branches',
       employees = '/organization/employees',
+      hrEmployeeChoices = '/organization/hr/employee-choices',
       hrCandidates = '/organization/candidates',
       hrSeparations = '/organization/separations',
       masterData = '/organization/master-data',

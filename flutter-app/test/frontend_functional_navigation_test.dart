@@ -290,6 +290,48 @@ void main() {
     );
   });
 
+  test('hr employee choices follow HR capability and hierarchy scope', () {
+    final screen = File(
+      'lib/screens/organization/hr_lifecycle_screen.dart',
+    ).readAsStringSync();
+    final paths = File('lib/core/api_paths.dart').readAsStringSync();
+    final routes = File(
+      '../backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php',
+    ).readAsStringSync();
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/HrLifecycleService.php',
+    ).readAsStringSync();
+
+    expect(
+      paths,
+      contains("hrEmployeeChoices = '/organization/hr/employee-choices'"),
+    );
+    expect(screen, contains('ApiPaths.hrEmployeeChoices'));
+    expect(screen, contains("'purpose': 'reporting'"));
+    expect(screen, contains("'purpose': 'separation'"));
+    expect(
+      routes,
+      contains(
+        "['GET','/organization/hr/employee-choices','hr.employee_choices',true]",
+      ),
+    );
+    expect(service, contains('public static function employeeChoices'));
+    expect(service, contains('Capabilities::HR_REVIEW'));
+    expect(service, contains('Capabilities::HR_MANAGE'));
+    expect(
+      service,
+      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branch)'),
+    );
+    expect(
+      service,
+      contains('HierarchyScope::manageableEmployeeIds(\$a)'),
+    );
+    expect(
+      service,
+      contains('HierarchyScope::assertCanManageEmployeeAccess(\$a,\$employeeId)'),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

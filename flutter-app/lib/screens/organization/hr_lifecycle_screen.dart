@@ -680,13 +680,13 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       final data = branchId == null
           ? <dynamic>[]
           : await ref.read(apiClientProvider).get(
-                ApiPaths.employees,
-                query: {'branch_id': branchId},
+                ApiPaths.hrEmployeeChoices,
+                query: {
+                  'branch_id': branchId,
+                  'purpose': 'reporting',
+                },
               );
-      final selfId = int.tryParse('${app.employee['id']}');
-      final employees = _rows(data)
-          .where((e) => int.tryParse('${e['id']}') != selfId)
-          .toList();
+      final employees = _rows(data);
       if (!mounted) return;
       int? reportingId;
       final employeeCode = TextEditingController(
@@ -1069,13 +1069,13 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (branchId == null) return;
     try {
       final data = await ref.read(apiClientProvider).get(
-        ApiPaths.employees,
-        query: {'branch_id': branchId},
+        ApiPaths.hrEmployeeChoices,
+        query: {
+          'branch_id': branchId,
+          'purpose': 'separation',
+        },
       );
-      final selfId = int.tryParse('${app.employee['id']}');
-      final employees = _rows(data)
-          .where((e) => int.tryParse('${e['id']}') != selfId)
-          .toList();
+      final employees = _rows(data);
       if (!mounted) return;
       if (employees.isEmpty) {
         _failure(const FormatException('No eligible active employee found.'));
