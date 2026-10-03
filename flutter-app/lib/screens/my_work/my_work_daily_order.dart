@@ -707,13 +707,38 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         .toList();
     if (lines.isEmpty) throw Exception('Approved request lines missing.');
 
-    final allocations = <Map<String, dynamic>>[
-      for (final line in lines)
-        {
-          'request_line_id': int.parse('${line['id']}'),
-          'quantity': num.parse('${line['quantity']}'),
-        },
-    ];
+    final cycle = Map<String, dynamic>.from(
+      (d['cycle'] as Map?) ?? const {},
+    );
+    final branchId = int.tryParse('${cycle['branch_id']}');
+    if (branchId == null || branchId < 1) {
+      throw Exception('Daily Order branch missing.');
+    }
+
+    final stock = (await api.get(
+      ApiPaths.inventoryStock,
+      query: {'branch_id': branchId},
+    ) as List)
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    late final List<Map<String, dynamic>> allocations;
+    try {
+      allocations = StockAllocation.fefo(
+        requestLines: lines,
+        stock: stock,
+      );
+    } on StockAllocationException catch (e) {
+      throw Exception(e.message);
+    }
+
+    final allocationCountByLine = <int, int>{};
+    for (final allocation in allocations) {
+      final requestLineId = int.parse('${allocation['request_line_id']}');
+      allocationCountByLine[requestLineId] =
+          (allocationCountByLine[requestLineId] ?? 0) + 1;
+    }
 
     String? issueError;
     var issuing = false;
@@ -784,8 +809,8 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                   ),
                   child: Text(
                     isAdditional
-                        ? 'Approved additional quantity branch stock se automatic FEFO allocation ke saath employee custody me issue hogi.'
-                        : 'Approved quantity branch stock se automatic FEFO allocation ke saath employee custody me issue hogi.',
+                        ? 'Approved additional quantity authorised branch stock se FEFO batch allocation ke saath employee custody me issue hogi.'
+                        : 'Approved quantity authorised branch stock se FEFO batch allocation ke saath employee custody me issue hogi. Stock availability issue se pehle verify ho chuki hai.',
                   ),
                 ),
               ),
@@ -827,7 +852,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              'Issue ${BusinessFormat.quantity(l['quantity'])}',
+                              'Issue ${BusinessFormat.quantity(l['quantity'])} · ${allocationCountByLine[int.parse('${l['id']}')] ?? 0} batch',
                               style: const TextStyle(
                                 color: ExcelBrand.primaryDark,
                                 fontWeight: FontWeight.w800,
