@@ -155,7 +155,8 @@ function uat_case(string $name, callable $fn): void {
 function uat_expect_forbidden(callable $fn,string $message): void {
     try { $fn(); }
     catch (DomainException $e) {
-        if ($e->codeKey === 'permission_denied' && $e->httpStatus === 403) return;
+        if (($e->codeKey === 'permission_denied' && $e->httpStatus === 403)
+            || ($e->codeKey === 'maker_checker_required' && $e->httpStatus === 409)) return;
         throw $e;
     }
     throw new RuntimeException($message);
