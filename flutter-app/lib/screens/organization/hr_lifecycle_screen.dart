@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/business_format.dart';
 import '../../core/open_document.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
@@ -182,7 +183,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
         ),
         title: Text(code.isEmpty ? name : '$name · $code'),
         subtitle: Text(
-          [designation, branch, if (expected.isNotEmpty) 'Joining $expected']
+          [designation, branch, if (expected.isNotEmpty) 'Joining ${BusinessFormat.date(expected)}']
               .where((e) => e.isNotEmpty)
               .join(' · '),
         ),
@@ -264,7 +265,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
         leading: const CircleAvatar(child: Icon(Icons.person_off_outlined)),
         title: Text('$name · $code'),
         subtitle: Text(
-          [designation, if (date.isNotEmpty) 'Effective $date']
+          [designation, if (date.isNotEmpty) 'Effective ${BusinessFormat.date(date)}']
               .where((e) => e.isNotEmpty)
               .join(' · '),
         ),
@@ -274,17 +275,8 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     );
   }
 
-  Widget _statusChip(String status) {
-    final words = status
-        .replaceAll('_', ' ')
-        .split(' ')
-        .where((e) => e.isNotEmpty)
-        .toList();
-    final label = words
-        .map((e) => '${e[0].toUpperCase()}${e.substring(1)}')
-        .join(' ');
-    return Chip(label: Text(label.isEmpty ? 'Status' : label));
-  }
+  Widget _statusChip(String status) =>
+      Chip(label: Text(BusinessFormat.status(status)));
 
   List<Map<String, dynamic>> _rows(dynamic data) => (data as List)
       .map((e) => Map<String, dynamic>.from(e as Map))

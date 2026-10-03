@@ -717,6 +717,21 @@ void main() {
     );
   });
 
+  test('HR lifecycle uses shared business formatting', () {
+    final hr = File(
+      'lib/screens/organization/hr_lifecycle_screen.dart',
+    ).readAsStringSync();
+
+    expect(
+      hr,
+      contains("import '../../core/business_format.dart';"),
+    );
+    expect(hr, contains('BusinessFormat.status(status)'));
+    expect(hr, contains('BusinessFormat.date(expected)'));
+    expect(hr, contains('BusinessFormat.date(date)'));
+    expect(hr, isNot(contains("replaceAll('_', ' ')")));
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
