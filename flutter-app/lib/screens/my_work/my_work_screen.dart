@@ -8,6 +8,7 @@ import '../../core/business_format.dart';
 import '../../core/daily_order_math.dart';
 import '../../core/daily_order_workflow.dart';
 import '../../core/providers.dart';
+import '../../core/stock_allocation.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
 import '../../theme/excel_brand.dart';
