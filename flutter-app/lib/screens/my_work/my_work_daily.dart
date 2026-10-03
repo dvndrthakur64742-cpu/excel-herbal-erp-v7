@@ -18,9 +18,6 @@ extension _MyWorkDaily on _MyWorkScreenState {
   Widget _orderStatusChip(String status) =>
       _MyWorkDailyOverviewImpl(this)._orderStatusChipImpl(status);
 
-  List<PopupMenuEntry<String>> _dailyMenu(String status, AppState app) =>
-      _MyWorkDailyOverviewImpl(this)._dailyMenuImpl(status, app);
-
   Future<void> _newDailyOrder() =>
       _MyWorkDailyOrderImpl(this)._newDailyOrderImpl();
 

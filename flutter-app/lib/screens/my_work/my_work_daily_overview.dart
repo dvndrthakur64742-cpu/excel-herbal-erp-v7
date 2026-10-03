@@ -85,14 +85,10 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                                       Text(_MyWorkDaily(this)._statusText('${r['status']}')),
                                     ),
                                     DataCell(
-                                      PopupMenuButton<String>(
-                                        tooltip: 'Order actions',
-                                        onSelected: (v) => _MyWorkDaily(this)._dailyAction(
-                                          int.parse('${r['id']}'),
-                                          v,
-                                        ),
-                                        itemBuilder: (_) =>
-                                            _MyWorkDaily(this)._dailyMenu('${r['status']}', app),
+                                      _dailyActionsImpl(
+                                        r,
+                                        app,
+                                        int.parse('${r['id']}'),
                                       ),
                                     ),
                                   ],
@@ -163,12 +159,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                                     ],
                                   ),
                                 ),
-                                PopupMenuButton<String>(
-                                  tooltip: 'Order actions',
-                                  onSelected: (v) => _MyWorkDaily(this)._dailyAction(id, v),
-                                  itemBuilder: (_) =>
-                                      _MyWorkDaily(this)._dailyMenu('${r['status']}', app),
-                                ),
+                                _dailyActionsImpl(r, app, id),
                               ],
                             ),
                           ),
@@ -309,19 +300,133 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     );
   }
 
-  List<PopupMenuEntry<String>> _dailyMenuImpl(String status, AppState app) {
+  int? _currentEmployeeId(AppState app) {
+    final me = Map<String, dynamic>.from(
+      (app.me['employee'] as Map?) ?? const {},
+    );
+    return int.tryParse('${me['id'] ?? ''}');
+  }
+
+  String? _dailyPrimaryActionImpl(
+    Map<String, dynamic> row,
+    AppState app,
+  ) {
+    final status = '${row['status'] ?? ''}';
+    final requestStatus = '${row['initial_request_status'] ?? ''}';
+    final requesterId = int.tryParse('${row['initial_requested_by'] ?? ''}');
+    final currentEmployeeId = _currentEmployeeId(app);
+
+    if (DailyOrderWorkflow.canSubmitDraft(status, app.capabilities)) {
+      return 'submit';
+    }
+    if (status == 'stock_requested' &&
+        DailyOrderWorkflow.canApproveRequest(
+          requestStatus,
+          app.capabilities,
+          requesterId: requesterId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
+      return 'approve';
+    }
+    if (status == 'approved' &&
+        DailyOrderWorkflow.canIssueRequest(
+          requestStatus,
+          app.capabilities,
+          requesterId: requesterId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
+      return 'issue';
+    }
+    if (status == 'issued' &&
+        DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
+      return 'evening';
+    }
+    if (status == 'evening_draft') return 'evening_edit';
+    if (status == 'evening_submitted' && app.can('daily_order.review')) {
+      return 'final_post';
+    }
+    return null;
+  }
+
+  String _dailyActionLabelImpl(String action) => switch (action) {
+        'submit' => 'Submit',
+        'approve' => 'Approve',
+        'issue' => 'Issue Stock',
+        'evening' => 'Closing',
+        'evening_edit' => 'Continue',
+        'final_post' => 'Final Post',
+        _ => 'Open',
+      };
+
+  Widget _dailyActionsImpl(
+    Map<String, dynamic> row,
+    AppState app,
+    int id,
+  ) {
+    final primary = _dailyPrimaryActionImpl(row, app);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (primary != null)
+          FilledButton.tonalIcon(
+            onPressed: () => _MyWorkDaily(this)._dailyAction(id, primary),
+            icon: Icon(
+              primary == 'issue'
+                  ? Icons.inventory_2_outlined
+                  : primary == 'approve'
+                      ? Icons.task_alt_rounded
+                      : primary == 'final_post'
+                          ? Icons.verified_outlined
+                          : Icons.arrow_forward_rounded,
+              size: 18,
+            ),
+            label: Text(_dailyActionLabelImpl(primary)),
+          ),
+        PopupMenuButton<String>(
+          tooltip: 'More actions',
+          onSelected: (v) => _MyWorkDaily(this)._dailyAction(id, v),
+          itemBuilder: (_) => _dailyMenuImpl(row, app),
+        ),
+      ],
+    );
+  }
+
+  List<PopupMenuEntry<String>> _dailyMenuImpl(
+    Map<String, dynamic> row,
+    AppState app,
+  ) {
+    final status = '${row['status'] ?? ''}';
+    final requestStatus = '${row['initial_request_status'] ?? ''}';
+    final requesterId = int.tryParse('${row['initial_requested_by'] ?? ''}');
+    final currentEmployeeId = _currentEmployeeId(app);
+    final primary = _dailyPrimaryActionImpl(row, app);
     final out = <PopupMenuEntry<String>>[
       const PopupMenuItem(value: 'view', child: Text('View Details')),
     ];
-    if (DailyOrderWorkflow.canSubmitDraft(status, app.capabilities)) {
+    if (primary != 'submit' &&
+        DailyOrderWorkflow.canSubmitDraft(status, app.capabilities)) {
       out.add(
         const PopupMenuItem(value: 'submit', child: Text('Submit Order')),
       );
     }
-    if (status == 'stock_requested' && app.can('daily_order.approve')) {
+    if (primary != 'approve' &&
+        status == 'stock_requested' &&
+        DailyOrderWorkflow.canApproveRequest(
+          requestStatus,
+          app.capabilities,
+          requesterId: requesterId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
       out.add(const PopupMenuItem(value: 'approve', child: Text('Approve')));
     }
-    if (status == 'approved' && app.can('daily_order.issue')) {
+    if (primary != 'issue' &&
+        status == 'approved' &&
+        DailyOrderWorkflow.canIssueRequest(
+          requestStatus,
+          app.capabilities,
+          requesterId: requesterId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
       out.add(const PopupMenuItem(value: 'issue', child: Text('Issue Stock')));
     }
     if (status == 'issued' &&
@@ -332,14 +437,16 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
           child: Text('Additional Requirement'),
         ),
       );
-      out.add(
-        const PopupMenuItem(
-          value: 'evening',
-          child: Text('Start Evening Closing'),
-        ),
-      );
+      if (primary != 'evening') {
+        out.add(
+          const PopupMenuItem(
+            value: 'evening',
+            child: Text('Start Evening Closing'),
+          ),
+        );
+      }
     }
-    if (status == 'evening_draft') {
+    if (status == 'evening_draft' && primary != 'evening_edit') {
       out.add(
         const PopupMenuItem(
           value: 'evening_edit',
@@ -347,7 +454,9 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
         ),
       );
     }
-    if (status == 'evening_submitted' && app.can('daily_order.review')) {
+    if (status == 'evening_submitted' &&
+        app.can('daily_order.review') &&
+        primary != 'final_post') {
       out.add(
         const PopupMenuItem(value: 'final_post', child: Text('Final Post')),
       );
