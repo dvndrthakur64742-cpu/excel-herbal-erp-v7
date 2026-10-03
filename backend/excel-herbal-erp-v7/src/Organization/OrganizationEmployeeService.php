@@ -3,7 +3,7 @@ namespace ExcelHerbal\ERP7\Organization;
 use ExcelHerbal\ERP7\Security\AccessService;use ExcelHerbal\ERP7\Security\DesignationDefaults;use ExcelHerbal\ERP7\Core\Input;use ExcelHerbal\ERP7\Database\Db;use ExcelHerbal\ERP7\Database\Transaction;use ExcelHerbal\ERP7\Domain\DomainException;use ExcelHerbal\ERP7\Security\Actor;use ExcelHerbal\ERP7\Security\Audit;use ExcelHerbal\ERP7\Security\BranchAuthority;use ExcelHerbal\ERP7\Security\Capabilities;use ExcelHerbal\ERP7\Security\Guard;use ExcelHerbal\ERP7\Security\HierarchyScope;
 final class OrganizationEmployeeService{
  public static function employees(Actor $a,int $branch,string $status='active'):array{
-  Guard::branch($a,$branch,Capabilities::EMP_VIEW);$status=strtolower(trim($status))?:'active';if(!in_array($status,['active','inactive','all'],true))throw new DomainException('Employee status filter is invalid.','employee_status_invalid',422);
+  Guard::branchAny($a,$branch,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE]);$status=strtolower(trim($status))?:'active';if(!in_array($status,['active','inactive','all'],true))throw new DomainException('Employee status filter is invalid.','employee_status_invalid',422);
   $where=$status==='all'?"status IN ('active','inactive')":"status='".$status."'";
   $showContact=$a->can(Capabilities::EMP_CONTACT_VIEW)||$a->can(Capabilities::EMP_MANAGE);
   $showSalary=$a->can(Capabilities::SALARY_VIEW)||$a->can(Capabilities::SALARY_MANAGE)||$a->can(Capabilities::SALARY_APPROVE);
@@ -212,7 +212,7 @@ final class OrganizationEmployeeService{
    return['id'=>$employeeId,'assigned_branch_id'=>$newBranch,'effective_date'=>$date];
   });
  }
- public static function employeeHistory(Actor $a,int $employeeId):array{$db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT assigned_branch_id FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::EMP_VIEW);HierarchyScope::assertCanViewEmployee($a,$employeeId);return(array)$db->get_results($db->prepare("SELECT h.*,b.code branch_code,b.name branch_name FROM ".Db::table('employee_branch_history')." h JOIN ".Db::table('branches')." b ON b.id=h.branch_id WHERE h.company_id=%d AND h.employee_id=%d ORDER BY h.effective_from DESC,h.id DESC",$a->companyId,$employeeId),ARRAY_A);}
+ public static function employeeHistory(Actor $a,int $employeeId):array{$db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT assigned_branch_id FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branchAny($a,(int)$e['assigned_branch_id'],[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE]);HierarchyScope::assertCanViewEmployee($a,$employeeId);return(array)$db->get_results($db->prepare("SELECT h.*,b.code branch_code,b.name branch_name FROM ".Db::table('employee_branch_history')." h JOIN ".Db::table('branches')." b ON b.id=h.branch_id WHERE h.company_id=%d AND h.employee_id=%d ORDER BY h.effective_from DESC,h.id DESC",$a->companyId,$employeeId),ARRAY_A);}
  public static function updateEmployee(Actor $a,int $employeeId,array $data):array{
   return Transaction::run(function()use($a,$employeeId,$data){
   \ExcelHerbal\ERP7\Payroll\SalaryService::lockCompany($a->companyId);
@@ -228,7 +228,7 @@ final class OrganizationEmployeeService{
  });
  }
  public static function employeeDesignations(Actor $a,int $employeeId):array{
-  $db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT id,assigned_branch_id,designation_code,reporting_designation_code FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);HierarchyScope::assertCanViewEmployee($a,$employeeId);Guard::cap($a,Capabilities::EMP_VIEW);
+  $db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT id,assigned_branch_id,designation_code,reporting_designation_code FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);HierarchyScope::assertCanViewEmployee($a,$employeeId);Guard::any($a,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE]);
   $rows=(array)$db->get_results($db->prepare("SELECT id,designation_code,assignment_type,effective_from,effective_to,active,created_by,created_at,deactivated_by,deactivated_at FROM ".Db::table('employee_designation_assignments')." WHERE company_id=%d AND employee_id=%d ORDER BY active DESC,effective_from DESC,id DESC",$a->companyId,$employeeId),ARRAY_A);
   return ['primary_designation_code'=>(string)$e['designation_code'],'reporting_designation_code'=>(string)($e['reporting_designation_code']??''),'reporting_category'=>HierarchyScope::reportingCategoryForCode((string)$e['designation_code'],(string)($e['reporting_designation_code']??'')),'additional_designations'=>$rows];
  }

@@ -225,6 +225,38 @@ void main() {
     );
   });
 
+  test('employee manage is not coupled to employee view for read prerequisites', () {
+    final guard = File(
+      '../backend/excel-herbal-erp-v7/src/Security/Guard.php',
+    ).readAsStringSync();
+    final employeeService = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationEmployeeService.php',
+    ).readAsStringSync();
+    final masterData = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationMasterDataService.php',
+    ).readAsStringSync();
+
+    expect(guard, contains('public static function branchAny'));
+    expect(
+      employeeService,
+      contains(
+        'Guard::branchAny(\$a,\$branch,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE])',
+      ),
+    );
+    expect(
+      employeeService,
+      contains(
+        'Guard::any(\$a,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE])',
+      ),
+    );
+    expect(
+      masterData,
+      contains(
+        'Guard::any(\$a,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE])',
+      ),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
