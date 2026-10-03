@@ -776,6 +776,36 @@ void main() {
     );
   });
 
+  test('transaction dialogs validate before closing and preserve input', () {
+    final sales = File(
+      'lib/screens/sales/sales_screen.dart',
+    ).readAsStringSync();
+    final purchase = File(
+      'lib/screens/purchase/purchase_screen.dart',
+    ).readAsStringSync();
+    final inventory = File(
+      'lib/screens/inventory/inventory_screen.dart',
+    ).readAsStringSync();
+    final bank = File(
+      'lib/screens/finance/finance_bank.dart',
+    ).readAsStringSync();
+    final periods = File(
+      'lib/screens/finance/finance_periods.dart',
+    ).readAsStringSync();
+
+    expect(sales, contains('List<Map<String, dynamic>>? validatedLines;'));
+    expect(sales, contains('setLocal(() => formError = error);'));
+    expect(sales, contains('validatedPaidAmount = paidAmount;'));
+    expect(purchase, contains('List<Map<String, dynamic>>? validatedLines;'));
+    expect(purchase, contains('setLocal(() => formError = error);'));
+    expect(inventory, contains('Map<String, dynamic>? validatedStock;'));
+    expect(inventory, contains('setLocal(() => formError = error);'));
+    expect(bank, contains('double? validatedDebit;'));
+    expect(bank, contains('double? validatedCredit;'));
+    expect(bank, contains('setLocal(() => formError = error);'));
+    expect(periods, contains('setLocal(() => formError = error);'));
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

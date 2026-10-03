@@ -254,6 +254,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       int? lineId;
       final qty = TextEditingController();
       final notes = TextEditingController();
+      String? formError;
+      Map<String, dynamic>? validatedStock;
+      num? validatedQuantity;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -321,6 +324,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         labelText: 'Notes (optional)',
                       ),
                     ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -331,8 +346,29 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, dest != null && lineId != null),
+                onPressed: () {
+                  final selectedLine = lineId;
+                  final selected =
+                      selectedLine == null ? null : stock[selectedLine];
+                  final quantity = WholePcs.parseOrZero(qty.text);
+                  final available = selected == null
+                      ? 0
+                      : (double.tryParse('${selected['quantity']}') ?? 0);
+                  final error = TransactionGuardrails.stockTransfer(
+                    sourceBranchId: app.currentBranchId,
+                    destinationBranchId: dest,
+                    itemSelected: selected != null,
+                    quantity: quantity,
+                    available: available,
+                  );
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  validatedStock = selected;
+                  validatedQuantity = quantity;
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Create'),
               ),
             ],
@@ -340,20 +376,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ),
       );
       if (ok == true) {
-        final selectedLine = lineId;
-        final l = selectedLine == null ? null : stock[selectedLine];
-        final q = WholePcs.parseOrZero(qty.text);
-        final available =
-            l == null ? 0 : (double.tryParse('${l['quantity']}') ?? 0);
-        final validation = TransactionGuardrails.stockTransfer(
-          sourceBranchId: app.currentBranchId,
-          destinationBranchId: dest,
-          itemSelected: l != null,
-          quantity: q,
-          available: available,
-        );
-        if (validation != null) throw Exception(validation);
-        final selectedStock = l!;
+        final selectedStock = validatedStock!;
+        final q = validatedQuantity!;
         final batchKey = int.tryParse('${selectedStock['batch_key']}') ?? 0;
         await api.post(
           ApiPaths.transfers,

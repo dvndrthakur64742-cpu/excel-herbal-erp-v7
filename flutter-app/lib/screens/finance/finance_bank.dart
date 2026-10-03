@@ -275,72 +275,100 @@ extension _FinanceBankFeature on _FinanceScreenState {
     final reference = TextEditingController();
     final debit = TextEditingController(text: '0');
     final credit = TextEditingController(text: '0');
+    String? formError;
+    double? validatedDebit;
+    double? validatedCredit;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Statement Line'),
-        content: SizedBox(
-          width: 500,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              BusinessDateField(
-                controller: date,
-                label: 'Transaction Date',
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: description,
-                decoration: const InputDecoration(labelText: 'Description'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: reference,
-                decoration: const InputDecoration(labelText: 'Reference'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: debit,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Statement Line'),
+          content: SizedBox(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                BusinessDateField(
+                  controller: date,
+                  label: 'Transaction Date',
                 ),
-                decoration: const InputDecoration(labelText: 'Debit (or 0)'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: credit,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                const SizedBox(height: 10),
+                TextField(
+                  controller: description,
+                  decoration: const InputDecoration(labelText: 'Description'),
                 ),
-                decoration: const InputDecoration(labelText: 'Credit (or 0)'),
-              ),
-            ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: reference,
+                  decoration: const InputDecoration(labelText: 'Reference'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: debit,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Debit (or 0)'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: credit,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Credit (or 0)'),
+                ),
+                if (formError != null) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      formError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final debitValue = double.tryParse(debit.text.trim());
+                final creditValue = double.tryParse(credit.text.trim());
+                String? error;
+                if (debitValue == null || creditValue == null) {
+                  error = 'Debit/Credit valid number me enter karein.';
+                } else {
+                  error = TransactionGuardrails.bankStatementLine(
+                    date: date.text.trim(),
+                    debit: debitValue,
+                    credit: creditValue,
+                  );
+                }
+                if (error != null) {
+                  setLocal(() => formError = error);
+                  return;
+                }
+                validatedDebit = debitValue;
+                validatedCredit = creditValue;
+                Navigator.pop(context, true);
+              },
+              child: const Text('Import'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Import'),
-          ),
-        ],
       ),
     );
     if (ok == true) {
-      final debitValue = double.tryParse(debit.text.trim());
-      final creditValue = double.tryParse(credit.text.trim());
-      if (debitValue == null || creditValue == null) {
-        throw Exception('Debit/Credit valid number me enter karein.');
-      }
-      final guardError = TransactionGuardrails.bankStatementLine(
-        date: date.text.trim(),
-        debit: debitValue,
-        credit: creditValue,
-      );
-      if (guardError != null) throw Exception(guardError);
+      final debitValue = validatedDebit!;
+      final creditValue = validatedCredit!;
       await _post(
           ApiPaths.bankImport(id),
           {

@@ -284,6 +284,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
         cost[id] = TextEditingController();
         batchNo[id] = TextEditingController();
       }
+      String? formError;
+      List<Map<String, dynamic>>? validatedLines;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -371,6 +373,18 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                         ),
                       );
                     }),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -381,10 +395,56 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(
-                  context,
-                  supplierId != null && billNo.text.trim().isNotEmpty,
-                ),
+                onPressed: () {
+                  String? error;
+                  if (supplierId == null) {
+                    error = 'Supplier is required.';
+                  } else if (billNo.text.trim().isEmpty) {
+                    error = 'Supplier Bill No. is required.';
+                  }
+                  final lines = <Map<String, dynamic>>[];
+                  if (error == null) {
+                    for (final p in products) {
+                      final id = int.parse('${p['id']}');
+                      final q = WholePcs.parseOrZero(qty[id]!.text);
+                      if (q <= 0) continue;
+                      final rawCost = cost[id]!.text.trim();
+                      final unitCost = double.tryParse(rawCost);
+                      if (unitCost == null) {
+                        error =
+                            '${p['name']} requires a valid unit cost. Enter 0 explicitly for a zero-cost item.';
+                        break;
+                      }
+                      final batch = batchNo[id]!.text.trim();
+                      final guardError = TransactionGuardrails.purchaseLine(
+                        quantity: q,
+                        unitCost: unitCost,
+                        batchRequired:
+                            '${p['batch_tracking']}' == 'required',
+                        batchNo: batch,
+                      );
+                      if (guardError != null) {
+                        error = '${p['name']}: $guardError';
+                        break;
+                      }
+                      lines.add({
+                        'product_id': id,
+                        'quantity': q,
+                        'unit_cost': unitCost,
+                        if (batch.isNotEmpty) 'batch_no': batch,
+                      });
+                    }
+                  }
+                  if (error == null && lines.isEmpty) {
+                    error = 'Product line required.';
+                  }
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  validatedLines = lines;
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Post Purchase'),
               ),
             ],
@@ -392,34 +452,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
         ),
       );
       if (ok == true) {
-        final lines = <Map<String, dynamic>>[];
-        for (final p in products) {
-          final id = int.parse('${p['id']}');
-          final q = WholePcs.parseOrZero(qty[id]!.text);
-          if (q <= 0) continue;
-          final rawCost = cost[id]!.text.trim();
-          final unitCost = double.tryParse(rawCost);
-          if (unitCost == null) {
-            throw Exception(
-              '${p['name']} requires a valid unit cost. Enter 0 explicitly for a zero-cost item.',
-            );
-          }
-          final batch = batchNo[id]!.text.trim();
-          final guardError = TransactionGuardrails.purchaseLine(
-            quantity: q,
-            unitCost: unitCost,
-            batchRequired: '${p['batch_tracking']}' == 'required',
-            batchNo: batch,
-          );
-          if (guardError != null) throw Exception('${p['name']}: $guardError');
-          lines.add({
-            'product_id': id,
-            'quantity': q,
-            'unit_cost': unitCost,
-            if (batch.isNotEmpty) 'batch_no': batch,
-          });
-        }
-        if (lines.isEmpty) throw Exception('Product line required.');
+        final lines = validatedLines!;
         final r = await api.post(
           ApiPaths.purchaseBills,
           data: {
