@@ -722,6 +722,13 @@
     },
     {
       "method": "GET",
+      "path": "/daily/target-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/daily/cycles",
       "auth": true,
       "idempotency_required": false,

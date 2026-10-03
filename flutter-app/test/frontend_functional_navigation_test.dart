@@ -254,6 +254,42 @@ void main() {
     );
   });
 
+  test('daily others employee picker is hierarchy scoped without org-view dependency', () {
+    final screen = File(
+      'lib/screens/my_work/my_work_daily_order.dart',
+    ).readAsStringSync();
+    final paths = File('lib/core/api_paths.dart').readAsStringSync();
+    final routes = File(
+      '../backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php',
+    ).readAsStringSync();
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/DailyOrder/DailyOrderService.php',
+    ).readAsStringSync();
+
+    expect(
+      paths,
+      contains("dailyTargetEmployees = '/daily/target-employees'"),
+    );
+    expect(screen, contains('ApiPaths.dailyTargetEmployees'));
+    expect(screen, isNot(contains('ApiPaths.employees')));
+    expect(
+      routes,
+      contains(
+        "['GET','/daily/target-employees','daily.target_employees',true]",
+      ),
+    );
+    expect(service, contains('public static function targetEmployees'));
+    expect(service, contains('Capabilities::DAILY_OTHERS'));
+    expect(
+      service,
+      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branch)'),
+    );
+    expect(
+      service,
+      contains('SELECT id,employee_code,full_name,designation_code'),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
