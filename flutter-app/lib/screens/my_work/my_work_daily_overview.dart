@@ -420,11 +420,11 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
 
   String _dailyActionLabelImpl(String action, {bool additional = false}) =>
       switch (action) {
-        'submit' => 'Submit',
-        'approve' => additional ? 'Approve Additional' : 'Approve',
-        'issue' => additional ? 'Issue Additional' : 'Issue Stock',
-        'evening' => 'Closing',
-        'evening_edit' => 'Continue',
+        'submit' => 'Submit for Approval',
+        'approve' => additional ? 'Approve Additional' : 'Approve Order',
+        'issue' => additional ? 'Issue Additional Stock' : 'Issue Stock',
+        'evening' => 'Start Closing',
+        'evening_edit' => 'Continue Closing',
         'final_post' => 'Final Post',
         _ => 'Open',
       };
@@ -449,9 +449,13 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                   ? Icons.inventory_2_outlined
                   : primary == 'approve'
                       ? Icons.task_alt_rounded
-                      : primary == 'final_post'
-                          ? Icons.verified_outlined
-                          : Icons.arrow_forward_rounded,
+                      : primary == 'submit'
+                          ? Icons.send_rounded
+                          : primary == 'evening' || primary == 'evening_edit'
+                              ? Icons.nightlight_round
+                              : primary == 'final_post'
+                                  ? Icons.verified_outlined
+                                  : Icons.arrow_forward_rounded,
               size: 18,
             ),
             label: Text(
