@@ -493,252 +493,13 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         return;
       } else if (action == 'evening') {
         final detail = await _MyWorkDaily(this)._dailyDetail(id);
-        final cycle = Map<String, dynamic>.from(
-          (detail['cycle'] as Map?) ?? const {},
-        );
-        final requests = ((detail['requests'] as List?) ?? const [])
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
-        final blockReason = DailyOrderWorkflow.eveningBlockReason(
-          cycleStatus: '${cycle['status']}',
-          requests: requests,
-          capabilities: app.capabilities,
-        );
-        if (blockReason != null) throw Exception(blockReason);
-        await api.post(ApiPaths.eveningStart(id), data: const {});
-        await _MyWorkDaily(this)._editEvening(id);
-        return;
-      } else if (action == 'evening_edit') {
-        await _MyWorkDaily(this)._editEvening(id);
-        return;
-      } else if (action == 'final_post') {
-        await _MyWorkDaily(this)._finalPost(id);
-        return;
-      }
-      if (mounted) _setFeatureState(() => refresh++);
-    } catch (e) {
-      if (mounted) _setFeatureState(() => message = UiError.message(e));
-    }
-  }
-
-  Future<void> _additionalDailyImpl(int id) async {
-    final api = ref.read(apiClientProvider);
-    final data = Map<String, dynamic>.from(
-      await api.get(ApiPaths.masterData) as Map,
-    );
-    final products = ((data['products'] as List?) ?? const [])
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
-    if (products.isEmpty) throw Exception('Product master empty hai.');
-
-    final qty = <int, TextEditingController>{
-      for (final product in products)
-        int.parse('${product['id']}'): TextEditingController(),
-    };
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => FractionallySizedBox(
-        heightFactor: .9,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 8, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Additional Requirement',
-                          style: Theme.of(sheetContext).textTheme.titleLarge,
-                        ),
-                        Text(
-                          'Order #$id · whole PCS only',
-                          style: Theme.of(sheetContext).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(sheetContext, false),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              child: const Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Product',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 82,
-                    child: Text(
-                      'Extra Qty',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                itemCount: products.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  final productId = int.parse('${product['id']}');
-                  return SizedBox(
-                    height: 54,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            BusinessFormat.displayName('${product['name']}'),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 82,
-                          child: TextField(
-                            controller: qty[productId],
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [WholePcs.positiveFormatter],
-                            textAlign: TextAlign.center,
-                            decoration: const InputDecoration(
-                              hintText: '0',
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 10,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(sheetContext, false),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 2,
-                      child: FilledButton(
-                        onPressed: () => Navigator.pop(sheetContext, true),
-                        child: const Text('Submit Additional'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    try {
-      if (ok == true) {
-        final lines = <Map<String, dynamic>>[];
-        for (final product in products) {
-          final productId = int.parse('${product['id']}');
-          final value = WholePcs.parseOrZero(qty[productId]!.text);
-          if (value > 0) {
-            lines.add({'product_id': productId, 'quantity': value});
-          }
-        }
-        if (lines.isEmpty) {
-          throw Exception('Kam se kam ek additional product required hai.');
-        }
-        await api.post(ApiPaths.dailyAdditional(id), data: {'lines': lines});
-        if (mounted) {
-          _setFeatureState(() {
-            refresh++;
-            message = 'Additional requirement submitted for approval.';
-          });
-        }
-      }
-    } finally {
-      for (final controller in qty.values) controller.dispose();
-    }
-  }
-
-  Future<void> _issueDailyImpl(int id) async {
-    final api = ref.read(apiClientProvider);
-    final d = await _MyWorkDaily(this)._dailyDetail(id);
-    final r = _requestWithStatus(d, 'approved');
-    if (r == null) throw Exception('Approved request not found.');
-    final isAdditional = '${r['type'] ?? ''}' == 'additional';
-
-    final lines = ((r['lines'] as List?) ?? const [])
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
-    if (lines.isEmpty) throw Exception('Approved request lines missing.');
-
-    final cycle = Map<String, dynamic>.from(
-      (d['cycle'] as Map?) ?? const {},
-    );
-    final branchId = int.tryParse('${cycle['branch_id']}');
-    if (branchId == null || branchId < 1) {
-      throw Exception('Daily Order branch missing.');
-    }
-
-    final stock = (await api.get(
-      ApiPaths.inventoryStock,
-      query: {'branch_id': branchId},
-    ) as List)
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
-
-    late final List<Map<String, dynamic>> allocations;
-    try {
-      allocations = StockAllocation.fefo(
-        requestLines: lines,
-        stock: stock,
-      );
-    } on StockAllocationException catch (e) {
-      throw Exception(e.message);
-    }
-
-    final allocationCountByLine = <int, int>{};
-    for (final allocation in allocations) {
-      final requestLineId = int.parse('${allocation['request_line_id']}');
-      allocationCountByLine[requestLineId] =
-          (allocationCountByLine[requestLineId] ?? 0) + 1;
-    }
+        final allocations = <Map<String, dynamic>>[
+      for (final line in lines)
+        {
+          'request_line_id': int.parse('${line['id']}'),
+          'quantity': num.parse('${line['quantity']}'),
+        },
+    ];
 
     String? issueError;
     var issuing = false;
@@ -809,8 +570,8 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                   ),
                   child: Text(
                     isAdditional
-                        ? 'Approved additional quantity authorised branch stock se FEFO batch allocation ke saath employee custody me issue hogi.'
-                        : 'Approved quantity authorised branch stock se FEFO batch allocation ke saath employee custody me issue hogi. Stock availability issue se pehle verify ho chuki hai.',
+                        ? 'Approved additional quantity backend par authorised branch stock se automatic FEFO allocation ke saath employee custody me issue hogi.'
+                        : 'Approved quantity backend par authorised branch stock se automatic FEFO allocation ke saath employee custody me issue hogi. Stock kam hua to issue roka jayega.',
                   ),
                 ),
               ),
@@ -852,7 +613,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              'Issue ${BusinessFormat.quantity(l['quantity'])} · ${allocationCountByLine[int.parse('${l['id']}')] ?? 0} batch',
+                              'Issue ${BusinessFormat.quantity(l['quantity'])}',
                               style: const TextStyle(
                                 color: ExcelBrand.primaryDark,
                                 fontWeight: FontWeight.w800,
