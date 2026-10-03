@@ -644,6 +644,37 @@ void main() {
     );
   });
 
+  test('employee creation does not auto-provision login credentials', () {
+    final screen = File(
+      'lib/screens/organization/organization_employees.dart',
+    ).readAsStringSync();
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationEmployeeService.php',
+    ).readAsStringSync();
+
+    expect(screen, contains("'provision_login': false"));
+    expect(
+      screen,
+      contains(
+        'Login credentials are issued separately after the employee record is created.',
+      ),
+    );
+    expect(
+      service,
+      contains(
+        "\$provisionLogin=array_key_exists('provision_login',\$data)&&!empty(\$data['provision_login'])",
+      ),
+    );
+    expect(
+      service,
+      isNot(
+        contains(
+          "\$provisionLogin=!array_key_exists('provision_login',\$data)||!empty(\$data['provision_login'])",
+        ),
+      ),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

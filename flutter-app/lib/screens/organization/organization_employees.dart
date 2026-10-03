@@ -176,6 +176,13 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       controller: joining,
                       label: 'Joining Date',
                     ),
+                    const SizedBox(height: 10),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Login credentials are issued separately after the employee record is created.',
+                      ),
+                    ),
                     if (formError != null) ...[
                       const SizedBox(height: 10),
                       Align(
@@ -254,6 +261,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
         if (emailValue.isNotEmpty) 'email': emailValue,
         if (canManageSalary) 'monthly_salary': salaryValue,
         'joining_date': joiningDate,
+        'provision_login': false,
       };
       code.dispose();
       name.dispose();
