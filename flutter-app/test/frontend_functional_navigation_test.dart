@@ -587,6 +587,24 @@ void main() {
     );
   });
 
+  test('new employee form validates before closing the dialog', () {
+    final screen = File(
+      'lib/screens/organization/organization_employees.dart',
+    ).readAsStringSync();
+
+    expect(screen, contains('String? formError;'));
+    expect(
+      screen,
+      contains('final validation = TransactionGuardrails.employeeCreate('),
+    );
+    expect(screen, contains('setLocal(() => formError = error);'));
+    expect(screen, contains('Navigator.pop(context, true);'));
+    expect(
+      screen,
+      isNot(contains("throw const FormatException(\n            'Monthly Salary")),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

@@ -70,6 +70,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       final email = TextEditingController();
       final salary = TextEditingController(text: '0');
       final joining = TextEditingController(text: app.businessDate);
+      String? formError;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -175,6 +176,18 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       controller: joining,
                       label: 'Joining Date',
                     ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -185,12 +198,32 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(
-                  context,
-                  code.text.trim().isNotEmpty &&
-                      name.text.trim().isNotEmpty &&
-                      designationCode != null,
-                ),
+                onPressed: () {
+                  final validation = TransactionGuardrails.employeeCreate(
+                    employeeCode: code.text.trim(),
+                    fullName: name.text.trim(),
+                    designationCode: designationCode,
+                    roleId: roleId,
+                    mobile: mobile.text.trim(),
+                    email: email.text.trim(),
+                    joiningDate: joining.text.trim(),
+                  );
+                  final salaryValue = canManageSalary
+                      ? double.tryParse(salary.text.trim())
+                      : null;
+                  final salaryError = canManageSalary &&
+                          (salaryValue == null ||
+                              !salaryValue.isFinite ||
+                              salaryValue < 0)
+                      ? 'Monthly Salary must be a valid non-negative amount.'
+                      : null;
+                  final error = validation ?? salaryError;
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Create'),
               ),
             ],
@@ -211,39 +244,8 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       final mobileValue = mobile.text.trim();
       final emailValue = email.text.trim();
       final joiningDate = joining.text.trim();
-      double? salaryValue;
-      if (canManageSalary) {
-        salaryValue = double.tryParse(salary.text.trim());
-        if (salaryValue == null || !salaryValue.isFinite || salaryValue < 0) {
-          code.dispose();
-          name.dispose();
-          mobile.dispose();
-          email.dispose();
-          salary.dispose();
-          joining.dispose();
-          throw const FormatException(
-            'Monthly Salary must be a valid non-negative amount.',
-          );
-        }
-      }
-      final validation = TransactionGuardrails.employeeCreate(
-        employeeCode: employeeCode,
-        fullName: fullName,
-        designationCode: designationCode,
-        roleId: roleId,
-        mobile: mobileValue,
-        email: emailValue,
-        joiningDate: joiningDate,
-      );
-      if (validation != null) {
-        code.dispose();
-        name.dispose();
-        mobile.dispose();
-        email.dispose();
-        salary.dispose();
-        joining.dispose();
-        throw Exception(validation);
-      }
+      final salaryValue =
+          canManageSalary ? double.parse(salary.text.trim()) : null;
       final payload = {
         'assigned_branch_id': app.currentBranchId,
         'employee_code': employeeCode,
