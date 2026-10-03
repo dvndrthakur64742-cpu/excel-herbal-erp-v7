@@ -323,7 +323,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       key: ValueKey('access-$refresh-$branchId'),
       future: Future.wait<dynamic>([
         api.get(ApiPaths.accessMatrix),
-        api.get(ApiPaths.employees, query: {'branch_id': branchId}),
+        api.get(ApiPaths.accessEmployees, query: {'branch_id': branchId}),
       ]),
       builder: (context, data) {
         final list = data as List;

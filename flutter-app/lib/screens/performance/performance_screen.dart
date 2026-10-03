@@ -91,12 +91,11 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     // Salary structures, rewards and promotions remain design-contract work
     // until backend routes, persistence and server capabilities are implemented.
     // Do not expose an interactive UAT workflow that can only fail at runtime.
-    if (app.can('organization.employee.view') &&
-        app.canAny(const [
-          'payroll.salary.view',
-          'payroll.salary.manage',
-          'payroll.salary.approve',
-        ])) {
+    if (app.canAny(const [
+      'payroll.salary.view',
+      'payroll.salary.manage',
+      'payroll.salary.approve',
+    ])) {
       tabs.add((
         'Salary',
         ListView(
@@ -263,7 +262,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     if (branchId == null) return;
     try {
       final employees = (await ref.read(apiClientProvider).get(
-        ApiPaths.employees,
+        ApiPaths.salaryEmployees,
         query: {'branch_id': branchId},
       ) as List)
           .map((e) => Map<String, dynamic>.from(e as Map))

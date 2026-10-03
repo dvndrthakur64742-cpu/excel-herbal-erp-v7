@@ -368,6 +368,69 @@ void main() {
     );
   });
 
+  test('access and salary employee pickers use their own authority scopes', () {
+    final adminScreen = File(
+      'lib/screens/administration/administration_screen.dart',
+    ).readAsStringSync();
+    final performanceScreen = File(
+      'lib/screens/performance/performance_screen.dart',
+    ).readAsStringSync();
+    final paths = File('lib/core/api_paths.dart').readAsStringSync();
+    final routes = File(
+      '../backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php',
+    ).readAsStringSync();
+    final accessService = File(
+      '../backend/excel-herbal-erp-v7/src/Security/AccessService.php',
+    ).readAsStringSync();
+    final salaryService = File(
+      '../backend/excel-herbal-erp-v7/src/Payroll/SalaryService.php',
+    ).readAsStringSync();
+
+    expect(
+      paths,
+      contains("accessEmployees = '/administration/access-employees'"),
+    );
+    expect(
+      paths,
+      contains("salaryEmployees = '/payroll/salary-employees'"),
+    );
+    expect(adminScreen, contains('ApiPaths.accessEmployees'));
+    expect(performanceScreen, contains('ApiPaths.salaryEmployees'));
+    expect(
+      performanceScreen,
+      isNot(contains("app.can('organization.employee.view') &&")),
+    );
+    expect(
+      routes,
+      contains(
+        "['GET','/administration/access-employees','access.employees',true]",
+      ),
+    );
+    expect(
+      routes,
+      contains(
+        "['GET','/payroll/salary-employees','payroll.salary_employees',true]",
+      ),
+    );
+    expect(accessService, contains('public static function employeeChoices'));
+    expect(accessService, contains('Capabilities::ACCESS_MANAGE'));
+    expect(
+      accessService,
+      contains('HierarchyScope::manageableEmployeeIds(\$a)'),
+    );
+    expect(salaryService, contains('public static function employeeChoices'));
+    expect(
+      salaryService,
+      contains(
+        'Guard::branchAny(\$a,\$branch,[Capabilities::SALARY_VIEW,Capabilities::SALARY_MANAGE,Capabilities::SALARY_APPROVE])',
+      ),
+    );
+    expect(
+      salaryService,
+      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branch)'),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

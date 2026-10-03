@@ -16,6 +16,13 @@ final class SalaryService {
         $id=$db->get_var($db->prepare('SELECT id FROM '.Db::table('companies').' WHERE id=%d FOR UPDATE',$company));
         if (!$id || !empty($db->last_error)) throw new DomainException('Unable to lock payroll company.', 'payroll_lock_failed', 500);
     }
+    public static function employeeChoices(Actor $a,int $branch):array {
+        Guard::branchAny($a,$branch,[Capabilities::SALARY_VIEW,Capabilities::SALARY_MANAGE,Capabilities::SALARY_APPROVE]);
+        $ids=HierarchyScope::visibleEmployeeIds($a,$branch);
+        if(!$ids)return[];
+        $db=Db::wpdb();$sql="SELECT id,employee_code,full_name,designation_code FROM ".Db::table('employees')." WHERE company_id=%d AND assigned_branch_id=%d AND status='active' AND id IN (".implode(',',array_map('intval',$ids)).") ORDER BY full_name,id";
+        return(array)$db->get_results($db->prepare($sql,$a->companyId,$branch),ARRAY_A);
+    }
     public static function history(Actor $a,int $employee):array {
         $readCap=$a->can(Capabilities::SALARY_VIEW)
             ?Capabilities::SALARY_VIEW

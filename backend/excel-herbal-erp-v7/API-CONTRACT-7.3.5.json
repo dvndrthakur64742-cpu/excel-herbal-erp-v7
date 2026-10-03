@@ -1305,6 +1305,13 @@
     },
     {
       "method": "GET",
+      "path": "/payroll/salary-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/payroll/policy",
       "auth": true,
       "idempotency_required": false,
@@ -1757,6 +1764,13 @@
       "required_params": [
         "reason"
       ]
+    },
+    {
+      "method": "GET",
+      "path": "/administration/access-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
     },
     {
       "method": "GET",

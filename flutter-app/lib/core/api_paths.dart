@@ -65,7 +65,8 @@ abstract final class ApiPaths {
       periodClose = '/finance/periods/close',
       bankReconciliations = '/finance/bank-reconciliations';
 
-  static const payrollPolicy = '/payroll/policy',
+  static const salaryEmployees = '/payroll/salary-employees',
+      payrollPolicy = '/payroll/policy',
       payrollRuns = '/payroll/runs',
       salaryStructures = '/payroll/salary-structures',
       performanceSummary = '/performance/summary',
@@ -103,6 +104,7 @@ abstract final class ApiPaths {
       actingInbox = '/administration/acting-inbox',
       actingAuthorityStatus = '/administration/authority-status',
       actingUnavailability = '/administration/unavailability',
+      accessEmployees = '/administration/access-employees',
       accessMatrix = '/administration/access',
       adminRoles = '/administration/roles',
       audit = '/administration/audit',
