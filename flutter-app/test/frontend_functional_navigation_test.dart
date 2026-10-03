@@ -733,6 +733,49 @@ void main() {
     expect(hr, isNot(contains("replaceAll('_', ' ')")));
   });
 
+  test('transaction workspaces format backend status and batch codes', () {
+    final inventory = File(
+      'lib/screens/inventory/inventory_screen.dart',
+    ).readAsStringSync();
+    final finance = File(
+      'lib/screens/finance/finance_bank.dart',
+    ).readAsStringSync();
+    final financeParent = File(
+      'lib/screens/finance/finance_screen.dart',
+    ).readAsStringSync();
+    final sales = File(
+      'lib/screens/sales/sales_screen.dart',
+    ).readAsStringSync();
+    final purchase = File(
+      'lib/screens/purchase/purchase_screen.dart',
+    ).readAsStringSync();
+
+    expect(
+      inventory,
+      contains("BusinessFormat.status(status)"),
+    );
+    expect(
+      financeParent,
+      contains("import '../../core/business_format.dart';"),
+    );
+    expect(
+      finance,
+      contains("BusinessFormat.status(r['status'])"),
+    );
+    expect(
+      finance,
+      contains("BusinessFormat.status(line['status'])"),
+    );
+    expect(
+      sales,
+      contains("BusinessFormat.status(p['batch_tracking'] ?? 'optional')"),
+    );
+    expect(
+      purchase,
+      contains("BusinessFormat.status(p['batch_tracking'])"),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

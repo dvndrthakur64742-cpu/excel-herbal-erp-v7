@@ -200,7 +200,7 @@ extension _FinanceBankFeature on _FinanceScreenState {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               Text(
-                'Status ${r['status']} · Opening ${r['opening_balance']} · Closing ${r['closing_balance']}',
+                'Status ${BusinessFormat.status(r['status'])} · Opening ${r['opening_balance']} · Closing ${r['closing_balance']}',
               ),
               const SizedBox(height: 12),
               if ('${r['status']}' == 'draft')
@@ -223,7 +223,7 @@ extension _FinanceBankFeature on _FinanceScreenState {
                       '${line['txn_date']} · ${line['description'] ?? ''}',
                     ),
                     subtitle: Text(
-                      '${line['status']} · Ref ${line['reference'] ?? '-'}',
+                      '${BusinessFormat.status(line['status'])} · Ref ${line['reference'] ?? '-'}',
                     ),
                     trailing: Text(
                       (double.tryParse('${line['debit']}') ?? 0) > 0

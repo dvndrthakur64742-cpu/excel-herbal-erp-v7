@@ -501,7 +501,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
-            ListTile(title: Text('Transfer #$id · $status')),
+            ListTile(title: Text('Transfer #$id · ${BusinessFormat.status(status)}')),
             if (status == 'draft' && app.can('inventory.transfer.create'))
               ListTile(
                 leading: const Icon(Icons.inventory_2_outlined),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
 import '../../core/whole_pcs.dart';
@@ -367,7 +368,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                       '$batchLabel · Available ${row['quantity']} ${row['uom'] ?? ''}',
                                     ),
                                     Text(
-                                      'Sale ₹${p['sale_price'] ?? 0} · Batch mode ${p['batch_tracking'] ?? 'optional'}',
+                                      'Sale ₹${p['sale_price'] ?? 0} · Batch mode ${BusinessFormat.status(p['batch_tracking'] ?? 'optional')}',
                                     ),
                                   ],
                                 ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
 import '../../core/whole_pcs.dart';
@@ -325,7 +326,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${p['name']} · Batch ${p['batch_tracking']}',
+                                '${p['name']} · Batch ${BusinessFormat.status(p['batch_tracking'])}',
                               ),
                               const SizedBox(height: 8),
                               Row(
