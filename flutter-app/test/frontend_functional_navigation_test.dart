@@ -282,6 +282,12 @@ void main() {
     expect(service, contains('Capabilities::DAILY_OTHERS'));
     expect(
       service,
+      contains(
+        'Guard::any(\$a,[Capabilities::DAILY_SELF,Capabilities::DAILY_OTHERS])',
+      ),
+    );
+    expect(
+      service,
       contains('HierarchyScope::visibleEmployeeIds(\$a,\$branch)'),
     );
     expect(
