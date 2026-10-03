@@ -160,7 +160,6 @@ abstract final class TransactionGuardrails {
     required String employeeCode,
     required String fullName,
     required String? designationCode,
-    required int? roleId,
     required String mobile,
     required String email,
     required String joiningDate,

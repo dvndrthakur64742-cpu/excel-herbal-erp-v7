@@ -210,7 +210,6 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                     employeeCode: code.text.trim(),
                     fullName: name.text.trim(),
                     designationCode: designationCode,
-                    roleId: roleId,
                     mobile: mobile.text.trim(),
                     email: email.text.trim(),
                     joiningDate: joining.text.trim(),
