@@ -399,6 +399,13 @@
     },
     {
       "method": "GET",
+      "path": "/organization/hr/employee-choices",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/organization/candidates",
       "auth": true,
       "idempotency_required": false,
@@ -719,6 +726,13 @@
         "points",
         "purchase_cost"
       ]
+    },
+    {
+      "method": "GET",
+      "path": "/daily/target-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
     },
     {
       "method": "GET",
@@ -1291,6 +1305,13 @@
     },
     {
       "method": "GET",
+      "path": "/payroll/salary-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/payroll/policy",
       "auth": true,
       "idempotency_required": false,
@@ -1410,6 +1431,13 @@
       "required_params": []
     },
     {
+      "method": "GET",
+      "path": "/performance/target-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
       "method": "POST",
       "path": "/performance/targets",
       "auth": true,
@@ -1523,6 +1551,13 @@
     {
       "method": "GET",
       "path": "/communication/summary",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/communication/target-employees",
       "auth": true,
       "idempotency_required": false,
       "required_params": []
@@ -1650,6 +1685,13 @@
     },
     {
       "method": "GET",
+      "path": "/administration/acting-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/administration/delegations",
       "auth": true,
       "idempotency_required": false,
@@ -1722,6 +1764,13 @@
       "required_params": [
         "reason"
       ]
+    },
+    {
+      "method": "GET",
+      "path": "/administration/access-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
     },
     {
       "method": "GET",

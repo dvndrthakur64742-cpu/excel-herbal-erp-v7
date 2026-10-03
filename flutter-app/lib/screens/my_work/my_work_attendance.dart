@@ -3,6 +3,7 @@ part of 'my_work_screen.dart';
 extension _MyWorkAttendance on _MyWorkScreenState {
   Widget _attendance() {
     final api = ref.watch(apiClientProvider);
+    final tracker = ref.watch(gpsTrackingProvider);
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
       children: [
@@ -97,6 +98,45 @@ extension _MyWorkAttendance on _MyWorkScreenState {
             );
           },
         ),
+        const SizedBox(height: 10),
+        Card(
+          child: ListTile(
+            leading: Icon(
+              tracker.active
+                  ? Icons.location_searching_rounded
+                  : Icons.location_off_outlined,
+            ),
+            title: const Text('Duty GPS'),
+            subtitle: Text(
+              [
+                BusinessFormat.status(tracker.dutyStatus),
+                if (tracker.lastSentAt != null)
+                  'Last sync ${BusinessFormat.dateTime(tracker.lastSentAt!.toIso8601String())}',
+                if (tracker.lastError != null) tracker.lastError!,
+              ].join(' · '),
+            ),
+            trailing: IconButton(
+              tooltip: 'Refresh duty GPS status',
+              onPressed: tracker.sending
+                  ? null
+                  : () async {
+                      await ref.read(gpsTrackingProvider).sync();
+                      if (mounted) {
+                        _setFeatureState(
+                          () => message = 'Duty GPS status refreshed.',
+                        );
+                      }
+                    },
+              icon: tracker.sending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_rounded),
+            ),
+          ),
+        ),
         if (message != null) ...[
           const SizedBox(height: 8),
           _feedbackBanner(message!),
@@ -140,7 +180,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
           message = checkIn
               ? (gpsStarted
                   ? 'Check-In successful. GPS tracking started.'
-                  : 'Check-In successful. GPS tracking could not start; ERP Tools se retry karein.')
+                  : 'Check-In successful. GPS tracking could not start; Duty GPS card se retry karein.')
               : 'Check-Out successful. GPS tracking stopped.';
         });
       }

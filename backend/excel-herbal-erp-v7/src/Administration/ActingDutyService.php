@@ -29,6 +29,15 @@ final class ActingDutyService
         ];
     }
 
+    public static function employeeChoices(Actor $a,int $branchId):array
+    {
+        Guard::branch($a,$branchId,Capabilities::DELEGATION_MANAGE);
+        $ids=HierarchyScope::visibleEmployeeIds($a,$branchId);
+        if(!$ids)return[];
+        $db=Db::wpdb();$sql="SELECT id,employee_code,full_name,designation_code FROM ".Db::table('employees')." WHERE company_id=%d AND assigned_branch_id=%d AND status='active' AND id IN (".implode(',',array_map('intval',$ids)).") ORDER BY full_name,id";
+        return(array)$db->get_results($db->prepare($sql,$a->companyId,$branchId),ARRAY_A);
+    }
+
     public static function list(Actor $a, ?int $branchId = null): array
     {
         $db=Db::wpdb();$t=Db::table('acting_delegations');$e=Db::table('employees');
@@ -56,10 +65,10 @@ final class ActingDutyService
         if($delegate<1)throw new DomainException('Delegate employee is required.','delegate_required',422);if($delegator===$delegate)throw new DomainException('Self-delegation is forbidden.','delegation_self_forbidden',422);
         if(strlen($reason)<5)throw new DomainException('Delegation reason is required.','delegation_reason_required',422);
         if(!isset(self::actionCapabilities()[$action]))throw new DomainException('Unsupported delegation action.','delegation_action_invalid',422);
-        if($delegator!==$a->employeeId&&!$a->can(Capabilities::ACCESS_MANAGE))throw new DomainException('Only access administrators may create delegation for another delegator.','delegator_forbidden',403);
+        if($delegator!==$a->employeeId){if(!$a->can(Capabilities::ACCESS_MANAGE))throw new DomainException('Only access administrators may create delegation for another delegator.','delegator_forbidden',403);HierarchyScope::assertCanViewEmployee($a,$delegator);}
         [$starts,$ends]=self::window((string)($data['starts_at']??''),(string)($data['ends_at']??''));
         if(!self::employeeHasPermanentAuthority($a->companyId,$delegator,$branch,$action))throw new DomainException('Delegator does not own this exact action in this branch.','delegator_authority_missing',403);
-        $db=Db::wpdb();$emp=$db->get_row($db->prepare("SELECT id,status FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",$delegate,$a->companyId),ARRAY_A);if(!$emp||$emp['status']!=='active')throw new DomainException('Delegate must be an active employee.','delegate_invalid',422);
+        $db=Db::wpdb();$emp=$db->get_row($db->prepare("SELECT id,status FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",$delegate,$a->companyId),ARRAY_A);if(!$emp||$emp['status']!=='active')throw new DomainException('Delegate must be an active employee.','delegate_invalid',422);HierarchyScope::assertCanViewEmployee($a,$delegate);
         return Transaction::run(function()use($a,$delegator,$delegate,$branch,$action,$starts,$ends,$reason){
             $db=Db::wpdb();$t=Db::table('acting_delegations');
             $overlap=$db->get_row($db->prepare("SELECT id FROM {$t} WHERE company_id=%d AND delegator_employee_id=%d AND branch_id=%d AND action_code=%s AND status='active' AND NOT(ends_at<=%s OR starts_at>=%s) ORDER BY id LIMIT 1 FOR UPDATE",$a->companyId,$delegator,$branch,$action,$starts,$ends),ARRAY_A);
@@ -86,13 +95,13 @@ final class ActingDutyService
 
     public static function createUnavailability(Actor $a,array $data):array
     {
-        Guard::cap($a,Capabilities::DELEGATION_MANAGE);$branch=(int)($data['branch_id']??0);if($branch<1||!$a->hasBranch($branch))throw new DomainException('Branch is outside effective authority.','branch_forbidden',403);$employee=(int)($data['employee_id']??$a->employeeId);if($employee!==$a->employeeId&&!$a->can(Capabilities::ACCESS_MANAGE))throw new DomainException('Only access administrators may mark another employee unavailable.','unavailability_employee_forbidden',403);$reason=trim((string)($data['reason']??''));if(strlen($reason)<5)throw new DomainException('Unavailability reason is required.','unavailability_reason_required',422);[$starts,$ends]=self::window((string)($data['starts_at']??''),(string)($data['ends_at']??''));$db=Db::wpdb();$valid=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d AND status='active'",$employee,$a->companyId));if(!$valid)throw new DomainException('Active employee not found.','employee_not_found',404);
+        Guard::cap($a,Capabilities::DELEGATION_MANAGE);$branch=(int)($data['branch_id']??0);if($branch<1||!$a->hasBranch($branch))throw new DomainException('Branch is outside effective authority.','branch_forbidden',403);$employee=(int)($data['employee_id']??$a->employeeId);if($employee!==$a->employeeId){if(!$a->can(Capabilities::ACCESS_MANAGE))throw new DomainException('Only access administrators may mark another employee unavailable.','unavailability_employee_forbidden',403);HierarchyScope::assertCanViewEmployee($a,$employee);}$reason=trim((string)($data['reason']??''));if(strlen($reason)<5)throw new DomainException('Unavailability reason is required.','unavailability_reason_required',422);[$starts,$ends]=self::window((string)($data['starts_at']??''),(string)($data['ends_at']??''));$db=Db::wpdb();$valid=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d AND status='active'",$employee,$a->companyId));if(!$valid)throw new DomainException('Active employee not found.','employee_not_found',404);
         return Transaction::run(function()use($a,$employee,$branch,$starts,$ends,$reason){$db=Db::wpdb();$t=Db::table('acting_unavailability');$overlap=$db->get_row($db->prepare("SELECT id FROM {$t} WHERE company_id=%d AND employee_id=%d AND branch_id=%d AND status='active' AND NOT(ends_at<=%s OR starts_at>=%s) ORDER BY id LIMIT 1 FOR UPDATE",$a->companyId,$employee,$branch,$starts,$ends),ARRAY_A);if($overlap)throw new DomainException('An overlapping unavailability window already exists.','unavailability_overlap',409);Db::mustInsert($db,$t,['company_id'=>$a->companyId,'employee_id'=>$employee,'branch_id'=>$branch,'starts_at'=>$starts,'ends_at'=>$ends,'reason'=>$reason,'status'=>'active','created_by'=>$a->employeeId,'created_at'=>Db::now()]);$id=(int)$db->insert_id;Audit::add($a,'acting.unavailability_create','acting_unavailability',$id,['branch_id'=>$branch,'employee_id'=>$employee,'starts_at'=>$starts,'ends_at'=>$ends,'reason'=>$reason]);return['id'=>$id,'status'=>'active','employee_id'=>$employee,'branch_id'=>$branch,'starts_at'=>$starts,'ends_at'=>$ends];});
     }
 
     public static function revokeUnavailability(Actor $a,int $id,string $reason):array
     {
-        $reason=trim($reason);if(strlen($reason)<5)throw new DomainException('Revoke reason is required.','unavailability_revoke_reason_required',422);return Transaction::run(function()use($a,$id,$reason){$db=Db::wpdb();$t=Db::table('acting_unavailability');$r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND company_id=%d FOR UPDATE",$id,$a->companyId),ARRAY_A);if(!$r)throw new DomainException('Unavailability window not found.','unavailability_not_found',404);if((int)$r['employee_id']!==$a->employeeId&&!($a->can(Capabilities::ACCESS_MANAGE)&&$a->hasBranch((int)$r['branch_id'])))throw new DomainException('Unavailability revoke is outside authority.','unavailability_revoke_forbidden',403);if($r['status']!=='active')throw new DomainException('Unavailability window is not active.','unavailability_not_active',409);Db::mustUpdate($db,$t,['status'=>'revoked','revoked_by'=>$a->employeeId,'revoked_at'=>Db::now(),'revoke_reason'=>$reason],['id'=>$id]);Audit::add($a,'acting.unavailability_revoke','acting_unavailability',$id,['branch_id'=>(int)$r['branch_id'],'employee_id'=>(int)$r['employee_id'],'reason'=>$reason]);return['id'=>$id,'status'=>'revoked'];});
+        $reason=trim($reason);if(strlen($reason)<5)throw new DomainException('Revoke reason is required.','unavailability_revoke_reason_required',422);return Transaction::run(function()use($a,$id,$reason){$db=Db::wpdb();$t=Db::table('acting_unavailability');$r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND company_id=%d FOR UPDATE",$id,$a->companyId),ARRAY_A);if(!$r)throw new DomainException('Unavailability window not found.','unavailability_not_found',404);if((int)$r['employee_id']!==$a->employeeId&&(!($a->can(Capabilities::ACCESS_MANAGE)&&$a->hasBranch((int)$r['branch_id']))||!HierarchyScope::canViewEmployee($a,(int)$r['employee_id'])))throw new DomainException('Unavailability revoke is outside authority.','unavailability_revoke_forbidden',403);if($r['status']!=='active')throw new DomainException('Unavailability window is not active.','unavailability_not_active',409);Db::mustUpdate($db,$t,['status'=>'revoked','revoked_by'=>$a->employeeId,'revoked_at'=>Db::now(),'revoke_reason'=>$reason],['id'=>$id]);Audit::add($a,'acting.unavailability_revoke','acting_unavailability',$id,['branch_id'=>(int)$r['branch_id'],'employee_id'=>(int)$r['employee_id'],'reason'=>$reason]);return['id'=>$id,'status'=>'revoked'];});
     }
 
     /** Runtime mutation gate. @return array{mode:string,delegation_id:?int,delegator_employee_id:?int} */
@@ -146,7 +155,7 @@ final class ActingDutyService
 
     private static function canRevokeRow(Actor $a,array $row):bool
     {
-        if((int)$row['delegator_employee_id']===$a->employeeId)return true;return $a->can(Capabilities::ACCESS_MANAGE)&&$a->hasBranch((int)$row['branch_id']);
+        if((int)$row['delegator_employee_id']===$a->employeeId)return true;if(!$a->can(Capabilities::ACCESS_MANAGE)||!$a->hasBranch((int)$row['branch_id']))return false;return HierarchyScope::canViewEmployee($a,(int)$row['delegator_employee_id'])||HierarchyScope::canViewEmployee($a,(int)$row['delegate_employee_id']);
     }
 
     private static function effectiveStatus(array $row,string $now):string

@@ -8,6 +8,7 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
 import '../../widgets/async_panel.dart';
+import '../../widgets/branch_selector.dart';
 import '../../widgets/module_workspace.dart';
 import 'tasks_screen.dart';
 
@@ -53,6 +54,37 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
                   contextLabel: 'Business date · ${app.businessDate}',
                 ),
               ),
+              if (app.can('communication.manage'))
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: BranchSelector(),
+                ),
+              if (app.can('communication.manage'))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: ModuleActionPanel(
+                    title: 'Management Actions',
+                    subtitle:
+                        'Create team tasks and publish authorised communication from this single workspace.',
+                    actions: [
+                      FilledButton.icon(
+                        onPressed: _createTask,
+                        icon: const Icon(Icons.add_task_rounded),
+                        label: const Text('New Task'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _createAnnouncement(app),
+                        icon: const Icon(Icons.campaign_outlined),
+                        label: const Text('Announcement'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _createNotification,
+                        icon: const Icon(Icons.notification_add_outlined),
+                        label: const Text('Notification'),
+                      ),
+                    ],
+                  ),
+                ),
               if (message != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -234,6 +266,317 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
         ),
       ],
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _employeeChoices() async {
+    final app = ref.read(appStateProvider);
+    final branchId = app.currentBranchId;
+    if (branchId == null) return const [];
+    final data = await ref.read(apiClientProvider).get(
+      ApiPaths.communicationTargetEmployees,
+      query: {'branch_id': branchId},
+    );
+    return ((data as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList(growable: false);
+  }
+
+  Future<void> _createTask() async {
+    try {
+      final employees = await _employeeChoices();
+      if (!mounted) return;
+      if (employees.isEmpty) {
+        setState(() => message = 'No eligible employee is available in your reporting scope.');
+        return;
+      }
+      var employeeId = int.tryParse('${employees.first['id']}') ?? 0;
+      final title = TextEditingController();
+      DateTime? dueAt;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setLocal) => AlertDialog(
+            title: const Text('New Task'),
+            content: SizedBox(
+              width: 480,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: employeeId,
+                    isExpanded: true,
+                    items: employees
+                        .map(
+                          (e) => DropdownMenuItem<int>(
+                            value: int.tryParse('${e['id']}') ?? 0,
+                            child: Text(
+                              '${e['full_name']} (${e['employee_code']})',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setLocal(() => employeeId = value ?? employeeId),
+                    decoration: const InputDecoration(labelText: 'Assign To'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: title,
+                    autofocus: true,
+                    decoration: const InputDecoration(labelText: 'Task Title'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          dueAt == null
+                              ? 'No due date'
+                              : 'Due: ${BusinessFormat.dateTime(dueAt!.toIso8601String())}',
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final picked = await _pickDueAt(dueAt);
+                          if (picked != null) setLocal(() => dueAt = picked);
+                        },
+                        icon: const Icon(Icons.event_outlined),
+                        label: Text(dueAt == null ? 'Set due' : 'Change'),
+                      ),
+                      if (dueAt != null)
+                        IconButton(
+                          tooltip: 'Clear due date',
+                          onPressed: () => setLocal(() => dueAt = null),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (employeeId < 1 || title.text.trim().isEmpty) return;
+                  Navigator.pop(dialogContext, true);
+                },
+                child: const Text('Create'),
+              ),
+            ],
+          ),
+        ),
+      );
+      final taskTitle = title.text.trim();
+      title.dispose();
+      if (ok != true || taskTitle.isEmpty || employeeId < 1) return;
+      await _postAdmin(
+        ApiPaths.tasks,
+        {
+          'assigned_employee_id': employeeId,
+          'title': taskTitle,
+          if (dueAt != null) 'due_at': dueAt!.toUtc().toIso8601String(),
+        },
+        'Task created.',
+      );
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<DateTime?> _pickDueAt(DateTime? current) async {
+    final now = DateTime.now();
+    final initial = current ?? now.add(const Duration(days: 1));
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 5, 12, 31),
+    );
+    if (date == null || !mounted) return null;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current ?? DateTime(
+        date.year,
+        date.month,
+        date.day,
+        18,
+      )),
+    );
+    if (time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  Future<void> _createAnnouncement(AppState app) async {
+    final title = TextEditingController();
+    final body = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Publish Announcement'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: title,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: body,
+                minLines: 3,
+                maxLines: 6,
+                decoration: const InputDecoration(labelText: 'Message'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (title.text.trim().isEmpty || body.text.trim().isEmpty) return;
+              Navigator.pop(dialogContext, true);
+            },
+            child: const Text('Publish'),
+          ),
+        ],
+      ),
+    );
+    final announcementTitle = title.text.trim();
+    final announcementBody = body.text.trim();
+    title.dispose();
+    body.dispose();
+    if (ok != true || announcementTitle.isEmpty || announcementBody.isEmpty) return;
+    await _postAdmin(
+      ApiPaths.announcements,
+      {
+        if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+        'title': announcementTitle,
+        'body': announcementBody,
+      },
+      'Announcement published.',
+    );
+  }
+
+  Future<void> _createNotification() async {
+    try {
+      final employees = await _employeeChoices();
+      if (!mounted) return;
+      if (employees.isEmpty) {
+        setState(() => message = 'No eligible employee is available in your reporting scope.');
+        return;
+      }
+      var employeeId = int.tryParse('${employees.first['id']}') ?? 0;
+      final title = TextEditingController();
+      final body = TextEditingController();
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setLocal) => AlertDialog(
+            title: const Text('Send Notification'),
+            content: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: employeeId,
+                    isExpanded: true,
+                    items: employees
+                        .map(
+                          (e) => DropdownMenuItem<int>(
+                            value: int.tryParse('${e['id']}') ?? 0,
+                            child: Text(
+                              '${e['full_name']} (${e['employee_code']})',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setLocal(() => employeeId = value ?? employeeId),
+                    decoration: const InputDecoration(labelText: 'Employee'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: title,
+                    autofocus: true,
+                    decoration: const InputDecoration(labelText: 'Title'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: body,
+                    minLines: 2,
+                    maxLines: 5,
+                    decoration: const InputDecoration(labelText: 'Message'),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (employeeId < 1 || title.text.trim().isEmpty) return;
+                  Navigator.pop(dialogContext, true);
+                },
+                child: const Text('Send'),
+              ),
+            ],
+          ),
+        ),
+      );
+      final notificationTitle = title.text.trim();
+      final notificationBody = body.text.trim();
+      title.dispose();
+      body.dispose();
+      if (ok != true || notificationTitle.isEmpty || employeeId < 1) return;
+      await _postAdmin(
+        ApiPaths.notifications,
+        {
+          'employee_id': employeeId,
+          'title': notificationTitle,
+          'body': notificationBody,
+          'type': 'general',
+        },
+        'Notification sent.',
+      );
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _postAdmin(
+    String path,
+    Map<String, dynamic> data,
+    String success,
+  ) async {
+    try {
+      await ref.read(apiClientProvider).post(path, data: data);
+      if (mounted) {
+        setState(() {
+          message = success;
+          refresh++;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
   }
 
   Future<void> _acknowledge(int id) =>

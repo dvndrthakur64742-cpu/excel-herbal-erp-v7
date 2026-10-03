@@ -11,6 +11,7 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
+import '../../widgets/business_date_field.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import 'employee_designations_screen.dart';
@@ -102,6 +103,9 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         ),
       ));
     }
+    if (app.can('workforce.leave.manage')) {
+      tabs.add(('Holidays', _holidaysTab(app, api)));
+    }
     if (app.can('organization.employee.view')) {
       tabs.add((
         'Hierarchy',
@@ -171,7 +175,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                 child: ModuleWorkspaceHeader(
                   title: 'Team Operations',
                   subtitle:
-                      'Daily work, attendance, leave, field activity and employee oversight.',
+                      'Daily work, attendance, holidays, field activity and employee oversight.',
                   icon: Icons.groups_outlined,
                   contextLabel: app.currentBranchName,
                 ),
@@ -205,6 +209,198 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         ),
       ),
     );
+  }
+
+  Widget _holidaysTab(AppState app, dynamic api) {
+    final branchId = app.currentBranchId;
+    final year = DateTime.now().year;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              onPressed: branchId == null ? null : () => _createHoliday(app),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New Holiday'),
+            ),
+          ),
+        ),
+        Expanded(
+          child: branchId == null
+              ? const Center(child: Text('Select an authorised branch.'))
+              : AsyncPanel(
+                  key: ValueKey('holidays-$branchId-$refresh'),
+                  future: api.get(
+                    ApiPaths.holidays,
+                    query: {
+                      'branch_id': branchId,
+                      'from': '$year-01-01',
+                      'to': '$year-12-31',
+                    },
+                  ),
+                  emptyMessage: 'No holidays are configured for this branch.',
+                  builder: (context, data) {
+                    final rows = ((data as List?) ?? const [])
+                        .whereType<Map>()
+                        .map((e) => Map<String, dynamic>.from(e))
+                        .toList();
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        final id = int.tryParse('${row['id']}') ?? 0;
+                        return Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.event_available_outlined),
+                            title: Text('${row['name'] ?? 'Holiday'}'),
+                            subtitle: Text(
+                              BusinessFormat.date(row['holiday_date']),
+                            ),
+                            trailing: id > 0
+                                ? IconButton(
+                                    tooltip: 'Deactivate holiday',
+                                    onPressed: () => _deactivateHoliday(
+                                      id,
+                                      '${row['name'] ?? 'Holiday'}',
+                                    ),
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline_rounded,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _createHoliday(AppState app) async {
+    final date = TextEditingController(text: app.businessDate);
+    final name = TextEditingController();
+    String? validation;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setLocal) => AlertDialog(
+          title: const Text('New Holiday'),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                BusinessDateField(
+                  controller: date,
+                  label: 'Holiday Date',
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: name,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: 'Holiday Name'),
+                ),
+                if (validation != null) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      validation!,
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (name.text.trim().isEmpty) {
+                  setLocal(() => validation = 'Holiday name is required.');
+                  return;
+                }
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Create Holiday'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final holidayDate = date.text.trim();
+    final holidayName = name.text.trim();
+    date.dispose();
+    name.dispose();
+    if (ok != true || holidayName.isEmpty || app.currentBranchId == null) {
+      return;
+    }
+    try {
+      await ref.read(apiClientProvider).post(
+        ApiPaths.holidays,
+        data: {
+          'branch_id': app.currentBranchId,
+          'holiday_date': holidayDate,
+          'name': holidayName,
+        },
+      );
+      if (mounted) {
+        setState(() {
+          refresh++;
+          message = 'Holiday created.';
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _deactivateHoliday(int id, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Deactivate holiday?'),
+        content: Text('$name will be removed from the active holiday calendar.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Deactivate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(apiClientProvider).post(
+        ApiPaths.holidayDeactivate(id),
+        data: const {},
+      );
+      if (mounted) {
+        setState(() {
+          refresh++;
+          message = 'Holiday deactivated.';
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
   }
 
   Future<void> _employeeDesignations(Map<String, dynamic> row) async {
@@ -315,7 +511,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 Text(
-                  'Daily Order #$id · ${(data['cycle'] as Map)['status']}',
+                  'Daily Order #$id · ${BusinessFormat.status((data['cycle'] as Map)['status'])}',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
@@ -328,12 +524,12 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${r['type']} · ${r['status']}',
+                            '${BusinessFormat.value('type', r['type'])} · ${BusinessFormat.status(r['status'])}',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           ...(r['lines'] as List).map(
                             (l) => Text(
-                              '${(l as Map)['product_name']} · Qty ${l['quantity']} · Batch ${l['batch_tracking']}',
+                              '${(l as Map)['product_name']} · Qty ${BusinessFormat.quantity(l['quantity'])} · Batch ${BusinessFormat.status(l['batch_tracking'])}',
                             ),
                           ),
                           const SizedBox(height: 8),

@@ -12,6 +12,7 @@ abstract final class ApiPaths {
 
   static const branches = '/organization/branches',
       employees = '/organization/employees',
+      hrEmployeeChoices = '/organization/hr/employee-choices',
       hrCandidates = '/organization/candidates',
       hrSeparations = '/organization/separations',
       masterData = '/organization/master-data',
@@ -34,6 +35,7 @@ abstract final class ApiPaths {
       leaveMine = '/workforce/leave/mine',
       leavePending = '/workforce/leave/pending',
       products = '/catalog/products',
+      dailyTargetEmployees = '/daily/target-employees',
       dailyCycles = '/daily/cycles';
 
   static const inventoryStock = '/inventory/stock',
@@ -63,11 +65,13 @@ abstract final class ApiPaths {
       periodClose = '/finance/periods/close',
       bankReconciliations = '/finance/bank-reconciliations';
 
-  static const payrollPolicy = '/payroll/policy',
+  static const salaryEmployees = '/payroll/salary-employees',
+      payrollPolicy = '/payroll/policy',
       payrollRuns = '/payroll/runs',
       salaryStructures = '/payroll/salary-structures',
       performanceSummary = '/performance/summary',
       performanceTargets = '/performance/targets',
+      performanceTargetEmployees = '/performance/target-employees',
       performanceRewards = '/performance/rewards',
       performancePromotions = '/performance/promotions';
 
@@ -86,6 +90,7 @@ abstract final class ApiPaths {
       priceDistribution = '/reports/price-distribution';
 
   static const communicationSummary = '/communication/summary',
+      communicationTargetEmployees = '/communication/target-employees',
       taskManage = '/communication/tasks/manage',
       announcementManage = '/communication/announcements/manage',
       announcements = '/communication/announcements',
@@ -94,10 +99,12 @@ abstract final class ApiPaths {
       pushDevices = '/communication/push-devices',
       pushDeactivate = '/communication/push-devices/deactivate',
       tasks = '/communication/tasks',
+      actingEmployees = '/administration/acting-employees',
       actingDelegations = '/administration/delegations',
       actingInbox = '/administration/acting-inbox',
       actingAuthorityStatus = '/administration/authority-status',
       actingUnavailability = '/administration/unavailability',
+      accessEmployees = '/administration/access-employees',
       accessMatrix = '/administration/access',
       adminRoles = '/administration/roles',
       audit = '/administration/audit',

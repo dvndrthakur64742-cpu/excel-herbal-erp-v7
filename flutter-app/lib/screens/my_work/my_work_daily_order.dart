@@ -40,7 +40,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       var employees = <Map<String, dynamic>>[];
       if (app.can('daily_order.others')) {
         employees = (await api.get(
-          ApiPaths.employees,
+          ApiPaths.dailyTargetEmployees,
           query: {'branch_id': app.currentBranchId},
         ) as List)
             .map((e) => Map<String, dynamic>.from(e as Map))

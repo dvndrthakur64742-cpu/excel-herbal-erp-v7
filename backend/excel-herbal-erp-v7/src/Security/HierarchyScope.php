@@ -50,6 +50,10 @@ final class HierarchyScope {
         return self::reportingCategoryForCode((string)$row['designation_code'],(string)($row['reporting_designation_code']??''));
     }
 
+    public static function hasCompanyWideSystemAuthority(Actor $a):bool {
+        return BranchAuthority::isCompanyWideAdmin($a->employeeId,$a->companyId,$a->designationCode);
+    }
+
     /** @return int[] */
     public static function visibleEmployeeIds(Actor $a,?int $branchId=null):array {
         $db=Db::wpdb();
@@ -60,7 +64,7 @@ final class HierarchyScope {
         foreach($rows as$r){$id=(int)$r['id'];$byId[$id]=$r;$mgr=(int)($r['reporting_employee_id']??0);if($mgr>0)$children[$mgr][]=$id;}
         if(!isset($byId[$a->employeeId]))return[$a->employeeId];
 
-        $allCompany=in_array($actorCode,['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true);
+        $allCompany=self::hasCompanyWideSystemAuthority($a);
         if($allCompany){$ids=array_keys($byId);}
         elseif(in_array($actorCode,['BM','BRANCH_MANAGER'],true)){
             $ownBranch=(int)$byId[$a->employeeId]['assigned_branch_id'];$ids=[];foreach($byId as$id=>$r)if((int)$r['assigned_branch_id']===$ownBranch)$ids[]=$id;
@@ -76,6 +80,29 @@ final class HierarchyScope {
         $ids=array_values(array_unique(array_map('intval',$ids)));
         if($branchId!==null&&$branchId>0){$ids=array_values(array_filter($ids,fn($id)=>isset($byId[$id])&&(int)$byId[$id]['assigned_branch_id']===$branchId));}
         sort($ids);return$ids;
+    }
+
+
+    /** @return int[] */
+    public static function manageableEmployeeIds(Actor $a):array {
+        $db=Db::wpdb();
+        $rows=(array)$db->get_results($db->prepare("SELECT id,assigned_branch_id,reporting_employee_id FROM ".Db::table('employees')." WHERE company_id=%d AND status IN ('active','inactive') ORDER BY id",$a->companyId),ARRAY_A);
+        if(!$rows)return[$a->employeeId];
+        $byId=[];$children=[];
+        foreach($rows as$r){$id=(int)$r['id'];$byId[$id]=$r;$mgr=(int)($r['reporting_employee_id']??0);if($mgr>0)$children[$mgr][]=$id;}
+        $actorCode=self::normaliseCode($a->designationCode);
+        if(self::hasCompanyWideSystemAuthority($a)){ $ids=array_keys($byId);sort($ids);return$ids; }
+        $ids=[$a->employeeId];$queue=$children[$a->employeeId]??[];$seen=[];$allowed=array_flip(array_values(array_unique(array_merge([(int)$a->branchId],array_map('intval',$a->branchIds)))));
+        while($queue){$id=(int)array_shift($queue);if(isset($seen[$id]))continue;$seen[$id]=1;if(!isset($byId[$id]))continue;$branch=(int)$byId[$id]['assigned_branch_id'];if(!isset($allowed[$branch]))continue;$ids[]=$id;foreach(($children[$id]??[]) as$child)$queue[]=(int)$child;}
+        $ids=array_values(array_unique(array_map('intval',$ids)));sort($ids);return$ids;
+    }
+
+    public static function canManageEmployeeAccess(Actor $a,int $employeeId):bool {
+        return in_array($employeeId,self::manageableEmployeeIds($a),true);
+    }
+
+    public static function assertCanManageEmployeeAccess(Actor $a,int $employeeId):void {
+        if(!self::canManageEmployeeAccess($a,$employeeId))throw new DomainException('Employee access is outside delegated reporting authority.','employee_access_scope_forbidden',403);
     }
 
     public static function canViewEmployee(Actor $a,int $employeeId):bool {

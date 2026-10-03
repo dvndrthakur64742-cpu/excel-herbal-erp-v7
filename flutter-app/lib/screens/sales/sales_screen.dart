@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
 import '../../core/whole_pcs.dart';
@@ -282,6 +283,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       final qty = <int, TextEditingController>{
         for (var i = 0; i < stock.length; i++) i: TextEditingController(),
       };
+      String? formError;
+      List<Map<String, dynamic>>? validatedLines;
+      double? validatedPaidAmount;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -367,7 +371,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                       '$batchLabel · Available ${row['quantity']} ${row['uom'] ?? ''}',
                                     ),
                                     Text(
-                                      'Sale ₹${p['sale_price'] ?? 0} · Batch mode ${p['batch_tracking'] ?? 'optional'}',
+                                      'Sale ₹${p['sale_price'] ?? 0} · Batch mode ${BusinessFormat.status(p['batch_tracking'] ?? 'optional')}',
                                     ),
                                   ],
                                 ),
@@ -389,6 +393,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         ),
                       );
                     }),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -399,7 +415,68 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () {
+                  final lines = <Map<String, dynamic>>[];
+                  String? error;
+                  for (var i = 0; i < stock.length; i++) {
+                    final q = WholePcs.parseOrZero(qty[i]!.text);
+                    if (q <= 0) continue;
+                    final available =
+                        double.tryParse('${stock[i]['quantity']}') ?? 0;
+                    if (q > available + .0001) {
+                      error =
+                          '${stock[i]['product_name']} quantity available stock se zyada hai.';
+                      break;
+                    }
+                    final batchKey =
+                        int.tryParse('${stock[i]['batch_key']}') ?? 0;
+                    lines.add({
+                      'product_id': stock[i]['product_id'],
+                      'quantity': q,
+                      if (batchKey > 0) 'batch_id': batchKey,
+                    });
+                  }
+                  if (error == null && lines.isEmpty) {
+                    error = 'Product quantity required.';
+                  }
+                  var gross = 0.0;
+                  if (error == null) {
+                    for (final line in lines) {
+                      final productId = int.tryParse('${line['product_id']}');
+                      final product =
+                          productId == null ? null : productById[productId];
+                      final rate =
+                          double.tryParse('${product?['sale_price'] ?? 0}') ??
+                              0;
+                      if (rate <= 0) {
+                        error =
+                            '${product?['name'] ?? 'Product'} does not have a valid sale price.';
+                        break;
+                      }
+                      gross +=
+                          (line['quantity'] as num).toDouble() * rate;
+                    }
+                  }
+                  final paidAmount = double.tryParse(paid.text.trim());
+                  if (error == null && paidAmount == null) {
+                    error = 'Enter a valid paid amount.';
+                  }
+                  if (error == null && paidAmount != null) {
+                    error = TransactionGuardrails.counterSale(
+                      gross: gross,
+                      paid: paidAmount,
+                      customerId: customerId,
+                      paymentAccountId: accountId,
+                    );
+                  }
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  validatedLines = lines;
+                  validatedPaidAmount = paidAmount;
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Post Sale'),
               ),
             ],
@@ -407,45 +484,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         ),
       );
       if (ok == true) {
-        final lines = <Map<String, dynamic>>[];
-        for (var i = 0; i < stock.length; i++) {
-          final q = WholePcs.parseOrZero(qty[i]!.text);
-          if (q <= 0) continue;
-          final available = double.tryParse('${stock[i]['quantity']}') ?? 0;
-          if (q > available + .0001)
-            throw Exception(
-              '${stock[i]['product_name']} quantity available stock se zyada hai.',
-            );
-          final batchKey = int.tryParse('${stock[i]['batch_key']}') ?? 0;
-          lines.add({
-            'product_id': stock[i]['product_id'],
-            'quantity': q,
-            if (batchKey > 0) 'batch_id': batchKey,
-          });
-        }
-        if (lines.isEmpty) throw Exception('Product quantity required.');
-        var gross = 0.0;
-        for (final line in lines) {
-          final productId = int.tryParse('${line['product_id']}');
-          final product = productId == null ? null : productById[productId];
-          final rate = double.tryParse('${product?['sale_price'] ?? 0}') ?? 0;
-          if (rate <= 0) {
-            throw Exception(
-              '${product?['name'] ?? 'Product'} does not have a valid sale price.',
-            );
-          }
-          gross += (line['quantity'] as num).toDouble() * rate;
-        }
-        final paidAmount = double.tryParse(paid.text.trim());
-        if (paidAmount == null)
-          throw Exception('Enter a valid paid amount.');
-        final guardError = TransactionGuardrails.counterSale(
-          gross: gross,
-          paid: paidAmount,
-          customerId: customerId,
-          paymentAccountId: accountId,
-        );
-        if (guardError != null) throw Exception(guardError);
+        final lines = validatedLines!;
+        final paidAmount = validatedPaidAmount!;
         final r = await api.post(
           ApiPaths.counterSale,
           data: {

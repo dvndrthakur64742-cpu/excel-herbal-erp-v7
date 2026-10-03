@@ -62,4 +62,141 @@ void main() {
     expect(performance, contains("'payroll.approve'"));
     expect(performance, contains("'payroll.pay'"));
   });
+  test('access management blocks hierarchy escape and privilege escalation', () {
+    final access = File(
+      '../backend/excel-herbal-erp-v7/src/Security/AccessService.php',
+    ).readAsStringSync();
+
+    expect(access, contains('HierarchyScope::assertCanManageEmployeeAccess(\$a,\$employeeId)'));
+    expect(access, contains('assertCanDelegateCapabilities'));
+    expect(access, contains("'authority_escalation_forbidden',403"));
+    expect(access, contains('self::assertCanDelegateCapabilities(\$a,\$affectedCaps)'));
+    expect(access, contains('self::assertCanDelegateCapabilities(\$a,array_merge(\$grants,\$denies))'));
+  });
+
+  test('shared-role and subordinate access scope are fail closed', () {
+    final access = File(
+      '../backend/excel-herbal-erp-v7/src/Security/AccessService.php',
+    ).readAsStringSync();
+    final hierarchy = File(
+      '../backend/excel-herbal-erp-v7/src/Security/HierarchyScope.php',
+    ).readAsStringSync();
+
+    expect(hierarchy, contains('manageableEmployeeIds'));
+    expect(hierarchy, contains('assertCanManageEmployeeAccess'));
+    expect(hierarchy, contains("'employee_access_scope_forbidden',403"));
+    expect(access, contains('assertRoleWithinAuthority'));
+    expect(access, contains("'role_scope_forbidden',403"));
+    expect(access, contains('array_merge(\$before,\$wanted)'));
+    expect(access, contains('array_merge(\$grants,\$denies)'));
+    expect(access, contains('array_column(\$before,\'capability\')'));
+  });
+
+  test('reserved system roles and employee mutations use central authority policy', () {
+    final access = File(
+      '../backend/excel-herbal-erp-v7/src/Security/AccessService.php',
+    ).readAsStringSync();
+    final branchAuthority = File(
+      '../backend/excel-herbal-erp-v7/src/Security/BranchAuthority.php',
+    ).readAsStringSync();
+    final employee = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationEmployeeService.php',
+    ).readAsStringSync();
+    final branch = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationBranchService.php',
+    ).readAsStringSync();
+
+    expect(access, contains("'reserved_system_role_forbidden',403"));
+    expect(access, contains('assertCanAdministerEmployeeIdentity'));
+    expect(branchAuthority, contains('isCompanyWideAdmin'));
+    expect(branchAuthority, contains('Capabilities::ACCESS_MANAGE'));
+    expect(employee, contains('AccessService::assertCanDelegateCapabilities'));
+    expect(employee, contains('AccessService::assertCanAdministerEmployeeIdentity'));
+    expect(branch, contains('HierarchyScope::assertCanManageEmployeeAccess'));
+    expect(branch, contains('HierarchyScope::hasCompanyWideSystemAuthority'));
+  });
+
+  test('canonical communication and password UX stay aligned', () {
+    final tools = File(
+      'lib/screens/tools/erp_tools_screen.dart',
+    ).readAsStringSync();
+    final communication = File(
+      'lib/screens/communication/communication_screen.dart',
+    ).readAsStringSync();
+    final appState = File('lib/state/app_state.dart').readAsStringSync();
+    final shell = File('lib/shell/app_shell.dart').readAsStringSync();
+    final navigation = File(
+      '../backend/excel-herbal-erp-v7/src/App/NavigationProjection.php',
+    ).readAsStringSync();
+
+    expect(tools, isNot(contains('Widget _communicationTab')));
+    expect(tools, isNot(contains('Future<void> _createTask()')));
+    expect(tools, contains('password.text.length < 10'));
+    expect(tools, contains('Password must contain at least 10 characters.'));
+    expect(communication, contains("app.can('communication.manage')"));
+    expect(communication, contains("title: 'Management Actions'"));
+    expect(communication, contains('Future<void> _createTask()'));
+    expect(communication, contains('Future<void> _createAnnouncement'));
+    expect(communication, contains('Future<void> _createNotification()'));
+    expect(communication, contains('child: BranchSelector()'));
+    expect(communication, isNot(contains('Due At (optional ISO date/time)')));
+    expect(appState, isNot(contains("'communication.view',")));
+    expect(navigation, contains("['id'=>'tasks','label'=>'My Tasks']"));
+    expect(shell, contains("_desktopTile('tasks', 'My Tasks'"));
+  });
+
+  test('management dashboard loads independent summaries concurrently', () {
+    final home = File('lib/screens/home/home_screen.dart').readAsStringSync();
+
+    expect(home, contains('final salesFuture = _safeRows('));
+    expect(home, contains("app.can('daily_order.others')"));
+    expect(home, contains("app.can('performance.view')"));
+    expect(home, contains('final rows = await Future.wait(['));
+    expect(home, contains('Future<List<Map<String, dynamic>>> _safeRows'));
+  });
+
+  test('business date inputs use picker widgets instead of raw format typing', () {
+    final finance = File('lib/screens/finance/finance_screen.dart').readAsStringSync();
+    final bank = File('lib/screens/finance/finance_bank.dart').readAsStringSync();
+    final periods = File('lib/screens/finance/finance_periods.dart').readAsStringSync();
+    final organization = File(
+      'lib/screens/organization/organization_screen.dart',
+    ).readAsStringSync();
+    final employees = File(
+      'lib/screens/organization/organization_employees.dart',
+    ).readAsStringSync();
+    final products = File(
+      'lib/screens/organization/organization_products.dart',
+    ).readAsStringSync();
+    final hr = File(
+      'lib/screens/organization/hr_lifecycle_screen.dart',
+    ).readAsStringSync();
+    final performance = File(
+      'lib/screens/performance/performance_screen.dart',
+    ).readAsStringSync();
+    final acting = File(
+      'lib/screens/administration/acting_duty_admin_panel.dart',
+    ).readAsStringSync();
+
+    expect(finance, contains("business_date_field.dart"));
+    expect(organization, contains("business_date_field.dart"));
+    expect(hr, contains("business_date_field.dart"));
+    expect(performance, contains("business_date_field.dart"));
+    expect(bank, contains('BusinessDateField('));
+    expect(periods, contains('BusinessDateField('));
+    expect(employees, contains('BusinessDateField('));
+    expect(products, contains('BusinessDateField('));
+    expect(acting, contains('BusinessDateTimeField('));
+
+    for (final source in [bank, periods, employees, products, hr, performance]) {
+      expect(source, isNot(contains('labelText: \'From YYYY-MM-DD\'')));
+      expect(source, isNot(contains('labelText: \'To YYYY-MM-DD\'')));
+      expect(source, isNot(contains('Joining Date YYYY-MM-DD')));
+      expect(source, isNot(contains('Effective Date YYYY-MM-DD')));
+      expect(source, isNot(contains('Payment Date (YYYY-MM-DD)')));
+    }
+    expect(acting, isNot(contains('Starts At YYYY-MM-DDTHH:MM')));
+    expect(acting, isNot(contains('Ends At YYYY-MM-DDTHH:MM')));
+  });
+
 }

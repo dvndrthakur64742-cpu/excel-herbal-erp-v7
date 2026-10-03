@@ -22,7 +22,7 @@ final class NavigationProjection {
   $bottom=[['id'=>'home','label'=>'Home']];
   if($can([Capabilities::ATT_SELF,Capabilities::LEAVE_SELF,Capabilities::FIELD_SELF,Capabilities::DAILY_SELF]))$bottom[]=['id'=>'my_work','label'=>'My Work'];
   if($can([Capabilities::DAILY_SELF,Capabilities::DAILY_OTHERS,Capabilities::SALES_CREATE,Capabilities::RECEIPT_CREATE,Capabilities::TRANSFER_CREATE,Capabilities::ADJ_CREATE,Capabilities::PURCHASE_CREATE,Capabilities::EXPENSE_CREATE]))$bottom[]=['id'=>'actions','label'=>'Actions'];
-  if($can([Capabilities::COMM_VIEW]))$bottom[]=['id'=>'tasks','label'=>'Tasks'];
+  if($can([Capabilities::COMM_VIEW]))$bottom[]=['id'=>'tasks','label'=>'My Tasks'];
   $bottom[]=['id'=>'profile','label'=>'Profile'];
   return ['sections'=>array_values(array_filter($sections,fn($x)=>$x['visible'])),'bottom_nav'=>$bottom];
  }

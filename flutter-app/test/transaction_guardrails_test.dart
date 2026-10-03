@@ -145,7 +145,6 @@ void main() {
           employeeCode: '',
           fullName: 'Test Employee',
           designationCode: 'SM',
-          roleId: 1,
           mobile: '',
           email: '',
           joiningDate: '2026-09-30',
@@ -157,7 +156,6 @@ void main() {
           employeeCode: 'E-100',
           fullName: 'Test Employee',
           designationCode: 'SM',
-          roleId: 1,
           mobile: '9876543210',
           email: 'bad-email',
           joiningDate: '2026-09-30',
@@ -169,10 +167,70 @@ void main() {
           employeeCode: 'E-100',
           fullName: 'Test Employee',
           designationCode: 'SM',
-          roleId: 1,
           mobile: '+91 98765 43210',
           email: 'employee@example.com',
           joiningDate: '2026-09-30',
+        ),
+        isNull,
+      );
+      expect(
+        TransactionGuardrails.employeeCreate(
+          employeeCode: 'E-101',
+          fullName: 'No Extra Role Employee',
+          designationCode: 'FIELD_EXECUTIVE',
+          mobile: '',
+          email: '',
+          joiningDate: '2026-09-30',
+        ),
+        isNull,
+      );
+    });
+
+    test('candidate registration validates contact and salary text', () {
+      expect(
+        TransactionGuardrails.candidateRegister(
+          fullName: 'Candidate',
+          designationCode: 'SM',
+          mobile: '',
+          email: '',
+          validateSalary: false,
+          salaryText: '0',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.candidateRegister(
+          fullName: 'Candidate',
+          designationCode: 'SM',
+          mobile: '9876543210',
+          email: '',
+          validateSalary: true,
+          salaryText: 'abc',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.candidateRegister(
+          fullName: 'Candidate',
+          designationCode: 'SM',
+          mobile: '9876543210',
+          email: 'candidate@example.com',
+          validateSalary: true,
+          salaryText: '25000',
+        ),
+        isNull,
+      );
+      expect(
+        TransactionGuardrails.nonNegativeMoneyText(
+          '-1',
+          label: 'Monthly Salary',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.nonNegativeMoneyText(
+          '0',
+          label: 'Monthly Salary',
         ),
         isNull,
       );

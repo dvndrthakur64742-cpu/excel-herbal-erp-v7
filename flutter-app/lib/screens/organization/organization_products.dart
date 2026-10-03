@@ -317,12 +317,9 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
                   const SizedBox(height: 10),
                   _moneyPair(points, 'Points', purchaseCost, 'Purchase Cost'),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateField(
                     controller: effectiveDate,
-                    decoration: const InputDecoration(
-                      labelText: 'Effective Date YYYY-MM-DD',
-                      helperText: 'Default ERP business date',
-                    ),
+                    label: 'Commercial Effective Date',
                   ),
                   const SizedBox(height: 10),
                   TextField(

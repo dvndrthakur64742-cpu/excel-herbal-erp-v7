@@ -41,45 +41,65 @@ extension _FinancePeriodsFeature on _FinanceScreenState {
     final app = ref.read(appStateProvider);
     final from = TextEditingController(text: app.businessMonthStart);
     final to = TextEditingController(text: app.businessDate);
+    String? formError;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Close Accounting Period'),
-        content: SizedBox(
-          width: 480,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: from,
-                decoration: const InputDecoration(labelText: 'From YYYY-MM-DD'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: to,
-                decoration: const InputDecoration(labelText: 'To YYYY-MM-DD'),
-              ),
-            ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Close Accounting Period'),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                BusinessDateField(
+                  controller: from,
+                  label: 'Period From',
+                ),
+                const SizedBox(height: 10),
+                BusinessDateField(
+                  controller: to,
+                  label: 'Period To',
+                ),
+                if (formError != null) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      formError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final error = TransactionGuardrails.dateRange(
+                  from.text.trim(),
+                  to.text.trim(),
+                );
+                if (error != null) {
+                  setLocal(() => formError = error);
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
+              child: const Text('Close Period'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Close Period'),
-          ),
-        ],
       ),
     );
     if (ok == true) {
-      final guardError = TransactionGuardrails.dateRange(
-        from.text.trim(),
-        to.text.trim(),
-      );
-      if (guardError != null) throw Exception(guardError);
       await _post(
           ApiPaths.periodClose,
           {

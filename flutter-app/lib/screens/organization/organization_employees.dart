@@ -43,9 +43,13 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
     try {
+      final canManageAccess = app.can('administration.access.manage');
+      final canManageSalary = app.can('payroll.salary.manage');
       final results = await Future.wait([
         api.get(ApiPaths.designations),
-        api.get(ApiPaths.roles),
+        canManageAccess
+            ? api.get(ApiPaths.roles)
+            : Future<dynamic>.value(const <dynamic>[]),
         api.get(ApiPaths.employees, query: {'branch_id': app.currentBranchId}),
       ]);
       final designations = (results[0] as List)
@@ -66,6 +70,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       final email = TextEditingController();
       final salary = TextEditingController(text: '0');
       final joining = TextEditingController(text: app.businessDate);
+      String? formError;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -105,20 +110,24 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       onChanged: (v) => setLocal(() => designationCode = v),
                     ),
                     const SizedBox(height: 10),
-                    DropdownButtonFormField<int?>(
-                      initialValue: roleId,
-                      decoration: const InputDecoration(labelText: 'Role'),
-                      items: roles
-                          .map(
-                            (r) => DropdownMenuItem<int?>(
-                              value: int.parse('${r['id']}'),
-                              child: Text('${r['name']}'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setLocal(() => roleId = v),
-                    ),
-                    const SizedBox(height: 10),
+                    if (canManageAccess) ...[
+                      DropdownButtonFormField<int?>(
+                        initialValue: roleId,
+                        decoration: const InputDecoration(
+                          labelText: 'Additional Role (optional)',
+                        ),
+                        items: roles
+                            .map(
+                              (r) => DropdownMenuItem<int?>(
+                                value: int.parse('${r['id']}'),
+                                child: Text('${r['name']}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) => setLocal(() => roleId = v),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     DropdownButtonFormField<int?>(
                       initialValue: reportingId,
                       decoration: const InputDecoration(
@@ -151,22 +160,41 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       decoration: const InputDecoration(labelText: 'Email'),
                     ),
                     const SizedBox(height: 10),
-                    TextField(
-                      controller: salary,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                    if (canManageSalary) ...[
+                      TextField(
+                        controller: salary,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Monthly Salary',
+                        ),
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Monthly Salary',
-                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    BusinessDateField(
+                      controller: joining,
+                      label: 'Joining Date',
                     ),
                     const SizedBox(height: 10),
-                    TextField(
-                      controller: joining,
-                      decoration: const InputDecoration(
-                        labelText: 'Joining Date YYYY-MM-DD',
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Login credentials are issued separately after the employee record is created.',
                       ),
                     ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -177,13 +205,28 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(
-                  context,
-                  code.text.trim().isNotEmpty &&
-                      name.text.trim().isNotEmpty &&
-                      designationCode != null &&
-                      roleId != null,
-                ),
+                onPressed: () {
+                  final validation = TransactionGuardrails.employeeCreate(
+                    employeeCode: code.text.trim(),
+                    fullName: name.text.trim(),
+                    designationCode: designationCode,
+                    mobile: mobile.text.trim(),
+                    email: email.text.trim(),
+                    joiningDate: joining.text.trim(),
+                  );
+                  final salaryError = canManageSalary
+                      ? TransactionGuardrails.nonNegativeMoneyText(
+                          salary.text,
+                          label: 'Monthly Salary',
+                        )
+                      : null;
+                  final error = validation ?? salaryError;
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Create'),
               ),
             ],
@@ -204,24 +247,8 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       final mobileValue = mobile.text.trim();
       final emailValue = email.text.trim();
       final joiningDate = joining.text.trim();
-      final validation = TransactionGuardrails.employeeCreate(
-        employeeCode: employeeCode,
-        fullName: fullName,
-        designationCode: designationCode,
-        roleId: roleId,
-        mobile: mobileValue,
-        email: emailValue,
-        joiningDate: joiningDate,
-      );
-      if (validation != null) {
-        code.dispose();
-        name.dispose();
-        mobile.dispose();
-        email.dispose();
-        salary.dispose();
-        joining.dispose();
-        throw Exception(validation);
-      }
+      final salaryValue =
+          canManageSalary ? double.parse(salary.text.trim()) : null;
       final payload = {
         'assigned_branch_id': app.currentBranchId,
         'employee_code': employeeCode,
@@ -231,8 +258,9 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
         if (reportingId != null) 'reporting_employee_id': reportingId,
         if (mobileValue.isNotEmpty) 'mobile': mobileValue,
         if (emailValue.isNotEmpty) 'email': emailValue,
-        'monthly_salary': double.tryParse(salary.text) ?? 0,
+        if (canManageSalary) 'monthly_salary': salaryValue,
         'joining_date': joiningDate,
+        'provision_login': false,
       };
       code.dispose();
       name.dispose();
@@ -263,7 +291,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
               title: Text(
                 '${employee['full_name']} · ${employee['employee_code']}',
               ),
-              subtitle: Text('${employee['designation_code']}'),
+              subtitle: Text(BusinessFormat.value('designation_code', employee['designation_code'])),
             ),
             ListTile(
               leading: const Icon(Icons.history),
@@ -287,6 +315,13 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                   int.parse('${employee['assigned_branch_id']}'),
                 ),
               ),
+            if (app.can('organization.employee.manage'))
+              ListTile(
+                leading: const Icon(Icons.phonelink_lock_outlined),
+                title: const Text('App Login & Sessions'),
+                subtitle: const Text('Reset login password or revoke active sessions'),
+                onTap: () => _employeeLoginDialog(employee),
+              ),
             if (app.can('administration.access.manage'))
               ListTile(
                 leading: const Icon(Icons.account_tree_outlined),
@@ -300,6 +335,162 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
         ),
       ),
     );
+  }
+
+  Future<void> _employeeLoginDialog(
+    Map<String, dynamic> employee,
+  ) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    final id = int.tryParse('${employee['id']}') ?? 0;
+    if (id < 1) return;
+    try {
+      final status = Map<String, dynamic>.from(
+        await ref.read(apiClientProvider).get(ApiPaths.employeeLoginStatus(id))
+            as Map,
+      );
+      if (!mounted) return;
+      final password = TextEditingController();
+      String? validation;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setLocal) => AlertDialog(
+            title: Text('${employee['full_name']} · App Login'),
+            content: SizedBox(
+              width: 500,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      status['login_enabled'] == true
+                          ? Icons.verified_user_outlined
+                          : Icons.person_off_outlined,
+                    ),
+                    title: Text(
+                      status['login_enabled'] == true
+                          ? 'Mobile login enabled'
+                          : 'Mobile login not provisioned',
+                    ),
+                    subtitle: Text(
+                      'Active sessions: ${status['active_sessions'] ?? 0}',
+                    ),
+                  ),
+                  TextField(
+                    controller: password,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Set / Reset Password',
+                      helperText: 'Minimum 10 characters',
+                    ),
+                  ),
+                  if (validation != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        validation!,
+                        style: TextStyle(
+                          color: Theme.of(dialogContext).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Share credentials only through an approved secure channel. Password reset automatically revokes existing mobile sessions.',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: dialogContext,
+                    builder: (confirmContext) => AlertDialog(
+                      title: const Text('Revoke employee sessions?'),
+                      content: const Text(
+                        'All active mobile sessions for this employee will be signed out.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(confirmContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(confirmContext, true),
+                          child: const Text('Revoke Sessions'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                  try {
+                    await ref.read(apiClientProvider).post(
+                      ApiPaths.employeeRevokeSessions(id),
+                      data: const {},
+                    );
+                    if (!mounted || !dialogContext.mounted) return;
+                    Navigator.pop(dialogContext);
+                    _setOrganizationState(() {
+                      refresh++;
+                      message = 'Employee mobile sessions revoked.';
+                    });
+                  } catch (e) {
+                    if (dialogContext.mounted) {
+                      setLocal(() => validation = UiError.message(e));
+                    }
+                  }
+                },
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('Revoke Sessions'),
+              ),
+              FilledButton.icon(
+                onPressed: () async {
+                  if (password.text.length < 10) {
+                    setLocal(
+                      () => validation =
+                          'Password must contain at least 10 characters.',
+                    );
+                    return;
+                  }
+                  try {
+                    await ref.read(apiClientProvider).post(
+                      ApiPaths.employeeCredentials(id),
+                      data: {'password': password.text},
+                    );
+                    if (!mounted || !dialogContext.mounted) return;
+                    Navigator.pop(dialogContext);
+                    _setOrganizationState(() {
+                      refresh++;
+                      message = 'Employee app login password updated.';
+                    });
+                  } catch (e) {
+                    if (dialogContext.mounted) {
+                      setLocal(() => validation = UiError.message(e));
+                    }
+                  }
+                },
+                icon: const Icon(Icons.password_rounded),
+                label: const Text('Save Password'),
+              ),
+            ],
+          ),
+        ),
+      );
+      password.dispose();
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
+    }
   }
 
   Future<void> _employeeHistory(int id) async {
@@ -375,11 +566,9 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                   onChanged: (v) => setLocal(() => branchId = v),
                 ),
                 const SizedBox(height: 10),
-                TextField(
+                BusinessDateField(
                   controller: date,
-                  decoration: const InputDecoration(
-                    labelText: 'Effective Date YYYY-MM-DD',
-                  ),
+                  label: 'Transfer Effective Date',
                 ),
                 const SizedBox(height: 10),
                 TextField(

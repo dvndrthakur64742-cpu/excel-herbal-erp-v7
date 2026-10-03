@@ -9,6 +9,7 @@ import '../../core/providers.dart';
 import '../../core/business_format.dart';
 import '../../core/ui_error.dart';
 import '../../theme/excel_brand.dart';
+import '../../widgets/business_date_field.dart';
 import '../../state/app_state.dart';
 
 class ErpToolsScreen extends ConsumerStatefulWidget {
@@ -31,8 +32,6 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       if (!widget.accountOnly && app.can('workforce.attendance.self'))
         ('Duty', Icons.location_on_outlined, _dutyTab(app)),
       ('My Account', Icons.badge_outlined, _accountTab(app)),
-      if (!widget.accountOnly && app.can('communication.view'))
-        ('Communication', Icons.notifications_outlined, _communicationTab(app)),
       if (!widget.accountOnly && app.can('organization.employee.manage'))
         ('Team Access', Icons.manage_accounts_outlined, _teamAccessTab()),
     ];
@@ -41,7 +40,7 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.accountOnly ? 'Account & Security' : 'My Account & Duty'),
+          title: Text(widget.accountOnly ? 'Account & Security' : 'Work & Account Tools'),
           actions: [
             IconButton(
               tooltip: 'Refresh',
@@ -562,122 +561,6 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     );
   }
 
-  Widget _communicationTab(AppState app) {
-    final api = ref.watch(apiClientProvider);
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (app.can('communication.manage'))
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton.icon(
-                    onPressed: _createTask,
-                    icon: const Icon(Icons.add_task),
-                    label: const Text('New Task'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _createAnnouncement(app),
-                    icon: const Icon(Icons.campaign_outlined),
-                    label: const Text('Announcement'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _createNotification,
-                    icon: const Icon(Icons.notification_add_outlined),
-                    label: const Text('Notification'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        const SizedBox(height: 12),
-        _futureCard(
-          title: 'My Communication',
-          action: TextButton(
-            onPressed: () => _post(ApiPaths.notificationReadAll, const {}),
-            child: const Text('Read All'),
-          ),
-          future: api.get(ApiPaths.communicationSummary),
-          builder: (data) {
-            final d = Map<String, dynamic>.from((data as Map?) ?? const {});
-            final tasks = _rows(d['tasks']);
-            final announcements = _rows(d['announcements']);
-            final notifications = _rows(d['notifications']);
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _sectionTitle('Tasks (${tasks.length})'),
-                if (tasks.isEmpty) const Text('No pending tasks.'),
-                ...tasks.map((r) {
-                  final id = int.tryParse('${r['id']}') ?? 0;
-                  return ListTile(
-                    leading: const Icon(Icons.task_alt_outlined),
-                    title: Text('${r['title'] ?? 'Task'}'),
-                    subtitle: Text('${r['due_at'] ?? ''}'),
-                    trailing: id > 0
-                        ? IconButton(
-                            tooltip: 'Complete',
-                            icon: const Icon(Icons.check_circle_outline),
-                            onPressed: () =>
-                                _post(ApiPaths.taskComplete(id), const {}),
-                          )
-                        : null,
-                  );
-                }),
-                _sectionTitle('Announcements (${announcements.length})'),
-                if (announcements.isEmpty) const Text('No announcements.'),
-                ...announcements.map((r) {
-                  final id = int.tryParse('${r['id']}') ?? 0;
-                  return ListTile(
-                    leading: const Icon(Icons.campaign_outlined),
-                    title: Text('${r['title'] ?? ''}'),
-                    subtitle: Text('${r['body'] ?? ''}'),
-                    trailing: id > 0
-                        ? TextButton(
-                            onPressed: () => _post(
-                              ApiPaths.announcementAcknowledge(id),
-                              const {},
-                            ),
-                            child: const Text('Acknowledge'),
-                          )
-                        : null,
-                  );
-                }),
-                _sectionTitle('Notifications (${notifications.length})'),
-                if (notifications.isEmpty) const Text('No notifications.'),
-                ...notifications.map((r) {
-                  final id = int.tryParse('${r['id']}') ?? 0;
-                  final read = '${r['read_at'] ?? ''}'.isNotEmpty;
-                  return ListTile(
-                    leading: Icon(
-                      read
-                          ? Icons.notifications_none
-                          : Icons.notifications_active_outlined,
-                    ),
-                    title: Text('${r['title'] ?? ''}'),
-                    subtitle: Text('${r['body'] ?? ''}'),
-                    trailing: !read && id > 0
-                        ? IconButton(
-                            tooltip: 'Mark read',
-                            onPressed: () =>
-                                _post(ApiPaths.notificationRead(id), const {}),
-                            icon: const Icon(Icons.done),
-                          )
-                        : null,
-                  );
-                }),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-
   Widget _teamAccessTab() {
     final api = ref.watch(apiClientProvider);
     final app = ref.watch(appStateProvider);
@@ -778,17 +661,6 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     );
   }
 
-  Widget _sectionTitle(String value) => Padding(
-        padding: const EdgeInsets.only(top: 14, bottom: 6),
-        child: Text(
-          value,
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
-        ),
-      );
-
   Future<void> _createHoliday(AppState app) async {
     final name = TextEditingController();
     final date = TextEditingController(text: _today());
@@ -799,9 +671,11 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            BusinessDateField(
               controller: date,
-              decoration: const InputDecoration(labelText: 'Date YYYY-MM-DD'),
+              label: 'Holiday Date',
+              firstDate: DateTime(DateTime.now().year - 1, 1, 1),
+              lastDate: DateTime(DateTime.now().year + 2, 12, 31),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -911,209 +785,6 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
     title.dispose();
   }
 
-  Future<List<Map<String, dynamic>>> _employeeChoices() async {
-    final app = ref.read(appStateProvider);
-    if (app.currentBranchId == null) return const [];
-    final data = await ref.read(apiClientProvider).get(
-      ApiPaths.employees,
-      query: {
-        'branch_id': app.currentBranchId,
-        'status': 'active',
-        'limit': 200,
-      },
-    );
-    return _rows(data);
-  }
-
-  Future<void> _createTask() async {
-    try {
-      final employees = await _employeeChoices();
-      if (!mounted || employees.isEmpty) return;
-      var employeeId = int.tryParse('${employees.first['id']}') ?? 0;
-      final title = TextEditingController();
-      final due = TextEditingController();
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: const Text('New Task'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<int>(
-                  initialValue: employeeId,
-                  items: employees
-                      .map(
-                        (e) => DropdownMenuItem<int>(
-                          value: int.tryParse('${e['id']}') ?? 0,
-                          child: Text(
-                            '${e['full_name']} (${e['employee_code']})',
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) =>
-                      setLocal(() => employeeId = v ?? employeeId),
-                  decoration: const InputDecoration(labelText: 'Assign To'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: title,
-                  decoration: const InputDecoration(labelText: 'Task Title'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: due,
-                  decoration: const InputDecoration(
-                    labelText: 'Due At (optional ISO date/time)',
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Create'),
-              ),
-            ],
-          ),
-        ),
-      );
-      if (ok == true) {
-        await _post(ApiPaths.tasks, {
-          'assigned_employee_id': employeeId,
-          'title': title.text.trim(),
-          if (due.text.trim().isNotEmpty) 'due_at': due.text.trim(),
-        });
-      }
-      title.dispose();
-      due.dispose();
-    } catch (e) {
-      _msg(UiError.message(e));
-    }
-  }
-
-  Future<void> _createAnnouncement(AppState app) async {
-    final title = TextEditingController();
-    final body = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Publish Announcement'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: title,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: body,
-              maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Message'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Publish'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await _post(ApiPaths.announcements, {
-        if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
-        'title': title.text.trim(),
-        'body': body.text.trim(),
-      });
-    }
-    title.dispose();
-    body.dispose();
-  }
-
-  Future<void> _createNotification() async {
-    try {
-      final employees = await _employeeChoices();
-      if (!mounted || employees.isEmpty) return;
-      var employeeId = int.tryParse('${employees.first['id']}') ?? 0;
-      final title = TextEditingController();
-      final body = TextEditingController();
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: const Text('Send Notification'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<int>(
-                  initialValue: employeeId,
-                  items: employees
-                      .map(
-                        (e) => DropdownMenuItem<int>(
-                          value: int.tryParse('${e['id']}') ?? 0,
-                          child: Text(
-                            '${e['full_name']} (${e['employee_code']})',
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) =>
-                      setLocal(() => employeeId = v ?? employeeId),
-                  decoration: const InputDecoration(labelText: 'Employee'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: title,
-                  decoration: const InputDecoration(labelText: 'Title'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: body,
-                  maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Message'),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Send'),
-              ),
-            ],
-          ),
-        ),
-      );
-      if (ok == true) {
-        await _post(ApiPaths.notifications, {
-          'employee_id': employeeId,
-          'title': title.text.trim(),
-          'body': body.text.trim(),
-          'type': 'general',
-        });
-      }
-      title.dispose();
-      body.dispose();
-    } catch (e) {
-      _msg(UiError.message(e));
-    }
-  }
-
   Future<void> _employeeLoginDialog(Map<String, dynamic> employee) async {
     final id = int.tryParse('${employee['id']}') ?? 0;
     if (id < 1) return;
@@ -1179,8 +850,8 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
             ),
             FilledButton(
               onPressed: () async {
-                if (password.text.length < 8) {
-                  _msg('Password must contain at least 8 characters.');
+                if (password.text.length < 10) {
+                  _msg('Password must contain at least 10 characters.');
                   return;
                 }
                 try {

@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
-import '../../core/app_config.dart';
+import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
+import '../../widgets/business_date_field.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 
-import 'compensation_workspace.dart';
 import 'payroll_policy_dialog.dart';
 
 class PerformanceScreen extends ConsumerStatefulWidget {
@@ -89,34 +89,14 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
         ),
       ));
     }
-    // Advanced compensation APIs are contract-stage in 7.3.5. Keep the
-    // workspace available for UAT builds only; production must not expose an
-    // incomplete workflow even if an external/misconfigured capability string
-    // is present in bootstrap data.
-    if (AppConfig.isUat &&
-        app.canAny(const [
-          'salary.view',
-          'salary.manage',
-          'salary.approve',
-          'rewards.view',
-          'rewards.manage',
-          'rewards.approve',
-          'rewards.pay',
-          'promotion.view',
-          'promotion.request',
-          'promotion.approve',
-        ])) {
-      tabs.add((
-        'Compensation',
-        const CompensationWorkspace(),
-      ));
-    }
-    if (app.can('organization.employee.view') &&
-        app.canAny(const [
-          'payroll.salary.view',
-          'payroll.salary.manage',
-          'payroll.salary.approve',
-        ])) {
+    // Salary structures, rewards and promotions remain design-contract work
+    // until backend routes, persistence and server capabilities are implemented.
+    // Do not expose an interactive UAT workflow that can only fail at runtime.
+    if (app.canAny(const [
+      'payroll.salary.view',
+      'payroll.salary.manage',
+      'payroll.salary.approve',
+    ])) {
       tabs.add((
         'Salary',
         ListView(
@@ -283,7 +263,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     if (branchId == null) return;
     try {
       final employees = (await ref.read(apiClientProvider).get(
-        ApiPaths.employees,
+        ApiPaths.salaryEmployees,
         query: {'branch_id': branchId},
       ) as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
@@ -309,9 +289,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                 items: employees
                     .map(
                       (employee) => DropdownMenuItem(
-                        value: int.parse("\${employee['id']}"),
+                        value: int.parse("${employee['id']}"),
                         child: Text(
-                          "\${employee['full_name']} · \${employee['employee_code']}",
+                          "${employee['full_name']} · ${employee['employee_code']}",
                         ),
                       ),
                     )
@@ -331,7 +311,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           context,
                           employees.firstWhere(
                             (employee) =>
-                                int.parse("\${employee['id']}") == employeeId,
+                                int.parse("${employee['id']}") == employeeId,
                           ),
                         ),
                 child: const Text('Open History'),
@@ -350,8 +330,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
   Future<void> _showSalaryHistory(Map<String, dynamic> employee) async {
     final api = ref.read(apiClientProvider);
     final app = ref.read(appStateProvider);
-    final employeeId = int.parse("\${employee['id']}");
-    final currentActorId = int.tryParse("\${app.employee['id']}") ?? 0;
+    final employeeId = int.parse("${employee['id']}");
+    final currentActorId = int.tryParse("${app.employee['id']}") ?? 0;
 
     Future<List<Map<String, dynamic>>> load() async =>
         (await api.get(ApiPaths.salaryRevisions(employeeId)) as List)
@@ -375,7 +355,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             }
 
             final salary = TextEditingController(
-              text: "\${employee['monthly_salary'] ?? ''}",
+              text: "${employee['monthly_salary'] ?? ''}",
             );
             final effective = TextEditingController(text: app.businessDate);
             final reason = TextEditingController();
@@ -386,7 +366,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
               builder: (context) => StatefulBuilder(
                 builder: (context, setForm) => AlertDialog(
                   title: Text(
-                    "New Salary Revision · \${employee['full_name'] ?? 'Employee'}",
+                    "New Salary Revision · ${employee['full_name'] ?? 'Employee'}",
                   ),
                   content: SizedBox(
                     width: 520,
@@ -403,11 +383,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        TextField(
+                        BusinessDateField(
                           controller: effective,
-                          decoration: const InputDecoration(
-                            labelText: 'Effective From YYYY-MM-DD',
-                          ),
+                          label: 'Effective From',
                         ),
                         const SizedBox(height: 10),
                         TextField(
@@ -491,7 +469,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             Map<String, dynamic> revision,
             bool approve,
           ) async {
-            final revisionId = int.tryParse("\${revision['id']}");
+            final revisionId = int.tryParse("${revision['id']}");
             if (revisionId == null) return;
             final action = approve ? 'Approve' : 'Reject';
 
@@ -500,9 +478,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
               builder: (context) => AlertDialog(
                 title: Text('\$action Salary Revision?'),
                 content: Text(
-                  "\${employee['full_name'] ?? 'Employee'} · "
-                  "\${revision['monthly_salary'] ?? ''} from "
-                  "\${revision['effective_from'] ?? ''}\n\n"
+                  "${employee['full_name'] ?? 'Employee'} · "
+                  "${revision['monthly_salary'] ?? ''} from "
+                  "${revision['effective_from'] ?? ''}\n\n"
                   'This review is maker-checker protected and cannot be performed by the revision creator or the employee.',
                 ),
                 actions: [
@@ -537,7 +515,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
           return AlertDialog(
             title: Text(
-              "Salary History · \${employee['full_name'] ?? 'Employee'}",
+              "Salary History · ${employee['full_name'] ?? 'Employee'}",
             ),
             content: SizedBox(
               width: 760,
@@ -553,7 +531,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          "\${employee['employee_code'] ?? ''} · Current salary \${employee['monthly_salary'] ?? '—'}",
+                          "${employee['employee_code'] ?? ''} · Current salary ${employee['monthly_salary'] ?? '—'}",
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ),
@@ -597,9 +575,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           itemBuilder: (context, index) {
                             final row = rows[index];
                             final status =
-                                "\${row['status'] ?? ''}".toLowerCase();
+                                "${row['status'] ?? ''}".toLowerCase();
                             final creatorId =
-                                int.tryParse("\${row['created_by']}") ?? 0;
+                                int.tryParse("${row['created_by']}") ?? 0;
                             final canReview = status == 'pending' &&
                                 app.can('payroll.salary.approve') &&
                                 creatorId != currentActorId &&
@@ -609,10 +587,10 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                               leading:
                                   const Icon(Icons.currency_rupee_rounded),
                               title: Text(
-                                "\${row['monthly_salary'] ?? '—'} · \${row['effective_from'] ?? '—'}",
+                                "${row['monthly_salary'] ?? '—'} · ${row['effective_from'] ?? '—'}",
                               ),
                               subtitle: Text(
-                                "\${row['reason'] ?? ''} · \${status.isEmpty ? 'unknown' : status}",
+                                "${row['reason'] ?? ''} · ${BusinessFormat.status(status)}",
                               ),
                               trailing: canReview
                                   ? Wrap(
@@ -636,9 +614,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                                       ],
                                     )
                                   : Chip(
-                                      label: Text(
-                                        status.isEmpty ? 'Unknown' : status,
-                                      ),
+                                      label: Text(BusinessFormat.status(status)),
                                     ),
                             );
                           },
@@ -719,7 +695,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
-              Text('Status: ${run['status']}'),
+              Text('Status: ${BusinessFormat.status(run['status'])}'),
               if (calculationVersion.isNotEmpty)
                 Text('Calculation version: $calculationVersion'),
               if (isLegacyDraft) ...[
@@ -928,11 +904,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                         setLocal(() => paymentAccountId = value),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateField(
                     controller: paymentDate,
-                    decoration: const InputDecoration(
-                      labelText: 'Payment Date (YYYY-MM-DD)',
-                    ),
+                    label: 'Payment Date',
                   ),
                   if (validation != null) ...[
                     const SizedBox(height: 8),
@@ -993,68 +967,123 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
   Future<void> _createTarget() async {
     final app = ref.read(appStateProvider);
-    if (app.currentBranchId == null) return;
-    final employee = TextEditingController();
+    final branchId = app.currentBranchId;
+    if (branchId == null) return;
     final points = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New Performance Target'),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: employee,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Employee ID'),
+    try {
+      final rawEmployees = await ref.read(apiClientProvider).get(
+        ApiPaths.performanceTargetEmployees,
+        query: {'branch_id': branchId},
+      );
+      final employees = (rawEmployees as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (!mounted) return;
+      if (employees.isEmpty) {
+        setState(() => message = 'No eligible employees in your reporting scope.');
+        return;
+      }
+
+      int? employeeId;
+      double? targetPoints;
+      String? validation;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: const Text('New Performance Target'),
+            content: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: employeeId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Employee'),
+                    items: employees
+                        .map(
+                          (employee) => DropdownMenuItem<int>(
+                            value: int.parse('${employee['id']}'),
+                            child: Text(
+                              '${employee['full_name']} · '
+                              '${employee['employee_code']} · '
+                              '${employee['designation_code']}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setLocal(() {
+                      employeeId = value;
+                      validation = null;
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: points,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Target Points'),
+                    onChanged: (_) => setLocal(() => validation = null),
+                  ),
+                  if (validation != null) ...[
+                    const SizedBox(height: 8),
+                    Text(validation!),
+                  ],
+                ],
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: points,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Target Points'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final parsed = double.tryParse(points.text.trim());
+                  if (employeeId == null) {
+                    setLocal(() => validation = 'Select an employee.');
+                  } else if (parsed == null || !parsed.isFinite || parsed < 0) {
+                    setLocal(
+                      () => validation =
+                          'Target points must be a valid non-negative number.',
+                    );
+                  } else {
+                    targetPoints = parsed;
+                    Navigator.pop(context, true);
+                  }
+                },
+                child: const Text('Create'),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      try {
-        await ref.read(apiClientProvider).post(
-          ApiPaths.performanceTargets,
-          data: {
-            'branch_id': app.currentBranchId,
-            'employee_id': int.parse(employee.text.trim()),
-            'target_points': double.parse(points.text.trim()),
-            'period_start': app.businessMonthStart,
-            'period_end': app.businessDate,
-          },
-        );
-        if (mounted) {
-          setState(() {
-            message = 'Performance target created.';
-            refresh++;
-          });
-        }
-      } catch (e) {
-        if (mounted) setState(() => message = UiError.message(e));
+      );
+      if (ok != true || employeeId == null || targetPoints == null) return;
+
+      await ref.read(apiClientProvider).post(
+        ApiPaths.performanceTargets,
+        data: {
+          'branch_id': branchId,
+          'employee_id': employeeId,
+          'target_points': targetPoints,
+          'period_start': app.businessMonthStart,
+          'period_end': app.businessDate,
+        },
+      );
+      if (mounted) {
+        setState(() {
+          message = 'Performance target created.';
+          refresh++;
+        });
       }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      points.dispose();
     }
-    employee.dispose();
-    points.dispose();
   }
 
   Future<void> _targetAction(Map<String, dynamic> row) async {
@@ -1064,7 +1093,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     final status = '${row['status'] ?? ''}'.trim().toLowerCase();
     if (status != 'draft') {
       if (mounted) {
-        setState(() => message = 'Target #$id is already ${status.isEmpty ? 'processed' : status}.');
+        setState(() => message = 'Target #$id is already ${BusinessFormat.status(status.isEmpty ? 'processed' : status)}.');
       }
       return;
     }

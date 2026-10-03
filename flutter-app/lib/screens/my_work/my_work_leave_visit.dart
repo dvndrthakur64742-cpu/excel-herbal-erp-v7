@@ -58,6 +58,42 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
             },
           ),
         ],
+        if (app.can('workforce.leave.self')) ...[
+          const SizedBox(height: 12),
+          Text('Holiday Calendar', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          AsyncPanel(
+            key: ValueKey('holidays-${app.currentBranchId}-$refresh'),
+            future: app.currentBranchId == null
+                ? Future.value(const <dynamic>[])
+                : api.get(
+                    ApiPaths.holidays,
+                    query: {
+                      'branch_id': app.currentBranchId,
+                      'from': '${DateTime.now().year}-01-01',
+                      'to': '${DateTime.now().year}-12-31',
+                    },
+                  ),
+            emptyMessage: 'No holidays are published for this branch.',
+            builder: (context, data) {
+              final rows = ((data as List?) ?? const [])
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList();
+              return Column(
+                children: [
+                  for (final row in rows)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.event_available_outlined),
+                      title: Text('${row['name'] ?? 'Holiday'}'),
+                      subtitle: Text(BusinessFormat.date(row['holiday_date'])),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
         if (app.can('workforce.leave.self') &&
             app.can('workforce.field_visit.self'))
           const Divider(height: 32),

@@ -3,18 +3,18 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('advanced compensation workspace is UAT-only', () {
+  test('advanced compensation workspace stays hidden without backend contract', () {
     final performance = File(
       'lib/screens/performance/performance_screen.dart',
     ).readAsStringSync();
-    final config = File('lib/core/app_config.dart').readAsStringSync();
 
-    expect(performance, contains("import '../../core/app_config.dart';"));
-    expect(performance, contains('if (AppConfig.isUat &&'));
-    expect(performance, contains("'Compensation'"));
-    expect(config, contains("defaultValue: 'uat'"));
-    expect(config, contains("static const bool isProduction = environment == 'production';"));
-    expect(config, contains('static const bool isUat = !isProduction;'));
+    expect(
+      performance,
+      contains('Do not expose an interactive UAT workflow that can only fail at runtime.'),
+    );
+    expect(performance, isNot(contains("import 'compensation_workspace.dart';")));
+    expect(performance, isNot(contains("'Compensation'")));
+    expect(performance, isNot(contains('CompensationWorkspace(')));
   });
 
   test('performance target action follows create then approve backend contract', () {
