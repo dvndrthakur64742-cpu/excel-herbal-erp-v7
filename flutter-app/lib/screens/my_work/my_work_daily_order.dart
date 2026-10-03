@@ -61,6 +61,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       };
       final search = TextEditingController();
       String? mode;
+      String? submitError;
       String? formError;
       var saving = false;
       var selectedOnly = false;
@@ -79,7 +80,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
 
       await showDialog<void>(
         context: context,
-        barrierDismissible: !saving,
+        barrierDismissible: false,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setLocalState) {
             final query = search.text.trim().toLowerCase();
@@ -94,11 +95,6 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               return name.contains(query) || sku.contains(query);
             }).toList()
               ..sort((a, b) {
-                final aId = int.parse('${a['id']}');
-                final bId = int.parse('${b['id']}');
-                final aSelected = WholePcs.parseOrZero(qty[aId]!.text) > 0;
-                final bSelected = WholePcs.parseOrZero(qty[bId]!.text) > 0;
-                if (aSelected != bSelected) return aSelected ? -1 : 1;
                 return '${a['name'] ?? ''}'.toLowerCase().compareTo(
                       '${b['name'] ?? ''}'.toLowerCase(),
                     );
@@ -110,6 +106,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
             );
 
             Future<void> persist(String targetMode) async {
+              if (saving) return;
               final lines = collectLines();
               if (lines.isEmpty) {
                 setLocalState(
@@ -135,13 +132,20 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                     },
                   ) as Map,
                 );
+                mode = 'draft';
                 if (targetMode == 'submit') {
-                  await api.post(
-                    ApiPaths.dailySubmit(int.parse('${created['id']}')),
-                    data: const {},
-                  );
+                  try {
+                    await api.post(
+                      ApiPaths.dailySubmit(int.parse('${created['id']}')),
+                      data: const {},
+                    );
+                    mode = 'submit';
+                  } catch (e) {
+                    submitError = 'Order #${created['id']} saved. '
+                        'Submission could not be confirmed: ${UiError.message(e)} '
+                        'Check this order in the list before retrying.';
+                  }
                 }
-                mode = targetMode;
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
               } catch (e) {
                 if (dialogContext.mounted) {
@@ -153,7 +157,9 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               }
             }
 
-            return AlertDialog(
+            return PopScope(
+              canPop: !saving,
+              child: AlertDialog(
               titlePadding: const EdgeInsets.fromLTRB(20, 18, 12, 8),
               title: Row(
                 children: [
@@ -307,6 +313,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                                   points,
                                 ].where((value) => value.isNotEmpty).join(' · ');
                                 return Container(
+                                  key: ValueKey(id),
                                   padding:
                                       const EdgeInsets.fromLTRB(12, 9, 10, 9),
                                   decoration: BoxDecoration(
@@ -424,6 +431,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                   ),
                 ),
               ],
+              ),
             );
           },
         ),
@@ -442,9 +450,9 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       if (mounted) {
         _setFeatureState(() {
           refresh++;
-          message = mode == 'submit'
+          message = submitError ?? (mode == 'submit'
               ? 'Daily Order submitted for approval.'
-              : 'Daily Order draft saved.';
+              : 'Daily Order draft saved.');
         });
       }
     } catch (e) {
@@ -719,10 +727,14 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
     var issuing = false;
     final ok = await showModalBottomSheet<bool>(
       context: context,
+      isDismissible: false,
+      enableDrag: false,
       useSafeArea: true,
       isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) => FractionallySizedBox(
+        builder: (sheetContext, setSheetState) => PopScope(
+          canPop: !issuing,
+          child: FractionallySizedBox(
           heightFactor: .92,
           child: Column(
             children: [
@@ -880,6 +892,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                           onPressed: issuing
                               ? null
                               : () async {
+                                  if (issuing) return;
                                   setSheetState(() {
                                     issuing = true;
                                     issueError = null;
@@ -926,6 +939,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),

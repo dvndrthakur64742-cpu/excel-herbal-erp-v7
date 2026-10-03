@@ -60,6 +60,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                         child: SizedBox(
                           width: double.infinity,
                           child: DataTable(
+                            showCheckboxColumn: false,
                             showBottomBorder: true,
                             headingRowHeight: 46,
                             dataRowMinHeight: 50,
@@ -79,7 +80,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                                     DataCell(Text('#${r['id']}')),
                                     DataCell(Text(_MyWorkDaily(this)._dailyEmployeeLabel(r))),
                                     DataCell(
-                                      Text('${r['business_date'] ?? '—'}'),
+                                      Text(BusinessFormat.date(r['business_date'])),
                                     ),
                                     DataCell(Text(_dailyRowStatusText(r))),
                                     DataCell(
@@ -114,18 +115,18 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                           onTap: () => _MyWorkDaily(this)._showDaily(id),
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-                            child: Row(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Column(
+                                Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Row(
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 6,
                                         children: [
-                                          Expanded(
-                                            child: Text(
+                                          Text(
                                               'Daily Order #$id',
                                               style: Theme.of(context)
                                                   .textTheme
@@ -134,7 +135,6 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                                                     fontWeight: FontWeight.w700,
                                                   ),
                                             ),
-                                          ),
                                           _dailyRowStatusChip(r),
                                         ],
                                       ),
@@ -155,8 +155,8 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                                             ),
                                       ),
                                     ],
-                                  ),
                                 ),
+                                const SizedBox(height: 10),
                                 _dailyActionsImpl(r, app, id),
                               ],
                             ),
@@ -411,7 +411,10 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
         DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
       return 'evening';
     }
-    if (status == 'evening_draft') return 'evening_edit';
+    if (status == 'evening_draft' &&
+        DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
+      return 'evening_edit';
+    }
     if (status == 'evening_submitted' && app.can('daily_order.review')) {
       return 'final_post';
     }
@@ -564,7 +567,9 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
       }
     }
 
-    if (status == 'evening_draft' && primary != 'evening_edit') {
+    if (status == 'evening_draft' &&
+        DailyOrderWorkflow.canOperateOwnOrder(app.capabilities) &&
+        primary != 'evening_edit') {
       out.add(
         const PopupMenuItem(
           value: 'evening_edit',
