@@ -18,12 +18,6 @@ extension _MyWorkDaily on _MyWorkScreenState {
   Widget _orderStatusChip(String status) =>
       _MyWorkDailyOverviewImpl(this)._orderStatusChipImpl(status);
 
-  List<PopupMenuEntry<String>> _dailyMenu(
-    Map<String, dynamic> row,
-    AppState app,
-  ) =>
-      _MyWorkDailyOverviewImpl(this)._dailyMenuImpl(row, app);
-
   Future<void> _newDailyOrder() =>
       _MyWorkDailyOrderImpl(this)._newDailyOrderImpl();
 
