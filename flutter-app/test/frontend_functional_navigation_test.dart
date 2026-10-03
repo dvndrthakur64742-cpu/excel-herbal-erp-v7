@@ -306,6 +306,39 @@ void main() {
     );
   });
 
+  test('daily order issue is independent from inventory view and keeps actions clear', () {
+    final order = File(
+      'lib/screens/my_work/my_work_daily_order.dart',
+    ).readAsStringSync();
+    final overview = File(
+      'lib/screens/my_work/my_work_daily_overview.dart',
+    ).readAsStringSync();
+    final workflow = File(
+      'lib/core/daily_order_workflow.dart',
+    ).readAsStringSync();
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/DailyOrder/DailyOrderService.php',
+    ).readAsStringSync();
+
+    expect(order, isNot(contains('ApiPaths.inventoryStock')));
+    expect(order, contains("'request_line_id': int.parse"));
+    expect(order, contains("labelText: 'Search Product'"));
+    expect(order, contains('Submit for Approval'));
+    expect(order, contains('issueError = UiError.message(e)'));
+    expect(order, contains('formError = UiError.message(e)'));
+    expect(overview, contains('_dailyPrimaryActionImpl('));
+    expect(overview, contains("initial_requested_by"));
+    expect(workflow, contains('requesterId == currentEmployeeId'));
+    expect(
+      service,
+      contains('r.requested_by initial_requested_by'),
+    );
+    expect(
+      service,
+      contains('StockService::automaticCustodyAllocations('),
+    );
+  });
+
   test('hr employee choices follow HR capability and hierarchy scope', () {
     final screen = File(
       'lib/screens/organization/hr_lifecycle_screen.dart',

@@ -31,9 +31,17 @@ abstract final class DailyOrderWorkflow {
 
   static bool canIssueRequest(
     String requestStatus,
-    Iterable<String> capabilities,
-  ) =>
-      requestStatus == 'approved' && capabilities.contains('daily_order.issue');
+    Iterable<String> capabilities, {
+    int? requesterId,
+    int? currentEmployeeId,
+  }) {
+    final isRequester = requesterId != null &&
+        currentEmployeeId != null &&
+        requesterId == currentEmployeeId;
+    return requestStatus == 'approved' &&
+        capabilities.contains('daily_order.issue') &&
+        !isRequester;
+  }
 
   static bool hasBlockingAdditionalRequests(
     Iterable<Map<String, dynamic>> requests,
