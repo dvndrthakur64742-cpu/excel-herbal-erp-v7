@@ -81,9 +81,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                                     DataCell(
                                       Text('${r['business_date'] ?? '—'}'),
                                     ),
-                                    DataCell(
-                                      Text(_MyWorkDaily(this)._statusText('${r['status']}')),
-                                    ),
+                                    DataCell(Text(_dailyRowStatusText(r))),
                                     DataCell(
                                       _dailyActionsImpl(
                                         r,
@@ -137,7 +135,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                                                   ),
                                             ),
                                           ),
-                                          _MyWorkDaily(this)._orderStatusChip('${r['status']}'),
+                                          _dailyRowStatusChip(r),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
@@ -300,6 +298,54 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     );
   }
 
+  String _dailyRowStatusText(Map<String, dynamic> row) {
+    final status = '${row['status'] ?? ''}';
+    final additionalStatus = '${row['additional_request_status'] ?? ''}';
+    if (status == 'issued' && additionalStatus == 'submitted') {
+      return 'Additional Approval Pending';
+    }
+    if (status == 'issued' && additionalStatus == 'approved') {
+      return 'Additional Issue Pending';
+    }
+    return _MyWorkDaily(this)._statusText(status);
+  }
+
+  Widget _dailyRowStatusChip(Map<String, dynamic> row) {
+    final status = '${row['status'] ?? ''}';
+    final label = _dailyRowStatusText(row);
+    if (label != 'Additional Approval Pending' &&
+        label != 'Additional Issue Pending') {
+      return _MyWorkDaily(this)._orderStatusChip(status);
+    }
+    const background = Color(0xFFFFF0D8);
+    const foreground = Color(0xFF8A5700);
+    final icon = label == 'Additional Issue Pending'
+        ? Icons.inventory_2_outlined
+        : Icons.task_alt_rounded;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: foreground),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: foreground,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   int? _currentEmployeeId(AppState app) {
     final me = Map<String, dynamic>.from(
       (app.me['employee'] as Map?) ?? const {},
@@ -312,8 +358,13 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     AppState app,
   ) {
     final status = '${row['status'] ?? ''}';
-    final requestStatus = '${row['initial_request_status'] ?? ''}';
-    final requesterId = int.tryParse('${row['initial_requested_by'] ?? ''}');
+    final initialRequestStatus = '${row['initial_request_status'] ?? ''}';
+    final initialRequesterId =
+        int.tryParse('${row['initial_requested_by'] ?? ''}');
+    final additionalRequestStatus =
+        '${row['additional_request_status'] ?? ''}';
+    final additionalRequesterId =
+        int.tryParse('${row['additional_requested_by'] ?? ''}');
     final currentEmployeeId = _currentEmployeeId(app);
 
     if (DailyOrderWorkflow.canSubmitDraft(status, app.capabilities)) {
@@ -321,23 +372,42 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     }
     if (status == 'stock_requested' &&
         DailyOrderWorkflow.canApproveRequest(
-          requestStatus,
+          initialRequestStatus,
           app.capabilities,
-          requesterId: requesterId,
+          requesterId: initialRequesterId,
           currentEmployeeId: currentEmployeeId,
         )) {
       return 'approve';
     }
     if (status == 'approved' &&
         DailyOrderWorkflow.canIssueRequest(
-          requestStatus,
+          initialRequestStatus,
           app.capabilities,
-          requesterId: requesterId,
+          requesterId: initialRequesterId,
           currentEmployeeId: currentEmployeeId,
         )) {
       return 'issue';
     }
     if (status == 'issued' &&
+        DailyOrderWorkflow.canApproveRequest(
+          additionalRequestStatus,
+          app.capabilities,
+          requesterId: additionalRequesterId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
+      return 'approve';
+    }
+    if (status == 'issued' &&
+        DailyOrderWorkflow.canIssueRequest(
+          additionalRequestStatus,
+          app.capabilities,
+          requesterId: additionalRequesterId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
+      return 'issue';
+    }
+    if (status == 'issued' &&
+        additionalRequestStatus.isEmpty &&
         DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
       return 'evening';
     }
@@ -348,10 +418,11 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     return null;
   }
 
-  String _dailyActionLabelImpl(String action) => switch (action) {
+  String _dailyActionLabelImpl(String action, {bool additional = false}) =>
+      switch (action) {
         'submit' => 'Submit',
-        'approve' => 'Approve',
-        'issue' => 'Issue Stock',
+        'approve' => additional ? 'Approve Additional' : 'Approve',
+        'issue' => additional ? 'Issue Additional' : 'Issue Stock',
         'evening' => 'Closing',
         'evening_edit' => 'Continue',
         'final_post' => 'Final Post',
@@ -364,6 +435,9 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     int id,
   ) {
     final primary = _dailyPrimaryActionImpl(row, app);
+    final isAdditionalAction =
+        '${row['status'] ?? ''}' == 'issued' &&
+        '${row['additional_request_status'] ?? ''}'.isNotEmpty;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -380,7 +454,9 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                           : Icons.arrow_forward_rounded,
               size: 18,
             ),
-            label: Text(_dailyActionLabelImpl(primary)),
+            label: Text(
+              _dailyActionLabelImpl(primary, additional: isAdditionalAction),
+            ),
           ),
         PopupMenuButton<String>(
           tooltip: 'More actions',
@@ -396,13 +472,19 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     AppState app,
   ) {
     final status = '${row['status'] ?? ''}';
-    final requestStatus = '${row['initial_request_status'] ?? ''}';
-    final requesterId = int.tryParse('${row['initial_requested_by'] ?? ''}');
+    final initialRequestStatus = '${row['initial_request_status'] ?? ''}';
+    final initialRequesterId =
+        int.tryParse('${row['initial_requested_by'] ?? ''}');
+    final additionalRequestStatus =
+        '${row['additional_request_status'] ?? ''}';
+    final additionalRequesterId =
+        int.tryParse('${row['additional_requested_by'] ?? ''}');
     final currentEmployeeId = _currentEmployeeId(app);
     final primary = _dailyPrimaryActionImpl(row, app);
     final out = <PopupMenuEntry<String>>[
       const PopupMenuItem(value: 'view', child: Text('View Details')),
     ];
+
     if (primary != 'submit' &&
         DailyOrderWorkflow.canSubmitDraft(status, app.capabilities)) {
       out.add(
@@ -412,9 +494,9 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     if (primary != 'approve' &&
         status == 'stock_requested' &&
         DailyOrderWorkflow.canApproveRequest(
-          requestStatus,
+          initialRequestStatus,
           app.capabilities,
-          requesterId: requesterId,
+          requesterId: initialRequesterId,
           currentEmployeeId: currentEmployeeId,
         )) {
       out.add(const PopupMenuItem(value: 'approve', child: Text('Approve')));
@@ -422,30 +504,62 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     if (primary != 'issue' &&
         status == 'approved' &&
         DailyOrderWorkflow.canIssueRequest(
-          requestStatus,
+          initialRequestStatus,
           app.capabilities,
-          requesterId: requesterId,
+          requesterId: initialRequesterId,
           currentEmployeeId: currentEmployeeId,
         )) {
       out.add(const PopupMenuItem(value: 'issue', child: Text('Issue Stock')));
     }
-    if (status == 'issued' &&
-        DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
-      out.add(
-        const PopupMenuItem(
-          value: 'additional',
-          child: Text('Additional Requirement'),
-        ),
-      );
-      if (primary != 'evening') {
+
+    if (status == 'issued') {
+      if (primary != 'approve' &&
+          DailyOrderWorkflow.canApproveRequest(
+            additionalRequestStatus,
+            app.capabilities,
+            requesterId: additionalRequesterId,
+            currentEmployeeId: currentEmployeeId,
+          )) {
         out.add(
           const PopupMenuItem(
-            value: 'evening',
-            child: Text('Start Evening Closing'),
+            value: 'approve',
+            child: Text('Approve Additional'),
           ),
         );
       }
+      if (primary != 'issue' &&
+          DailyOrderWorkflow.canIssueRequest(
+            additionalRequestStatus,
+            app.capabilities,
+            requesterId: additionalRequesterId,
+            currentEmployeeId: currentEmployeeId,
+          )) {
+        out.add(
+          const PopupMenuItem(
+            value: 'issue',
+            child: Text('Issue Additional Stock'),
+          ),
+        );
+      }
+      if (additionalRequestStatus.isEmpty &&
+          DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
+        out.add(
+          const PopupMenuItem(
+            value: 'additional',
+            child: Text('Additional Requirement'),
+          ),
+        );
+        if (primary != 'evening') {
+          out.add(
+            const PopupMenuItem(
+              value: 'evening',
+              child: Text('Start Evening Closing'),
+            ),
+          );
+        }
+      }
     }
+
     if (status == 'evening_draft' && primary != 'evening_edit') {
       out.add(
         const PopupMenuItem(

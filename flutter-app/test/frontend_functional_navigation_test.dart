@@ -323,15 +323,31 @@ void main() {
     expect(order, isNot(contains('ApiPaths.inventoryStock')));
     expect(order, contains("'request_line_id': int.parse"));
     expect(order, contains("labelText: 'Search Product'"));
-    expect(order, contains('Submit for Approval'));
+    expect(order, contains('Submit Stock Request'));
+    expect(order, contains("FilterChip("));
+    expect(order, contains("label: const Text('Selected only')"));
+    expect(order, contains('Issue Additional Stock'));
     expect(order, contains('issueError = UiError.message(e)'));
     expect(order, contains('formError = UiError.message(e)'));
     expect(overview, contains('_dailyPrimaryActionImpl('));
     expect(overview, contains("initial_requested_by"));
+    expect(overview, contains("additional_request_status"));
+    expect(overview, contains("Additional Approval Pending"));
+    expect(overview, contains("Additional Issue Pending"));
+    expect(overview, contains("Approve Additional"));
+    expect(overview, contains("Issue Additional Stock"));
     expect(workflow, contains('requesterId == currentEmployeeId'));
     expect(
       service,
       contains('r.requested_by initial_requested_by'),
+    );
+    expect(
+      service,
+      contains('ar.status additional_request_status'),
+    );
+    expect(
+      service,
+      contains("ar2.type='additional'"),
     );
     expect(
       service,

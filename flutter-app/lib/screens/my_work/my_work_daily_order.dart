@@ -63,6 +63,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       String? mode;
       String? formError;
       var saving = false;
+      var selectedOnly = false;
 
       List<Map<String, dynamic>> collectLines() {
         final lines = <Map<String, dynamic>>[];
@@ -83,11 +84,25 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
           builder: (dialogContext, setLocalState) {
             final query = search.text.trim().toLowerCase();
             final visibleProducts = products.where((product) {
+              final id = int.parse('${product['id']}');
+              if (selectedOnly && WholePcs.parseOrZero(qty[id]!.text) <= 0) {
+                return false;
+              }
               if (query.isEmpty) return true;
               final name = '${product['name'] ?? ''}'.toLowerCase();
               final sku = '${product['sku'] ?? ''}'.toLowerCase();
               return name.contains(query) || sku.contains(query);
-            }).toList();
+            }).toList()
+              ..sort((a, b) {
+                final aId = int.parse('${a['id']}');
+                final bId = int.parse('${b['id']}');
+                final aSelected = WholePcs.parseOrZero(qty[aId]!.text) > 0;
+                final bSelected = WholePcs.parseOrZero(qty[bId]!.text) > 0;
+                if (aSelected != bSelected) return aSelected ? -1 : 1;
+                return '${a['name'] ?? ''}'.toLowerCase().compareTo(
+                      '${b['name'] ?? ''}'.toLowerCase(),
+                    );
+              });
             final selectedLines = collectLines();
             final selectedQty = selectedLines.fold<num>(
               0,
@@ -142,7 +157,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               titlePadding: const EdgeInsets.fromLTRB(20, 18, 12, 8),
               title: Row(
                 children: [
-                  const Expanded(child: Text('Create Daily Order')),
+                  const Expanded(child: Text('Daily Order · Morning Stock')),
                   IconButton(
                     tooltip: 'Close',
                     onPressed:
@@ -187,6 +202,25 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                       ),
                       const SizedBox(height: 10),
                     ],
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: ExcelBrand.primarySoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        '1 Select Stock  →  2 Submit  →  3 Approval  →  4 Stock Issue  →  5 Evening Closing',
+                        style: TextStyle(
+                          color: ExcelBrand.primaryDark,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     TextField(
                       controller: search,
                       enabled: !saving,
@@ -220,14 +254,29 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                             .surfaceContainerLow,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
-                        selectedLines.isEmpty
-                            ? 'No product selected'
-                            : '${selectedLines.length} products selected · ${BusinessFormat.quantity(selectedQty)} PCS',
-                        style: Theme.of(dialogContext)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              selectedLines.isEmpty
+                                  ? 'No product selected'
+                                  : '${selectedLines.length} products · ${BusinessFormat.quantity(selectedQty)} PCS selected',
+                              style: Theme.of(dialogContext)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilterChip(
+                            label: const Text('Selected only'),
+                            selected: selectedOnly,
+                            onSelected: saving
+                                ? null
+                                : (value) =>
+                                    setLocalState(() => selectedOnly = value),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -371,7 +420,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                         )
                       : const Icon(Icons.send_rounded),
                   label: Text(
-                    saving ? 'Saving...' : 'Submit for Approval',
+                    saving ? 'Submitting...' : 'Submit Stock Request',
                   ),
                 ),
               ],
@@ -432,7 +481,10 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
           ApiPaths.dailyApprove(int.parse('${r['id']}')),
           data: const {},
         );
-        message = 'Daily Order approved. Stock issue pending.';
+        final isAdditional = '${r['type'] ?? ''}' == 'additional';
+        message = isAdditional
+            ? 'Additional requirement approved. Stock issue pending.'
+            : 'Daily Order approved. Stock issue pending.';
       } else if (action == 'issue') {
         await _MyWorkDaily(this)._issueDaily(id);
         return;
@@ -648,6 +700,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
     final d = await _MyWorkDaily(this)._dailyDetail(id);
     final r = _requestWithStatus(d, 'approved');
     if (r == null) throw Exception('Approved request not found.');
+    final isAdditional = '${r['type'] ?? ''}' == 'additional';
 
     final lines = ((r['lines'] as List?) ?? const [])
         .map((e) => Map<String, dynamic>.from(e as Map))
@@ -696,7 +749,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Issue Stock',
+                            isAdditional ? 'Issue Additional Stock' : 'Issue Stock',
                             style: Theme.of(sheetContext).textTheme.titleLarge,
                           ),
                           const SizedBox(height: 2),
@@ -729,8 +782,10 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                         .surfaceContainerLow,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'Approved quantity branch stock se automatic FEFO allocation ke saath employee custody me issue hogi.',
+                  child: Text(
+                    isAdditional
+                        ? 'Approved additional quantity branch stock se automatic FEFO allocation ke saath employee custody me issue hogi.'
+                        : 'Approved quantity branch stock se automatic FEFO allocation ke saath employee custody me issue hogi.',
                   ),
                 ),
               ),
@@ -858,7 +913,11 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                                 )
                               : const Icon(Icons.inventory_2_outlined),
                           label: Text(
-                            issuing ? 'Issuing...' : 'Issue Stock',
+                            issuing
+                                ? 'Issuing...'
+                                : (isAdditional
+                                    ? 'Issue Additional Stock'
+                                    : 'Issue Stock'),
                           ),
                         ),
                       ),
@@ -875,7 +934,9 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
     if (ok == true && mounted) {
       _setFeatureState(() {
         refresh++;
-        message = 'Stock issued successfully. Evening Closing is pending.';
+        message = isAdditional
+            ? 'Additional stock issued successfully.'
+            : 'Stock issued successfully. Evening Closing is pending.';
       });
     }
   }
