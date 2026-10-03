@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -288,9 +289,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                 items: employees
                     .map(
                       (employee) => DropdownMenuItem(
-                        value: int.parse("\${employee['id']}"),
+                        value: int.parse("${employee['id']}"),
                         child: Text(
-                          "\${employee['full_name']} · \${employee['employee_code']}",
+                          "${employee['full_name']} · ${employee['employee_code']}",
                         ),
                       ),
                     )
@@ -310,7 +311,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           context,
                           employees.firstWhere(
                             (employee) =>
-                                int.parse("\${employee['id']}") == employeeId,
+                                int.parse("${employee['id']}") == employeeId,
                           ),
                         ),
                 child: const Text('Open History'),
@@ -329,8 +330,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
   Future<void> _showSalaryHistory(Map<String, dynamic> employee) async {
     final api = ref.read(apiClientProvider);
     final app = ref.read(appStateProvider);
-    final employeeId = int.parse("\${employee['id']}");
-    final currentActorId = int.tryParse("\${app.employee['id']}") ?? 0;
+    final employeeId = int.parse("${employee['id']}");
+    final currentActorId = int.tryParse("${app.employee['id']}") ?? 0;
 
     Future<List<Map<String, dynamic>>> load() async =>
         (await api.get(ApiPaths.salaryRevisions(employeeId)) as List)
@@ -354,7 +355,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             }
 
             final salary = TextEditingController(
-              text: "\${employee['monthly_salary'] ?? ''}",
+              text: "${employee['monthly_salary'] ?? ''}",
             );
             final effective = TextEditingController(text: app.businessDate);
             final reason = TextEditingController();
@@ -365,7 +366,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
               builder: (context) => StatefulBuilder(
                 builder: (context, setForm) => AlertDialog(
                   title: Text(
-                    "New Salary Revision · \${employee['full_name'] ?? 'Employee'}",
+                    "New Salary Revision · ${employee['full_name'] ?? 'Employee'}",
                   ),
                   content: SizedBox(
                     width: 520,
@@ -468,7 +469,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             Map<String, dynamic> revision,
             bool approve,
           ) async {
-            final revisionId = int.tryParse("\${revision['id']}");
+            final revisionId = int.tryParse("${revision['id']}");
             if (revisionId == null) return;
             final action = approve ? 'Approve' : 'Reject';
 
@@ -477,9 +478,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
               builder: (context) => AlertDialog(
                 title: Text('\$action Salary Revision?'),
                 content: Text(
-                  "\${employee['full_name'] ?? 'Employee'} · "
-                  "\${revision['monthly_salary'] ?? ''} from "
-                  "\${revision['effective_from'] ?? ''}\n\n"
+                  "${employee['full_name'] ?? 'Employee'} · "
+                  "${revision['monthly_salary'] ?? ''} from "
+                  "${revision['effective_from'] ?? ''}\n\n"
                   'This review is maker-checker protected and cannot be performed by the revision creator or the employee.',
                 ),
                 actions: [
@@ -514,7 +515,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
 
           return AlertDialog(
             title: Text(
-              "Salary History · \${employee['full_name'] ?? 'Employee'}",
+              "Salary History · ${employee['full_name'] ?? 'Employee'}",
             ),
             content: SizedBox(
               width: 760,
@@ -530,7 +531,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          "\${employee['employee_code'] ?? ''} · Current salary \${employee['monthly_salary'] ?? '—'}",
+                          "${employee['employee_code'] ?? ''} · Current salary ${employee['monthly_salary'] ?? '—'}",
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ),
@@ -574,9 +575,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                           itemBuilder: (context, index) {
                             final row = rows[index];
                             final status =
-                                "\${row['status'] ?? ''}".toLowerCase();
+                                "${row['status'] ?? ''}".toLowerCase();
                             final creatorId =
-                                int.tryParse("\${row['created_by']}") ?? 0;
+                                int.tryParse("${row['created_by']}") ?? 0;
                             final canReview = status == 'pending' &&
                                 app.can('payroll.salary.approve') &&
                                 creatorId != currentActorId &&
@@ -586,10 +587,10 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                               leading:
                                   const Icon(Icons.currency_rupee_rounded),
                               title: Text(
-                                "\${row['monthly_salary'] ?? '—'} · \${row['effective_from'] ?? '—'}",
+                                "${row['monthly_salary'] ?? '—'} · ${row['effective_from'] ?? '—'}",
                               ),
                               subtitle: Text(
-                                "\${row['reason'] ?? ''} · \${status.isEmpty ? 'unknown' : status}",
+                                "${row['reason'] ?? ''} · ${BusinessFormat.status(status)}",
                               ),
                               trailing: canReview
                                   ? Wrap(
@@ -613,9 +614,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                                       ],
                                     )
                                   : Chip(
-                                      label: Text(
-                                        status.isEmpty ? 'Unknown' : status,
-                                      ),
+                                      label: Text(BusinessFormat.status(status)),
                                     ),
                             );
                           },
@@ -696,7 +695,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
-              Text('Status: ${run['status']}'),
+              Text('Status: ${BusinessFormat.status(run['status'])}'),
               if (calculationVersion.isNotEmpty)
                 Text('Calculation version: $calculationVersion'),
               if (isLegacyDraft) ...[
@@ -1094,7 +1093,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     final status = '${row['status'] ?? ''}'.trim().toLowerCase();
     if (status != 'draft') {
       if (mounted) {
-        setState(() => message = 'Target #$id is already ${status.isEmpty ? 'processed' : status}.');
+        setState(() => message = 'Target #$id is already ${BusinessFormat.status(status.isEmpty ? 'processed' : status)}.');
       }
       return;
     }

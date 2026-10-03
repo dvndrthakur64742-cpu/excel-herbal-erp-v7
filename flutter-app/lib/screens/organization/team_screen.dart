@@ -511,7 +511,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 Text(
-                  'Daily Order #$id · ${(data['cycle'] as Map)['status']}',
+                  'Daily Order #$id · ${BusinessFormat.status((data['cycle'] as Map)['status'])}',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
@@ -524,12 +524,12 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${r['type']} · ${r['status']}',
+                            '${BusinessFormat.value('type', r['type'])} · ${BusinessFormat.status(r['status'])}',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           ...(r['lines'] as List).map(
                             (l) => Text(
-                              '${(l as Map)['product_name']} · Qty ${l['quantity']} · Batch ${l['batch_tracking']}',
+                              '${(l as Map)['product_name']} · Qty ${BusinessFormat.quantity(l['quantity'])} · Batch ${BusinessFormat.status(l['batch_tracking'])}',
                             ),
                           ),
                           const SizedBox(height: 8),

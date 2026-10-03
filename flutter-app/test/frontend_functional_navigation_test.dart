@@ -478,6 +478,44 @@ void main() {
     );
   });
 
+  test('production UI does not contain escaped Dart interpolation placeholders', () {
+    final offenders = <String>[];
+    for (final entity in Directory('lib').listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      if (entity.readAsStringSync().contains(r'\${')) {
+        offenders.add(entity.path);
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason: 'Escaped interpolation renders literal placeholders in the UI: $offenders',
+    );
+  });
+
+  test('professional detail views format backend statuses for users', () {
+    final performance = File(
+      'lib/screens/performance/performance_screen.dart',
+    ).readAsStringSync();
+    final team = File(
+      'lib/screens/organization/team_screen.dart',
+    ).readAsStringSync();
+
+    expect(performance, contains('BusinessFormat.status(status)'));
+    expect(
+      performance,
+      contains("BusinessFormat.status(run['status'])"),
+    );
+    expect(
+      team,
+      contains("BusinessFormat.status((data['cycle'] as Map)['status'])"),
+    );
+    expect(
+      team,
+      contains("BusinessFormat.value('type', r['type'])"),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
