@@ -692,6 +692,31 @@ void main() {
     );
   });
 
+  test('HR manage and review include lifecycle read prerequisites', () {
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/HrLifecycleService.php',
+    ).readAsStringSync();
+
+    expect(
+      service,
+      contains(
+        'Guard::any(\$a,[Capabilities::HR_VIEW,Capabilities::HR_MANAGE,Capabilities::HR_REVIEW])',
+      ),
+    );
+    expect(
+      service,
+      contains(
+        'Guard::branchAny(\$a,\$branchId,[Capabilities::HR_VIEW,Capabilities::HR_MANAGE,Capabilities::HR_REVIEW])',
+      ),
+    );
+    expect(
+      service,
+      contains(
+        'candidateRowAny(\$a,\$candidateId,[Capabilities::HR_VIEW,Capabilities::HR_MANAGE,Capabilities::HR_REVIEW])',
+      ),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',
