@@ -98,6 +98,7 @@ abstract final class ApiPaths {
       pushDevices = '/communication/push-devices',
       pushDeactivate = '/communication/push-devices/deactivate',
       tasks = '/communication/tasks',
+      actingEmployees = '/administration/acting-employees',
       actingDelegations = '/administration/delegations',
       actingInbox = '/administration/acting-inbox',
       actingAuthorityStatus = '/administration/authority-status',

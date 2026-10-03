@@ -332,6 +332,42 @@ void main() {
     );
   });
 
+  test('acting duty employee picker uses delegation capability scope', () {
+    final screen = File(
+      'lib/screens/administration/acting_duty_admin_panel.dart',
+    ).readAsStringSync();
+    final paths = File('lib/core/api_paths.dart').readAsStringSync();
+    final routes = File(
+      '../backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php',
+    ).readAsStringSync();
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Administration/ActingDutyService.php',
+    ).readAsStringSync();
+
+    expect(
+      paths,
+      contains("actingEmployees = '/administration/acting-employees'"),
+    );
+    expect(screen, contains('ApiPaths.actingEmployees'));
+    expect(screen, isNot(contains('ApiPaths.employees')));
+    expect(
+      routes,
+      contains(
+        "['GET','/administration/acting-employees','admin.acting_employees',true]",
+      ),
+    );
+    expect(service, contains('public static function employeeChoices'));
+    expect(service, contains('Capabilities::DELEGATION_MANAGE'));
+    expect(
+      service,
+      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branchId)'),
+    );
+    expect(
+      service,
+      contains('SELECT id,employee_code,full_name,designation_code'),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

@@ -29,6 +29,15 @@ final class ActingDutyService
         ];
     }
 
+    public static function employeeChoices(Actor $a,int $branchId):array
+    {
+        Guard::branch($a,$branchId,Capabilities::DELEGATION_MANAGE);
+        $ids=HierarchyScope::visibleEmployeeIds($a,$branchId);
+        if(!$ids)return[];
+        $db=Db::wpdb();$sql="SELECT id,employee_code,full_name,designation_code FROM ".Db::table('employees')." WHERE company_id=%d AND assigned_branch_id=%d AND status='active' AND id IN (".implode(',',array_map('intval',$ids)).") ORDER BY full_name,id";
+        return(array)$db->get_results($db->prepare($sql,$a->companyId,$branchId),ARRAY_A);
+    }
+
     public static function list(Actor $a, ?int $branchId = null): array
     {
         $db=Db::wpdb();$t=Db::table('acting_delegations');$e=Db::table('employees');

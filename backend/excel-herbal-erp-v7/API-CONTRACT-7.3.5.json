@@ -1678,6 +1678,13 @@
     },
     {
       "method": "GET",
+      "path": "/administration/acting-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/administration/delegations",
       "auth": true,
       "idempotency_required": false,

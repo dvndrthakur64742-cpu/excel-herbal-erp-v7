@@ -36,7 +36,7 @@ class _ActingDutyAdminPanelState extends ConsumerState<ActingDutyAdminPanel> {
       future: Future.wait<dynamic>([
         api.get(ApiPaths.actingDelegations, query: {'branch_id': branchId}),
         api.get(ApiPaths.actingUnavailability, query: {'branch_id': branchId}),
-        api.get(ApiPaths.employees, query: {'branch_id': branchId}),
+        api.get(ApiPaths.actingEmployees, query: {'branch_id': branchId}),
       ]),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
