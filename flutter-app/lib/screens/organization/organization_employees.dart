@@ -211,6 +211,21 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       final mobileValue = mobile.text.trim();
       final emailValue = email.text.trim();
       final joiningDate = joining.text.trim();
+      double? salaryValue;
+      if (canManageSalary) {
+        salaryValue = double.tryParse(salary.text.trim());
+        if (salaryValue == null || !salaryValue.isFinite || salaryValue < 0) {
+          code.dispose();
+          name.dispose();
+          mobile.dispose();
+          email.dispose();
+          salary.dispose();
+          joining.dispose();
+          throw const FormatException(
+            'Monthly Salary must be a valid non-negative amount.',
+          );
+        }
+      }
       final validation = TransactionGuardrails.employeeCreate(
         employeeCode: employeeCode,
         fullName: fullName,
@@ -238,7 +253,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
         if (reportingId != null) 'reporting_employee_id': reportingId,
         if (mobileValue.isNotEmpty) 'mobile': mobileValue,
         if (emailValue.isNotEmpty) 'email': emailValue,
-        if (canManageSalary) 'monthly_salary': double.tryParse(salary.text) ?? 0,
+        if (canManageSalary) 'monthly_salary': salaryValue,
         'joining_date': joiningDate,
       };
       code.dispose();

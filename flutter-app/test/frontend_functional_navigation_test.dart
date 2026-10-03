@@ -543,6 +543,50 @@ void main() {
     );
   });
 
+  test('employee and HR salary inputs reject invalid numeric text', () {
+    final employeeScreen = File(
+      'lib/screens/organization/organization_employees.dart',
+    ).readAsStringSync();
+    final hrScreen = File(
+      'lib/screens/organization/hr_lifecycle_screen.dart',
+    ).readAsStringSync();
+    final employeeService = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/OrganizationEmployeeService.php',
+    ).readAsStringSync();
+    final hrService = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/HrLifecycleService.php',
+    ).readAsStringSync();
+
+    expect(
+      employeeScreen,
+      contains('Monthly Salary must be a valid non-negative amount.'),
+    );
+    expect(
+      hrScreen,
+      contains('Offered Monthly Salary must be a valid non-negative amount.'),
+    );
+    expect(
+      hrScreen,
+      contains('Monthly Salary must be a valid non-negative amount.'),
+    );
+    expect(
+      employeeScreen,
+      isNot(contains("double.tryParse(salary.text) ?? 0")),
+    );
+    expect(
+      hrScreen,
+      isNot(contains("double.tryParse(salary.text) ?? 0")),
+    );
+    expect(
+      employeeService,
+      contains("!is_numeric(\$salaryRaw)||!is_finite((float)\$salaryRaw)||(float)\$salaryRaw<0"),
+    );
+    expect(
+      hrService,
+      contains("!is_numeric(\$salaryRaw)||!is_finite((float)\$salaryRaw)||(float)\$salaryRaw<0"),
+    );
+  });
+
   test('administration exposes one-shot safe UAT cleanup', () {
     final source = File(
       'lib/screens/administration/administration_screen.dart',

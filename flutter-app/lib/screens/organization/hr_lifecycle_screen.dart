@@ -429,14 +429,39 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
           ),
         ),
       );
+      if (ok != true) {
+        name.dispose();
+        mobile.dispose();
+        email.dispose();
+        salary.dispose();
+        source.dispose();
+        notes.dispose();
+        return;
+      }
+      double? offeredSalary;
+      if (_salaryManage(app)) {
+        offeredSalary = double.tryParse(salary.text.trim());
+        if (offeredSalary == null ||
+            !offeredSalary.isFinite ||
+            offeredSalary < 0) {
+          name.dispose();
+          mobile.dispose();
+          email.dispose();
+          salary.dispose();
+          source.dispose();
+          notes.dispose();
+          throw const FormatException(
+            'Offered Monthly Salary must be a valid non-negative amount.',
+          );
+        }
+      }
       final payload = <String, dynamic>{
         'branch_id': branchId,
         'full_name': name.text.trim(),
         'proposed_designation_code': designationCode,
         if (mobile.text.trim().isNotEmpty) 'mobile': mobile.text.trim(),
         if (email.text.trim().isNotEmpty) 'email': email.text.trim(),
-        if (_salaryManage(app))
-          'offered_monthly_salary': double.tryParse(salary.text) ?? 0,
+        if (_salaryManage(app)) 'offered_monthly_salary': offeredSalary,
         if (source.text.trim().isNotEmpty) 'source': source.text.trim(),
         if (notes.text.trim().isNotEmpty) 'notes': notes.text.trim(),
       };
@@ -446,7 +471,6 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       salary.dispose();
       source.dispose();
       notes.dispose();
-      if (ok != true) return;
       final result = await ref
           .read(apiClientProvider)
           .post(ApiPaths.hrCandidates, data: payload);
@@ -776,20 +800,36 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
           ),
         ),
       );
+      if (ok != true) {
+        employeeCode.dispose();
+        joining.dispose();
+        salary.dispose();
+        return;
+      }
       final employeeCodeValue = employeeCode.text.trim();
+      double? salaryValue;
+      if (_salaryManage(app)) {
+        salaryValue = double.tryParse(salary.text.trim());
+        if (salaryValue == null || !salaryValue.isFinite || salaryValue < 0) {
+          employeeCode.dispose();
+          joining.dispose();
+          salary.dispose();
+          throw const FormatException(
+            'Monthly Salary must be a valid non-negative amount.',
+          );
+        }
+      }
       final payload = <String, dynamic>{
         if (branchId != null) 'branch_id': branchId,
         'employee_code': employeeCodeValue,
         'designation_code': '${candidate['proposed_designation_code'] ?? ''}',
         'joining_date': joining.text.trim(),
-        if (_salaryManage(app))
-          'monthly_salary': double.tryParse(salary.text) ?? 0,
+        if (_salaryManage(app)) 'monthly_salary': salaryValue,
         if (reportingId != null) 'reporting_employee_id': reportingId,
       };
       employeeCode.dispose();
       joining.dispose();
       salary.dispose();
-      if (ok != true) return;
       await ref
           .read(apiClientProvider)
           .post(ApiPaths.candidateJoining(id), data: payload);
