@@ -203,7 +203,15 @@ void main() {
       screen,
       contains("final canManageAccess = app.can('administration.access.manage')"),
     );
+    expect(
+      screen,
+      contains("final canManageSalary = app.can('payroll.salary.manage')"),
+    );
     expect(screen, contains("labelText: 'Additional Role (optional)'"));
+    expect(
+      screen,
+      contains("if (canManageSalary) 'monthly_salary':"),
+    );
     expect(
       screen,
       contains("canManageAccess\n            ? api.get(ApiPaths.roles)"),

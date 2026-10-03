@@ -44,6 +44,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
     final api = ref.read(apiClientProvider);
     try {
       final canManageAccess = app.can('administration.access.manage');
+      final canManageSalary = app.can('payroll.salary.manage');
       final results = await Future.wait([
         api.get(ApiPaths.designations),
         canManageAccess
@@ -158,16 +159,18 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       decoration: const InputDecoration(labelText: 'Email'),
                     ),
                     const SizedBox(height: 10),
-                    TextField(
-                      controller: salary,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                    if (canManageSalary) ...[
+                      TextField(
+                        controller: salary,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Monthly Salary',
+                        ),
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Monthly Salary',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
+                      const SizedBox(height: 10),
+                    ],
                     BusinessDateField(
                       controller: joining,
                       label: 'Joining Date',
@@ -235,7 +238,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
         if (reportingId != null) 'reporting_employee_id': reportingId,
         if (mobileValue.isNotEmpty) 'mobile': mobileValue,
         if (emailValue.isNotEmpty) 'email': emailValue,
-        'monthly_salary': double.tryParse(salary.text) ?? 0,
+        if (canManageSalary) 'monthly_salary': double.tryParse(salary.text) ?? 0,
         'joining_date': joiningDate,
       };
       code.dispose();
