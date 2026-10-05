@@ -464,6 +464,12 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
             label: Text(
               _dailyActionLabelImpl(primary, additional: isAdditionalAction),
             ),
+          )
+        else
+          OutlinedButton.icon(
+            onPressed: () => _MyWorkDaily(this)._dailyAction(id, 'view'),
+            icon: const Icon(Icons.visibility_outlined, size: 18),
+            label: const Text('View'),
           ),
         PopupMenuButton<String>(
           tooltip: 'More actions',
