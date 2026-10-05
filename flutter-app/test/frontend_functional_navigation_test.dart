@@ -551,11 +551,11 @@ void main() {
     );
     expect(
       team,
-      contains("BusinessFormat.status((data['cycle'] as Map)['status'])"),
+      contains("_dailyCycleLabel('\${cycle['status']}')"),
     );
     expect(
       team,
-      contains("BusinessFormat.value('type', r['type'])"),
+      contains("'initial' => 'Morning Stock Request'"),
     );
   });
 
