@@ -291,96 +291,215 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                           ? const Center(
                               child: Text('Matching product nahi mila.'),
                             )
-                          : ListView.separated(
-                              itemCount: visibleProducts.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 6),
-                              itemBuilder: (context, index) {
-                                final product = visibleProducts[index];
-                                final id = int.parse('${product['id']}');
-                                final currentQty =
-                                    WholePcs.parseOrZero(qty[id]!.text);
-                                final price = product['sale_price'] == null
-                                    ? ''
-                                    : '₹${product['sale_price']}';
-                                final points = product['points'] == null
-                                    ? ''
-                                    : '${product['points']} pts';
-                                final meta = [
-                                  if ('${product['sku'] ?? ''}'.trim().isNotEmpty)
-                                    'SKU ${product['sku']}',
-                                  price,
-                                  points,
-                                ].where((value) => value.isNotEmpty).join(' · ');
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                final showCommercial =
+                                    constraints.maxWidth >= 520;
                                 return Container(
-                                  key: ValueKey(id),
-                                  padding:
-                                      const EdgeInsets.fromLTRB(12, 9, 10, 9),
                                   decoration: BoxDecoration(
-                                    color: currentQty > 0
-                                        ? ExcelBrand.primarySoft
-                                        : Theme.of(context)
+                                    border: Border.all(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outlineVariant,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        color: Theme.of(context)
                                             .colorScheme
                                             .surfaceContainerLow,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: currentQty > 0
-                                          ? ExcelBrand.primary
-                                          : Theme.of(context)
-                                              .colorScheme
-                                              .outlineVariant,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                        child: Row(
                                           children: [
-                                            Text(
-                                              '${product['name']}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w800,
-                                                  ),
-                                            ),
-                                            if (meta.isNotEmpty) ...[
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                meta,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
+                                            Expanded(
+                                              child: Text(
+                                                'Product',
                                                 style: Theme.of(context)
                                                     .textTheme
-                                                    .bodySmall,
+                                                    .labelLarge
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
                                               ),
-                                            ],
+                                            ),
+                                            if (showCommercial)
+                                              SizedBox(
+                                                width: 138,
+                                                child: Text(
+                                                  'Rate / Points',
+                                                  textAlign: TextAlign.right,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelLarge
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                      ),
+                                                ),
+                                              ),
+                                            const SizedBox(width: 12),
+                                            SizedBox(
+                                              width: 108,
+                                              child: Text(
+                                                'Quantity',
+                                                textAlign: TextAlign.right,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ),
                                           ],
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
-                                      SizedBox(
-                                        width: 108,
-                                        child: TextField(
-                                          controller: qty[id],
-                                          enabled: !saving,
-                                          keyboardType: TextInputType.number,
-                                          inputFormatters: [
-                                            WholePcs.positiveFormatter,
-                                          ],
-                                          textAlign: TextAlign.right,
-                                          onChanged: (_) =>
-                                              setLocalState(() {}),
-                                          decoration: const InputDecoration(
-                                            hintText: '0',
-                                            suffixText: 'PCS',
-                                            isDense: true,
-                                          ),
+                                      const Divider(height: 1),
+                                      Expanded(
+                                        child: ListView.separated(
+                                          itemCount: visibleProducts.length,
+                                          separatorBuilder: (_, __) =>
+                                              const Divider(height: 1),
+                                          itemBuilder: (context, index) {
+                                            final product =
+                                                visibleProducts[index];
+                                            final id =
+                                                int.parse('${product['id']}');
+                                            final currentQty =
+                                                WholePcs.parseOrZero(
+                                              qty[id]!.text,
+                                            );
+                                            final sku =
+                                                '${product['sku'] ?? ''}'
+                                                    .trim();
+                                            final price =
+                                                product['sale_price'] == null
+                                                    ? ''
+                                                    : '₹${product['sale_price']}';
+                                            final points =
+                                                product['points'] == null
+                                                    ? ''
+                                                    : '${product['points']} pts';
+                                            final commercial = [
+                                              price,
+                                              points,
+                                            ]
+                                                .where(
+                                                  (value) => value.isNotEmpty,
+                                                )
+                                                .join(' · ');
+                                            final compactMeta = [
+                                              if (sku.isNotEmpty) 'SKU $sku',
+                                              if (!showCommercial &&
+                                                  commercial.isNotEmpty)
+                                                commercial,
+                                            ].join(' · ');
+                                            return Container(
+                                              key: ValueKey(id),
+                                              color: currentQty > 0
+                                                  ? ExcelBrand.primarySoft
+                                                  : Theme.of(context)
+                                                      .colorScheme
+                                                      .surface,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 8,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          '${product['name']}',
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: Theme.of(
+                                                            context,
+                                                          )
+                                                              .textTheme
+                                                              .bodyMedium
+                                                              ?.copyWith(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                              ),
+                                                        ),
+                                                        if (compactMeta
+                                                            .isNotEmpty) ...[
+                                                          const SizedBox(
+                                                            height: 2,
+                                                          ),
+                                                          Text(
+                                                            compactMeta,
+                                                            maxLines: 1,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            style: Theme.of(
+                                                              context,
+                                                            )
+                                                                .textTheme
+                                                                .bodySmall,
+                                                          ),
+                                                        ],
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  if (showCommercial)
+                                                    SizedBox(
+                                                      width: 138,
+                                                      child: Text(
+                                                        commercial.isEmpty
+                                                            ? '—'
+                                                            : commercial,
+                                                        textAlign:
+                                                            TextAlign.right,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: Theme.of(
+                                                          context,
+                                                        ).textTheme.bodySmall,
+                                                      ),
+                                                    ),
+                                                  const SizedBox(width: 12),
+                                                  SizedBox(
+                                                    width: 108,
+                                                    child: TextField(
+                                                      controller: qty[id],
+                                                      enabled: !saving,
+                                                      keyboardType:
+                                                          TextInputType.number,
+                                                      inputFormatters: [
+                                                        WholePcs
+                                                            .positiveFormatter,
+                                                      ],
+                                                      textAlign:
+                                                          TextAlign.right,
+                                                      onChanged: (_) =>
+                                                          setLocalState(() {}),
+                                                      decoration:
+                                                          const InputDecoration(
+                                                        hintText: '0',
+                                                        suffixText: 'PCS',
+                                                        isDense: true,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
                                         ),
                                       ),
                                     ],
