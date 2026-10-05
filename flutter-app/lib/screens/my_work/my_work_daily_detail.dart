@@ -137,6 +137,10 @@ extension _MyWorkDailyDetailImpl on _MyWorkScreenState {
                 final lines = ((r['lines'] as List?) ?? const [])
                     .map((e) => Map<String, dynamic>.from(e as Map))
                     .toList();
+                final issuedLines =
+                    ((r['issued_lines'] as List?) ?? const [])
+                        .map((e) => Map<String, dynamic>.from(e as Map))
+                        .toList();
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Card(
@@ -200,6 +204,84 @@ extension _MyWorkDailyDetailImpl on _MyWorkScreenState {
                               ),
                             ),
                             if (i != lines.length - 1) const Divider(height: 1),
+                          ],
+                          if (issuedLines.isNotEmpty) ...[
+                            const Divider(height: 24),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 18,
+                                  color: ExcelBrand.primaryDark,
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  'Issued Stock',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            for (var i = 0; i < issuedLines.length; i++) ...[
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 7),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            BusinessFormat.displayName(
+                                              '${issuedLines[i]['product_name'] ?? 'Product'}',
+                                            ),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                          if ('${issuedLines[i]['batch_no'] ?? ''}'
+                                              .trim()
+                                              .isNotEmpty)
+                                            Text(
+                                              'Batch ${issuedLines[i]['batch_no']}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      '${BusinessFormat.quantity(issuedLines[i]['quantity'])} PCS',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: ExcelBrand.primaryDark,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (i != issuedLines.length - 1)
+                                const Divider(height: 1),
+                            ],
                           ],
                         ],
                       ),
