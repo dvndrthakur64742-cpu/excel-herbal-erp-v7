@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/daily_order_workflow.dart';
-import '../../core/stock_allocation.dart';
 import '../../core/providers.dart';
-import '../../core/overlay_transition.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
@@ -494,73 +492,126 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         await api.get(ApiPaths.dailyDetail(id)) as Map,
       );
       if (!mounted) return;
+      final cycle = Map<String, dynamic>.from(data['cycle'] as Map);
+      final requests = ((data['requests'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      final employee = (app.me['employee'] as Map?) ?? const {};
+      final currentEmployeeId = int.tryParse('${employee['id']}');
+      var busy = false;
+      int? busyRequest;
+      String? actionError;
       await showModalBottomSheet<void>(
         context: context,
         useSafeArea: true,
         isScrollControlled: true,
-        builder: (context) => DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: .8,
-          maxChildSize: .96,
-          builder: (_, controller) {
-            final requests = (data['requests'] as List)
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList();
-            return ListView(
-              controller: controller,
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text(
-                  'Daily Order #$id · ${BusinessFormat.status((data['cycle'] as Map)['status'])}',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 12),
-                ...requests.map(
-                  (r) => Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+        isDismissible: false,
+        enableDrag: false,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (sheetContext, setLocal) {
+            Future<void> perform(Map<String, dynamic> request, bool issue) async {
+              if (busy) return;
+              setLocal(() {
+                busy = true;
+                busyRequest = int.parse('${request['id']}');
+                actionError = null;
+              });
+              try {
+                if (issue) {
+                  await _issue(request);
+                } else {
+                  await _approve(int.parse('${request['id']}'));
+                }
+                if (mounted) {
+                  setState(() {
+                    refresh++;
+                    message = issue
+                        ? 'Stock issued successfully.'
+                        : 'Request approved. Stock issue is pending.';
+                  });
+                }
+                if (sheetContext.mounted) Navigator.pop(sheetContext);
+              } catch (e) {
+                if (sheetContext.mounted) {
+                  setLocal(() {
+                    busy = false;
+                    actionError = UiError.message(e);
+                  });
+                }
+              }
+            }
+
+            return PopScope(
+              canPop: !busy,
+              child: FractionallySizedBox(
+                heightFactor: .9,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 8, 12),
+                      child: Row(
                         children: [
-                          Text(
-                            '${BusinessFormat.value('type', r['type'])} · ${BusinessFormat.status(r['status'])}',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          ...(r['lines'] as List).map(
-                            (l) => Text(
-                              '${(l as Map)['product_name']} · Qty ${BusinessFormat.quantity(l['quantity'])} · Batch ${BusinessFormat.status(l['batch_tracking'])}',
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Daily Order #$id',
+                                    style: Theme.of(sheetContext).textTheme.titleLarge),
+                                const SizedBox(height: 4),
+                                Text(BusinessFormat.date(cycle['business_date']),
+                                    style: Theme.of(sheetContext).textTheme.bodySmall),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          if (DailyOrderWorkflow.canApproveRequest(
-                            '${r['status']}',
-                            app.capabilities,
-                          ))
-                            FilledButton.tonal(
-                              onPressed: () =>
-                                  _approve(int.parse('${r['id']}')),
-                              child: const Text('Approve Request'),
-                            ),
-                          if (DailyOrderWorkflow.canIssueRequest(
-                            '${r['status']}',
-                            app.capabilities,
-                          ))
-                            FilledButton(
-                              onPressed: () => _issue(
-                                r,
-                                int.parse(
-                                  '${(data['cycle'] as Map)['branch_id']}',
-                                ),
-                              ),
-                              child: const Text('Issue Stock'),
-                            ),
+                          IconButton(
+                            tooltip: 'Close',
+                            onPressed: busy ? null : () => Navigator.pop(sheetContext),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
                         ],
                       ),
                     ),
-                  ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              Chip(label: Text(_dailyCycleLabel('${cycle['status']}'))),
+                              if ('${row['employee_name'] ?? ''}'.trim().isNotEmpty)
+                                Chip(
+                                  avatar: const Icon(Icons.person_outline, size: 18),
+                                  label: Text('${row['employee_name']}'),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          if (requests.isEmpty)
+                            const Text('No stock requests found.'),
+                          for (final request in requests) ...[
+                            _dailyRequestCard(
+                              sheetContext,
+                              request,
+                              app,
+                              currentEmployeeId,
+                              busy: busy,
+                              processing: busy && busyRequest == int.tryParse('${request['id']}'),
+                              onAction: (issue) => perform(request, issue),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          if (actionError != null)
+                            ModuleMessageBanner(message: actionError!),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             );
           },
         ),
@@ -570,56 +621,139 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     }
   }
 
-  Future<void> _approve(int requestId) async {
-    final app = ref.read(appStateProvider);
-    if (!app.can('daily_order.approve')) {
-      setState(() => message = 'Daily Order approval permission is required.');
-      return;
-    }
-    final closed = await OverlayTransition.closeAndSettle(context);
-    if (!closed || !mounted) return;
-    try {
-      await ref
-          .read(apiClientProvider)
-          .post(ApiPaths.dailyApprove(requestId), data: const {});
-      if (mounted) setState(() => refresh++);
-    } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
-    }
+  Widget _dailyRequestCard(
+    BuildContext context,
+    Map<String, dynamic> request,
+    AppState app,
+    int? currentEmployeeId, {
+    required bool busy,
+    required bool processing,
+    required ValueChanged<bool> onAction,
+  }) {
+    final lines = ((request['lines'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    final requesterId = int.tryParse('${request['requested_by']}');
+    final canApprove = DailyOrderWorkflow.canApproveRequest(
+      '${request['status']}', app.capabilities,
+      requesterId: requesterId, currentEmployeeId: currentEmployeeId,
+    );
+    final canIssue = DailyOrderWorkflow.canIssueRequest(
+      '${request['status']}', app.capabilities,
+      requesterId: requesterId, currentEmployeeId: currentEmployeeId,
+    );
+    final total = lines.fold<num>(0,
+        (sum, line) => sum + (num.tryParse('${line['quantity']}') ?? 0));
+    final title = switch ('${request['type']}') {
+      'initial' => 'Morning Stock Request',
+      'additional' => 'Additional Stock Request',
+      'replacement' => 'Replacement Stock Request',
+      _ => 'Stock Request',
+    };
+    final status = switch ('${request['status']}') {
+      'submitted' => 'Approval Pending',
+      'approved' => 'Ready to Issue',
+      _ => BusinessFormat.status(request['status']),
+    };
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 6),
+            Text('$status · ${lines.length} products · ${_dailyPcs(total)} PCS',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 16),
+            const Row(
+              children: [
+                Expanded(child: Text('Product', style: TextStyle(fontWeight: FontWeight.w700))),
+                Text('Qty (PCS)', style: TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const Divider(height: 20),
+            for (var i = 0; i < lines.length; i++) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: Text(BusinessFormat.displayName(
+                        '${lines[i]['product_name'] ?? 'Product'}'))),
+                    const SizedBox(width: 16),
+                    Text(_dailyPcs(lines[i]['quantity']),
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              if (i < lines.length - 1) const Divider(height: 1),
+            ],
+            if (canApprove || canIssue) ...[
+              const Divider(height: 24),
+              if (canIssue) ...[
+                const Text('Stock availability and batches are checked automatically when issuing.'),
+                const SizedBox(height: 12),
+              ],
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: busy ? null : () => onAction(canIssue),
+                  icon: processing
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(canIssue ? Icons.inventory_2_outlined : Icons.task_alt_rounded),
+                  label: Text(processing ? 'Processing...' : canIssue ? 'Issue Stock' : 'Approve Request'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
-  Future<void> _issue(Map<String, dynamic> request, int branchId) async {
-    final app = ref.read(appStateProvider);
-    if (!app.can('daily_order.issue')) {
-      setState(() => message = 'Daily Order stock issue permission is required.');
-      return;
-    }
-    try {
-      final api = ref.read(apiClientProvider);
-      final stock = (await api.get(
-        ApiPaths.inventoryStock,
-        query: {'branch_id': branchId},
-      ) as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-      final requestLines = (request['lines'] as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-      final allocations = StockAllocation.fefo(
-        requestLines: requestLines,
-        stock: stock,
-      );
-      final closed = await OverlayTransition.closeAndSettle(context);
-      if (!closed || !mounted) return;
-      await api.post(
-        ApiPaths.dailyIssue(int.parse('${request['id']}')),
-        data: {'allocations': allocations},
-      );
-      if (mounted) setState(() => refresh++);
-    } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
-    }
+  String _dailyPcs(dynamic value) {
+    final quantity = num.tryParse('$value') ?? 0;
+    return quantity == quantity.truncateToDouble()
+        ? quantity.toInt().toString()
+        : BusinessFormat.quantity(quantity);
   }
+
+  String _dailyCycleLabel(String status) => switch (status) {
+    'approved' => 'Stock Issue Pending',
+    'issued' => 'Closing Pending',
+    _ => BusinessFormat.status(status),
+  };
+
+  Future<void> _approve(int requestId) async {
+    await ref.read(apiClientProvider).post(
+      ApiPaths.dailyApprove(requestId), data: const {},
+    );
+  }
+
+  Future<void> _issue(Map<String, dynamic> request) async {
+    final requestLines = ((request['lines'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    if (requestLines.isEmpty) throw Exception('Approved request has no product lines.');
+    await ref.read(apiClientProvider).post(
+      ApiPaths.dailyIssue(int.parse('${request['id']}')),
+      data: {
+        'allocations': [
+          for (final line in requestLines)
+            {
+              'request_line_id': int.parse('${line['id']}'),
+              'quantity': num.parse('${line['quantity']}'),
+            },
+        ],
+      },
+    );
+  }
+
 }
 
 class _HierarchyReadinessPanel extends StatelessWidget {
