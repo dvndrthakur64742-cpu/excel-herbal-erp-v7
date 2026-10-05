@@ -228,8 +228,7 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
         'self-service actor approved own daily request'
     );
     if ((uat_dispatch('daily.approve',$manager,['id'=>$request])['status'] ?? '') !== 'approved') throw new RuntimeException('daily approve failed');
-    $lineId=(int)$wpdb->get_var($wpdb->prepare('SELECT id FROM '.Db::table('daily_request_lines').' WHERE daily_request_id=%d LIMIT 1',$request));
-    if ((uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[['request_line_id'=>$lineId,'quantity'=>2]]])['status'] ?? '') !== 'issued') throw new RuntimeException('daily issue failed');
+    if ((uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]])['status'] ?? '') !== 'issued') throw new RuntimeException('daily issue automatic allocation failed');
     $evening=uat_dispatch('daily.evening_start',$self,['id'=>$cycle]); $eveningId=(int)$evening['evening_id'];
     $issueLineId=(int)$wpdb->get_var($wpdb->prepare('SELECT issue_line_id FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d LIMIT 1',$eveningId));
     $saved=uat_dispatch('daily.evening_save',$self,[
