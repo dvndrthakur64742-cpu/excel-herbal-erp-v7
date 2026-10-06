@@ -664,7 +664,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       for (final product in products)
         int.parse('${product['id']}'): TextEditingController(),
     };
-    final ok = await showModalBottomSheet<bool>(
+    final receipt = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
@@ -834,6 +834,21 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         .toList();
     if (lines.isEmpty) throw Exception('Approved request lines missing.');
 
+    final requestId = int.parse('${r['id']}');
+    final preflight = Map<String, dynamic>.from(
+      await api.get(ApiPaths.dailyIssuePreflight(requestId)) as Map,
+    );
+    final stockRows = ((preflight['lines'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    final stockByLine = <int, Map<String, dynamic>>{
+      for (final row in stockRows)
+        if (int.tryParse('${row['request_line_id']}') != null)
+          int.parse('${row['request_line_id']}'): row,
+    };
+    final allAvailable = preflight['all_available'] == true;
+
     final allocations = <Map<String, dynamic>>[
       for (final line in lines)
         {
@@ -914,9 +929,17 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    isAdditional
-                        ? 'Approved additional quantity branch stock se automatic FEFO allocation ke saath employee custody me issue hogi.'
-                        : 'Approved quantity branch stock se automatic FEFO allocation ke saath employee custody me issue hogi.',
+                    allAvailable
+                        ? (isAdditional
+                            ? 'Approved additional quantity available hai. ERP automatic FEFO allocation ke saath employee custody me stock move karega.'
+                            : 'Approved quantity available hai. ERP automatic FEFO allocation ke saath employee custody me stock move karega.')
+                        : 'Stock shortage detected. Neeche Required vs Available check karein. Shortage clear hone tak Issue button blocked rahega.',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: allAvailable
+                          ? null
+                          : Theme.of(sheetContext).colorScheme.error,
+                    ),
                   ),
                 ),
               ),
@@ -930,6 +953,17 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                     final name = BusinessFormat.displayName(
                       '${l['product_name'] ?? 'Product'}',
                     );
+                    final lineId = int.parse('${l['id']}');
+                    final stock = stockByLine[lineId] ?? const <String, dynamic>{};
+                    final required = num.tryParse(
+                          '${stock['required_quantity'] ?? l['quantity'] ?? 0}',
+                        ) ??
+                        0;
+                    final available = num.tryParse(
+                          '${stock['available_quantity'] ?? 0}',
+                        ) ??
+                        0;
+                    final issueable = stock['issueable'] == true;
                     return Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
@@ -940,12 +974,29 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                       child: Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              name,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Required ${BusinessFormat.quantity(required)} PCS · Available ${BusinessFormat.quantity(available)} PCS',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: issueable
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant
+                                            : Theme.of(context).colorScheme.error,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                              ],
                             ),
                           ),
                           Container(
@@ -954,15 +1005,19 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                               vertical: 5,
                             ),
                             decoration: BoxDecoration(
-                              color: ExcelBrand.primarySoft,
+                              color: issueable
+                                  ? ExcelBrand.primarySoft
+                                  : Theme.of(context).colorScheme.errorContainer,
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              'Issue ${BusinessFormat.quantity(l['quantity'])}',
-                              style: const TextStyle(
-                                color: ExcelBrand.primaryDark,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12,
+                              issueable ? 'READY' : 'SHORT',
+                              style: TextStyle(
+                                color: issueable
+                                    ? ExcelBrand.primaryDark
+                                    : Theme.of(context).colorScheme.onErrorContainer,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 11,
                               ),
                             ),
                           ),
@@ -1008,7 +1063,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                       Expanded(
                         flex: 2,
                         child: FilledButton.icon(
-                          onPressed: issuing
+                          onPressed: issuing || !allAvailable
                               ? null
                               : () async {
                                   if (issuing) return;
@@ -1017,14 +1072,25 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                                     issueError = null;
                                   });
                                   try {
-                                    await api.post(
-                                      ApiPaths.dailyIssue(
-                                        int.parse('${r['id']}'),
-                                      ),
-                                      data: {'allocations': allocations},
+                                    final result =
+                                        Map<String, dynamic>.from(
+                                      await api.post(
+                                        ApiPaths.dailyIssue(requestId),
+                                        data: {'allocations': allocations},
+                                      ) as Map,
                                     );
+                                    if (result['stock_moved'] != true ||
+                                        (num.tryParse(
+                                                  '${result['issued_quantity'] ?? 0}',
+                                                ) ??
+                                                0) <=
+                                            0) {
+                                      throw Exception(
+                                        'Stock issue response verify nahi hui. Order detail refresh karke retry karein.',
+                                      );
+                                    }
                                     if (sheetContext.mounted) {
-                                      Navigator.pop(sheetContext, true);
+                                      Navigator.pop(sheetContext, result);
                                     }
                                   } catch (e) {
                                     if (sheetContext.mounted) {
@@ -1047,9 +1113,11 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                           label: Text(
                             issuing
                                 ? 'Issuing...'
-                                : (isAdditional
-                                    ? 'Issue Additional Stock'
-                                    : 'Issue Stock'),
+                                : !allAvailable
+                                    ? 'Stock Shortage'
+                                    : (isAdditional
+                                        ? 'Issue Additional Stock'
+                                        : 'Issue Stock'),
                           ),
                         ),
                       ),
@@ -1064,12 +1132,13 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       ),
     );
 
-    if (ok == true && mounted) {
+    if (receipt != null && mounted) {
+      final issued = num.tryParse('${receipt['issued_quantity'] ?? 0}') ?? 0;
       _setFeatureState(() {
         refresh++;
         message = isAdditional
-            ? 'Additional stock issued successfully.'
-            : 'Stock issued successfully. Evening Closing is pending.';
+            ? 'Additional stock issued: ${BusinessFormat.quantity(issued)} PCS employee custody me move hua.'
+            : 'Stock issued: ${BusinessFormat.quantity(issued)} PCS employee custody me move hua. Evening Closing pending hai.';
       });
     }
   }
