@@ -529,6 +529,54 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                 ],
               ),
             ),
+            if (app.canAny(const [
+                  'payroll.salary.view',
+                  'payroll.salary.manage',
+                  'payroll.salary.approve',
+                ]) ||
+                app.can('administration.access.manage')) ...[
+              const SizedBox(height: 18),
+              Text(
+                'Compensation & Access',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Card(
+                margin: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    if (app.canAny(const [
+                      'payroll.salary.view',
+                      'payroll.salary.manage',
+                      'payroll.salary.approve',
+                    ]))
+                      ListTile(
+                        leading: const Icon(Icons.currency_rupee_rounded),
+                        title: const Text('Salary Revisions'),
+                        subtitle: const Text(
+                          'View authorised revision history · maker-checker changes stay in Payroll & Performance',
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => _employeeSalaryHistory(employee),
+                      ),
+                    if (app.can('administration.access.manage'))
+                      ListTile(
+                        leading:
+                            const Icon(Icons.admin_panel_settings_outlined),
+                        title: const Text('Roles & Permissions'),
+                        subtitle: const Text(
+                          'Review designation defaults, roles, overrides and effective access',
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => _employeeAccessSummary(employee),
+                      ),
+                  ],
+                ),
+              ),
+            ],
             if (!app.can('organization.employee.manage')) ...[
               const SizedBox(height: 14),
               const Text(
@@ -564,129 +612,267 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       String designationCode = '${employee['designation_code'] ?? ''}'.trim();
       String? formError;
 
-      final ok = await showDialog<bool>(
+      final ok = await showModalBottomSheet<bool>(
         context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogContext, setLocal) => AlertDialog(
-            title: Text('Edit Employee · ${employee['employee_code'] ?? ''}'),
-            content: SizedBox(
-              width: 620,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: name,
-                      decoration:
-                          const InputDecoration(labelText: 'Full Name'),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: mobile,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(labelText: 'Mobile'),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: email,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      initialValue: designations.any(
-                              (d) => '${d['code']}' == designationCode)
-                          ? designationCode
-                          : null,
-                      decoration:
-                          const InputDecoration(labelText: 'Primary Designation'),
-                      items: designations
-                          .map(
-                            (d) => DropdownMenuItem<String>(
-                              value: '${d['code']}',
-                              child: Text('${d['name']} · ${d['code']}'),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setLocal(() => designationCode = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    BusinessDateField(
-                      controller: joining,
-                      label: 'Joining Date',
-                    ),
-                    const SizedBox(height: 10),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Salary change is intentionally separate and must use the salary revision/approval workflow.',
-                      ),
-                    ),
-                    if (formError != null) ...[
-                      const SizedBox(height: 10),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          formError!,
-                          style: TextStyle(
-                            color: Theme.of(dialogContext).colorScheme.error,
-                          ),
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (sheetContext, setLocal) => FractionallySizedBox(
+            heightFactor: .94,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 10, 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: ExcelBrand.primarySoft,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.manage_accounts_outlined,
+                          color: ExcelBrand.primaryDark,
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Edit Employee',
+                              style: Theme.of(sheetContext)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            Text(
+                              '${employee['employee_code'] ?? ''} · Profile & job details',
+                              style: Theme.of(sheetContext).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
+                    children: [
+                      Text(
+                        'Personal Details',
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: name,
+                        decoration: const InputDecoration(
+                          labelText: 'Full Name',
+                          prefixIcon: Icon(Icons.person_outline_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final fields = <Widget>[
+                            TextField(
+                              controller: mobile,
+                              keyboardType: TextInputType.phone,
+                              decoration: const InputDecoration(
+                                labelText: 'Mobile',
+                                prefixIcon: Icon(Icons.phone_outlined),
+                              ),
+                            ),
+                            TextField(
+                              controller: email,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: const InputDecoration(
+                                labelText: 'Email',
+                                prefixIcon: Icon(Icons.email_outlined),
+                              ),
+                            ),
+                          ];
+                          if (constraints.maxWidth < 620) {
+                            return Column(
+                              children: [
+                                fields[0],
+                                const SizedBox(height: 12),
+                                fields[1],
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(child: fields[0]),
+                              const SizedBox(width: 12),
+                              Expanded(child: fields[1]),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Job Details',
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: designations.any(
+                                (d) => '${d['code']}' == designationCode)
+                            ? designationCode
+                            : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Primary Designation',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                        items: designations
+                            .map(
+                              (d) => DropdownMenuItem<String>(
+                                value: '${d['code']}',
+                                child: Text('${d['name']} · ${d['code']}'),
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setLocal(() => designationCode = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      BusinessDateField(
+                        controller: joining,
+                        label: 'Joining Date',
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(13),
+                        decoration: BoxDecoration(
+                          color: Theme.of(sheetContext)
+                              .colorScheme
+                              .surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Text(
+                          'Salary is intentionally separate. Use Salary Revisions so every change remains effective-dated, audited and maker-checker controlled.',
+                        ),
+                      ),
+                      if (formError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(sheetContext).colorScheme.error,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    decoration: const BoxDecoration(
+                      color: ExcelBrand.surface,
+                      border: Border(
+                        top: BorderSide(color: ExcelBrand.border),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () =>
+                                Navigator.pop(sheetContext, false),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              final n = name.text.trim();
+                              final m = mobile.text
+                                  .trim()
+                                  .replaceAll(RegExp(r'\D+'), '');
+                              final e = email.text.trim();
+                              final j = joining.text.trim();
+                              if (n.isEmpty) {
+                                setLocal(
+                                  () =>
+                                      formError = 'Employee name required hai.',
+                                );
+                                return;
+                              }
+                              if (m.isNotEmpty &&
+                                  (m.length < 8 || m.length > 15)) {
+                                setLocal(
+                                  () => formError =
+                                      'Mobile 8 se 15 digits hona chahiye.',
+                                );
+                                return;
+                              }
+                              if (e.isNotEmpty) {
+                                final at = e.indexOf('@');
+                                final dot = e.lastIndexOf('.');
+                                if (at <= 0 ||
+                                    dot <= at + 1 ||
+                                    dot >= e.length - 1) {
+                                  setLocal(
+                                    () => formError =
+                                        'Valid email enter karein.',
+                                  );
+                                  return;
+                                }
+                              }
+                              if (designationCode.isEmpty) {
+                                setLocal(
+                                  () =>
+                                      formError = 'Designation select karein.',
+                                );
+                                return;
+                              }
+                              if (!CommercialIntegrity.validBusinessDate(j)) {
+                                setLocal(
+                                  () => formError =
+                                      'Joining Date valid YYYY-MM-DD format me honi chahiye.',
+                                );
+                                return;
+                              }
+                              Navigator.pop(sheetContext, true);
+                            },
+                            icon: const Icon(Icons.save_outlined),
+                            label: const Text('Save Employee'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final n = name.text.trim();
-                  final m = mobile.text.trim().replaceAll(RegExp(r'\D+'), '');
-                  final e = email.text.trim();
-                  final j = joining.text.trim();
-                  if (n.isEmpty) {
-                    setLocal(() => formError = 'Employee name required hai.');
-                    return;
-                  }
-                  if (m.isNotEmpty && (m.length < 8 || m.length > 15)) {
-                    setLocal(
-                      () => formError = 'Mobile 8 se 15 digits hona chahiye.',
-                    );
-                    return;
-                  }
-                  if (e.isNotEmpty) {
-                    final at = e.indexOf('@');
-                    final dot = e.lastIndexOf('.');
-                    if (at <= 0 || dot <= at + 1 || dot >= e.length - 1) {
-                      setLocal(() => formError = 'Valid email enter karein.');
-                      return;
-                    }
-                  }
-                  if (designationCode.isEmpty) {
-                    setLocal(() => formError = 'Designation select karein.');
-                    return;
-                  }
-                  if (!CommercialIntegrity.validBusinessDate(j)) {
-                    setLocal(
-                      () => formError =
-                          'Joining Date valid YYYY-MM-DD format me honi chahiye.',
-                    );
-                    return;
-                  }
-                  Navigator.pop(dialogContext, true);
-                },
-                child: const Text('Save Changes'),
-              ),
-            ],
           ),
         ),
       );
@@ -720,6 +906,260 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
           message = 'Employee details update ho gaye.';
         });
       }
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
+    }
+  }
+
+  Future<void> _employeeSalaryHistory(
+    Map<String, dynamic> employee,
+  ) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    final id = int.tryParse('${employee['id']}') ?? 0;
+    if (id < 1) return;
+    try {
+      final rows = (await ref
+              .read(apiClientProvider)
+              .get(ApiPaths.salaryRevisions(id)) as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(growable: false);
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: .78,
+          minChildSize: .5,
+          maxChildSize: .95,
+          builder: (sheetContext, controller) => ListView(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 26),
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(sheetContext).colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Salary Revisions · ${employee['full_name'] ?? 'Employee'}',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${employee['employee_code'] ?? ''} · Audited effective-dated history',
+                style: Theme.of(sheetContext).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: ExcelBrand.primarySoft,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Text(
+                  'Salary changes are created/reviewed only in Payroll & Performance → Salary. Employee 360 shows the same authorised history without creating a second workflow.',
+                  style: TextStyle(
+                    color: ExcelBrand.primaryDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (rows.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Center(child: Text('No salary revision history.')),
+                )
+              else
+                ...rows.map((row) {
+                  final status =
+                      BusinessFormat.status(row['status'] ?? 'pending');
+                  final amount = row['monthly_salary'];
+                  final effective = row['effective_from'];
+                  final reason = '${row['reason'] ?? ''}'.trim();
+                  return Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.currency_rupee_rounded),
+                      title: Text(
+                        '${BusinessFormat.money(amount)} · ${BusinessFormat.date(effective)}',
+                      ),
+                      subtitle: Text(
+                        reason.isEmpty ? status : '$reason · $status',
+                      ),
+                      trailing: Chip(label: Text(status)),
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
+    }
+  }
+
+  Future<void> _employeeAccessSummary(
+    Map<String, dynamic> employee,
+  ) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    final id = int.tryParse('${employee['id']}') ?? 0;
+    if (id < 1) return;
+    try {
+      final detail = Map<String, dynamic>.from(
+        await ref.read(apiClientProvider).get(ApiPaths.employeeAccess(id))
+            as Map,
+      );
+      final roles = ((detail['roles'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(growable: false);
+      final defaults = ((detail['designation_defaults'] as List?) ?? const [])
+          .map((e) => '$e')
+          .toList(growable: false);
+      final effective = ((detail['effective_capabilities'] as List?) ?? const [])
+          .map((e) => '$e')
+          .toList(growable: false);
+      final overrides = ((detail['overrides'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(growable: false);
+      if (!mounted) return;
+
+      await showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: .82,
+          minChildSize: .55,
+          maxChildSize: .96,
+          builder: (sheetContext, controller) => ListView(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 26),
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(sheetContext).colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Roles & Permissions · ${employee['full_name'] ?? 'Employee'}',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${employee['employee_code'] ?? ''} · ${employee['designation_code'] ?? ''}',
+                style: Theme.of(sheetContext).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: ExcelBrand.primarySoft,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Text(
+                  'Employee 360 is the visibility layer. Role and Grant/Deny changes stay in Administration → Access so access logic has one canonical workflow.',
+                  style: TextStyle(
+                    color: ExcelBrand.primaryDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(label: Text('${roles.length} assigned roles')),
+                  Chip(label: Text('${defaults.length} designation defaults')),
+                  Chip(label: Text('${effective.length} effective permissions')),
+                  Chip(label: Text('${overrides.length} overrides')),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Assigned Roles',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 6),
+              if (roles.isEmpty)
+                const Text('No additional roles assigned.')
+              else
+                ...roles.map(
+                  (role) => Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.security_outlined),
+                      title: Text('${role['name'] ?? role['code'] ?? 'Role'}'),
+                      subtitle: Text('${role['code'] ?? ''}'),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 14),
+              Text(
+                'Individual Overrides',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 6),
+              if (overrides.isEmpty)
+                const Text('No individual Grant/Deny overrides.')
+              else
+                ...overrides.map(
+                  (item) => Card(
+                    child: ListTile(
+                      leading: Icon(
+                        '${item['effect']}' == 'deny'
+                            ? Icons.block_outlined
+                            : Icons.add_task_outlined,
+                      ),
+                      title: Text('${item['capability'] ?? ''}'),
+                      trailing: Chip(
+                        label: Text(
+                          BusinessFormat.status(item['effect'] ?? 'inherit'),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         _setOrganizationState(() => message = UiError.message(e));
