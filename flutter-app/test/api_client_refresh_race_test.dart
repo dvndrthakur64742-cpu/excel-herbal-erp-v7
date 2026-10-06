@@ -45,5 +45,29 @@ void main() {
         isFalse,
       );
     });
+
+    test('detects a completed peer session generation write', () {
+      expect(
+        ApiClient.sessionGenerationWasRotated(
+          'generation-old',
+          'generation-new',
+        ),
+        isTrue,
+      );
+      expect(
+        ApiClient.sessionGenerationWasRotated(
+          'generation-same',
+          'generation-same',
+        ),
+        isFalse,
+      );
+      expect(
+        ApiClient.sessionGenerationWasRotated(
+          null,
+          'generation-first',
+        ),
+        isTrue,
+      );
+    });
   });
 }
