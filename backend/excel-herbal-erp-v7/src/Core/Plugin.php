@@ -4,6 +4,7 @@ use ExcelHerbal\ERP7\Database\Schema;
 use ExcelHerbal\ERP7\Http\Api;
 use ExcelHerbal\ERP7\Security\MobileAuth;
 use ExcelHerbal\ERP7\Administration\MaintenanceService;
+use ExcelHerbal\ERP7\Administration\LegacySetupAssistantGuard;
 use ExcelHerbal\ERP7\Administration\UatCleanupAdmin;
 use ExcelHerbal\ERP7\Administration\UatWebDeployAdmin;
 final class Plugin{
@@ -13,7 +14,8 @@ final class Plugin{
         add_filter('rest_pre_serve_request',[\ExcelHerbal\ERP7\Organization\DocumentVault::class,'serve'],10,4);
         \ExcelHerbal\ERP7\Payroll\PayrollAdmin::boot();
         MobileAuth::boot();
-        MaintenanceService::boot();\n        LegacySetupAssistantGuard::boot();
+        MaintenanceService::boot();
+        LegacySetupAssistantGuard::boot();
         UatCleanupAdmin::boot();
         UatWebDeployAdmin::boot();
         add_action('rest_api_init',[Api::class,'register']);
