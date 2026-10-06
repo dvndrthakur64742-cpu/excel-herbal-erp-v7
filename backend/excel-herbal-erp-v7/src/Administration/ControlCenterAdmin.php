@@ -45,7 +45,14 @@ final class ControlCenterAdmin{
         $sourceHead=defined('EH7_SOURCE_HEAD')?(string)EH7_SOURCE_HEAD:'unknown';
         $environment=Environment::type();
         $setup=SetupService::status();
-        $erpUrl=home_url('/');
+        $desktopPageId=(int)get_option('eh7_setup_desktop_page_id',0);
+        $erpUrl=$desktopPageId>0?get_permalink($desktopPageId):home_url('/');
+        if(!$erpUrl)$erpUrl=home_url('/');
+        $organizationUrl=add_query_arg(['eh7_module'=>'organization'],$erpUrl);
+        $employeesUrl=add_query_arg(['eh7_module'=>'organization','eh7_tab'=>'employees'],$erpUrl);
+        $productsUrl=add_query_arg(['eh7_module'=>'organization','eh7_tab'=>'products'],$erpUrl);
+        $branchesUrl=add_query_arg(['eh7_module'=>'organization','eh7_tab'=>'branches'],$erpUrl);
+        $accessUrl=add_query_arg(['eh7_module'=>'administration'],$erpUrl);
         $cleanupUrl=admin_url('tools.php?page=eh7-uat-cleanup');
         $deployUrl=admin_url('tools.php?page=eh7-uat-web-deploy');
 
@@ -60,12 +67,16 @@ final class ControlCenterAdmin{
         self::card('Source Head',esc_html(substr($sourceHead,0,12)),'Deployed backend source.');
         echo '</div>';
 
-        echo '<div class="notice notice-info inline"><p><strong>Where should changes be made?</strong> Day-to-day business and master-data changes must use the current ERP workflows. WordPress admin is for control, diagnostics and deployment; the old Setup Assistant must not be used for writes.</p></div>';
+        echo '<div class="notice notice-info inline"><p><strong>Where should changes be made?</strong> Use the Employee Master, Product Master, Branch Master and Access &amp; Permissions buttons below. They open the current ERP write workflows, so data is changed through one canonical business-logic path instead of duplicate WordPress forms.</p></div>';
 
         echo '<h2>ERP Administration</h2>';
         echo '<table class="widefat striped" style="max-width:1050px">';
         echo '<thead><tr><th>Area</th><th>Use for</th><th>Action</th></tr></thead><tbody>';
-        self::row('Current ERP','Branches, employees, products, commercial pricing, roles/authority and normal business workflows',$erpUrl,'Open ERP');
+        self::row('Current ERP','Full authorised ERP workspace and day-to-day workflows',$erpUrl,'Open ERP');
+        self::row('Employee Master','Add employees, edit employee details, login access, branch transfer and employee documents',$employeesUrl,'Manage Employees');
+        self::row('Product Master','Add products, edit product identity, update MRP / sale price through commercial revisions and view price history',$productsUrl,'Manage Products');
+        self::row('Branch Master','Create and maintain authorised branch master data',$branchesUrl,'Manage Branches');
+        self::row('Access & Permissions','Assign roles, employee access and authority according to hierarchy',$accessUrl,'Manage Access');
         self::row('Safe UAT Cleanup','Controlled UAT anomaly diagnostics and approved cleanup',$cleanupUrl,'Open UAT Cleanup');
         self::row('UAT Web Deploy','Certified Flutter web runtime deployment/attestation',$deployUrl,'Open Web Deploy');
         echo '</tbody></table>';
