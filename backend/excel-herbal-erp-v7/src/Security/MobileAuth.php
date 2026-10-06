@@ -14,20 +14,52 @@ final class MobileAuth{
  private const REFRESH_COOKIE='eh7_refresh_v1';
  private const COOKIE_PATH='/wp-json/excel-herbal-erp/v7/';
 
- public static function boot():void{add_filter('determine_current_user',[self::class,'user'],20);}
+ public static function boot():void{
+  add_filter('determine_current_user',[self::class,'user'],20);
+  // WordPress REST exposes request headers reliably here even on hosts where
+  // Apache/FastCGI does not populate HTTP_AUTHORIZATION consistently.
+  add_filter('rest_pre_dispatch',[self::class,'restUser'],5,3);
+ }
 
  public static function user($current){
   if($current)return$current;
+  $uid=self::resolveAccessUser(self::accessTokens());
+  return$uid>0?$uid:$current;
+ }
+
+ public static function restUser($result,$server,$request){
+  $route=method_exists($request,'get_route')?(string)$request->get_route():'';
+  if(!str_starts_with($route,'/excel-herbal-erp/v7/'))return$result;
+  if(get_current_user_id()>0)return$result;
+
+  $tokens=[];
+  foreach(['authorization','x-eh7-authorization'] as$name){
+   $header=method_exists($request,'get_header')?trim((string)$request->get_header($name)):'';
+   if(preg_match('/^Bearer\s+(.+)$/i',$header,$m)){
+    $token=trim((string)$m[1]);
+    if($token!==''&&!in_array($token,$tokens,true))$tokens[]=$token;
+   }
+  }
+  $cookie=trim((string)($_COOKIE[self::ACCESS_COOKIE]??''));
+  if($cookie!==''&&!in_array($cookie,$tokens,true))$tokens[]=$cookie;
+
+  $uid=self::resolveAccessUser($tokens);
+  if($uid>0)wp_set_current_user($uid);
+  return$result;
+ }
+
+ private static function resolveAccessUser(array $tokens):int{
+  if(!$tokens)return 0;
   $db=Db::wpdb();$t=Db::table('mobile_sessions');$e=Db::table('employees');$now=gmdate('Y-m-d H:i:s');
-  foreach(self::accessTokens() as$token){
-   $hash=hash('sha256',$token);
+  foreach($tokens as$token){
+   $hash=hash('sha256',trim((string)$token));
    $row=$db->get_row($db->prepare("SELECT s.id,s.wp_user_id FROM {$t} s JOIN {$e} e ON e.id=s.employee_id AND e.wp_user_id=s.wp_user_id AND e.status='active' WHERE s.access_hash=%s AND s.revoked_at IS NULL AND s.access_expires_at>%s LIMIT 1",$hash,$now),ARRAY_A);
    if(!$row)continue;
    $updated=$db->update($t,['last_used_at'=>$now],['id'=>(int)$row['id']]);
    if($updated===false)error_log('EH7 mobile session last_used_at update failed for session '.(int)$row['id']);
    return(int)$row['wp_user_id'];
   }
-  return$current;
+  return 0;
  }
 
  public static function login(string $mobile,string $password,string $device='',string $deviceId=''):array{
@@ -113,7 +145,9 @@ final class MobileAuth{
  }
  private static function isErpRestRequest():bool{
   $uri=(string)($_SERVER['REQUEST_URI']??'');
-  return str_contains($uri,self::COOKIE_PATH);
+  if(str_contains($uri,self::COOKIE_PATH))return true;
+  $route=trim((string)($_GET['rest_route']??''));
+  return str_starts_with($route,'/excel-herbal-erp/v7/');
  }
  private static function setAuthCookies(string $access,string $refresh,int $issuedAt):void{
   if(headers_sent())return;
