@@ -25,7 +25,10 @@ part 'organization_employees.dart';
 part 'organization_products.dart';
 
 class OrganizationScreen extends ConsumerStatefulWidget {
-  const OrganizationScreen({super.key});
+  const OrganizationScreen({super.key, this.initialTab});
+
+  final String? initialTab;
+
   @override
   ConsumerState<OrganizationScreen> createState() => _OrganizationScreenState();
 }
@@ -71,8 +74,19 @@ class _OrganizationScreenState extends ConsumerState<OrganizationScreen> {
         body: Center(child: Text('No authorised organization functions.')),
       );
     }
+    final requestedLabel = switch (widget.initialTab?.trim().toLowerCase()) {
+      'branches' => 'Branches',
+      'employees' => 'Employees',
+      'hr' => 'HR Lifecycle',
+      'products' => 'Products',
+      _ => null,
+    };
+    final requestedIndex = requestedLabel == null
+        ? -1
+        : tabs.indexWhere((tab) => tab.$1 == requestedLabel);
     return DefaultTabController(
       length: tabs.length,
+      initialIndex: requestedIndex >= 0 ? requestedIndex : 0,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Organization & Masters'),
