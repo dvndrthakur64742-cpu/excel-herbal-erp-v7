@@ -11,6 +11,7 @@ final class UatWebDeployAdmin{
     private const ACTION='eh7_uat_web_deploy';
     private const ATTEST_ACTION='eh7_uat_web_attest';
     private const MAX_BYTES=52428800;
+    private const DESKTOP_CACHE_BUSTER_OPTION='eh7_setup_web_bundle_uploaded_at';
 
     public static function boot():void{
         add_action('admin_menu',[self::class,'menu']);
@@ -276,7 +277,7 @@ final class UatWebDeployAdmin{
     }
 
     private static function refreshDesktopCacheStamp():void{
-        update_option('eh7_setup_web_bundle_uploaded_at',current_time('mysql'),false);
+        update_option(self::DESKTOP_CACHE_BUSTER_OPTION,current_time('mysql'),false);
     }
 
     private static function verifyManifest(string $stage):void{
