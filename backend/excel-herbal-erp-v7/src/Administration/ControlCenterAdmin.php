@@ -69,7 +69,7 @@ final class ControlCenterAdmin{
 
         echo '<div class="notice notice-info inline"><p><strong>Where should changes be made?</strong> Use the Employee Master, Product Master, Branch Master and Access &amp; Permissions buttons below. They open the current ERP write workflows, so data is changed through one canonical business-logic path instead of duplicate WordPress forms. Edit actions remain permission-gated inside ERP; view-only employees cannot change master data.</p></div>';
 
-        echo '<h2>ERP Administration</h2>';
+        echo '<h2>ERP Master Data & Administration</h2>';
         echo '<table class="widefat striped" style="max-width:1050px">';
         echo '<thead><tr><th>Area</th><th>Use for</th><th>Action</th></tr></thead><tbody>';
         self::row('Current ERP','Full authorised ERP workspace and day-to-day workflows',$erpUrl,'Open ERP');
