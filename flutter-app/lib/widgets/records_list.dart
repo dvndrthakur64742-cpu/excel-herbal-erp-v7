@@ -326,17 +326,23 @@ class _RecordsListState extends State<RecordsList> {
                             ),
                           ),
                         DataCell(
-                          TextButton.icon(
-                            onPressed: () => widget.onTap == null
-                                ? _openDetail(row)
-                                : _handleAction(row),
-                            icon: Icon(
-                              widget.onTap == null
-                                  ? Icons.visibility_outlined
-                                  : Icons.more_horiz,
-                              size: 17,
+                          Tooltip(
+                            message: widget.onTap == null
+                                ? 'View details'
+                                : 'Open actions',
+                            child: TextButton.icon(
+                              onPressed: () => widget.onTap == null
+                                  ? _openDetail(row)
+                                  : _handleAction(row),
+                              icon: Icon(
+                                widget.onTap == null
+                                    ? Icons.visibility_outlined
+                                    : Icons.more_horiz,
+                                size: 17,
+                              ),
+                              label:
+                                  Text(widget.onTap == null ? 'View' : 'Actions'),
                             ),
-                            label: Text(widget.onTap == null ? 'View' : 'Actions'),
                           ),
                         ),
                       ],
