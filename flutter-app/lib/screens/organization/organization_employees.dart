@@ -292,62 +292,249 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
   void _employeeActions(Map<String, dynamic> employee) {
     final app = ref.read(appStateProvider);
     final id = int.parse('${employee['id']}');
+    final assignedBranchId =
+        int.tryParse('${employee['assigned_branch_id'] ?? ''}');
+    final assignedBranch = app.branches.cast<Map>().firstWhere(
+          (branch) => int.tryParse('${branch['id']}') == assignedBranchId,
+          orElse: () => const <String, dynamic>{},
+        );
+    final branchName = '${assignedBranch['name'] ?? ''}'.trim();
+    final designation =
+        BusinessFormat.value('designation_code', employee['designation_code']);
+    final status = BusinessFormat.status(employee['status'] ?? 'active');
+    final mobile = '${employee['mobile'] ?? ''}'.trim();
+    final email = '${employee['email'] ?? ''}'.trim();
+    final joining = BusinessFormat.date(employee['joining_date']);
+
     showModalBottomSheet<void>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .82,
+        minChildSize: .55,
+        maxChildSize: .96,
+        builder: (sheetContext, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
           children: [
-            ListTile(
-              title: Text(
-                '${employee['full_name']} · ${employee['employee_code']}',
-              ),
-              subtitle: Text(BusinessFormat.value('designation_code', employee['designation_code'])),
-            ),
-            if (app.can('organization.employee.manage'))
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Edit Employee Details'),
-                subtitle: const Text('Name, mobile, email, designation and joining date'),
-                onTap: () => _editEmployee(employee),
-              ),
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Branch History'),
-              onTap: () => _employeeHistory(id),
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_shared_outlined),
-              title: const Text('Private Documents'),
-              onTap: () => _employeeDocuments(
-                id,
-                '${employee['full_name'] ?? 'Employee'}',
-              ),
-            ),
-            if (app.can('organization.employee.manage'))
-              ListTile(
-                leading: const Icon(Icons.swap_horiz),
-                title: const Text('Transfer Assigned Branch'),
-                onTap: () => _transferEmployee(
-                  id,
-                  int.parse('${employee['assigned_branch_id']}'),
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(sheetContext).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(99),
                 ),
               ),
-            if (app.can('organization.employee.manage'))
-              ListTile(
-                leading: const Icon(Icons.phonelink_lock_outlined),
-                title: const Text('App Login & Sessions'),
-                subtitle: const Text('Reset login password or revoke active sessions'),
-                onTap: () => _employeeLoginDialog(employee),
-              ),
-            if (app.can('administration.access.manage'))
-              ListTile(
-                leading: const Icon(Icons.account_tree_outlined),
-                title: const Text('Additional Branch Authority'),
-                onTap: () => _branchAuthority(
-                  id,
-                  int.parse('${employee['assigned_branch_id']}'),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: ExcelBrand.primarySoft,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.person_outline_rounded,
+                    color: ExcelBrand.primaryDark,
+                    size: 28,
+                  ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${employee['full_name'] ?? 'Employee'}',
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${employee['employee_code'] ?? ''}',
+                        style: Theme.of(sheetContext).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: [
+                          Chip(
+                            avatar: const Icon(Icons.badge_outlined, size: 17),
+                            label: Text(designation),
+                          ),
+                          Chip(
+                            avatar: const Icon(
+                              Icons.verified_user_outlined,
+                              size: 17,
+                            ),
+                            label: Text(status),
+                          ),
+                          if (branchName.isNotEmpty)
+                            Chip(
+                              avatar:
+                                  const Icon(Icons.store_outlined, size: 17),
+                              label: Text(branchName),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.pop(sheetContext),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Employee 360',
+              style: Theme.of(sheetContext)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Profile, job movement, documents and access controls in one place.',
+              style: Theme.of(sheetContext).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            Card(
+              margin: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.phone_outlined),
+                    title: const Text('Mobile'),
+                    subtitle: Text(mobile.isEmpty ? 'Not added' : mobile),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.email_outlined),
+                    title: const Text('Email'),
+                    subtitle: Text(email.isEmpty ? 'Not added' : email),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.event_outlined),
+                    title: const Text('Joining Date'),
+                    subtitle: Text(joining),
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Profile & Job',
+              style: Theme.of(sheetContext)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              margin: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  if (app.can('organization.employee.manage'))
+                    ListTile(
+                      leading: const Icon(Icons.edit_outlined),
+                      title: const Text('Edit Employee Details'),
+                      subtitle: const Text(
+                        'Name, mobile, email, designation and joining date',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _editEmployee(employee),
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.history_rounded),
+                    title: const Text('Branch History'),
+                    subtitle: const Text('View assignment and transfer history'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => _employeeHistory(id),
+                  ),
+                  if (app.can('organization.employee.manage'))
+                    ListTile(
+                      leading: const Icon(Icons.swap_horiz_rounded),
+                      title: const Text('Transfer Assigned Branch'),
+                      subtitle: const Text('Move employee with effective date and reason'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _transferEmployee(
+                        id,
+                        int.parse('${employee['assigned_branch_id']}'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Records & Access',
+              style: Theme.of(sheetContext)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              margin: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.folder_shared_outlined),
+                    title: const Text('Private Documents'),
+                    subtitle: const Text('Employee document vault'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => _employeeDocuments(
+                      id,
+                      '${employee['full_name'] ?? 'Employee'}',
+                    ),
+                  ),
+                  if (app.can('organization.employee.manage'))
+                    ListTile(
+                      leading: const Icon(Icons.phonelink_lock_outlined),
+                      title: const Text('App Login & Sessions'),
+                      subtitle: const Text(
+                        'Reset login password or revoke active sessions',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _employeeLoginDialog(employee),
+                    ),
+                  if (app.can('administration.access.manage'))
+                    ListTile(
+                      leading: const Icon(Icons.account_tree_outlined),
+                      title: const Text('Additional Branch Authority'),
+                      subtitle: const Text(
+                        'Grant or revoke authorised branch access',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _branchAuthority(
+                        id,
+                        int.parse('${employee['assigned_branch_id']}'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (!app.can('organization.employee.manage')) ...[
+              const SizedBox(height: 14),
+              const Text(
+                'View only · Employee manage permission required for changes.',
+              ),
+            ],
           ],
         ),
       ),
