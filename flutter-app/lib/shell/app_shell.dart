@@ -35,6 +35,35 @@ class _AppShellState extends ConsumerState<AppShell> {
   String desktopRoute = 'home';
 
   @override
+  void initState() {
+    super.initState();
+    const allowed = {
+      'home',
+      'my_work',
+      'quick_actions',
+      'tasks',
+      'erp_tools',
+      'approvals',
+      'global_search',
+      'profile',
+      'team',
+      'sales',
+      'inventory',
+      'purchase',
+      'finance',
+      'payroll_performance',
+      'reports',
+      'organization',
+      'communication',
+      'administration',
+    };
+    final requested = Uri.base.queryParameters['eh7_module']?.trim();
+    if (requested != null && allowed.contains(requested)) {
+      desktopRoute = requested;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     return LayoutBuilder(
@@ -324,7 +353,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       'finance' => const FinanceScreen(),
       'payroll_performance' => const PerformanceScreen(),
       'reports' => const ReportsScreen(),
-      'organization' => const OrganizationScreen(),
+      'organization' => OrganizationScreen(
+          initialTab: Uri.base.queryParameters['eh7_tab'],
+        ),
       'communication' => const CommunicationScreen(),
       'administration' => const AdministrationScreen(),
       _ => const HomeScreen(),
