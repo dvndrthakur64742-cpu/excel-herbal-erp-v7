@@ -206,21 +206,134 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
                 'Sale ₹${product['sale_price'] ?? 0} · Batch ${product['batch_tracking']}',
               ),
             ),
+            if (app.can('catalog.product.manage'))
+              ListTile(
+                leading: const Icon(Icons.edit_note_outlined),
+                title: const Text('Edit Product Details'),
+                subtitle: const Text('Product name and SKU'),
+                onTap: () => _editProduct(product),
+              ),
+            if (app.can('catalog.product.manage'))
+              ListTile(
+                leading: const Icon(Icons.currency_rupee_outlined),
+                title: const Text('Edit MRP / Sale Price / Distribution'),
+                subtitle: const Text(
+                  'Creates an audited commercial revision and preserves price history',
+                ),
+                onTap: () => _commercialRevision(product),
+              ),
             ListTile(
               leading: const Icon(Icons.history),
               title: const Text('Commercial History'),
               onTap: () => _productHistory(id),
             ),
-            if (app.can('catalog.product.manage'))
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('New Commercial Revision'),
-                onTap: () => _commercialRevision(product),
-              ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _editProduct(Map<String, dynamic> product) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    final id = int.tryParse('${product['id']}') ?? 0;
+    if (id < 1) return;
+
+    final name = TextEditingController(text: '${product['name'] ?? ''}');
+    final sku = TextEditingController(text: '${product['sku'] ?? ''}');
+    String? formError;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setLocal) => AlertDialog(
+          title: Text('Edit Product · ${product['sku'] ?? ''}'),
+          content: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Product Name'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: sku,
+                  decoration: const InputDecoration(labelText: 'SKU'),
+                ),
+                const SizedBox(height: 10),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'MRP, Sale Price, HO amount, BM profit, salary fund and office expense are changed from “Edit MRP / Sale Price / Distribution” so every commercial change keeps history.',
+                  ),
+                ),
+                if (formError != null) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      formError!,
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (name.text.trim().isEmpty || sku.text.trim().isEmpty) {
+                  setLocal(
+                    () => formError = 'Product name aur SKU required hain.',
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Save Changes'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (ok != true) {
+      name.dispose();
+      sku.dispose();
+      return;
+    }
+
+    try {
+      await ref.read(apiClientProvider).post(
+        ApiPaths.productUpdate(id),
+        data: {
+          'name': name.text.trim(),
+          'sku': sku.text.trim(),
+        },
+      );
+      if (mounted) {
+        _setOrganizationState(() {
+          refresh++;
+          message = 'Product details update ho gaye.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
+    } finally {
+      name.dispose();
+      sku.dispose();
+    }
   }
 
   Future<void> _productHistory(int id) async {
