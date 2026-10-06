@@ -13,7 +13,7 @@ final class Plugin{
         add_filter('rest_pre_serve_request',[\ExcelHerbal\ERP7\Organization\DocumentVault::class,'serve'],10,4);
         \ExcelHerbal\ERP7\Payroll\PayrollAdmin::boot();
         MobileAuth::boot();
-        MaintenanceService::boot();
+        MaintenanceService::boot();\n        LegacySetupAssistantGuard::boot();
         UatCleanupAdmin::boot();
         UatWebDeployAdmin::boot();
         add_action('rest_api_init',[Api::class,'register']);
