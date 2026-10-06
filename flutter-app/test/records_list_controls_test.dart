@@ -3,12 +3,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:excel_herbal_erp/widgets/records_list.dart';
 
 void main() {
-  Future<void> showRecords(WidgetTester tester,
-      List<Map<String, dynamic>> rows, {double width = 1366}) async {
+  Future<void> showRecords(
+    WidgetTester tester,
+    List<Map<String, dynamic>> rows, {
+    double width = 1366,
+    String recordType = 'customer',
+  }) async {
     await tester.binding.setSurfaceSize(Size(width, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: RecordsList(rows: rows, recordType: 'customer')),
+      home: Scaffold(body: RecordsList(rows: rows, recordType: recordType)),
     ));
     await tester.pumpAndSettle();
   }
@@ -21,6 +25,59 @@ void main() {
     expect(tester.getSize(find.byType(DataTable)).width, closeTo(1334, 1));
     expect(find.byType(Checkbox), findsNothing);
     expect(find.byTooltip('View details'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop tables prioritize business columns over raw extras',
+      (tester) async {
+    await showRecords(
+      tester,
+      [
+        {
+          'id': 17,
+          'business_date': '2026-10-06',
+          'employee_name': 'Asha Sharma',
+          'branch_name': 'Mandi',
+          'status': 'approved',
+          'server_note': 'internal-looking extra',
+          'created_at': '2026-10-06 09:00:00',
+        },
+      ],
+      recordType: 'daily_order',
+    );
+
+    expect(find.text('Business Date'), findsOneWidget);
+    expect(find.text('Employee'), findsOneWidget);
+    expect(find.text('Branch'), findsOneWidget);
+    expect(find.text('Status'), findsOneWidget);
+    expect(find.text('Server Note'), findsNothing);
+    expect(find.text('Created At'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('product desktop table shows commercial decision columns first',
+      (tester) async {
+    await showRecords(
+      tester,
+      [
+        {
+          'product_name': 'Herbal Oil',
+          'sku': 'HO-01',
+          'mrp': 499,
+          'sale_price': 449,
+          'status': 'active',
+          'uom': 'pcs',
+        },
+      ],
+      recordType: 'product',
+    );
+
+    expect(find.text('Product'), findsOneWidget);
+    expect(find.text('SKU'), findsOneWidget);
+    expect(find.text('MRP'), findsOneWidget);
+    expect(find.text('Sale Price'), findsOneWidget);
+    expect(find.text('Status'), findsOneWidget);
+    expect(find.text('UOM'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
