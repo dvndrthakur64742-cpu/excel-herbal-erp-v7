@@ -10,19 +10,24 @@ final class MobileAuth{
  private const LOGIN_WINDOW=900;
  private const LOGIN_MAX_MOBILE_IP=8;
  private const LOGIN_MAX_MOBILE=20;
+ private const ACCESS_COOKIE='eh7_access_v1';
+ private const REFRESH_COOKIE='eh7_refresh_v1';
+ private const COOKIE_PATH='/wp-json/excel-herbal-erp/v7/';
 
  public static function boot():void{add_filter('determine_current_user',[self::class,'user'],20);}
 
  public static function user($current){
   if($current)return$current;
-  $h=self::authorizationHeader();
-  if(!preg_match('/^Bearer\s+(.+)$/i',$h,$m))return$current;
-  $hash=hash('sha256',trim($m[1]));$db=Db::wpdb();$t=Db::table('mobile_sessions');$e=Db::table('employees');$now=gmdate('Y-m-d H:i:s');
-  $row=$db->get_row($db->prepare("SELECT s.id,s.wp_user_id FROM {$t} s JOIN {$e} e ON e.id=s.employee_id AND e.wp_user_id=s.wp_user_id AND e.status='active' WHERE s.access_hash=%s AND s.revoked_at IS NULL AND s.access_expires_at>%s LIMIT 1",$hash,$now),ARRAY_A);
-  if(!$row)return$current;
-  $updated=$db->update($t,['last_used_at'=>$now],['id'=>(int)$row['id']]);
-  if($updated===false)error_log('EH7 mobile session last_used_at update failed for session '.(int)$row['id']);
-  return(int)$row['wp_user_id'];
+  $db=Db::wpdb();$t=Db::table('mobile_sessions');$e=Db::table('employees');$now=gmdate('Y-m-d H:i:s');
+  foreach(self::accessTokens() as$token){
+   $hash=hash('sha256',$token);
+   $row=$db->get_row($db->prepare("SELECT s.id,s.wp_user_id FROM {$t} s JOIN {$e} e ON e.id=s.employee_id AND e.wp_user_id=s.wp_user_id AND e.status='active' WHERE s.access_hash=%s AND s.revoked_at IS NULL AND s.access_expires_at>%s LIMIT 1",$hash,$now),ARRAY_A);
+   if(!$row)continue;
+   $updated=$db->update($t,['last_used_at'=>$now],['id'=>(int)$row['id']]);
+   if($updated===false)error_log('EH7 mobile session last_used_at update failed for session '.(int)$row['id']);
+   return(int)$row['wp_user_id'];
+  }
+  return$current;
  }
 
  public static function login(string $mobile,string $password,string $device='',string $deviceId=''):array{
@@ -42,10 +47,16 @@ final class MobileAuth{
  }
 
  public static function refresh(string $refresh,string $device='',string $deviceId=''):array{
-  if(trim($refresh)==='')throw new DomainException('Refresh token required.','refresh_required',422);
-  return Transaction::run(function()use($refresh,$device,$deviceId){
-   $db=Db::wpdb();$t=Db::table('mobile_sessions');$e=Db::table('employees');$hash=hash('sha256',$refresh);$now=gmdate('Y-m-d H:i:s');
-   $r=$db->get_row($db->prepare("SELECT s.* FROM {$t} s JOIN {$e} e ON e.id=s.employee_id AND e.wp_user_id=s.wp_user_id AND e.status='active' WHERE s.refresh_hash=%s AND s.revoked_at IS NULL AND s.refresh_expires_at>%s LIMIT 1 FOR UPDATE",$hash,$now),ARRAY_A);
+  $candidates=[];$provided=trim($refresh);if($provided!=='')$candidates[]=$provided;
+  $cookie=self::refreshCookie();if($cookie!==''&&!in_array($cookie,$candidates,true))$candidates[]=$cookie;
+  if(!$candidates)throw new DomainException('Refresh token required.','refresh_required',422);
+  return Transaction::run(function()use($candidates,$device,$deviceId){
+   $db=Db::wpdb();$t=Db::table('mobile_sessions');$e=Db::table('employees');$now=gmdate('Y-m-d H:i:s');$r=null;
+   foreach($candidates as$token){
+    $hash=hash('sha256',$token);
+    $r=$db->get_row($db->prepare("SELECT s.* FROM {$t} s JOIN {$e} e ON e.id=s.employee_id AND e.wp_user_id=s.wp_user_id AND e.status='active' WHERE s.refresh_hash=%s AND s.revoked_at IS NULL AND s.refresh_expires_at>%s LIMIT 1 FOR UPDATE",$hash,$now),ARRAY_A);
+    if($r)break;
+   }
    if(!$r)throw new DomainException('Refresh token invalid or expired.','refresh_invalid',401);
    $updated=$db->update($t,['revoked_at'=>$now],['id'=>(int)$r['id']]);if($updated===false)throw new DomainException('Refresh rotation failed.','refresh_revoke_failed',500);
    $key=self::deviceKey($deviceId);if($key===null&&isset($r['device_key'])&&trim((string)$r['device_key'])!=='')$key=(string)$r['device_key'];
@@ -54,11 +65,12 @@ final class MobileAuth{
  }
 
  public static function logout():array{
-  $h=self::authorizationHeader();
-  if(preg_match('/^Bearer\s+(.+)$/i',$h,$m)){
-   $updated=Db::wpdb()->update(Db::table('mobile_sessions'),['revoked_at'=>gmdate('Y-m-d H:i:s')],['access_hash'=>hash('sha256',trim($m[1]))]);
+  $db=Db::wpdb();$table=Db::table('mobile_sessions');$now=gmdate('Y-m-d H:i:s');
+  foreach(self::accessTokens() as$token){
+   $updated=$db->update($table,['revoked_at'=>$now],['access_hash'=>hash('sha256',$token)]);
    if($updated===false)throw new DomainException('Logout could not revoke the mobile session.','logout_revoke_failed',500);
   }
+  self::clearAuthCookies();
   return['logged_out'=>true];
  }
 
@@ -77,6 +89,7 @@ final class MobileAuth{
    'device_name'=>$deviceName,'device_key'=>$deviceKey,'created_at'=>$nowSql
   ]);
   if(!$db->insert_id)throw new DomainException('Unable to create mobile session.','session_create_failed',500);
+  self::setAuthCookies($access,$refresh,$now);
   return['access_token'=>$access,'refresh_token'=>$refresh,'token_type'=>'Bearer','expires_in'=>self::ACCESS_TTL];
  }
 
@@ -84,6 +97,35 @@ final class MobileAuth{
   foreach(['HTTP_AUTHORIZATION','REDIRECT_HTTP_AUTHORIZATION','Authorization','HTTP_X_EH7_AUTHORIZATION'] as$key){$value=trim((string)($_SERVER[$key]??''));if($value!=='')return$value;}
   if(function_exists('getallheaders')){foreach((array)getallheaders() as$name=>$value)if(in_array(strtolower((string)$name),['authorization','x-eh7-authorization'],true)&&trim((string)$value)!=='')return trim((string)$value);}
   return'';
+ }
+ private static function accessTokens():array{
+  $tokens=[];$h=self::authorizationHeader();
+  if(preg_match('/^Bearer\s+(.+)$/i',$h,$m)){$token=trim((string)$m[1]);if($token!=='')$tokens[]=$token;}
+  if(self::isErpRestRequest()){
+   $cookie=trim((string)($_COOKIE[self::ACCESS_COOKIE]??''));
+   if($cookie!==''&&!in_array($cookie,$tokens,true))$tokens[]=$cookie;
+  }
+  return$tokens;
+ }
+ private static function refreshCookie():string{
+  if(!self::isErpRestRequest())return'';
+  return trim((string)($_COOKIE[self::REFRESH_COOKIE]??''));
+ }
+ private static function isErpRestRequest():bool{
+  $uri=(string)($_SERVER['REQUEST_URI']??'');
+  return str_contains($uri,self::COOKIE_PATH);
+ }
+ private static function setAuthCookies(string $access,string $refresh,int $issuedAt):void{
+  if(headers_sent())return;
+  $secure=function_exists('is_ssl')?is_ssl():true;
+  setcookie(self::ACCESS_COOKIE,$access,['expires'=>$issuedAt+self::ACCESS_TTL,'path'=>self::COOKIE_PATH,'secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);
+  setcookie(self::REFRESH_COOKIE,$refresh,['expires'=>$issuedAt+self::REFRESH_TTL,'path'=>self::COOKIE_PATH,'secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);
+ }
+ private static function clearAuthCookies():void{
+  if(headers_sent())return;
+  $secure=function_exists('is_ssl')?is_ssl():true;$expired=time()-3600;
+  setcookie(self::ACCESS_COOKIE,'',['expires'=>$expired,'path'=>self::COOKIE_PATH,'secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);
+  setcookie(self::REFRESH_COOKIE,'',['expires'=>$expired,'path'=>self::COOKIE_PATH,'secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);
  }
  private static function deviceKey(string $deviceId):?string{$deviceId=trim($deviceId);if($deviceId==='')return null;if(strlen($deviceId)>190)throw new DomainException('Device identity is invalid.','device_identity_invalid',422);return hash('sha256',$deviceId);}
  private static function normaliseMobile(string $mobile):string{return preg_replace('/\D+/','',$mobile)?:'';}
