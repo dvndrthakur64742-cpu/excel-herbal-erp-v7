@@ -167,6 +167,8 @@ final class UatWebDeployAdmin{
             @unlink($markerTmp);
             throw new \RuntimeException('Web source marker could not be activated.');
         }
+        self::writeRuntimeCachePolicy($target);
+        self::refreshDesktopCacheStamp();
         return ['main_sha256'=>$actualMain,'manifest_sha256'=>$actualManifest];
     }
 
@@ -238,6 +240,8 @@ final class UatWebDeployAdmin{
                     @unlink($markerTmp);
                     throw new \RuntimeException('Web source marker could not be activated.');
                 }
+                self::writeRuntimeCachePolicy($target);
+                self::refreshDesktopCacheStamp();
                 self::removeTree($stage);
                 return ['main_sha256'=>$mainHash,'manifest_sha256'=>$manifestHash,'rollback'=>null];
             }
@@ -251,11 +255,28 @@ final class UatWebDeployAdmin{
                 if($moved&&!is_dir($target)&&is_dir($backup))@rename($backup,$target);
                 throw new \RuntimeException('Certified web runtime could not be activated.');
             }
+            self::writeRuntimeCachePolicy($target);
+            self::refreshDesktopCacheStamp();
             return ['main_sha256'=>$mainHash,'manifest_sha256'=>$manifestHash,'rollback'=>$moved?basename($backup):null];
         }catch(\Throwable $e){
             if(is_dir($stage))self::removeTree($stage);
             throw $e;
         }
+    }
+
+    private static function writeRuntimeCachePolicy(string $target):void{
+        $rules="<IfModule mod_headers.c>\n".
+            "<FilesMatch \"^(index\\.html|flutter_bootstrap\\.js|main\\.dart\\.js|flutter_service_worker\\.js|version\\.json)$\">\n".
+            "Header set Cache-Control \"no-cache, no-store, must-revalidate, max-age=0\"\n".
+            "Header set Pragma \"no-cache\"\n".
+            "Header set Expires \"0\"\n".
+            "</FilesMatch>\n".
+            "</IfModule>\n";
+        if(file_put_contents($target.'/.htaccess',$rules,LOCK_EX)===false)throw new \RuntimeException('Web runtime cache policy could not be written.');
+    }
+
+    private static function refreshDesktopCacheStamp():void{
+        update_option('eh7_setup_web_bundle_uploaded_at',current_time('mysql'),false);
     }
 
     private static function verifyManifest(string $stage):void{
