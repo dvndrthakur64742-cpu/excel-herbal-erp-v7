@@ -141,6 +141,22 @@ try{
     $_SERVER=$serverBackup;
 }catch(\Throwable $e){$failed++;echo "FAIL auth_header_fallbacks: {$e->getMessage()}\n";}
 
+try{
+    $accessMethod=new \ReflectionMethod(\ExcelHerbal\ERP7\Security\MobileAuth::class,'accessTokens');
+    $accessMethod->setAccessible(true);
+    $serverBackup=$_SERVER;$cookieBackup=$_COOKIE;
+    unset($_SERVER['HTTP_AUTHORIZATION'],$_SERVER['REDIRECT_HTTP_AUTHORIZATION'],$_SERVER['Authorization'],$_SERVER['HTTP_X_EH7_AUTHORIZATION']);
+    $_SERVER['REQUEST_URI']='/wp-json/excel-herbal-erp/v7/bootstrap';
+    $_COOKIE['eh7_access_v1']='cookie-access-token';
+    $tokens=$accessMethod->invoke(null);
+    if($tokens!==['cookie-access-token'])throw new \RuntimeException('ERP REST cookie token was not accepted');
+    $_SERVER['REQUEST_URI']='/wp-admin/';
+    $tokens=$accessMethod->invoke(null);
+    if($tokens!==[])throw new \RuntimeException('ERP auth cookie leaked outside ERP REST path');
+    $_SERVER=$serverBackup;$_COOKIE=$cookieBackup;
+    echo "PASS auth_cookie_scope\n";
+}catch(\Throwable $e){$failed++;echo "FAIL auth_cookie_scope: {$e->getMessage()}\n";}
+
 
 // Verify read-only branch-scoped routes default to the actor's assigned branch.
 try{
