@@ -48,11 +48,19 @@ final class ControlCenterAdmin{
         $desktopPageId=(int)get_option('eh7_setup_desktop_page_id',0);
         $erpUrl=$desktopPageId>0?get_permalink($desktopPageId):home_url('/');
         if(!$erpUrl)$erpUrl=home_url('/');
-        $organizationUrl=add_query_arg(['eh7_module'=>'organization'],$erpUrl);
-        $employeesUrl=add_query_arg(['eh7_module'=>'organization','eh7_tab'=>'employees'],$erpUrl);
-        $productsUrl=add_query_arg(['eh7_module'=>'organization','eh7_tab'=>'products'],$erpUrl);
-        $branchesUrl=add_query_arg(['eh7_module'=>'organization','eh7_tab'=>'branches'],$erpUrl);
-        $accessUrl=add_query_arg(['eh7_module'=>'administration'],$erpUrl);
+
+        // The WordPress desktop shortcode renders a fixed iframe src and does
+        // not forward outer-page query parameters into Flutter's Uri.base.
+        // Master-data launchers therefore target the certified web runtime
+        // directly so eh7_module / eh7_tab deep links reach the Flutter app.
+        $runtimeUrl=content_url('/uploads/eh7-flutter-web/index.html');
+        $runtimeVersion=trim((string)get_option('eh7_setup_web_bundle_uploaded_at',''));
+        if($runtimeVersion!=='')$runtimeUrl=add_query_arg('eh7v',$runtimeVersion,$runtimeUrl);
+        $organizationUrl=add_query_arg(['eh7_module'=>'organization'],$runtimeUrl);
+        $employeesUrl=add_query_arg(['eh7_module'=>'organization','eh7_tab'=>'employees'],$runtimeUrl);
+        $productsUrl=add_query_arg(['eh7_module'=>'organization','eh7_tab'=>'products'],$runtimeUrl);
+        $branchesUrl=add_query_arg(['eh7_module'=>'organization','eh7_tab'=>'branches'],$runtimeUrl);
+        $accessUrl=add_query_arg(['eh7_module'=>'administration'],$runtimeUrl);
         $cleanupUrl=admin_url('tools.php?page=eh7-uat-cleanup');
         $deployUrl=admin_url('tools.php?page=eh7-uat-web-deploy');
 
