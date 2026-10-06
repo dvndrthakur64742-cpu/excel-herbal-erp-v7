@@ -4,6 +4,16 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
   Widget _employeesTab(AppState app, dynamic api) {
     return Column(
       children: [
+        if (!app.can('organization.employee.manage'))
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'View only · Employee manage permission required for changes.',
+              ),
+            ),
+          ),
         if (app.can('organization.employee.manage'))
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
