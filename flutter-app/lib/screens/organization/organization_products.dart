@@ -19,7 +19,12 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
         Expanded(
           child: AsyncPanel(
             key: ValueKey('products-$refresh'),
-            future: api.get(ApiPaths.products),
+            future: api.get(
+              ApiPaths.products,
+              query: app.can('catalog.product.manage')
+                  ? const {'include_inactive': true}
+                  : null,
+            ),
             emptyMessage: 'Product master empty hai.',
             builder: (context, data) => RecordsList(
               recordType: 'product',
@@ -222,6 +227,28 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
                 ),
                 onTap: () => _commercialRevision(product),
               ),
+            if (app.can('catalog.product.manage'))
+              ListTile(
+                leading: Icon(
+                  '${product['status'] ?? 'active'}' == 'active'
+                      ? Icons.block_outlined
+                      : Icons.check_circle_outline,
+                ),
+                title: Text(
+                  '${product['status'] ?? 'active'}' == 'active'
+                      ? 'Deactivate Product'
+                      : 'Activate Product',
+                ),
+                subtitle: Text(
+                  '${product['status'] ?? 'active'}' == 'active'
+                      ? 'Blocked automatically if stock or open business references exist'
+                      : 'Re-enable this product for normal ERP use',
+                ),
+                onTap: () => _setProductActive(
+                  product,
+                  '${product['status'] ?? 'active'}' != 'active',
+                ),
+              ),
             ListTile(
               leading: const Icon(Icons.history),
               title: const Text('Commercial History'),
@@ -333,6 +360,58 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
     } finally {
       name.dispose();
       sku.dispose();
+    }
+  }
+
+  Future<void> _setProductActive(
+    Map<String, dynamic> product,
+    bool active,
+  ) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    final id = int.tryParse('${product['id']}') ?? 0;
+    if (id < 1) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(active ? 'Activate Product?' : 'Deactivate Product?'),
+        content: Text(
+          active
+              ? '${product['name'] ?? 'Product'} ERP me dobara active ho jayega.'
+              : '${product['name'] ?? 'Product'} ko deactivate karna hai? Open stock / transfer / daily-order references hue to ERP is action ko automatically block karega.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(active ? 'Activate' : 'Deactivate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(apiClientProvider).post(
+        ApiPaths.productStatus(id),
+        data: {'active': active},
+      );
+      if (mounted) {
+        _setOrganizationState(() {
+          refresh++;
+          message = active
+              ? 'Product activate ho gaya.'
+              : 'Product deactivate ho gaya.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
     }
   }
 
