@@ -129,6 +129,7 @@ class BusinessFormat {
     'supplier_name': 'Supplier',
     'customer_name': 'Customer',
     'employee_name': 'Employee',
+    'branch_name': 'Branch',
     'full_name': 'Name',
     'employee_code': 'Employee Code',
     'designation_code': 'Designation',
