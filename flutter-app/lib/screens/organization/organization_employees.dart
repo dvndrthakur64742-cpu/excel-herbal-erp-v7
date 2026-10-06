@@ -476,8 +476,15 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                     );
                     return;
                   }
-                  if (e.isNotEmpty &&
-                      !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+
+                  if (e.isNotEmpty) {
+                    final at = e.indexOf('@');
+                    final dot = e.lastIndexOf('.');
+                    if (at <= 0 || dot <= at + 1 || dot >= e.length - 1) {
+                      setLocal(() => formError = 'Valid email enter karein.');
+                      return;
+                    }
+                  }
+                  if (designationCode.isEmpty) {
                     setLocal(() => formError = 'Designation select karein.');
                     return;
                   }
