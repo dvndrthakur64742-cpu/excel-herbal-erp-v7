@@ -11,10 +11,12 @@ class SecureSession {
   static const _access = 'eh7_access_token';
   static const _refresh = 'eh7_refresh_token';
   static const _deviceId = 'eh7_device_id_v1';
+  static const _generation = 'eh7_session_generation_v1';
   static const _mutationJournal = 'eh7_uncertain_mutations_v1';
 
   Future<String?> accessToken() => _storage.read(key: _access);
   Future<String?> refreshToken() => _storage.read(key: _refresh);
+  Future<String?> sessionGeneration() => _storage.read(key: _generation);
 
   Future<String> deviceId() async {
     final existing = (await _storage.read(key: _deviceId))?.trim();
@@ -34,6 +36,12 @@ class SecureSession {
   }) async {
     await _storage.write(key: _access, value: accessToken);
     await _storage.write(key: _refresh, value: refreshToken);
+    // Written last so another browser tab only observes a new generation after
+    // the complete access/refresh pair is durable in shared web storage.
+    final random = Random.secure();
+    final generation =
+        '${DateTime.now().microsecondsSinceEpoch}-${random.nextInt(1 << 31)}';
+    await _storage.write(key: _generation, value: generation);
   }
 
   Future<Map<String, dynamic>> uncertainMutations() async {
@@ -59,6 +67,7 @@ class SecureSession {
   Future<void> clear() async {
     await _storage.delete(key: _access);
     await _storage.delete(key: _refresh);
+    await _storage.delete(key: _generation);
     await _storage.delete(key: _mutationJournal);
     // Keep the per-install device identity across logout so the backend can
     // rotate sessions for this specific browser/app installation.
