@@ -307,7 +307,9 @@ class _RecordsListState extends State<RecordsList> {
                         ),
                       ),
                     ),
-                  const DataColumn(label: Text('Open')),
+                  DataColumn(
+                    label: Text(widget.onTap == null ? 'View' : 'Actions'),
+                  ),
                 ],
                 rows: [
                   for (final row in rows)
@@ -324,19 +326,17 @@ class _RecordsListState extends State<RecordsList> {
                             ),
                           ),
                         DataCell(
-                          IconButton(
-                            tooltip: widget.onTap == null
-                                ? 'View details'
-                                : 'Open actions',
+                          TextButton.icon(
                             onPressed: () => widget.onTap == null
                                 ? _openDetail(row)
                                 : _handleAction(row),
                             icon: Icon(
                               widget.onTap == null
-                                  ? Icons.arrow_forward_ios
+                                  ? Icons.visibility_outlined
                                   : Icons.more_horiz,
-                              size: 18,
+                              size: 17,
                             ),
+                            label: Text(widget.onTap == null ? 'View' : 'Actions'),
                           ),
                         ),
                       ],
