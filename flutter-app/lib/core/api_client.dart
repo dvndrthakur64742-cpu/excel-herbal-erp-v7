@@ -361,6 +361,7 @@ class ApiClient {
   Future<bool> _performRefresh() async {
     final refresh = await session.refreshToken();
     if (refresh == null || refresh.isEmpty) return false;
+    final generation = await session.sessionGeneration();
     try {
       final deviceId = await session.deviceId();
       final response = await dio.post<dynamic>(
@@ -386,7 +387,7 @@ class ApiClient {
       if (error.response?.statusCode == 400 ||
           error.response?.statusCode == 401 ||
           error.response?.statusCode == 403) {
-        if (await _adoptPeerRefresh(refresh)) {
+        if (await _adoptPeerRefresh(refresh, generation)) {
           return true;
         }
         await session.clear();
@@ -397,18 +398,32 @@ class ApiClient {
     }
   }
 
-  Future<bool> _adoptPeerRefresh(String attemptedRefresh) async {
-    // A successful peer tab writes access first and refresh second. Give that
-    // shared write a short window to become visible before treating the
-    // rejection as a genuine session expiry.
-    for (var attempt = 0; attempt < 7; attempt++) {
+  Future<bool> _adoptPeerRefresh(
+    String attemptedRefresh,
+    String? attemptedGeneration,
+  ) async {
+    // Browser tabs share the web secure-storage namespace. One tab may win the
+    // refresh-token rotation while another is still receiving the 401 for the
+    // old token. The session generation is written only after the complete new
+    // token pair, so wait for that durable peer write before clearing storage.
+    for (var attempt = 0; attempt < 31; attempt++) {
+      final latestGeneration = await session.sessionGeneration();
       final latestRefresh = await session.refreshToken();
-      if (refreshTokenWasRotated(attemptedRefresh, latestRefresh)) {
+      final peerCompleted =
+          sessionGenerationWasRotated(attemptedGeneration, latestGeneration);
+      final refreshChanged =
+          refreshTokenWasRotated(attemptedRefresh, latestRefresh);
+      if (peerCompleted || refreshChanged) {
         final latestAccess = await session.accessToken();
-        return latestAccess != null && latestAccess.isNotEmpty;
+        if (latestAccess != null &&
+            latestAccess.isNotEmpty &&
+            latestRefresh != null &&
+            latestRefresh.trim().isNotEmpty) {
+          return true;
+        }
       }
-      if (attempt < 6) {
-        await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (attempt < 30) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
       }
     }
     return false;
@@ -427,6 +442,16 @@ class ApiClient {
   ) {
     final latest = latestRefresh?.trim() ?? '';
     return latest.isNotEmpty && latest != attemptedRefresh;
+  }
+
+  @visibleForTesting
+  static bool sessionGenerationWasRotated(
+    String? attemptedGeneration,
+    String? latestGeneration,
+  ) {
+    final attempted = attemptedGeneration?.trim() ?? '';
+    final latest = latestGeneration?.trim() ?? '';
+    return latest.isNotEmpty && latest != attempted;
   }
 
   bool _isUncertainNetworkFailure(DioException error) =>
