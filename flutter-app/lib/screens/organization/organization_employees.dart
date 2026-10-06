@@ -293,6 +293,13 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
               ),
               subtitle: Text(BusinessFormat.value('designation_code', employee['designation_code'])),
             ),
+            if (app.can('organization.employee.manage'))
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit Employee Details'),
+                subtitle: const Text('Name, mobile, email, designation and joining date'),
+                onTap: () => _editEmployee(employee),
+              ),
             ListTile(
               leading: const Icon(Icons.history),
               title: const Text('Branch History'),
@@ -335,6 +342,184 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
         ),
       ),
     );
+  }
+
+  Future<void> _editEmployee(Map<String, dynamic> employee) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    final id = int.tryParse('${employee['id']}') ?? 0;
+    if (id < 1) return;
+    try {
+      final designations = (await ref
+              .read(apiClientProvider)
+              .get(ApiPaths.designations) as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(growable: false);
+      if (!mounted) return;
+
+      final name = TextEditingController(text: '${employee['full_name'] ?? ''}');
+      final mobile =
+          TextEditingController(text: '${employee['mobile'] ?? ''}');
+      final email = TextEditingController(text: '${employee['email'] ?? ''}');
+      final joining =
+          TextEditingController(text: '${employee['joining_date'] ?? ''}');
+      String designationCode = '${employee['designation_code'] ?? ''}'.trim();
+      String? formError;
+
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setLocal) => AlertDialog(
+            title: Text('Edit Employee · ${employee['employee_code'] ?? ''}'),
+            content: SizedBox(
+              width: 620,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: name,
+                      decoration:
+                          const InputDecoration(labelText: 'Full Name'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: mobile,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(labelText: 'Mobile'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: email,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(labelText: 'Email'),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: designations.any(
+                              (d) => '${d['code']}' == designationCode)
+                          ? designationCode
+                          : null,
+                      decoration:
+                          const InputDecoration(labelText: 'Primary Designation'),
+                      items: designations
+                          .map(
+                            (d) => DropdownMenuItem<String>(
+                              value: '${d['code']}',
+                              child: Text('${d['name']} · ${d['code']}'),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setLocal(() => designationCode = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    BusinessDateField(
+                      controller: joining,
+                      label: 'Joining Date',
+                    ),
+                    const SizedBox(height: 10),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Salary change is intentionally separate and must use the salary revision/approval workflow.',
+                      ),
+                    ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(dialogContext).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final n = name.text.trim();
+                  final m = mobile.text.trim().replaceAll(RegExp(r'\D+'), '');
+                  final e = email.text.trim();
+                  final j = joining.text.trim();
+                  if (n.isEmpty) {
+                    setLocal(() => formError = 'Employee name required hai.');
+                    return;
+                  }
+                  if (m.isNotEmpty && (m.length < 8 || m.length > 15)) {
+                    setLocal(
+                      () => formError = 'Mobile 8 se 15 digits hona chahiye.',
+                    );
+                    return;
+                  }
+                  if (designationCode.isEmpty) {
+                    setLocal(() => formError = 'Designation select karein.');
+                    return;
+                  }
+                  if (!CommercialIntegrity.validBusinessDate(j)) {
+                    setLocal(
+                      () => formError =
+                          'Joining Date valid YYYY-MM-DD format me honi chahiye.',
+                    );
+                    return;
+                  }
+                  Navigator.pop(dialogContext, true);
+                },
+                child: const Text('Save Changes'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (ok != true) {
+        name.dispose();
+        mobile.dispose();
+        email.dispose();
+        joining.dispose();
+        return;
+      }
+
+      final payload = {
+        'full_name': name.text.trim(),
+        'mobile': mobile.text.trim(),
+        'email': email.text.trim(),
+        'designation_code': designationCode,
+        'joining_date': joining.text.trim(),
+      };
+      name.dispose();
+      mobile.dispose();
+      email.dispose();
+      joining.dispose();
+
+      await ref
+          .read(apiClientProvider)
+          .post(ApiPaths.employeeUpdate(id), data: payload);
+      if (mounted) {
+        _setOrganizationState(() {
+          refresh++;
+          message = 'Employee details update ho gaye.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
+    }
   }
 
   Future<void> _employeeLoginDialog(
