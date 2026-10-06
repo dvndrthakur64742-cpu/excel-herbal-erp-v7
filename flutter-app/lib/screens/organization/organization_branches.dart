@@ -30,9 +30,24 @@ extension _OrganizationBranchesFeature on _OrganizationScreenState {
               ),
               title: Text('${b['name']}'),
               subtitle: Text('${b['code']}'),
-              trailing: int.tryParse('${b['id']}') == app.currentBranchId
-                  ? const Chip(label: Text('Current'))
-                  : const Icon(Icons.chevron_right),
+              trailing: Wrap(
+                spacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (int.tryParse('${b['id']}') == app.currentBranchId)
+                    const Chip(label: Text('Current')),
+                  if (app.can('organization.branch.manage'))
+                    TextButton.icon(
+                      onPressed: () => _editBranch(
+                        Map<String, dynamic>.from(b),
+                      ),
+                      icon: const Icon(Icons.edit_outlined, size: 17),
+                      label: const Text('Edit'),
+                    )
+                  else
+                    const Icon(Icons.chevron_right),
+                ],
+              ),
               onTap: () => _openBranchDetail(Map<String, dynamic>.from(b)),
             ),
           ),
@@ -93,6 +108,100 @@ extension _OrganizationBranchesFeature on _OrganizationScreenState {
             RecordDetailScreen(row: branch, title: title, recordType: 'branch'),
       ),
     );
+  }
+
+  Future<void> _editBranch(Map<String, dynamic> branch) async {
+    final id = int.tryParse('${branch['id']}') ?? 0;
+    if (id < 1) return;
+    final code = TextEditingController(text: '${branch['code'] ?? ''}');
+    final name = TextEditingController(text: '${branch['name'] ?? ''}');
+    String? formError;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setLocal) => AlertDialog(
+          title: Text('Edit Branch · ${branch['code'] ?? ''}'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: code,
+                  decoration: const InputDecoration(labelText: 'Branch Code'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Branch Name'),
+                ),
+                if (formError != null) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      formError!,
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (code.text.trim().isEmpty || name.text.trim().isEmpty) {
+                  setLocal(
+                    () => formError = 'Branch code aur name required hain.',
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Save Changes'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (ok != true) {
+      code.dispose();
+      name.dispose();
+      return;
+    }
+
+    try {
+      await ref.read(apiClientProvider).post(
+        ApiPaths.branchUpdate(id),
+        data: {
+          'code': code.text.trim(),
+          'name': name.text.trim(),
+        },
+      );
+      await ref.read(appStateProvider.notifier).refreshBootstrap();
+      if (mounted) {
+        _setOrganizationState(() {
+          refresh++;
+          message = 'Branch details update ho gaye.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
+    } finally {
+      code.dispose();
+      name.dispose();
+    }
   }
 
   Future<void> _createBranch() async {
