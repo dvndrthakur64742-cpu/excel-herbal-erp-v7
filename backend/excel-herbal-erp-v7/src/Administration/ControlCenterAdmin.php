@@ -67,7 +67,7 @@ final class ControlCenterAdmin{
         self::card('Source Head',esc_html(substr($sourceHead,0,12)),'Deployed backend source.');
         echo '</div>';
 
-        echo '<div class="notice notice-info inline"><p><strong>Where should changes be made?</strong> Use the Employee Master, Product Master, Branch Master and Access &amp; Permissions buttons below. They open the current ERP write workflows, so data is changed through one canonical business-logic path instead of duplicate WordPress forms.</p></div>';
+        echo '<div class="notice notice-info inline"><p><strong>Where should changes be made?</strong> Use the Employee Master, Product Master, Branch Master and Access &amp; Permissions buttons below. They open the current ERP write workflows, so data is changed through one canonical business-logic path instead of duplicate WordPress forms. Edit actions remain permission-gated inside ERP; view-only employees cannot change master data.</p></div>';
 
         echo '<h2>ERP Administration</h2>';
         echo '<table class="widefat striped" style="max-width:1050px">';
