@@ -150,6 +150,7 @@ class BusinessFormat {
     'mobile': 'Mobile',
     'gstin': 'GSTIN',
     'sku': 'SKU',
+    'mrp': 'MRP',
     'uom': 'Unit',
     'due_at': 'Due',
     'target_points': 'Target Points',
