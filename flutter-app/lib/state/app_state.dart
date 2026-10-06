@@ -235,6 +235,7 @@ class AppController extends StateNotifier<AppState> {
 
   final ApiClient api;
   final SecureSession session;
+  Future<void>? _loginFuture;
 
   Future<void> initialize() async {
     final token = await session.accessToken();
@@ -245,7 +246,15 @@ class AppController extends StateNotifier<AppState> {
     await refreshBootstrap();
   }
 
-  Future<void> login(String mobile, String password) async {
+  Future<void> login(String mobile, String password) {
+    final existing = _loginFuture;
+    if (existing != null) return existing;
+    final future = _performLogin(mobile, password);
+    _loginFuture = future;
+    return future.whenComplete(() => _loginFuture = null);
+  }
+
+  Future<void> _performLogin(String mobile, String password) async {
     state = state.copyWith(loading: true, clearError: true);
     try {
       await api.login(mobile, password);
