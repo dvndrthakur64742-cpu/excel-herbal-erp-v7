@@ -4,6 +4,16 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
   Widget _productsTab(AppState app, dynamic api) {
     return Column(
       children: [
+        if (!app.can('catalog.product.manage'))
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'View only · Product edit permission required for changes.',
+              ),
+            ),
+          ),
         if (app.can('catalog.product.manage'))
           Padding(
             padding: const EdgeInsets.all(16),
