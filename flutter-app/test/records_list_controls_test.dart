@@ -46,7 +46,7 @@ void main() {
       recordType: 'daily_order',
     );
 
-    expect(find.text('Business Date'), findsOneWidget);
+    expect(find.text('Date'), findsOneWidget);
     expect(find.text('Employee'), findsOneWidget);
     expect(find.text('Branch'), findsOneWidget);
     expect(find.text('Status'), findsOneWidget);
