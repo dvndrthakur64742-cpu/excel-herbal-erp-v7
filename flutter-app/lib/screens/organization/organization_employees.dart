@@ -466,6 +466,434 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                     );
                     return;
                   }
+                  if (e.isNotEmpty &&
+                      !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+
+                    setLocal(() => formError = 'Designation select karein.');
+                    return;
+                  }
+                  if (!CommercialIntegrity.validBusinessDate(j)) {
+                    setLocal(
+                      () => formError =
+                          'Joining Date valid YYYY-MM-DD format me honi chahiye.',
+                    );
+                    return;
+                  }
+                  Navigator.pop(dialogContext, true);
+                },
+                child: const Text('Save Changes'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (ok != true) {
+        name.dispose();
+        mobile.dispose();
+        email.dispose();
+        joining.dispose();
+        return;
+      }
+
+      final payload = {
+        'full_name': name.text.trim(),
+        'mobile': mobile.text.trim(),
+        'email': email.text.trim(),
+        'designation_code': designationCode,
+        'joining_date': joining.text.trim(),
+      };
+      name.dispose();
+      mobile.dispose();
+      email.dispose();
+      joining.dispose();
+
+      await ref
+          .read(apiClientProvider)
+          .post(ApiPaths.employeeUpdate(id), data: payload);
+      if (mounted) {
+        _setOrganizationState(() {
+          refresh++;
+          message = 'Employee details update ho gaye.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
+    }
+  }
+
+  Future<void> _employeeLoginDialog(
+    Map<String, dynamic> employee,
+  ) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    final id = int.tryParse('${employee['id']}') ?? 0;
+    if (id < 1) return;
+    try {
+      final status = Map<String, dynamic>.from(
+        await ref.read(apiClientProvider).get(ApiPaths.employeeLoginStatus(id))
+            as Map,
+      );
+      if (!mounted) return;
+      final password = TextEditingController();
+      String? validation;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setLocal) => AlertDialog(
+            title: Text('${employee['full_name']} · App Login'),
+            content: SizedBox(
+              width: 500,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      status['login_enabled'] == true
+                          ? Icons.verified_user_outlined
+                          : Icons.person_off_outlined,
+                    ),
+                    title: Text(
+                      status['login_enabled'] == true
+                          ? 'Mobile login enabled'
+                          : 'Mobile login not provisioned',
+                    ),
+                    subtitle: Text(
+                      'Active sessions: ${status['active_sessions'] ?? 0}',
+                    ),
+                  ),
+                  TextField(
+                    controller: password,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Set / Reset Password',
+                      helperText: 'Minimum 10 characters',
+                    ),
+                  ),
+                  if (validation != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        validation!,
+                        style: TextStyle(
+                          color: Theme.of(dialogContext).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Share credentials only through an approved secure channel. Password reset automatically revokes existing mobile sessions.',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: dialogContext,
+                    builder: (confirmContext) => AlertDialog(
+                      title: const Text('Revoke employee sessions?'),
+                      content: const Text(
+                        'All active mobile sessions for this employee will be signed out.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(confirmContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(confirmContext, true),
+                          child: const Text('Revoke Sessions'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                  try {
+                    await ref.read(apiClientProvider).post(
+                      ApiPaths.employeeRevokeSessions(id),
+                      data: const {},
+                    );
+                    if (!mounted || !dialogContext.mounted) return;
+                    Navigator.pop(dialogContext);
+                    _setOrganizationState(() {
+                      refresh++;
+                      message = 'Employee mobile sessions revoked.';
+                    });
+                  } catch (e) {
+                    if (dialogContext.mounted) {
+                      setLocal(() => validation = UiError.message(e));
+                    }
+                  }
+                },
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('Revoke Sessions'),
+              ),
+              FilledButton.icon(
+                onPressed: () async {
+                  if (password.text.length < 10) {
+                    setLocal(
+                      () => validation =
+                          'Password must contain at least 10 characters.',
+                    );
+                    return;
+                  }
+                  try {
+                    await ref.read(apiClientProvider).post(
+                      ApiPaths.employeeCredentials(id),
+                      data: {'password': password.text},
+                    );
+                    if (!mounted || !dialogContext.mounted) return;
+                    Navigator.pop(dialogContext);
+                    _setOrganizationState(() {
+                      refresh++;
+                      message = 'Employee app login password updated.';
+                    });
+                  } catch (e) {
+                    if (dialogContext.mounted) {
+                      setLocal(() => validation = UiError.message(e));
+                    }
+                  }
+                },
+                icon: const Icon(Icons.password_rounded),
+                label: const Text('Save Password'),
+              ),
+            ],
+          ),
+        ),
+      );
+      password.dispose();
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
+    }
+  }
+
+  Future<void> _employeeHistory(int id) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    try {
+      final rows = (await ref
+              .read(apiClientProvider)
+              .get(ApiPaths.employeeHistory(id)) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Employee Branch History'),
+          content: SizedBox(
+            width: 600,
+            height: 380,
+            child: RecordsList(recordType: 'branch_history', rows: rows),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) _setOrganizationState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _transferEmployee(int employeeId, int currentBranch) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    final app = ref.read(appStateProvider);
+    int? branchId;
+    final date = TextEditingController(text: app.businessDate);
+    final reason = TextEditingController();
+    final available = app.branches
+        .where((b) => int.parse('${b['id']}') != currentBranch)
+        .toList();
+    if (available.isEmpty) {
+      _setOrganizationState(
+        () => message =
+            'Transfer ke liye dusri authorised branch available nahi hai.',
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Transfer Employee'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<int>(
+                  initialValue: branchId,
+                  decoration: const InputDecoration(labelText: 'New Branch'),
+                  items: available
+                      .map(
+                        (b) => DropdownMenuItem(
+                          value: int.parse('${b['id']}'),
+                          child: Text('${b['name']}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setLocal(() => branchId = v),
+                ),
+                const SizedBox(height: 10),
+                BusinessDateField(
+                  controller: date,
+                  label: 'Transfer Effective Date',
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: reason,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Transfer Reason',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                context,
+                branchId != null && reason.text.trim().length >= 5,
+              ),
+              child: const Text('Transfer'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final payload = {
+      'branch_id': branchId,
+      'effective_date': date.text.trim(),
+      'reason': reason.text.trim(),
+    };
+    date.dispose();
+    reason.dispose();
+    if (ok != true) return;
+    try {
+      await ref
+          .read(apiClientProvider)
+          .post(ApiPaths.employeeTransfer(employeeId), data: payload);
+      if (mounted)
+        _setOrganizationState(() {
+          refresh++;
+          message = 'Employee branch transfer complete; history preserved.';
+        });
+    } catch (e) {
+      if (mounted) _setOrganizationState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _branchAuthority(int employeeId, int assignedBranch) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    final app = ref.read(appStateProvider);
+    int? branchId;
+    var grant = true;
+    final branches = app.branches
+        .where((b) => int.parse('${b['id']}') != assignedBranch)
+        .toList();
+    if (branches.isEmpty) {
+      _setOrganizationState(
+        () => message =
+            'Additional authority ke liye dusri authorised branch available nahi hai.',
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Additional Branch Authority'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<int>(
+                  initialValue: branchId,
+                  decoration: const InputDecoration(labelText: 'Branch'),
+                  items: branches
+                      .map(
+                        (b) => DropdownMenuItem(
+                          value: int.parse('${b['id']}'),
+                          child: Text('${b['name']}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setLocal(() => branchId = v),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: grant,
+                  title: Text(grant ? 'Grant authority' : 'Revoke authority'),
+                  onChanged: (v) => setLocal(() => grant = v),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, branchId != null),
+              child: const Text('Apply'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(apiClientProvider).post(
+        ApiPaths.branchAuthority,
+        data: {
+          'employee_id': employeeId,
+          'branch_id': branchId,
+          'active': grant,
+        },
+      );
+      if (mounted)
+        _setOrganizationState(
+          () => message = grant
+              ? 'Additional branch authority granted.'
+              : 'Additional branch authority revoked.',
+        );
+    } catch (e) {
+      if (mounted) _setOrganizationState(() => message = UiError.message(e));
+    }
+  }
+
+}
+).hasMatch(e)) {
+                    setLocal(() => formError = 'Valid email enter karein.');
+                    return;
+                  }
                   if (designationCode.isEmpty) {
                     setLocal(() => formError = 'Designation select karein.');
                     return;
