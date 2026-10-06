@@ -664,7 +664,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       for (final product in products)
         int.parse('${product['id']}'): TextEditingController(),
     };
-    final receipt = await showModalBottomSheet<Map<String, dynamic>>(
+    final ok = await showModalBottomSheet<bool>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
@@ -859,7 +859,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
 
     String? issueError;
     var issuing = false;
-    final ok = await showModalBottomSheet<bool>(
+    final receipt = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isDismissible: false,
       enableDrag: false,

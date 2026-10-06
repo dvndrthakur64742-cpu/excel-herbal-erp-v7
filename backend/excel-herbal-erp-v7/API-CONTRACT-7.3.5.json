@@ -784,6 +784,13 @@
       "required_params": []
     },
     {
+      "method": "GET",
+      "path": "/daily/requests/(?P<id>\\d+)/issue-preflight",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
       "method": "POST",
       "path": "/daily/requests/(?P<id>\\d+)/issue",
       "auth": true,
