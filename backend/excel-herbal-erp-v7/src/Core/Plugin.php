@@ -4,7 +4,8 @@ use ExcelHerbal\ERP7\Database\Schema;
 use ExcelHerbal\ERP7\Http\Api;
 use ExcelHerbal\ERP7\Security\MobileAuth;
 use ExcelHerbal\ERP7\Administration\MaintenanceService;
-use ExcelHerbal\ERP7\Administration\LegacySetupAssistantGuard;\nuse ExcelHerbal\ERP7\Administration\ControlCenterAdmin;
+use ExcelHerbal\ERP7\Administration\LegacySetupAssistantGuard;
+use ExcelHerbal\ERP7\Administration\ControlCenterAdmin;
 use ExcelHerbal\ERP7\Administration\UatCleanupAdmin;
 use ExcelHerbal\ERP7\Administration\UatWebDeployAdmin;
 final class Plugin{
@@ -15,7 +16,8 @@ final class Plugin{
         \ExcelHerbal\ERP7\Payroll\PayrollAdmin::boot();
         MobileAuth::boot();
         MaintenanceService::boot();
-        LegacySetupAssistantGuard::boot();\n        ControlCenterAdmin::boot();
+        LegacySetupAssistantGuard::boot();
+        ControlCenterAdmin::boot();
         UatCleanupAdmin::boot();
         UatWebDeployAdmin::boot();
         add_action('rest_api_init',[Api::class,'register']);
