@@ -2,6 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$ApiBase,
     [Parameter(Mandatory=$true)][string]$Mobile,
     [Parameter(Mandatory=$true)][string]$Password,
+    [string]$ExpectedSourceHead = '',
     [string]$EvidencePath = 'dist/uat-daily-order/EVIDENCE.json'
 )
 
@@ -105,9 +106,10 @@ try {
     if ([string]$healthData.environment -ne 'staging') {
         throw ('Daily Order UAT repair refuses environment=' + [string]$healthData.environment)
     }
-    if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_SHA) -and
-        [string]$healthData.source_head -ne [string]$env:GITHUB_SHA) {
-        throw ('Live source head mismatch. expected=' + $env:GITHUB_SHA +
+    $expectedHead = if (-not [string]::IsNullOrWhiteSpace($ExpectedSourceHead)) { $ExpectedSourceHead } else { [string]$env:GITHUB_SHA }
+    if ([string]::IsNullOrWhiteSpace($expectedHead)) { throw 'Expected source head is required.' }
+    if ([string]$healthData.source_head -ne $expectedHead) {
+        throw ('Live source head mismatch. expected=' + $expectedHead +
                ' actual=' + [string]$healthData.source_head)
     }
     $evidence.results['live_head'] = 'passed'
@@ -135,7 +137,7 @@ try {
     $evidence['negative_stock_before'] = [int]$beforeData.stock.negative_balances
 
     if ($beforeMismatch -gt 0) {
-        $repairKey = 'uat-daily-commercial-repair-' + $env:GITHUB_SHA
+        $repairKey = 'uat-daily-commercial-repair-' + $expectedHead
         $repairBody = @{
             operation = 'repair_daily_commercial_snapshots'
             confirmation = 'REPAIR_DAILY_COMMERCIAL_SNAPSHOTS'
