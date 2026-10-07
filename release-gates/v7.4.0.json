@@ -36,9 +36,11 @@
         "office-audit:mariadb-read-committed-max-packet-1GiB",
         "repo-workflow:eh7-v740-staging-target-preflight.yml",
         "repo-service:StagingSafety",
-        "repo-tool:fresh-uat-bootstrap.php"
+        "repo-tool:fresh-uat-bootstrap.php",
+        "office-audit:wordpress-7.1.2",
+        "office-audit:search-indexing-disabled"
       ],
-      "note": "Fresh UAT may proceed independently: explicitly set WP_ENVIRONMENT_TYPE=staging, install exact source head, run fresh synthetic bootstrap and staging safety sanitizer, then pass controlled-staging preflight. Production DISALLOW_FILE_EDIT/update-policy hardening remains a final deployment task."
+      "note": "Current BUILD/UAT health reports environment=staging and search indexing is disabled; WordPress 7.1.2 core checksums pass (3338 files) and WP-Cron spawn returns 200. WP_ENVIRONMENT_TYPE remains undefined in wp-config and DISALLOW_FILE_EDIT cannot be changed through the connected WPVibe CLI because config writes are blocked by design; final host-level hardening is still pending."
     },
     {
       "id": "real_http_bearer_401_403",
@@ -47,9 +49,11 @@
       "evidence": [
         "office-audit:application-password-introspection-success",
         "office-audit:disable-authentication-password=false",
-        "repo-workflow:eh7-v740-staging-http-auth-smoke.yml"
+        "repo-workflow:eh7-v740-staging-http-auth-smoke.yml",
+        "github-actions:37586581037",
+        "uat-proof:missing-token-401-invalid-token-401-refresh-rotation-old-token-revocation-forbidden-403-logout-revocation"
       ],
-      "note": "Real Bearer behavior still requires controlled staging. WordPress Application Password introspection succeeds and Hostinger's disable-application-password setting is false, proving the connected Basic-auth path works; this does not certify mobile Bearer forwarding. Run EH7 v7.4.0 Staging HTTPS Auth Smoke with dedicated full and limited UAT identities."
+      "note": "Real HTTPS UAT auth smoke passed on office BUILD/UAT: missing/invalid token 401, Bearer /me 200, refresh rotation, old access+refresh revocation 401, real forbidden-route 403, logout and post-logout 401. Dedicated limited-role secrets are still not configured, so the workflow used the UAT credential fallback for the 403 probe; keep the manual gate pending until a distinct limited identity is recorded if release policy requires role-pair evidence."
     },
     {
       "id": "android_physical_gps",
@@ -75,9 +79,17 @@
       "required": true,
       "status": "pending",
       "evidence": [
-        "repo-workflow:eh7-v740-staging-report-snapshot.yml"
+        "repo-workflow:eh7-v740-staging-report-snapshot.yml",
+        "github-actions:37585323801",
+        "artifact:11466396056",
+        "artifact-sha256:f712952563e97b9d4172794409efc263332a95cab890b927f14e4f8dc4847380",
+        "uat-reconciliation:trial-balance-388580=388580",
+        "uat-reconciliation:assets-69370=liabilities-67200+equity-2170",
+        "uat-reconciliation:profit-2170=current-earnings-2170",
+        "uat-reconciliation:stock-35-of-35-matched",
+        "uat-reconciliation:finance-4-of-4-matched"
       ],
-      "note": "A read-only authenticated staging snapshot workflow is prepared for Sales, Purchase, Stock, Stock Reconciliation, Finance, Trial Balance, P&L, Balance Sheet, Receivables, Payables and Finance Reconciliation. The artifact provides SHA-256 manifests for Accounts review; human reconciliation/sign-off remains required."
+      "note": "Authenticated BUILD/UAT report snapshot is captured for branch 1, 2026-09-01 through 2026-10-07. All 11 report endpoints passed. Automated reconciliation: Trial Balance debit=credit 388,580; Assets 69,370 = Liabilities 67,200 + Equity 2,170; P&L profit 2,170 = Current Earnings 2,170; Stock reconciliation 35/35 matched; Finance reconciliation 4/4 matched. Human Accounts review/sign-off remains required."
     },
     {
       "id": "pilot_signoff",
