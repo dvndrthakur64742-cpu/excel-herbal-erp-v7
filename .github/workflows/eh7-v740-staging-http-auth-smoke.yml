@@ -59,8 +59,8 @@ jobs:
         env:
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
           UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
-          LIMITED_MOBILE: ${{ secrets.EH7_STAGING_LIMITED_MOBILE }}
-          LIMITED_PASSWORD: ${{ secrets.EH7_STAGING_LIMITED_PASSWORD }}
+          LIMITED_MOBILE: ${{ secrets.EH7_STAGING_LIMITED_MOBILE || secrets.EH7_STAGING_UAT_MOBILE }}
+          LIMITED_PASSWORD: ${{ secrets.EH7_STAGING_LIMITED_PASSWORD || secrets.EH7_STAGING_UAT_PASSWORD }}
           FORBIDDEN_PATH: ${{ github.event_name == 'workflow_dispatch' && inputs.forbidden_probe_path || '/administration/diagnostics' }}
         run: |
           & '.github/scripts/staging-http-auth-smoke.ps1' `
