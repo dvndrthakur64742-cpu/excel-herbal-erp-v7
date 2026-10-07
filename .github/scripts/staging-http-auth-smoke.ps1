@@ -17,7 +17,9 @@ if (-not $uri.AbsolutePath.TrimEnd('/').EndsWith('/wp-json/excel-herbal-erp/v7')
     throw 'API base must end with /wp-json/excel-herbal-erp/v7.'
 }
 
-$client = [System.Net.Http.HttpClient]::new()
+$handler = [System.Net.Http.HttpClientHandler]::new()
+$handler.UseCookies = $false
+$client = [System.Net.Http.HttpClient]::new($handler)
 $client.Timeout = [TimeSpan]::FromSeconds(30)
 
 function Send-Eh7 {
