@@ -14,7 +14,7 @@ jobs:
       UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
       UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
       UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
-      EXPECTED_LIVE_HEAD: b4e81fd5a9b33490b9dac51c86bb6ade1064a8ca
+      EXPECTED_LIVE_HEAD: ${{ github.event.before || github.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Parse Daily Order UAT script
