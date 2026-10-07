@@ -1,6 +1,11 @@
 name: EH7 v7.4.0 Staging Host Hardening Audit
 
 on:
+  push:
+    branches:
+      - codex/erp735-document-integration
+    paths:
+      - '.github/host-hardening-audit-trigger.txt'
   workflow_dispatch:
     inputs:
       staging_api_base_url:
@@ -25,7 +30,7 @@ jobs:
 
       - name: Verify WordPress host hardening constants
         env:
-          STAGING_API: ${{ inputs.staging_api_base_url }}
+          STAGING_API: ${{ inputs.staging_api_base_url || 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7' }}
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
           UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
         run: |
