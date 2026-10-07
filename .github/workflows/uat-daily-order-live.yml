@@ -14,7 +14,6 @@ jobs:
       UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
       UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
       UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
-      EXPECTED_LIVE_HEAD: ${{ github.event.before || github.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Parse Daily Order UAT script
@@ -36,7 +35,12 @@ jobs:
             throw 'EH7_STAGING_UAT_MOBILE / EH7_STAGING_UAT_PASSWORD secrets are required.'
           }
           $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
-          & '.github/scripts/uat-daily-order-repair-smoke.ps1' -ApiBase $apiBase -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD -ExpectedSourceHead $env:EXPECTED_LIVE_HEAD
+          $expectedLiveHead = (git log -1 --format=%H --grep='\[deploy-uat-current\]').Trim()
+          if ([string]::IsNullOrWhiteSpace($expectedLiveHead)) {
+            throw 'No deployed UAT source-head commit could be resolved from history.'
+          }
+          Write-Host "INFO expected_live_head=$expectedLiveHead"
+          & '.github/scripts/uat-daily-order-repair-smoke.ps1' -ApiBase $apiBase -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD -ExpectedSourceHead $expectedLiveHead
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Print Daily Order UAT evidence
         if: always()
