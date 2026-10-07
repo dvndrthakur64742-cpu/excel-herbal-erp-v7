@@ -23,8 +23,13 @@ final class MaintenanceService{
   if($operation===''){
    $r=self::cleanupInternal();Audit::add($a,'maintenance.cleanup','system',0,$r);return$r;
   }
-  if($operation!=='resolve_uat_anomalies')throw new DomainException('Unknown maintenance operation.','maintenance_operation_invalid',422);
   $confirmation=trim((string)($input['confirmation']??''));$reason=trim((string)($input['reason']??''));
+  if($operation==='repair_daily_commercial_snapshots'){
+   if($confirmation!=='REPAIR_DAILY_COMMERCIAL_SNAPSHOTS')throw new DomainException('Explicit Daily Order commercial snapshot repair confirmation is required.','maintenance_confirmation_required',422);
+   if(strlen($reason)<10)throw new DomainException('Daily Order repair reason must contain at least 10 characters.','reason_required',422);
+   $r=self::repairDailyCommercialSnapshots($a,$reason);Audit::add($a,'maintenance.daily_commercial_snapshot_repair','system',0,$r+['reason'=>$reason]);return$r;
+  }
+  if($operation!=='resolve_uat_anomalies')throw new DomainException('Unknown maintenance operation.','maintenance_operation_invalid',422);
   if($confirmation!=='RESOLVE_UAT_ANOMALIES')throw new DomainException('Explicit UAT cleanup confirmation is required.','maintenance_confirmation_required',422);
   if(strlen($reason)<10)throw new DomainException('UAT cleanup reason must contain at least 10 characters.','reason_required',422);
   $r=self::resolveOperational($a,$reason);$r['routine_cleanup']=self::cleanupInternal();Audit::add($a,'maintenance.resolve_uat_anomalies','system',0,$r);return$r;
@@ -111,6 +116,35 @@ final class MaintenanceService{
    return$result+['completed_at'=>$now];
   });
  }
+ private static function dailyCommercialSnapshotMismatches(int $company,bool $count=false,int $limit=0):array|int{
+  $db=Db::wpdb();$issues=Db::table('daily_issue_lines');$requests=Db::table('daily_requests');$cycles=Db::table('daily_cycles');$commercials=Db::table('product_commercial_revisions');
+  $select=$count?'COUNT(*)':"il.id issue_line_id,r.id request_id,r.daily_cycle_id,r.issued_at,il.product_id,il.ho_amount_snapshot,il.bm_profit_snapshot,il.office_expense_snapshot,cr.ho_amount expected_ho,cr.bm_profit expected_bm,cr.office_expense expected_expense";
+  $sql="SELECT {$select} FROM {$issues} il JOIN {$requests} r ON r.id=il.daily_request_id JOIN {$cycles} c ON c.id=r.daily_cycle_id JOIN {$commercials} cr ON cr.id=(SELECT x.id FROM {$commercials} x WHERE x.company_id=c.company_id AND x.product_id=il.product_id AND x.status='active' AND x.effective_from<=COALESCE(r.issued_at,c.created_at) ORDER BY x.effective_from DESC,x.id DESC LIMIT 1) WHERE c.company_id=%d AND ((ABS(il.ho_amount_snapshot)<0.005 AND ABS(cr.ho_amount)>=0.005) OR (ABS(il.bm_profit_snapshot)<0.005 AND ABS(cr.bm_profit)>=0.005) OR (ABS(il.office_expense_snapshot)<0.005 AND ABS(cr.office_expense)>=0.005))";
+  if(!$count)$sql.=" ORDER BY il.id".($limit>0?' LIMIT '.max(1,min(500,$limit)):'');
+  if($count)return(int)$db->get_var($db->prepare($sql,$company));
+  return(array)$db->get_results($db->prepare($sql,$company),ARRAY_A);
+ }
+ private static function repairDailyCommercialSnapshots(Actor $a,string $reason):array{
+  return Transaction::run(function()use($a,$reason){
+   $db=Db::wpdb();$rows=(array)self::dailyCommercialSnapshotMismatches($a->companyId,false,0);$issues=Db::table('daily_issue_lines');$eveningLines=Db::table('evening_lines');$issueUpdated=0;$eveningUpdated=0;
+   foreach($rows as$row){
+    $patch=[];
+    if(abs((float)$row['ho_amount_snapshot'])<0.005&&abs((float)$row['expected_ho'])>=0.005)$patch['ho_amount_snapshot']=round((float)$row['expected_ho'],2);
+    if(abs((float)$row['bm_profit_snapshot'])<0.005&&abs((float)$row['expected_bm'])>=0.005)$patch['bm_profit_snapshot']=round((float)$row['expected_bm'],2);
+    if(abs((float)$row['office_expense_snapshot'])<0.005&&abs((float)$row['expected_expense'])>=0.005)$patch['office_expense_snapshot']=round((float)$row['expected_expense'],2);
+    if(!$patch)continue;
+    Db::mustUpdate($db,$issues,$patch,['id'=>(int)$row['issue_line_id']]);$issueUpdated++;
+    $evening=$db->get_row($db->prepare("SELECT * FROM {$eveningLines} WHERE issue_line_id=%d FOR UPDATE",(int)$row['issue_line_id']),ARRAY_A);
+    if(!$evening)continue;
+    $issued=(float)$evening['issued_quantity'];$sold=(float)$evening['retail_quantity']+(float)$evening['wholesale_quantity'];$factor=$issued>0?$sold/$issued:0;$ePatch=[];
+    if(array_key_exists('ho_amount_snapshot',$patch))$ePatch['ho_amount']=round((float)$row['expected_ho']*$factor,2);
+    if(array_key_exists('bm_profit_snapshot',$patch))$ePatch['bm_profit']=round((float)$row['expected_bm']*$factor,2);
+    if(array_key_exists('office_expense_snapshot',$patch))$ePatch['office_expense']=round((float)$row['expected_expense']*$factor,2);
+    if($ePatch){Db::mustUpdate($db,$eveningLines,$ePatch,['id'=>(int)$evening['id']]);$eveningUpdated++;}
+   }
+   return['issue_lines_repaired'=>$issueUpdated,'evening_lines_repaired'=>$eveningUpdated,'remaining_mismatches'=>(int)self::dailyCommercialSnapshotMismatches($a->companyId,true),'reason'=>$reason,'completed_at'=>Db::now()];
+  });
+ }
  private static function normalizedName(string $name):string{return strtolower(trim(preg_replace('/\s+/',' ',$name)??''));}
  public static function diagnostics(Actor $a):array{
   Guard::any($a,[Capabilities::AUDIT_VIEW,Capabilities::ACCESS_MANAGE]);$db=Db::wpdb();$c=$a->companyId;
@@ -125,12 +159,13 @@ final class MaintenanceService{
   $staleIdem=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$idem} WHERE status='complete' AND completed_at<%s",gmdate('Y-m-d H:i:s',time()-45*DAY_IN_SECONDS)));
   $openPastAttendance=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$attendance} WHERE company_id=%d AND check_in_at IS NOT NULL AND check_out_at IS NULL AND checkout_exception=0 AND business_date<%s",$c,Db::today()));$acknowledgedMissingCheckout=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$attendance} WHERE company_id=%d AND check_out_at IS NULL AND checkout_exception=1",$c));
   $staleCycles=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$cycles} WHERE company_id=%d AND status NOT IN ('completed','cancelled') AND business_date<%s",$c,Db::today()));
+  $dailyCommercialMismatch=(int)self::dailyCommercialSnapshotMismatches($c,true);$dailyCommercialSample=(array)self::dailyCommercialSnapshotMismatches($c,false,10);
   $legacyDraftPayroll=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$payroll} WHERE company_id=%d AND status='draft' AND (calculation_version IS NULL OR calculation_version='')",$c));
   $roleRows=(array)$db->get_results($db->prepare("SELECT name FROM {$roles} WHERE company_id=%d AND active=1",$c),ARRAY_A);$roleNames=[];$duplicateRoleNames=0;foreach($roleRows as$r){$n=strtolower(trim(preg_replace('/\\s+/',' ',(string)($r['name']??''))));if($n==='')continue;if(isset($roleNames[$n]))$duplicateRoleNames++;else$roleNames[$n]=1;}
   $designationRows=(array)$db->get_results($db->prepare("SELECT name FROM {$designations} WHERE company_id=%d AND status='active'",$c),ARRAY_A);$designationNames=[];$duplicateDesignationNames=0;foreach($designationRows as$r){$n=strtolower(trim(preg_replace('/\\s+/',' ',(string)($r['name']??''))));if($n==='')continue;if(isset($designationNames[$n]))$duplicateDesignationNames++;else$designationNames[$n]=1;}
   $products=Db::table('products');$commercials=Db::table('product_commercial_revisions');$commercialRows=(array)$db->get_results($db->prepare("SELECT p.id product_id,p.sku,p.name,r.* FROM {$products} p LEFT JOIN {$commercials} r ON r.id=(SELECT x.id FROM {$commercials} x WHERE x.company_id=p.company_id AND x.product_id=p.id AND x.status='active' AND x.effective_from<=%s ORDER BY x.effective_from DESC,x.id DESC LIMIT 1) WHERE p.company_id=%d AND p.status='active' ORDER BY p.id",Db::now(),$c),ARRAY_A);$commercialIssues=[];foreach($commercialRows as$r){try{CommercialPolicy::assert($r);}catch(DomainException $e){$commercialIssues[]=['product_id'=>(int)$r['product_id'],'sku'=>(string)$r['sku'],'name'=>(string)$r['name'],'code'=>$e->codeKey,'message'=>$e->getMessage()];}}
-  $critical=$unbalanced+$orphanJournal+$negativeStock+$missingHistory+$orphanSessions+$dups+count($commercialIssues);
+  $critical=$unbalanced+$orphanJournal+$negativeStock+$missingHistory+$orphanSessions+$dups+count($commercialIssues)+$dailyCommercialMismatch;
   $operational=$openPastAttendance+$staleCycles+$legacyDraftPayroll+$duplicateRoleNames+$duplicateDesignationNames;
-  return['status'=>($critical+$operational)===0?'healthy':'attention','company_id'=>$c,'employees'=>['total'=>(int)($emp['total']??0),'active'=>(int)($emp['active']??0),'without_login'=>(int)($emp['without_login']??0),'duplicate_normalized_mobiles'=>$dups],'accounting'=>['unbalanced_journals'=>$unbalanced,'orphan_journal_lines'=>$orphanJournal],'stock'=>['negative_balances'=>$negativeStock],'catalog'=>['invalid_commercial_revisions'=>count($commercialIssues),'commercial_issues'=>array_slice($commercialIssues,0,10)],'organization'=>['active_without_open_branch_history'=>$missingHistory,'duplicate_active_designation_names'=>$duplicateDesignationNames],'attendance'=>['open_past_without_checkout'=>$openPastAttendance,'acknowledged_missing_checkout'=>$acknowledgedMissingCheckout],'daily_order'=>['stale_non_completed_cycles'=>$staleCycles],'payroll'=>['legacy_draft_runs'=>$legacyDraftPayroll],'access'=>['duplicate_active_role_names'=>$duplicateRoleNames],'sessions'=>['orphan_sessions'=>$orphanSessions],'maintenance'=>['stale_completed_idempotency'=>$staleIdem],'checked_at'=>Db::now()];
+  return['status'=>($critical+$operational)===0?'healthy':'attention','company_id'=>$c,'employees'=>['total'=>(int)($emp['total']??0),'active'=>(int)($emp['active']??0),'without_login'=>(int)($emp['without_login']??0),'duplicate_normalized_mobiles'=>$dups],'accounting'=>['unbalanced_journals'=>$unbalanced,'orphan_journal_lines'=>$orphanJournal],'stock'=>['negative_balances'=>$negativeStock],'catalog'=>['invalid_commercial_revisions'=>count($commercialIssues),'commercial_issues'=>array_slice($commercialIssues,0,10)],'organization'=>['active_without_open_branch_history'=>$missingHistory,'duplicate_active_designation_names'=>$duplicateDesignationNames],'attendance'=>['open_past_without_checkout'=>$openPastAttendance,'acknowledged_missing_checkout'=>$acknowledgedMissingCheckout],'daily_order'=>['stale_non_completed_cycles'=>$staleCycles,'legacy_distribution_snapshot_mismatches'=>$dailyCommercialMismatch,'snapshot_mismatch_sample'=>$dailyCommercialSample],'payroll'=>['legacy_draft_runs'=>$legacyDraftPayroll],'access'=>['duplicate_active_role_names'=>$duplicateRoleNames],'sessions'=>['orphan_sessions'=>$orphanSessions],'maintenance'=>['stale_completed_idempotency'=>$staleIdem],'checked_at'=>Db::now()];
  }
 }

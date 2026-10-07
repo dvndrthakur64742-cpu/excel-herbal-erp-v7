@@ -60,6 +60,7 @@ maintenance=(root/'src/Administration/MaintenanceService.php').read_text()
 for metric in [
  'open_past_without_checkout',
  'stale_non_completed_cycles',
+ 'legacy_distribution_snapshot_mismatches',
  'legacy_draft_runs',
  'duplicate_active_role_names',
  'duplicate_active_designation_names',
@@ -97,6 +98,9 @@ maintenance=(root/'src/Administration/MaintenanceService.php').read_text()
 for token in [
  'resolve_uat_anomalies',
  'RESOLVE_UAT_ANOMALIES',
+ 'repair_daily_commercial_snapshots',
+ 'REPAIR_DAILY_COMMERCIAL_SNAPSHOTS',
+ 'maintenance.daily_commercial_snapshot_repair',
  'daily_cancel_return',
  'attendance.checkout_missing_acknowledged',
  'access.role_deactivate_duplicate',
