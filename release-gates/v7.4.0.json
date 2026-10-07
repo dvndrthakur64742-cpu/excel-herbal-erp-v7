@@ -52,9 +52,13 @@
         "office-audit:force-ssl-admin=true",
         "office-audit:wp-debug=false",
         "office-audit:plugin-updates-dry-run-reviewed-2026-10-07",
-        "release-evidence:release-gates/evidence/host-hardening-2026-10-07.json"
+        "release-evidence:release-gates/evidence/host-hardening-2026-10-07.json",
+        "github-actions:37620205932",
+        "artifact:11481337642",
+        "uat-proof:wp-environment-type-undefined-disallow-file-edit-undefined",
+        "deployed-source-head:75b53898d163623888c9cc347f7498c9f1c9aa61"
       ],
-      "note": "BUILD/UAT hardening evidence is prepared. PASS: ERP environment=staging, search indexing disabled, WordPress 7.1.2 core checksums (3338 files), WP-Cron spawn 200, FORCE_SSL_ADMIN=true, WP_DEBUG=false, MariaDB READ-COMMITTED, max_allowed_packet=1GiB. BLOCKERS remaining at host config: WP_ENVIRONMENT_TYPE is undefined and DISALLOW_FILE_EDIT is undefined. Plugin/theme updates were reviewed in dry-run and are tracked separately; do not mark this gate passed until the two host constants are set and re-verified."
+      "note": "Latest authenticated BUILD/UAT host audit (GitHub Actions 37620205932 / artifact 11481337642) against deployed source head 75b53898d163623888c9cc347f7498c9f1c9aa61 confirms ERP environment=staging but WordPress host constants remain unset: WP_ENVIRONMENT_TYPE is undefined and DISALLOW_FILE_EDIT is undefined. Other hardening checks remain PASS. Do not mark this gate passed until those two wp-config.php constants are set on office.excelherbal.in and the audit is re-run successfully."
     },
     {
       "id": "real_http_bearer_401_403",
