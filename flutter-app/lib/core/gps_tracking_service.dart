@@ -4,13 +4,51 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'api_client.dart';
+import 'gps_location_platform.dart';
 import 'api_paths.dart';
 import 'ui_error.dart';
 
-class GpsTrackingService extends ChangeNotifier {
-  GpsTrackingService(this.api);
+abstract interface class GpsApiTransport {
+  Future<dynamic> get(String path);
+
+  Future<dynamic> post(
+    String path, {
+    Map<String, dynamic>? data,
+  });
+}
+
+class _ApiClientGpsTransport implements GpsApiTransport {
+  const _ApiClientGpsTransport(this.api);
 
   final ApiClient api;
+
+  @override
+  Future<dynamic> get(String path) => api.get(path);
+
+  @override
+  Future<dynamic> post(
+    String path, {
+    Map<String, dynamic>? data,
+  }) =>
+      api.post(path, data: data);
+}
+
+class GpsTrackingService extends ChangeNotifier {
+  GpsTrackingService(
+    ApiClient api, {
+    GpsLocationPlatform? location,
+  })  : _api = _ApiClientGpsTransport(api),
+        _location = location ?? const GeolocatorGpsLocationPlatform();
+
+  @visibleForTesting
+  GpsTrackingService.forTest({
+    required GpsApiTransport api,
+    required GpsLocationPlatform location,
+  })  : _api = api,
+        _location = location;
+
+  final GpsApiTransport _api;
+  final GpsLocationPlatform _location;
   Timer? _pointTimer;
   Timer? _scheduleTimer;
   Timer? _stopTimer;
@@ -37,7 +75,7 @@ class GpsTrackingService extends ChangeNotifier {
   Future<void> start() async {
     Map<String, dynamic>? attendance;
     try {
-      final data = await api.get(ApiPaths.attendanceToday);
+      final data = await _api.get(ApiPaths.attendanceToday);
       if (data is Map) attendance = Map<String, dynamic>.from(data);
     } catch (e) {
       _lastError = UiError.message(e);
@@ -173,14 +211,8 @@ class GpsTrackingService extends ChangeNotifier {
     _sending = true;
     notifyListeners();
     try {
-      const settings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 20),
-      );
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: settings,
-      );
-      await api.post(
+      final position = await _location.currentFix();
+      await _api.post(
         ApiPaths.gpsPoints,
         data: {
           'lat': position.latitude,
@@ -220,7 +252,7 @@ class GpsTrackingService extends ChangeNotifier {
   }
 
   Future<bool> _ensurePermission() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    final serviceEnabled = await _location.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _dutyStatus = 'location_disabled';
       _lastError =
@@ -228,9 +260,9 @@ class GpsTrackingService extends ChangeNotifier {
       return false;
     }
 
-    var permission = await Geolocator.checkPermission();
+    var permission = await _location.checkPermission();
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      permission = await _location.requestPermission();
     }
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
