@@ -87,6 +87,16 @@ jobs:
           sudo apt-get clean || true
           df -h /
 
+      - name: Enable KVM acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm
+          ls -l /dev/kvm
+
       - name: Android emulator permission, GPS and lifecycle smoke
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
