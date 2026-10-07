@@ -110,6 +110,8 @@ for token in [
 assert "checkout_exception=0" in maintenance,'acknowledged missing checkout still counted as unresolved'
 dispatch=(root/'src/Http/ApiDispatch.php').read_text()
 assert "MaintenanceService::cleanup($a,self::arrBody($r))" in dispatch,'maintenance cleanup payload is not dispatched'
+api=(root/'src/Http/Api.php').read_text()
+assert "['admin.transfer_accounting_repair','admin.cleanup']" in api,'admin cleanup body idempotency fallback is missing'
 print('PASS safe UAT anomaly cleanup wiring')
 admin_cleanup=(root/'src/Administration/UatCleanupAdmin.php').read_text()
 for token in [
