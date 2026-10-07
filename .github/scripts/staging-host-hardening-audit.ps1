@@ -55,16 +55,18 @@ try{
     $evidence['reported_source_head']=[string]$health.Json.data.source_head
     $evidence['reported_environment']=[string]$health.Json.data.environment
 
-    $device='gha-host-hardening-'+[Guid]::NewGuid().ToString('N')
-    $login=Send-Eh7 -Method POST -Path '/auth/login' -Body @{mobile=$Mobile;password=$Password;device='GitHub host hardening audit';device_id=$device}
-    if($login.Status-ne 200-or-not $login.Json.ok){throw "Admin login failed HTTP $($login.Status)."}
-    $token=[string]$login.Json.data.access_token
-    if(-not $token){throw 'Login did not return an access token.'}
-
-    $diag=Send-Eh7 -Method GET -Path '/administration/diagnostics' -Bearer $token
-    if($diag.Status-ne 200-or-not $diag.Json.ok){throw "Diagnostics failed HTTP $($diag.Status)."}
-    $host=$diag.Json.data.host_hardening
-    if($null-eq $host){throw 'Diagnostics did not expose host_hardening status. Deploy the current backend before auditing.'}
+    $host=$health.Json.data.host_hardening
+    if($null-eq $host){
+        $device='gha-host-hardening-'+[Guid]::NewGuid().ToString('N')
+        $login=Send-Eh7 -Method POST -Path '/auth/login' -Body @{mobile=$Mobile;password=$Password;device='GitHub host hardening audit';device_id=$device}
+        if($login.Status-ne 200-or-not $login.Json.ok){throw "Admin login failed HTTP $($login.Status)."}
+        $token=[string]$login.Json.data.access_token
+        if(-not $token){throw 'Login did not return an access token.'}
+        $diag=Send-Eh7 -Method GET -Path '/administration/diagnostics' -Bearer $token
+        if($diag.Status-ne 200-or-not $diag.Json.ok){throw "Diagnostics failed HTTP $($diag.Status)."}
+        $host=$diag.Json.data.host_hardening
+    }
+    if($null-eq $host){throw 'Host hardening status is unavailable. Deploy the current backend before auditing.'}
 
     $evidence.passed['wp_environment_type_defined']=[bool]$host.wp_environment_type_defined
     $evidence.passed['wp_environment_type']=[string]$host.wp_environment_type
