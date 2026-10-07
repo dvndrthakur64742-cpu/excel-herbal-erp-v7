@@ -501,71 +501,217 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
         effectiveDate,
         reason,
       ];
-      final ok = await showDialog<bool>(
+      String? validation;
+
+      final ok = await showModalBottomSheet<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Commercial Revision · ${product['name']}'),
-          content: SizedBox(
-            width: 640,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _moneyPair(mrp, 'MRP', sale, 'Sale Price'),
-                  const SizedBox(height: 10),
-                  _moneyPair(ho, 'HO Amount', bm, 'BM Profit'),
-                  const SizedBox(height: 10),
-                  _moneyPair(salary, 'Salary Fund', office, 'Office Expense'),
-                  const SizedBox(height: 10),
-                  _moneyPair(points, 'Points', purchaseCost, 'Purchase Cost'),
-                  const SizedBox(height: 10),
-                  BusinessDateField(
-                    controller: effectiveDate,
-                    label: 'Commercial Effective Date',
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (sheetContext, setLocal) => FractionallySizedBox(
+            heightFactor: .96,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 10, 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: ExcelBrand.primarySoft,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.price_change_outlined,
+                          color: ExcelBrand.primaryDark,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Commercial Revision',
+                              style: Theme.of(sheetContext)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            Text(
+                              '${product['name'] ?? 'Product'} · ${product['sku'] ?? ''}',
+                              style: Theme.of(sheetContext).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: reason,
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration:
-                        const InputDecoration(labelText: 'Change Reason'),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
+                    children: [
+                      Text(
+                        'Selling Price',
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 10),
+                      _moneyPair(mrp, 'MRP', sale, 'Sale Price'),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Distribution',
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 10),
+                      _moneyPair(ho, 'HO Amount', bm, 'BM Profit'),
+                      const SizedBox(height: 10),
+                      _moneyPair(salary, 'Salary Fund', office, 'Office Expense'),
+                      const SizedBox(height: 10),
+                      _moneyPair(points, 'Points', purchaseCost, 'Purchase Cost'),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Effective Date & Audit Reason',
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 10),
+                      BusinessDateField(
+                        controller: effectiveDate,
+                        label: 'Commercial Effective Date',
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: reason,
+                        minLines: 3,
+                        maxLines: 5,
+                        decoration: const InputDecoration(
+                          labelText: 'Change Reason',
+                          helperText: 'Minimum 5 characters',
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(13),
+                        decoration: BoxDecoration(
+                          color: Theme.of(sheetContext)
+                              .colorScheme
+                              .surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Text(
+                          'Control rule: Sale Price ≤ MRP and HO + BM Profit + Salary Fund + Office Expense = Sale Price. Every saved revision keeps commercial history.',
+                        ),
+                      ),
+                      if (validation != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          validation!,
+                          style: TextStyle(
+                            color: Theme.of(sheetContext).colorScheme.error,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                        'Rule: Sale Price ≤ MRP and HO + BM + Salary Fund + Office Expense = Sale Price.'),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    decoration: const BoxDecoration(
+                      color: ExcelBrand.surface,
+                      border: Border(
+                        top: BorderSide(color: ExcelBrand.border),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () =>
+                                Navigator.pop(sheetContext, false),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              final auditReason = reason.text.trim();
+                              if (auditReason.length < 5) {
+                                setLocal(
+                                  () => validation =
+                                      'Change reason kam se kam 5 characters ka hona chahiye.',
+                                );
+                                return;
+                              }
+                              if (!CommercialIntegrity.validBusinessDate(
+                                  effectiveDate.text)) {
+                                setLocal(
+                                  () => validation =
+                                      'Effective Date valid YYYY-MM-DD format me honi chahiye.',
+                                );
+                                return;
+                              }
+                              try {
+                                _commercialValues(
+                                  mrp: mrp,
+                                  sale: sale,
+                                  ho: ho,
+                                  bm: bm,
+                                  salary: salary,
+                                  office: office,
+                                  points: points,
+                                  purchaseCost: purchaseCost,
+                                );
+                              } catch (e) {
+                                setLocal(
+                                  () => validation = UiError.message(e),
+                                );
+                                return;
+                              }
+                              Navigator.pop(sheetContext, true);
+                            },
+                            icon: const Icon(Icons.save_outlined),
+                            label: const Text('Save Revision'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(
-                context,
-                reason.text.trim().length >= 5 &&
-                    CommercialIntegrity.validBusinessDate(effectiveDate.text),
-              ),
-              child: const Text('Save Revision'),
-            ),
-          ],
         ),
       );
+
       if (ok != true) {
         _disposeControllers(controllers);
         return;
       }
       try {
-        if (!CommercialIntegrity.validBusinessDate(effectiveDate.text)) {
-          throw Exception(
-              'Effective Date valid YYYY-MM-DD format me honi chahiye.');
-        }
         final commercial = _commercialValues(
           mrp: mrp,
           sale: sale,
@@ -598,5 +744,4 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
       if (mounted) _setOrganizationState(() => message = UiError.message(e));
     }
   }
-
 }
