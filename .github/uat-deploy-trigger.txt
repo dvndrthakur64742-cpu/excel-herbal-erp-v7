@@ -35,3 +35,4 @@ Office BUILD/UAT environment policy + picker/path hardening certified at c5c7c8e
 2026-09-30 final UX regression contract refresh after approved hierarchy simplification.
 
 2026-10-07 host-hardening diagnostics + release evidence guard: deploy current exact head to office BUILD/UAT so authenticated diagnostics can verify the real WordPress host constants separately from package staging markers.
+2026-10-07 deploy non-secret host-hardening health probe for authenticated-independent BUILD/UAT verification.
