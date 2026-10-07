@@ -15,8 +15,8 @@
     "location_service_off_state": "pending",
     "permission_denied_state": "pending",
     "permission_denied_forever_state": "pending",
-    "permission_granted_checkin": "pending",
-    "gps_point_accepted": "pending",
+    "permission_granted_checkin": "passed",
+    "gps_point_accepted": "passed",
     "background_resume_sync": "pending",
     "checkout_stops_tracking": "pending",
     "server_cutoff_stops_tracking": "pending",
@@ -24,5 +24,5 @@
   },
   "tested_by": "UAT operator (user-confirmed)",
   "tested_at": "",
-  "notes": "APK installation and login confirmed by the UAT operator in ChatGPT on 2026-10-07. Remaining physical GPS/attendance checks are pending. UAT operator confirmed on-device location service is working."
+  "notes": "APK installation and login confirmed by the UAT operator in ChatGPT on 2026-10-07. Remaining physical GPS/attendance checks are pending. UAT operator confirmed on-device location service is working. UAT operator confirmed location-on attendance check-in succeeds and GPS/location is accepted on device."
 }
