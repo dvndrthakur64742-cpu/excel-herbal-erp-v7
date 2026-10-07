@@ -1,20 +1,28 @@
 {
   "schema_version": 1,
-  "gate": "host_backup_restore",
+  "gates": [
+    "host_backup_restore",
+    "hr_multipart_private_document",
+    "real_http_bearer_401_403"
+  ],
   "status": "passed",
-  "workflow_run": "37608960515",
-  "artifact_id": "11476596111",
+  "workflow_run": "37609743903",
+  "artifact_id": "11476936161",
   "artifact_name": "EH7-v7.4.0-Isolated-Backup-Restore-Evidence",
   "environment": "fresh-isolated-wordpress-mariadb",
-  "source_head": "560dfe7238a4d3431de638068ebe30304dbd83c9",
+  "source_head": "3fa47f0fdf7b06835f19b88a40362027b35cc58b",
   "database": "MariaDB 11.8.9",
   "wordpress_container": "wordpress:php8.3-apache",
   "backup": {
-    "sha256": "8af0869ea874b3ccbd13d338e7c127de7dcad46576da7366e76ae77f831555e9",
-    "bytes": 206376,
+    "sha256": "7736add0dc490d7a77bccb7b8cf7a284b8532d5278b647f62a50043b76f02c22",
+    "bytes": 206724,
     "single_transaction": true
   },
-  "synthetic_seed": true,
+  "synthetic_seed": {
+    "passed": true,
+    "admin_employee_id": 1,
+    "limited_employee_id": 2
+  },
   "private_document": {
     "employee_id": 1,
     "document_id": 1,
@@ -24,6 +32,13 @@
     "post_restore_download_hash_match": true,
     "deactivation_verified": true,
     "inactive_download_rejected": true
+  },
+  "auth_boundaries": {
+    "missing_token_401": true,
+    "invalid_token_401": true,
+    "distinct_limited_login_200": true,
+    "distinct_limited_forbidden_403": true,
+    "limited_logout_revocation_401": true
   },
   "checks": {
     "exact_head_plugin": true,
