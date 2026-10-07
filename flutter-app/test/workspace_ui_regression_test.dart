@@ -94,4 +94,19 @@ void main() {
     expect(source, contains('Radius.circular(24)'));
     expect(source, contains('insetPadding: const EdgeInsets.symmetric('));
   });
+
+  test('payroll leave policy avoids fixed desktop dialogs', () {
+    final source = File(
+      'lib/screens/performance/payroll_policy_dialog.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('showModalBottomSheet<String>('));
+    expect(source, contains('isScrollControlled: true'));
+    expect(source, contains('FractionallySizedBox('));
+    expect(source, contains('MediaQuery.viewInsetsOf(addContext).bottom'));
+    expect(source, isNot(contains('width: 640')));
+    expect(source, isNot(contains('height: 500')));
+    expect(source, isNot(contains('width: 420')));
+  });
+
 }
