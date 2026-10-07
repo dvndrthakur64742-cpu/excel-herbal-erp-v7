@@ -1,6 +1,8 @@
 name: EH7 v7.4.0 Staging HTTPS Auth Smoke
 
 on:
+  push:
+    branches: [codex/erp735-document-integration]
   workflow_dispatch:
     inputs:
       staging_api_base_url:
@@ -27,6 +29,7 @@ defaults:
 
 jobs:
   staging-https-auth:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-http-auth-uat]')
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     steps:
@@ -34,8 +37,8 @@ jobs:
 
       - name: Validate staging target and required secrets
         env:
-          STAGING_API: ${{ inputs.staging_api_base_url }}
-          ALLOW_OFFICE: ${{ inputs.allow_office_target }}
+          STAGING_API: ${{ github.event_name == 'workflow_dispatch' && inputs.staging_api_base_url || 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7' }}
+          ALLOW_OFFICE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_office_target || 'true' }}
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
           UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
           LIMITED_MOBILE: ${{ secrets.EH7_STAGING_LIMITED_MOBILE }}
@@ -58,7 +61,7 @@ jobs:
           UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
           LIMITED_MOBILE: ${{ secrets.EH7_STAGING_LIMITED_MOBILE }}
           LIMITED_PASSWORD: ${{ secrets.EH7_STAGING_LIMITED_PASSWORD }}
-          FORBIDDEN_PATH: ${{ inputs.forbidden_probe_path }}
+          FORBIDDEN_PATH: ${{ github.event_name == 'workflow_dispatch' && inputs.forbidden_probe_path || '/finance/bootstrap' }}
         run: |
           & '.github/scripts/staging-http-auth-smoke.ps1' `
             -ApiBase $env:EH7_STAGING_API `
