@@ -61,9 +61,15 @@
       "status": "pending",
       "evidence": [
         "repo-workflow:eh7-v740-staging-pilot-android.yml",
-        "repo-template:android-gps-pilot-evidence.json"
+        "repo-template:android-gps-pilot-evidence.json",
+        "github-actions:37586878301",
+        "artifact:11467730044",
+        "artifact-name:Excel-Herbal-ERP-v7.4.0-Android-Staging-Pilot-arm64",
+        "artifact-sha256:f3becdf321b8a0337c0f86dd809b305b3896536e32927203cfe86e000ee459ef",
+        "apk-abi:arm64-v8a",
+        "apk-production-signed:false"
       ],
-      "note": "Need physical Android device pilot on a controlled staging API: install, login, permission states, check-in, GPS points, resume, checkout/auto-stop."
+      "note": "ARM64 UAT APK build is ready and CI passed. Artifact 11467730044 targets https://office.excelherbal.in/wp-json/excel-herbal-erp/v7, is UAT-only and not production-signed. Manual gate remains pending until a physical Android device completes login, location permission states, check-in, GPS point verification, app background/resume, checkout/auto-stop and operator sign-off."
     },
     {
       "id": "hr_multipart_private_document",
