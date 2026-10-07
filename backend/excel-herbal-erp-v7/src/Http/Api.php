@@ -14,7 +14,7 @@ final class Api{
    if($auth&&$actor&&!$actor->branchIds&&!in_array($handler,['bootstrap','me'],true)&&!str_starts_with($handler,'auth.'))throw new DomainException('No authorised business branch is assigned.','branch_access_required',403);
    if($method!=='GET'){try{WholePcsGuard::validatePayload(self::arrBody($r));}catch(\InvalidArgumentException $e){throw new DomainException($e->getMessage(),'whole_pcs_required',422);}}
    $run=fn()=>self::dispatch($handler,$r,$actor);
-   $idempotencyKey=(string)$r->get_header('X-Idempotency-Key');if($idempotencyKey===''&&$handler==='admin.transfer_accounting_repair')$idempotencyKey=trim((string)$r->get_param('idempotency_key'));
+   $idempotencyKey=(string)$r->get_header('X-Idempotency-Key');if($idempotencyKey===''&&in_array($handler,['admin.transfer_accounting_repair','admin.cleanup'],true))$idempotencyKey=trim((string)$r->get_param('idempotency_key'));
    $data=($auth&&$method!=='GET'&&!str_starts_with($handler,'auth.'))?Idempotency::run($actor,$idempotencyKey,$handler,$run,self::idempotencyPayload($r,$handler)):$run();
    if(in_array($handler,['org.document_download','hr.document_download'],true)){
     $response=new \WP_REST_Response($data['bytes'],200);$response->header('Content-Type',$data['mime_type']);$response->header('Content-Disposition',"attachment; filename*=UTF-8''".rawurlencode($data['filename']));$response->header('Cache-Control','private, no-store');$response->header('X-Content-Type-Options','nosniff');$response->header('X-EH7-Private-Document','1');return $response;
