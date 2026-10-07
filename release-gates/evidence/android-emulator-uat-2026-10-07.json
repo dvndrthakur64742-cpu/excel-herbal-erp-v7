@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "gate": "android_emulator_gps_automation",
+  "status": "passed",
+  "workflow_run": "37605825503",
+  "workflow_head": "3c38773b0ea0ff335dca062f4be0eddd4512baf0",
+  "artifact_id": "11474823963",
+  "artifact_name": "EH7-v7.4.0-Android-Emulator-UAT-Evidence",
+  "package": "in.excelherbal.erp",
+  "api_level": "35",
+  "android_version": "15",
+  "checks": {
+    "apk_install_and_launch": true,
+    "location_service_on": true,
+    "mock_gps_fix_injected": true,
+    "real_background_resume": true,
+    "permission_denied_state": true,
+    "permission_denied_forever_state": true,
+    "location_service_off_state": true,
+    "permission_and_location_restored": true
+  },
+  "companion_unit_policy": {
+    "gps_window_closed_auto_stop": "passed",
+    "checked_out_prevents_tracking": "passed",
+    "signed_out_stops_tracking": "passed",
+    "manual_stop_cannot_bypass_duty_gps": "passed"
+  }
+}

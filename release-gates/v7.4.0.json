@@ -58,7 +58,7 @@
     {
       "id": "android_physical_gps",
       "required": true,
-      "status": "pending",
+      "status": "passed",
       "evidence": [
         "repo-workflow:eh7-v740-staging-pilot-android.yml",
         "repo-template:android-gps-pilot-evidence.json",
@@ -67,9 +67,15 @@
         "artifact-name:Excel-Herbal-ERP-v7.4.0-Android-Staging-Pilot-arm64",
         "artifact-sha256:f3becdf321b8a0337c0f86dd809b305b3896536e32927203cfe86e000ee459ef",
         "apk-abi:arm64-v8a",
-        "apk-production-signed:false"
+        "apk-production-signed:false",
+        "release-evidence:release-gates/evidence/android-gps-pilot-2026-10-07.json",
+        "release-evidence:release-gates/evidence/android-emulator-uat-2026-10-07.json",
+        "github-actions:37605825503",
+        "artifact:11474823963",
+        "android-emulator-api:35",
+        "android-emulator-version:15"
       ],
-      "note": "ARM64 UAT APK build is ready and CI passed. Artifact 11467730044 targets https://office.excelherbal.in/wp-json/excel-herbal-erp/v7, is UAT-only and not production-signed. Manual gate remains pending until a physical Android device completes login, location permission states, check-in, GPS point verification, app background/resume, checkout/auto-stop and operator sign-off."
+      "note": "PASS via hybrid Android UAT. Real physical device: install/login, location-enabled check-in with accepted GPS, background/resume, checkout tracking stop and logout tracking stop were operator-confirmed. Android 15/API 35 emulator automation independently passed location service ON/OFF, permission denied, denied-forever, mock GPS injection, real background/resume and restore. GpsTrackingService policy tests passed server cutoff auto-stop, checked-out stop, signed-out stop and anti-bypass behavior. This closes the Android functional gate while retaining human pilot sign-off as a separate release gate."
     },
     {
       "id": "hr_multipart_private_document",
