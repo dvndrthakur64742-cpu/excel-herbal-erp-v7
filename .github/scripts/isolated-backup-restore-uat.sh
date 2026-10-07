@@ -84,7 +84,7 @@ docker cp "$PLUGIN/." "$WP:/var/www/html/wp-content/plugins/excel-herbal-erp-v7"
 docker exec "$WP" chown -R www-data:www-data /var/www/html/wp-content/plugins/excel-herbal-erp-v7
 
 wpcli() {
-  docker run --rm --network "$NET" --volumes-from "$WP"     -e WORDPRESS_DB_HOST="$DB:3306"     -e WORDPRESS_DB_USER="$DB_USER"     -e WORDPRESS_DB_PASSWORD="$DB_PASS"     -e WORDPRESS_DB_NAME="$DB_NAME"     wordpress:cli "$@" --path=/var/www/html
+  docker run --rm --network "$NET" --volumes-from "$WP"     -e WORDPRESS_DB_HOST="$DB:3306"     -e WORDPRESS_DB_USER="$DB_USER"     -e WORDPRESS_DB_PASSWORD="$DB_PASS"     -e WORDPRESS_DB_NAME="$DB_NAME"     wordpress:cli wp "$@" --path=/var/www/html
 }
 
 wpcli core install   --url="$BASE_URL"   --title="EH7 Isolated Recovery UAT"   --admin_user="$ADMIN_USER"   --admin_password="$ADMIN_PASS"   --admin_email="uat@example.invalid"   --skip-email
@@ -93,7 +93,7 @@ wpcli option update permalink_structure '/%postname%/'
 wpcli rewrite flush --hard
 wpcli plugin activate excel-herbal-erp-v7
 
-docker run --rm --network "$NET" --volumes-from "$WP"   -e WORDPRESS_DB_HOST="$DB:3306"   -e WORDPRESS_DB_USER="$DB_USER"   -e WORDPRESS_DB_PASSWORD="$DB_PASS"   -e WORDPRESS_DB_NAME="$DB_NAME"   -e EH7_UAT_WP_ADMIN_LOGIN="$ADMIN_USER"   -e EH7_UAT_ADMIN_PASSWORD="$ADMIN_PASS"   -e EH7_UAT_ADMIN_MOBILE="$ADMIN_MOBILE"   -e EH7_UAT_LIMITED_PASSWORD="$LIMITED_PASS"   -e EH7_UAT_LIMITED_MOBILE="$LIMITED_MOBILE"   -e EH7_UAT_COMPANY_NAME="EH7 Isolated Restore UAT"   -e EH7_UAT_BRANCH_NAME="Isolated UAT Branch"   wordpress:cli eval-file   /var/www/html/wp-content/plugins/excel-herbal-erp-v7/tools/fresh-uat-bootstrap.php   --path=/var/www/html > "$OUT/bootstrap.json"
+docker run --rm --network "$NET" --volumes-from "$WP"   -e WORDPRESS_DB_HOST="$DB:3306"   -e WORDPRESS_DB_USER="$DB_USER"   -e WORDPRESS_DB_PASSWORD="$DB_PASS"   -e WORDPRESS_DB_NAME="$DB_NAME"   -e EH7_UAT_WP_ADMIN_LOGIN="$ADMIN_USER"   -e EH7_UAT_ADMIN_PASSWORD="$ADMIN_PASS"   -e EH7_UAT_ADMIN_MOBILE="$ADMIN_MOBILE"   -e EH7_UAT_LIMITED_PASSWORD="$LIMITED_PASS"   -e EH7_UAT_LIMITED_MOBILE="$LIMITED_MOBILE"   -e EH7_UAT_COMPANY_NAME="EH7 Isolated Restore UAT"   -e EH7_UAT_BRANCH_NAME="Isolated UAT Branch"   wordpress:cli wp eval-file   /var/www/html/wp-content/plugins/excel-herbal-erp-v7/tools/fresh-uat-bootstrap.php   --path=/var/www/html > "$OUT/bootstrap.json"
 
 for i in $(seq 1 45); do
   code="$(curl -sS -o "$TMP/health.json" -w '%{http_code}' "$API/health" || true)"
