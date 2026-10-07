@@ -59,5 +59,17 @@
     "define('WP_ENVIRONMENT_TYPE', 'staging');",
     "define('DISALLOW_FILE_EDIT', true);"
   ],
-  "note": "Do not mark passed until both host constants are present and the site is re-audited."
+  "note": "Latest authenticated runtime audit confirms both required host constants are still undefined. Do not mark passed until wp-config.php contains the required constants and a follow-up audit returns passed.",
+  "latest_runtime_audit": {
+    "workflow_run": "37620205932",
+    "artifact_id": "11481337642",
+    "workflow_source_head": "0051dcb4760b998aa6916607f65d2700e5ed9c13",
+    "deployed_source_head": "75b53898d163623888c9cc347f7498c9f1c9aa61",
+    "tested_at_utc": "2026-10-07T12:20:40.5656439Z",
+    "reported_environment": "staging",
+    "wp_environment_type_defined": false,
+    "wp_environment_type": "undefined",
+    "disallow_file_edit_defined": false,
+    "disallow_file_edit": false
+  }
 }
