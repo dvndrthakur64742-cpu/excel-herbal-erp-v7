@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "gate": "android_physical_gps",
+  "status": "in_progress",
+  "staging_api_base_url": "https://office.excelherbal.in/wp-json/excel-herbal-erp/v7",
+  "backend_source_head": "625512d951e8cf14a59bd568eca47d3332ffa0c0",
+  "android_pilot_workflow_run": "37586878301",
+  "apk_sha256": "f3becdf321b8a0337c0f86dd809b305b3896536e32927203cfe86e000ee459ef",
+  "device": {
+    "manufacturer_model": "",
+    "android_version": ""
+  },
+  "checks": {
+    "install_and_login": "passed",
+    "location_service_off_state": "pending",
+    "permission_denied_state": "pending",
+    "permission_denied_forever_state": "pending",
+    "permission_granted_checkin": "pending",
+    "gps_point_accepted": "pending",
+    "background_resume_sync": "pending",
+    "checkout_stops_tracking": "pending",
+    "server_cutoff_stops_tracking": "pending",
+    "logout_stops_local_tracking": "pending"
+  },
+  "tested_by": "UAT operator (user-confirmed)",
+  "tested_at": "",
+  "notes": "APK installation and login confirmed by the UAT operator in ChatGPT on 2026-10-07. Remaining physical GPS/attendance checks are pending."
+}
