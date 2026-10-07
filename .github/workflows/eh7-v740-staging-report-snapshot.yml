@@ -1,6 +1,8 @@
 name: EH7 v7.4.0 Staging Report Snapshot
 
 on:
+  push:
+    branches: [codex/erp735-document-integration]
   workflow_dispatch:
     inputs:
       staging_api_base_url:
@@ -34,6 +36,7 @@ defaults:
 
 jobs:
   staging-report-snapshot:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-report-snapshot-uat]')
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     steps:
@@ -41,8 +44,8 @@ jobs:
 
       - name: Validate controlled staging target
         env:
-          STAGING_API: ${{ inputs.staging_api_base_url }}
-          ALLOW_OFFICE: ${{ inputs.allow_office_target }}
+          STAGING_API: ${{ github.event_name == 'workflow_dispatch' && inputs.staging_api_base_url || 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7' }}
+          ALLOW_OFFICE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_office_target || 'true' }}
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
           UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
         run: |
@@ -57,9 +60,9 @@ jobs:
         env:
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
           UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
-          BRANCH_ID: ${{ inputs.branch_id }}
-          DATE_FROM: ${{ inputs.date_from }}
-          DATE_TO: ${{ inputs.date_to }}
+          BRANCH_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.branch_id || 1 }}
+          DATE_FROM: ${{ github.event_name == 'workflow_dispatch' && inputs.date_from || '2026-09-01' }}
+          DATE_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.date_to || '2026-10-07' }}
         run: |
           & '.github/scripts/staging-report-snapshot.ps1' `
             -ApiBase $env:EH7_STAGING_API `
