@@ -11,15 +11,17 @@ final class Environment {
         return defined('WP_ENVIRONMENT_TYPE')?(string)WP_ENVIRONMENT_TYPE:'production';
     }
 
-    /** @return array{status:string,wp_environment_type_defined:bool,wp_environment_type:string,disallow_file_edit_defined:bool,disallow_file_edit:bool} */
+    /** @return array{status:string,expected_environment:string,wp_environment_type_defined:bool,wp_environment_type:string,disallow_file_edit_defined:bool,disallow_file_edit:bool} */
     public static function hostHardeningStatus():array {
+        $expectedEnvironment=self::type();
         $wpEnvironmentDefined=defined('WP_ENVIRONMENT_TYPE');
         $wpEnvironment=$wpEnvironmentDefined?strtolower(trim((string)WP_ENVIRONMENT_TYPE)):'undefined';
         $fileEditDefined=defined('DISALLOW_FILE_EDIT');
         $fileEditDisabled=$fileEditDefined&&DISALLOW_FILE_EDIT===true;
-        $passed=$wpEnvironmentDefined&&$wpEnvironment==='staging'&&$fileEditDisabled;
+        $passed=$wpEnvironmentDefined&&$wpEnvironment===$expectedEnvironment&&$fileEditDisabled;
         return[
             'status'=>$passed?'passed':'blocked',
+            'expected_environment'=>$expectedEnvironment,
             'wp_environment_type_defined'=>$wpEnvironmentDefined,
             'wp_environment_type'=>$wpEnvironment,
             'disallow_file_edit_defined'=>$fileEditDefined,
