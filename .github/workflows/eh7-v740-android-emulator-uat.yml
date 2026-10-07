@@ -73,6 +73,20 @@ jobs:
           flutter build apk --debug --target-platform android-x64             --dart-define=EH7_API_BASE_URL="$PILOT_API"             --dart-define=EH7_ENVIRONMENT=uat
           test -f build/app/outputs/flutter-apk/app-debug.apk
 
+      - name: Stage APK and free hosted-runner disk for emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/android-emulator-uat
+          cp flutter-app/build/app/outputs/flutter-apk/app-debug.apk dist/android-emulator-uat/Excel-Herbal-ERP-Emulator-UAT.apk
+          rm -rf flutter-app/build
+          rm -rf "$HOME/.gradle/caches" || true
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android/sdk/ndk || true
+          docker system prune --all --force >/dev/null 2>&1 || true
+          sudo apt-get clean || true
+          df -h /
+
       - name: Android emulator permission, GPS and lifecycle smoke
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
@@ -82,7 +96,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: bash .github/scripts/android-emulator-gps-smoke.sh flutter-app/build/app/outputs/flutter-apk/app-debug.apk
+          script: bash .github/scripts/android-emulator-gps-smoke.sh dist/android-emulator-uat/Excel-Herbal-ERP-Emulator-UAT.apk
 
       - name: Upload Android emulator UAT evidence
         if: always()
