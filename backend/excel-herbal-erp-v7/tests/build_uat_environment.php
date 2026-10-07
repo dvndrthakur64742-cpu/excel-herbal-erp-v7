@@ -18,6 +18,7 @@ if(Environment::type()!=='staging'){fwrite(STDERR,"FAIL build_uat_environment_ov
 $hardening=Environment::hostHardeningStatus();
 if(
  ($hardening['status']??'')!=='blocked'||
+ ($hardening['expected_environment']??'')!=='staging'||
  ($hardening['wp_environment_type']??'')!=='production'||
  ($hardening['wp_environment_type_defined']??null)!==true||
  ($hardening['disallow_file_edit_defined']??null)!==false||
