@@ -20,9 +20,9 @@
     "background_resume_sync": "passed",
     "checkout_stops_tracking": "passed",
     "server_cutoff_stops_tracking": "pending",
-    "logout_stops_local_tracking": "pending"
+    "logout_stops_local_tracking": "passed"
   },
   "tested_by": "UAT operator (user-confirmed)",
   "tested_at": "",
-  "notes": "APK installation and login confirmed by the UAT operator in ChatGPT on 2026-10-07. Remaining physical GPS/attendance checks are pending. UAT operator confirmed on-device location service is working. UAT operator confirmed location-on attendance check-in succeeds and GPS/location is accepted on device. UAT operator confirmed app background/resume preserves the active attendance session and resumes normally. UAT operator confirmed attendance checkout succeeds and the active attendance session closes correctly."
+  "notes": "APK installation and login confirmed by the UAT operator in ChatGPT on 2026-10-07. Remaining physical GPS/attendance checks are pending. UAT operator confirmed on-device location service is working. UAT operator confirmed location-on attendance check-in succeeds and GPS/location is accepted on device. UAT operator confirmed app background/resume preserves the active attendance session and resumes normally. UAT operator confirmed attendance checkout succeeds and the active attendance session closes correctly. UAT operator confirmed logout returns to the login state and local attendance/location activity stops as expected."
 }
