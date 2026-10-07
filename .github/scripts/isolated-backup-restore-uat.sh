@@ -116,6 +116,27 @@ jq -e --arg sha "$SOURCE_HEAD" '
   .data.uat_bootstrap.synthetic_only == true
 ' "$TMP/health.json" >/dev/null
 
+# Distinct synthetic limited-role bearer boundaries.
+NO_TOKEN_STATUS="$(curl -sS -o "$TMP/no-token.json" -w '%{http_code}' "$API/me")"
+[[ "$NO_TOKEN_STATUS" == "401" ]]
+INVALID_TOKEN_STATUS="$(curl -sS -o "$TMP/invalid-token.json" -w '%{http_code}' -H 'Authorization: Bearer definitely-invalid-token' "$API/me")"
+[[ "$INVALID_TOKEN_STATUS" == "401" ]]
+
+LIMITED_LOGIN="$(curl -fsS -H 'Content-Type: application/json' \
+  -d "$(jq -nc --arg mobile "$LIMITED_MOBILE" --arg password "$LIMITED_PASS" \
+    '{mobile:$mobile,password:$password,device:"Isolated limited-role UAT",device_id:"isolated-limited-role"}')" \
+  "$API/auth/login")"
+LIMITED_TOKEN="$(printf '%s' "$LIMITED_LOGIN" | jq -er '.data.access_token')"
+curl -fsS -H "Authorization: Bearer $LIMITED_TOKEN" "$API/me" | jq -e '.ok == true' >/dev/null
+LIMITED_FORBIDDEN_STATUS="$(curl -sS -o "$TMP/limited-forbidden.json" -w '%{http_code}' \
+  -H "Authorization: Bearer $LIMITED_TOKEN" "$API/administration/diagnostics")"
+[[ "$LIMITED_FORBIDDEN_STATUS" == "403" ]]
+jq -e '.error.code == "permission_denied"' "$TMP/limited-forbidden.json" >/dev/null
+curl -fsS -X POST -H "Authorization: Bearer $LIMITED_TOKEN" "$API/auth/logout" >/dev/null
+LIMITED_POST_LOGOUT_STATUS="$(curl -sS -o "$TMP/limited-post-logout.json" -w '%{http_code}' \
+  -H "Authorization: Bearer $LIMITED_TOKEN" "$API/me")"
+[[ "$LIMITED_POST_LOGOUT_STATUS" == "401" ]]
+
 printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > "$FIXTURE"
 FIXTURE_SHA="$(sha256sum "$FIXTURE" | awk '{print $1}')"
 
@@ -197,6 +218,13 @@ jq -n   --arg source_head "$SOURCE_HEAD"   --arg backup_sha256 "$BACKUP_SHA"   -
       post_restore_download_hash_match:true,
       deactivation_verified:true,
       inactive_download_rejected:true
+    },
+    auth_boundaries:{
+      missing_token_401:true,
+      invalid_token_401:true,
+      distinct_limited_login_200:true,
+      distinct_limited_forbidden_403:true,
+      limited_logout_revocation_401:true
     },
     checks:{
       exact_head_plugin:true,

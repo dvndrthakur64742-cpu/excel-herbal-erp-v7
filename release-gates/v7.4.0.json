@@ -14,13 +14,19 @@
     {
       "id": "host_backup_restore",
       "required": true,
-      "status": "pending",
+      "status": "passed",
       "evidence": [
         "repo-workflow:eh7-v740-staging-backend-package.yml",
         "repo-tool:fresh-uat-bootstrap.php",
-        "ci-proof:disposable-mariadb-backup-restore"
+        "ci-proof:disposable-mariadb-backup-restore",
+        "repo-workflow:eh7-v740-isolated-backup-restore.yml",
+        "github-actions:37608960515",
+        "artifact:11476596111",
+        "release-evidence:release-gates/evidence/isolated-backup-restore-2026-10-07.json",
+        "isolated-uat-source-head:560dfe7238a4d3431de638068ebe30304dbd83c9",
+        "backup-sha256:8af0869ea874b3ccbd13d338e7c127de7dcad46576da7366e76ae77f831555e9"
       ],
-      "note": "Office cloning is not required for UAT. Provision a fresh isolated WordPress+MariaDB UAT target, install the exact-head backend and synthetic seed only. Then prove backup/restore and eh7_document_key recovery on that UAT dataset. A current production backup remains a separate final deployment prerequisite, not a staging prerequisite."
+      "note": "PASS on a fresh isolated WordPress + MariaDB 11.8.9 UAT target. Exact-head backend was installed, fresh synthetic UAT identities were seeded, a single-transaction database backup was created, the database was dropped and restored, eh7_document_key recovery was verified by matching key hash, and an encrypted private document remained byte-for-byte downloadable after restore. A current production backup remains a separate deployment-day prerequisite."
     },
     {
       "id": "environment_hardening",
@@ -51,9 +57,11 @@
         "office-audit:disable-authentication-password=false",
         "repo-workflow:eh7-v740-staging-http-auth-smoke.yml",
         "github-actions:37586581037",
-        "uat-proof:missing-token-401-invalid-token-401-refresh-rotation-old-token-revocation-forbidden-403-logout-revocation"
+        "uat-proof:missing-token-401-invalid-token-401-refresh-rotation-old-token-revocation-forbidden-403-logout-revocation",
+        "repo-workflow:eh7-v740-isolated-backup-restore.yml",
+        "planned-proof:distinct-synthetic-limited-role-401-403"
       ],
-      "note": "Real HTTPS UAT auth smoke passed on office BUILD/UAT: missing/invalid token 401, Bearer /me 200, refresh rotation, old access+refresh revocation 401, real forbidden-route 403, logout and post-logout 401. Dedicated limited-role secrets are still not configured, so the workflow used the UAT credential fallback for the 403 probe; keep the manual gate pending until a distinct limited identity is recorded if release policy requires role-pair evidence."
+      "note": "Office HTTPS bearer smoke already passed missing/invalid token 401, Bearer /me, refresh rotation, old-token revocation, forbidden 403, logout and post-logout revocation. A fresh isolated UAT workflow now carries distinct synthetic admin and limited-role identities; the next run records the distinct limited-role 403 proof before this gate is closed."
     },
     {
       "id": "android_physical_gps",
@@ -80,11 +88,16 @@
     {
       "id": "hr_multipart_private_document",
       "required": true,
-      "status": "pending",
+      "status": "passed",
       "evidence": [
-        "repo-workflow:eh7-v740-staging-private-document-smoke.yml"
+        "repo-workflow:eh7-v740-staging-private-document-smoke.yml",
+        "repo-workflow:eh7-v740-isolated-backup-restore.yml",
+        "github-actions:37608960515",
+        "artifact:11476596111",
+        "release-evidence:release-gates/evidence/isolated-backup-restore-2026-10-07.json",
+        "uat-proof:multipart-upload-attachment-zero-auth-download-sha-match-key-restore-deactivate-404"
       ],
-      "note": "Automated controlled-staging workflow is prepared: real multipart PNG upload, attachment_id=0/auth-only URL assertion, authenticated SHA-256 download check, deactivation, inactive-download 404 and session logout. Matching-key backup/restore recovery still requires the host restore drill."
+      "note": "PASS on isolated staging: real multipart PNG upload returned attachment_id=0 and auth-only download, authenticated download SHA-256 matched before backup, database/key restore preserved decryption and byte hash, deactivation succeeded, inactive download returned 404, and sessions were logged out."
     },
     {
       "id": "business_report_review",

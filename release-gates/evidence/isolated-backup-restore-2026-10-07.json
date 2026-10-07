@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "gate": "host_backup_restore",
+  "status": "passed",
+  "workflow_run": "37608960515",
+  "artifact_id": "11476596111",
+  "artifact_name": "EH7-v7.4.0-Isolated-Backup-Restore-Evidence",
+  "environment": "fresh-isolated-wordpress-mariadb",
+  "source_head": "560dfe7238a4d3431de638068ebe30304dbd83c9",
+  "database": "MariaDB 11.8.9",
+  "wordpress_container": "wordpress:php8.3-apache",
+  "backup": {
+    "sha256": "8af0869ea874b3ccbd13d338e7c127de7dcad46576da7366e76ae77f831555e9",
+    "bytes": 206376,
+    "single_transaction": true
+  },
+  "synthetic_seed": true,
+  "private_document": {
+    "employee_id": 1,
+    "document_id": 1,
+    "fixture_sha256": "431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460",
+    "pre_backup_download_hash_match": true,
+    "encryption_key_hash_restored": true,
+    "post_restore_download_hash_match": true,
+    "deactivation_verified": true,
+    "inactive_download_rejected": true
+  },
+  "checks": {
+    "exact_head_plugin": true,
+    "staging_environment": true,
+    "schema_installed": true,
+    "fresh_uat_seeded": true,
+    "database_dump": true,
+    "database_drop": true,
+    "database_restore": true,
+    "document_key_recovery": true,
+    "authenticated_private_document_after_restore": true
+  }
+}
