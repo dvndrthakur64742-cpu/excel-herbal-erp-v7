@@ -1,6 +1,8 @@
 name: EH7 v7.4.0 Android Staging Pilot
 
 on:
+  push:
+    branches: [codex/erp735-document-integration]
   workflow_dispatch:
     inputs:
       staging_api_base_url:
@@ -22,6 +24,7 @@ defaults:
 
 jobs:
   android-staging-pilot:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-android-pilot]')
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 120
     steps:
@@ -29,8 +32,8 @@ jobs:
 
       - name: Validate controlled staging target
         env:
-          PILOT_API: ${{ inputs.staging_api_base_url }}
-          ALLOW_OFFICE: ${{ inputs.allow_office_target }}
+          PILOT_API: ${{ github.event_name == 'workflow_dispatch' && inputs.staging_api_base_url || 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7' }}
+          ALLOW_OFFICE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_office_target || 'true' }}
         run: |
           $ErrorActionPreference = 'Stop'
           $uri = [Uri]$env:PILOT_API
