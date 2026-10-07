@@ -848,6 +848,43 @@ jobs:
           Write-Host "FINAL_BUNDLE_SHA256=$bundleHash"
           Remove-Item -LiteralPath $work -Recurse -Force
 
+  uat-daily-order-integrity-smoke:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[uat-daily-order]')
+    needs: [deploy-uat-current-erp]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Repair legacy Daily Order commercial snapshots and verify completed cycles
+        env:
+          UAT_SITE_URL: \${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+          UAT_MOBILE: \${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: \${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
+            throw 'EH7_STAGING_UAT_MOBILE / EH7_STAGING_UAT_PASSWORD secrets are required.'
+          }
+          $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
+          & '.github/scripts/uat-daily-order-repair-smoke.ps1' -ApiBase $apiBase -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Print Daily Order UAT evidence
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath 'dist/uat-daily-order/EVIDENCE.json' -PathType Leaf) {
+            Get-Content -LiteralPath 'dist/uat-daily-order/EVIDENCE.json'
+          } else {
+            Write-Host 'INFO Daily Order UAT evidence file was not created.'
+          }
+      - name: Upload Daily Order UAT evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-UAT-Daily-Order-Evidence
+          path: dist/uat-daily-order/EVIDENCE.json
+          if-no-files-found: warn
+
   uat-runtime-screen-smoke:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
     needs: [deploy-uat-current-erp]
