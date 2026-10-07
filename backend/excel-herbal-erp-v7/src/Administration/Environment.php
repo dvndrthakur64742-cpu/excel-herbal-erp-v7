@@ -11,6 +11,22 @@ final class Environment {
         return defined('WP_ENVIRONMENT_TYPE')?(string)WP_ENVIRONMENT_TYPE:'production';
     }
 
+    /** @return array{status:string,wp_environment_type_defined:bool,wp_environment_type:string,disallow_file_edit_defined:bool,disallow_file_edit:bool} */
+    public static function hostHardeningStatus():array {
+        $wpEnvironmentDefined=defined('WP_ENVIRONMENT_TYPE');
+        $wpEnvironment=$wpEnvironmentDefined?strtolower(trim((string)WP_ENVIRONMENT_TYPE)):'undefined';
+        $fileEditDefined=defined('DISALLOW_FILE_EDIT');
+        $fileEditDisabled=$fileEditDefined&&DISALLOW_FILE_EDIT===true;
+        $passed=$wpEnvironmentDefined&&$wpEnvironment==='staging'&&$fileEditDisabled;
+        return[
+            'status'=>$passed?'passed':'blocked',
+            'wp_environment_type_defined'=>$wpEnvironmentDefined,
+            'wp_environment_type'=>$wpEnvironment,
+            'disallow_file_edit_defined'=>$fileEditDefined,
+            'disallow_file_edit'=>$fileEditDisabled,
+        ];
+    }
+
     public static function allowsOfficeBuildUat():bool {
         return self::type()==='staging'
             && defined('EH7_BUILD_UAT_ALLOW_OFFICE')
