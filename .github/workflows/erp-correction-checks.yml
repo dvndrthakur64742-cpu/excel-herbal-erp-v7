@@ -857,9 +857,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Repair legacy Daily Order commercial snapshots and verify completed cycles
         env:
-          UAT_SITE_URL: \${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
-          UAT_MOBILE: \${{ secrets.EH7_STAGING_UAT_MOBILE }}
-          UAT_PASSWORD: \${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
