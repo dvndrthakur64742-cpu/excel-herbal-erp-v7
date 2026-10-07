@@ -15,6 +15,14 @@ use ExcelHerbal\ERP7\Administration\Environment;
 use ExcelHerbal\ERP7\Administration\FreshUatBootstrap;
 
 if(Environment::type()!=='staging'){fwrite(STDERR,"FAIL build_uat_environment_override\n");exit(1);}
+$hardening=Environment::hostHardeningStatus();
+if(
+ ($hardening['status']??'')!=='blocked'||
+ ($hardening['wp_environment_type']??'')!=='production'||
+ ($hardening['wp_environment_type_defined']??null)!==true||
+ ($hardening['disallow_file_edit_defined']??null)!==false||
+ ($hardening['disallow_file_edit']??null)!==false
+){fwrite(STDERR,"FAIL host_hardening_distinguishes_package_marker_from_wp_config\n");exit(1);}
 if(Environment::allowsOfficeBuildUat()!==true){fwrite(STDERR,"FAIL build_uat_office_marker\n");exit(1);}
 try{Environment::assertSafeUatHost('office.excelherbal.in');}
 catch(Throwable $e){fwrite(STDERR,"FAIL build_uat_office_host ".$e->getMessage()."\n");exit(1);}
@@ -22,6 +30,7 @@ try{FreshUatBootstrap::assertSafeTarget();}
 catch(Throwable $e){fwrite(STDERR,"FAIL build_uat_fresh_guard ".$e->getMessage()."\n");exit(1);}
 
 echo "PASS build_uat_environment_override\n";
+echo "PASS host_hardening_distinguishes_package_marker_from_wp_config\n";
 echo "PASS build_uat_office_marker\n";
 echo "PASS build_uat_fresh_guard\n";
 
