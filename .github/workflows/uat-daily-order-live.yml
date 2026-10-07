@@ -16,6 +16,8 @@ jobs:
       UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
       - name: Parse Daily Order UAT script
         shell: powershell
         run: |
