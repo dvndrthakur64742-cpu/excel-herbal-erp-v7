@@ -992,3 +992,42 @@ jobs:
           path: dist/staging-private-document/EVIDENCE.json
           if-no-files-found: warn
 
+
+
+  host-hardening-audit:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[host-audit]')
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify WordPress host hardening constants
+        id: audit
+        continue-on-error: true
+        env:
+          STAGING_API: ${{ vars.EH7_CONTROLLED_UAT_API_BASE || 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7' }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
+            throw 'Required staging UAT credentials are not configured.'
+          }
+          & '.github/scripts/staging-host-hardening-audit.ps1' -ApiBase $env:STAGING_API -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
+      - name: Print host hardening evidence
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath 'dist/staging-host-hardening/EVIDENCE.json' -PathType Leaf) {
+            Get-Content -LiteralPath 'dist/staging-host-hardening/EVIDENCE.json'
+          } else {
+            Write-Host 'INFO host hardening evidence file was not created.'
+          }
+      - name: Upload host hardening evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-v7.4.0-Staging-Host-Hardening
+          path: dist/staging-host-hardening/EVIDENCE.json
+          if-no-files-found: warn
+      - name: Report host hardening audit outcome
+        if: always()
+        run: |
+          Write-Host "HOST_HARDENING_AUDIT_OUTCOME=${{ steps.audit.outcome }}"
