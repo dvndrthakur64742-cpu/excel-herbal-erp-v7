@@ -5,10 +5,11 @@
   "automated_certification": {
     "status": "passed",
     "evidence": [
-      "github-actions:35344527684"
+      "github-actions:37605825518",
+      "github-actions:37611310384"
     ],
-    "baseline_head": "44f7a35afbf2ad276dde6052b858e4265439d0bc",
-    "note": "P6.5 fresh isolated synthetic UAT strategy is FULL GREEN. Later evidence-only documentation commits do not change the certified runtime source."
+    "baseline_head": "3c38773b0ea0ff335dca062f4be0eddd4512baf0",
+    "note": "Latest runtime-affecting Android GPS testability refactor is certified green at 3c38773b0ea0ff335dca062f4be0eddd4512baf0 (PHP regression, Flutter analyze/tests/web compile). Subsequent commits through 6ec5186c7daaab0037a1fb21f1e7fd56169677bf change release evidence and CI/UAT proof only; exact-head ERP correction verification also passed at run 37611310384."
   },
   "manual_gates": [
     {
