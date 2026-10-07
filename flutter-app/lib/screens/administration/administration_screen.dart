@@ -631,132 +631,230 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       final originalDenies = {...denies};
       final overrideSupported = detail.containsKey('designation_defaults');
       final reason = TextEditingController();
-      if (!mounted) return;
-      final saved = await showDialog<bool>(
+      String? accessValidati      final saved = await showModalBottomSheet<bool>(
         context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: Text('Access · ${employee['full_name']}'),
-            content: SizedBox(
-              width: 680,
-              height: MediaQuery.sizeOf(context).height * .68,
-              child: DefaultTabController(
-                length: 2,
-                child: Column(
-                  children: [
-                    const TabBar(
-                      tabs: [
-                        Tab(text: 'Roles'),
-                        Tab(text: 'Overrides'),
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (sheetContext, setLocal) => FractionallySizedBox(
+            heightFactor: .94,
+            child: DefaultTabController(
+              length: 2,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 8, 10),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.admin_panel_settings_outlined),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Roles & Permissions',
+                                style: Theme.of(sheetContext)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                              Text(
+                                '${employee['full_name']} · ${employee['employee_code']} · ${employee['designation_code']}',
+                                style: Theme.of(sheetContext).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close',
+                          onPressed: () => Navigator.pop(sheetContext, false),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
                       ],
                     ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          ListView(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
-                                child: Text(
-                                  'Primary designation: ${employee['designation_code']} · default permissions apply automatically.',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ),
+                  ),
+                  const TabBar(
+                    tabs: [
+                      Tab(text: 'Roles'),
+                      Tab(text: 'Overrides'),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        ListView(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                          children: [
+                            Text(
+                              'Primary designation: ${employee['designation_code']} · default permissions apply automatically.',
+                              style: Theme.of(sheetContext).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 8),
+                            if (roles.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 24),
+                                child: Center(child: Text('No additional roles available.')),
+                              )
+                            else
                               ...roles.map((r) {
                                 final rid = int.parse('${r['id']}');
-                                return CheckboxListTile(
-                                  value: selectedRoles.contains(rid),
-                                  title: Text('${r['name']}'),
-                                  subtitle: Text('${r['code']}'),
-                                  onChanged: (v) => setLocal(
-                                    () => v == true
-                                        ? selectedRoles.add(rid)
-                                        : selectedRoles.remove(rid),
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  child: CheckboxListTile(
+                                    value: selectedRoles.contains(rid),
+                                    title: Text('${r['name']}'),
+                                    subtitle: Text('${r['code']}'),
+                                    onChanged: (v) => setLocal(
+                                      () => v == true
+                                          ? selectedRoles.add(rid)
+                                          : selectedRoles.remove(rid),
+                                    ),
                                   ),
                                 );
                               }),
-                            ],
-                          ),
-                          if (!overrideSupported)
-                            const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(20),
-                                child: Text(
-                                  'Individual Grant/Deny overrides are unavailable for this employee access record.',
-                                  textAlign: TextAlign.center,
-                                ),
+                          ],
+                        ),
+                        if (!overrideSupported)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Text(
+                                'Individual Grant/Deny overrides are unavailable for this employee access record.',
+                                textAlign: TextAlign.center,
                               ),
-                            )
-                          else
-                            ListView.builder(
-                              itemCount: allCaps.length,
-                              itemBuilder: (context, index) {
-                                final cap = allCaps[index];
-                                final value = grants.contains(cap)
-                                    ? 'grant'
-                                    : denies.contains(cap)
-                                        ? 'deny'
-                                        : 'inherit';
-                                return ListTile(
-                                  dense: true,
-                                  title: Text(_capLabel(cap)),
-                                  subtitle: Text(
-                                    '$cap · Default ${defaults.contains(cap) ? 'Yes' : 'No'} · Effective ${effective.contains(cap) ? 'Yes' : 'No'}',
-                                  ),
-                                  trailing: DropdownButton<String>(
-                                    value: value,
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: 'inherit',
-                                        child: Text('Inherit'),
+                            ),
+                          )
+                        else
+                          ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                            itemCount: allCaps.length,
+                            itemBuilder: (context, index) {
+                              final cap = allCaps[index];
+                              final value = grants.contains(cap)
+                                  ? 'grant'
+                                  : denies.contains(cap)
+                                      ? 'deny'
+                                      : 'inherit';
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 6),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _capLabel(cap),
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              '$cap\nDefault ${defaults.contains(cap) ? 'Yes' : 'No'} · Effective ${effective.contains(cap) ? 'Yes' : 'No'}',
+                                              style: Theme.of(sheetContext)
+                                                  .textTheme
+                                                  .bodySmall,
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                      DropdownMenuItem(
-                                        value: 'grant',
-                                        child: Text('Grant'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'deny',
-                                        child: Text('Deny'),
+                                      const SizedBox(width: 8),
+                                      DropdownButton<String>(
+                                        value: value,
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 'inherit',
+                                            child: Text('Inherit'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'grant',
+                                            child: Text('Grant'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'deny',
+                                            child: Text('Deny'),
+                                          ),
+                                        ],
+                                        onChanged: (v) => setLocal(() {
+                                          grants.remove(cap);
+                                          denies.remove(cap);
+                                          if (v == 'grant') grants.add(cap);
+                                          if (v == 'deny') denies.add(cap);
+                                        }),
                                       ),
                                     ],
-                                    onChanged: (v) => setLocal(() {
-                                      grants.remove(cap);
-                                      denies.remove(cap);
-                                      if (v == 'grant') grants.add(cap);
-                                      if (v == 'deny') denies.add(cap);
-                                    }),
                                   ),
-                                );
-                              },
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                    child: TextField(
+                      controller: reason,
+                      decoration: InputDecoration(
+                        labelText: 'Change Reason',
+                        hintText: 'Required when access changes',
+                        errorText: accessValidation,
+                      ),
+                    ),
+                  ),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(sheetContext, false),
+                              child: const Text('Cancel'),
                             ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                final rolesChanged =
+                                    !_sameInts(originalRoles, selectedRoles);
+                                final overridesChanged = overrideSupported &&
+                                    (!_sameStrings(originalGrants, grants) ||
+                                        !_sameStrings(originalDenies, denies));
+                                if ((rolesChanged || overridesChanged) &&
+                                    reason.text.trim().length < 5) {
+                                  setLocal(
+                                    () => accessValidation =
+                                        'Change reason must contain at least 5 characters.',
+                                  );
+                                  return;
+                                }
+                                Navigator.pop(sheetContext, true);
+                              },
+                              icon: const Icon(Icons.save_outlined),
+                              label: const Text('Save Access'),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: TextField(
-                        controller: reason,
-                        decoration: const InputDecoration(
-                          labelText: 'Change Reason',
-                          hintText: 'Required when access changes',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Save Access'),
-              ),
-            ],
           ),
+        ),
+      );
+         ),
         ),
       );
       if (saved == true) {

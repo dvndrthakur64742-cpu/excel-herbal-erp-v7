@@ -275,48 +275,95 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
       }
 
       int? employeeId;
-      final selected = await showDialog<Map<String, dynamic>>(
+      final selected = await showModalBottomSheet<Map<String, dynamic>>(
         context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: const Text('Salary Revision History'),
-            content: SizedBox(
-              width: 520,
-              child: DropdownButtonFormField<int>(
-                isExpanded: true,
-                initialValue: employeeId,
-                decoration: const InputDecoration(labelText: 'Employee'),
-                items: employees
-                    .map(
-                      (employee) => DropdownMenuItem(
-                        value: int.parse("${employee['id']}"),
-                        child: Text(
-                          "${employee['full_name']} · ${employee['employee_code']}",
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setLocal(() => employeeId = value),
-              ),
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (sheetContext, setLocal) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              10,
+              16,
+              16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: employeeId == null
-                    ? null
-                    : () => Navigator.pop(
-                          context,
-                          employees.firstWhere(
-                            (employee) =>
-                                int.parse("${employee['id']}") == employeeId,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(sheetContext).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Salary Revision History',
+                  style: Theme.of(sheetContext)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Select an employee to view the audited salary revision timeline.',
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  initialValue: employeeId,
+                  decoration: const InputDecoration(
+                    labelText: 'Employee',
+                    prefixIcon: Icon(Icons.person_search_outlined),
+                  ),
+                  items: employees
+                      .map(
+                        (employee) => DropdownMenuItem(
+                          value: int.parse("${employee['id']}"),
+                          child: Text(
+                            "${employee['full_name']} · ${employee['employee_code']}",
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                child: const Text('Open History'),
-              ),
-            ],
+                      )
+                      .toList(),
+                  onChanged: (value) => setLocal(() => employeeId = value),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton(
+                        onPressed: employeeId == null
+                            ? null
+                            : () => Navigator.pop(
+                                  sheetContext,
+                                  employees.firstWhere(
+                                    (employee) =>
+                                        int.parse("${employee['id']}") ==
+                                        employeeId,
+                                  ),
+                                ),
+                        child: const Text('Open History'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -341,8 +388,10 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     var future = load();
     String? localMessage;
 
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setLocal) {
           Future<void> requestRevision() async {
@@ -370,36 +419,39 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                   ),
                   content: SizedBox(
                     width: 520,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: salary,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                            controller: salary,
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Monthly Salary',
+                            ),
                           ),
-                          decoration: const InputDecoration(
-                            labelText: 'Monthly Salary',
+                          const SizedBox(height: 10),
+                          BusinessDateField(
+                            controller: effective,
+                            label: 'Effective From',
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        BusinessDateField(
-                          controller: effective,
-                          label: 'Effective From',
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: reason,
-                          minLines: 2,
-                          maxLines: 4,
-                          decoration:
-                              const InputDecoration(labelText: 'Reason'),
-                        ),
-                        if (validation != null) ...[
-                          const SizedBox(height: 8),
-                          Text(validation!),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: reason,
+                            minLines: 2,
+                            maxLines: 4,
+                            decoration:
+                                const InputDecoration(labelText: 'Reason'),
+                          ),
+                          if (validation != null) ...[
+                            const SizedBox(height: 8),
+                            Text(validation!),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                   actions: [
@@ -476,7 +528,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             final confirmed = await showDialog<bool>(
               context: dialogContext,
               builder: (context) => AlertDialog(
-                title: Text('\$action Salary Revision?'),
+                title: Text('$action Salary Revision?'),
                 content: Text(
                   "${employee['full_name'] ?? 'Employee'} · "
                   "${revision['monthly_salary'] ?? ''} from "
@@ -513,77 +565,100 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             }
           }
 
-          return AlertDialog(
-            title: Text(
-              "Salary History · ${employee['full_name'] ?? 'Employee'}",
-            ),
-            content: SizedBox(
-              width: 760,
-              height: 480,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (localMessage != null) ...[
-                    ModuleMessageBanner(message: localMessage!),
-                    const SizedBox(height: 8),
-                  ],
-                  Row(
+          return FractionallySizedBox(
+            heightFactor: .94,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+                  child: Row(
                     children: [
+                      const Icon(Icons.currency_rupee_rounded),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          "${employee['employee_code'] ?? ''} · Current salary ${employee['monthly_salary'] ?? '—'}",
-                          style: Theme.of(context).textTheme.bodyMedium,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Salary History · ${employee['full_name'] ?? 'Employee'}",
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            Text(
+                              "${employee['employee_code'] ?? ''} · Current salary ${employee['monthly_salary'] ?? '—'}",
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                         ),
                       ),
-                      FilledButton.icon(
-                        onPressed: employeeId == currentActorId ||
-                                !app.can('payroll.salary.manage')
-                            ? null
-                            : requestRevision,
-                        icon: const Icon(Icons.add_card_outlined),
-                        label: const Text('New Revision'),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.close_rounded),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: FutureBuilder<List<Map<String, dynamic>>>(
-                      future: future,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return Center(
-                            child: Text(UiError.message(snapshot.error!)),
-                          );
-                        }
-                        final rows = snapshot.data ?? const [];
-                        if (rows.isEmpty) {
-                          return const Center(
-                            child: Text('No salary history is available.'),
-                          );
-                        }
+                ),
+                if (localMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    child: ModuleMessageBanner(message: localMessage!),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+                  child: FilledButton.icon(
+                    onPressed: employeeId == currentActorId ||
+                            !app.can('payroll.salary.manage')
+                        ? null
+                        : requestRevision,
+                    icon: const Icon(Icons.add_card_outlined),
+                    label: const Text('New Salary Revision'),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: FutureBuilder<List<Map<String, dynamic>>>(
+                    future: future,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      }
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text(UiError.message(snapshot.error!)),
+                        );
+                      }
+                      final rows = snapshot.data ?? const [];
+                      if (rows.isEmpty) {
+                        return const Center(
+                          child: Text('No salary history is available.'),
+                        );
+                      }
 
-                        return ListView.separated(
-                          itemCount: rows.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final row = rows[index];
-                            final status =
-                                "${row['status'] ?? ''}".toLowerCase();
-                            final creatorId =
-                                int.tryParse("${row['created_by']}") ?? 0;
-                            final canReview = status == 'pending' &&
-                                app.can('payroll.salary.approve') &&
-                                creatorId != currentActorId &&
-                                employeeId != currentActorId;
+                      return ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
+                        itemCount: rows.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 6),
+                        itemBuilder: (context, index) {
+                          final row = rows[index];
+                          final status =
+                              "${row['status'] ?? ''}".toLowerCase();
+                          final creatorId =
+                              int.tryParse("${row['created_by']}") ?? 0;
+                          final canReview = status == 'pending' &&
+                              app.can('payroll.salary.approve') &&
+                              creatorId != currentActorId &&
+                              employeeId != currentActorId;
 
-                            return ListTile(
+                          return Card(
+                            child: ListTile(
                               leading:
                                   const Icon(Icons.currency_rupee_rounded),
                               title: Text(
@@ -594,7 +669,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                               ),
                               trailing: canReview
                                   ? Wrap(
-                                      spacing: 4,
+                                      spacing: 2,
                                       children: [
                                         IconButton(
                                           tooltip: 'Approve revision',
@@ -614,23 +689,18 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                                       ],
                                     )
                                   : Chip(
-                                      label: Text(BusinessFormat.status(status)),
+                                      label:
+                                          Text(BusinessFormat.status(status)),
                                     ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Close'),
-              ),
-            ],
           );
         },
       ),
