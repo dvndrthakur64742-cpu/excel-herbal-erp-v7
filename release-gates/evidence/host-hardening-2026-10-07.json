@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "gate": "environment_hardening",
+  "status": "pending",
+  "audited_at": "2026-10-07",
+  "staging_url": "https://office.excelherbal.in",
+  "passed": {
+    "erp_environment_staging": true,
+    "search_indexing_disabled": true,
+    "wordpress_version": "7.1.2",
+    "wordpress_core_checksums": {
+      "verified": true,
+      "files_checked": 3338
+    },
+    "wp_cron_spawn_status": 200,
+    "force_ssl_admin": true,
+    "wp_debug": false,
+    "mariadb_transaction_isolation": "READ-COMMITTED",
+    "mariadb_max_allowed_packet": 1073741824
+  },
+  "blockers": {
+    "WP_ENVIRONMENT_TYPE": "undefined",
+    "DISALLOW_FILE_EDIT": "undefined"
+  },
+  "advisory_updates": {
+    "plugins": [
+      {
+        "slug": "hostinger-reach",
+        "from": "1.8.4",
+        "to": "1.8.5"
+      },
+      {
+        "slug": "hostinger-easy-onboarding",
+        "from": "3.0.1",
+        "to": "3.0.3"
+      },
+      {
+        "slug": "vibe-ai",
+        "from": "1.19.0",
+        "to": "1.20.3"
+      }
+    ],
+    "themes": [
+      {
+        "slug": "hostinger-ai-theme",
+        "from": "2.1.3",
+        "to": "2.1.13",
+        "active": true
+      },
+      {
+        "slug": "twentytwentyfour",
+        "from": "1.5",
+        "to": "1.6",
+        "active": false
+      }
+    ]
+  },
+  "required_host_config": [
+    "define('WP_ENVIRONMENT_TYPE', 'staging');",
+    "define('DISALLOW_FILE_EDIT', true);"
+  ],
+  "note": "Do not mark passed until both host constants are present and the site is re-audited."
+}

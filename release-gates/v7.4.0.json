@@ -47,9 +47,13 @@
         "repo-service:StagingSafety",
         "repo-tool:fresh-uat-bootstrap.php",
         "office-audit:wordpress-7.1.2",
-        "office-audit:search-indexing-disabled"
+        "office-audit:search-indexing-disabled",
+        "office-audit:force-ssl-admin=true",
+        "office-audit:wp-debug=false",
+        "office-audit:plugin-updates-dry-run-reviewed-2026-10-07",
+        "release-evidence:release-gates/evidence/host-hardening-2026-10-07.json"
       ],
-      "note": "Current BUILD/UAT health reports environment=staging and search indexing is disabled; WordPress 7.1.2 core checksums pass (3338 files) and WP-Cron spawn returns 200. WP_ENVIRONMENT_TYPE remains undefined in wp-config and DISALLOW_FILE_EDIT cannot be changed through the connected WPVibe CLI because config writes are blocked by design; final host-level hardening is still pending."
+      "note": "BUILD/UAT hardening evidence is prepared. PASS: ERP environment=staging, search indexing disabled, WordPress 7.1.2 core checksums (3338 files), WP-Cron spawn 200, FORCE_SSL_ADMIN=true, WP_DEBUG=false, MariaDB READ-COMMITTED, max_allowed_packet=1GiB. BLOCKERS remaining at host config: WP_ENVIRONMENT_TYPE is undefined and DISALLOW_FILE_EDIT is undefined. Plugin/theme updates were reviewed in dry-run and are tracked separately; do not mark this gate passed until the two host constants are set and re-verified."
     },
     {
       "id": "real_http_bearer_401_403",
@@ -122,18 +126,20 @@
         "uat-reconciliation:assets-69370=liabilities-67200+equity-2170",
         "uat-reconciliation:profit-2170=current-earnings-2170",
         "uat-reconciliation:stock-35-of-35-matched",
-        "uat-reconciliation:finance-4-of-4-matched"
+        "uat-reconciliation:finance-4-of-4-matched",
+        "release-evidence:release-gates/evidence/business-report-review-2026-10-07.json"
       ],
-      "note": "Authenticated BUILD/UAT report snapshot is captured for branch 1, 2026-09-01 through 2026-10-07. All 11 report endpoints passed. Automated reconciliation: Trial Balance debit=credit 388,580; Assets 69,370 = Liabilities 67,200 + Equity 2,170; P&L profit 2,170 = Current Earnings 2,170; Stock reconciliation 35/35 matched; Finance reconciliation 4/4 matched. Human Accounts review/sign-off remains required."
+      "note": "Automated report/reconciliation proof is complete and a reviewer packet is prepared at release-gates/evidence/business-report-review-2026-10-07.json. Trial Balance debit=credit 388,580; Assets 69,370 = Liabilities 67,200 + Equity 2,170; P&L profit 2,170 = Current Earnings 2,170; Stock reconciliation 35/35 matched; Finance reconciliation 4/4 matched. Gate remains pending only for named human Accounts review/sign-off."
     },
     {
       "id": "pilot_signoff",
       "required": true,
       "status": "pending",
       "evidence": [
-        "repo-template:pilot-signoff.json"
+        "repo-template:pilot-signoff.json",
+        "release-evidence:release-gates/evidence/pilot-signoff-2026-10-07.json"
       ],
-      "note": "Operational owner plus HR and Accounts sign-off required. CI evidence does not replace human acceptance."
+      "note": "Final sign-off packet is prepared. Operational owner, HR and Accounts must each be named and marked passed; CI evidence cannot substitute for these human acceptances."
     }
   ],
   "approval": {
