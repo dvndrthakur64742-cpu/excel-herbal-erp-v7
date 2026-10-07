@@ -631,7 +631,10 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       final originalDenies = {...denies};
       final overrideSupported = detail.containsKey('designation_defaults');
       final reason = TextEditingController();
-      String? accessValidati      final saved = await showModalBottomSheet<bool>(
+      String? accessValidation;
+      if (!mounted) return;
+
+      final saved = await showModalBottomSheet<bool>(
         context: context,
         useSafeArea: true,
         isScrollControlled: true,
@@ -661,14 +664,16 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                               ),
                               Text(
                                 '${employee['full_name']} · ${employee['employee_code']} · ${employee['designation_code']}',
-                                style: Theme.of(sheetContext).textTheme.bodySmall,
+                                style:
+                                    Theme.of(sheetContext).textTheme.bodySmall,
                               ),
                             ],
                           ),
                         ),
                         IconButton(
                           tooltip: 'Close',
-                          onPressed: () => Navigator.pop(sheetContext, false),
+                          onPressed: () =>
+                              Navigator.pop(sheetContext, false),
                           icon: const Icon(Icons.close_rounded),
                         ),
                       ],
@@ -684,23 +689,31 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                     child: TabBarView(
                       children: [
                         ListView(
-                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                          padding:
+                              const EdgeInsets.fromLTRB(12, 12, 12, 20),
                           children: [
                             Text(
                               'Primary designation: ${employee['designation_code']} · default permissions apply automatically.',
-                              style: Theme.of(sheetContext).textTheme.bodySmall,
+                              style:
+                                  Theme.of(sheetContext).textTheme.bodySmall,
                             ),
                             const SizedBox(height: 8),
                             if (roles.isEmpty)
                               const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24),
-                                child: Center(child: Text('No additional roles available.')),
+                                padding:
+                                    EdgeInsets.symmetric(vertical: 24),
+                                child: Center(
+                                  child: Text(
+                                    'No additional roles available.',
+                                  ),
+                                ),
                               )
                             else
                               ...roles.map((r) {
                                 final rid = int.parse('${r['id']}');
                                 return Card(
-                                  margin: const EdgeInsets.only(bottom: 6),
+                                  margin:
+                                      const EdgeInsets.only(bottom: 6),
                                   child: CheckboxListTile(
                                     value: selectedRoles.contains(rid),
                                     title: Text('${r['name']}'),
@@ -727,7 +740,8 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                           )
                         else
                           ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                            padding:
+                                const EdgeInsets.fromLTRB(12, 12, 12, 20),
                             itemCount: allCaps.length,
                             itemBuilder: (context, index) {
                               final cap = allCaps[index];
@@ -737,11 +751,18 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                                       ? 'deny'
                                       : 'inherit';
                               return Card(
-                                margin: const EdgeInsets.only(bottom: 6),
+                                margin:
+                                    const EdgeInsets.only(bottom: 6),
                                 child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    8,
+                                    8,
+                                    8,
+                                  ),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Expanded(
                                         child: Column(
@@ -757,9 +778,10 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                                             const SizedBox(height: 3),
                                             Text(
                                               '$cap\nDefault ${defaults.contains(cap) ? 'Yes' : 'No'} · Effective ${effective.contains(cap) ? 'Yes' : 'No'}',
-                                              style: Theme.of(sheetContext)
-                                                  .textTheme
-                                                  .bodySmall,
+                                              style:
+                                                  Theme.of(sheetContext)
+                                                      .textTheme
+                                                      .bodySmall,
                                             ),
                                           ],
                                         ),
@@ -784,8 +806,12 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                                         onChanged: (v) => setLocal(() {
                                           grants.remove(cap);
                                           denies.remove(cap);
-                                          if (v == 'grant') grants.add(cap);
-                                          if (v == 'deny') denies.add(cap);
+                                          if (v == 'grant') {
+                                            grants.add(cap);
+                                          }
+                                          if (v == 'deny') {
+                                            denies.add(cap);
+                                          }
                                         }),
                                       ),
                                     ],
@@ -816,7 +842,8 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () => Navigator.pop(sheetContext, false),
+                              onPressed: () =>
+                                  Navigator.pop(sheetContext, false),
                               child: const Text('Cancel'),
                             ),
                           ),
@@ -825,12 +852,22 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                             flex: 2,
                             child: FilledButton.icon(
                               onPressed: () {
-                                final rolesChanged =
-                                    !_sameInts(originalRoles, selectedRoles);
-                                final overridesChanged = overrideSupported &&
-                                    (!_sameStrings(originalGrants, grants) ||
-                                        !_sameStrings(originalDenies, denies));
-                                if ((rolesChanged || overridesChanged) &&
+                                final rolesChanged = !_sameInts(
+                                  originalRoles,
+                                  selectedRoles,
+                                );
+                                final overridesChanged =
+                                    overrideSupported &&
+                                        (!_sameStrings(
+                                              originalGrants,
+                                              grants,
+                                            ) ||
+                                            !_sameStrings(
+                                              originalDenies,
+                                              denies,
+                                            ));
+                                if ((rolesChanged ||
+                                        overridesChanged) &&
                                     reason.text.trim().length < 5) {
                                   setLocal(
                                     () => accessValidation =
@@ -854,9 +891,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
           ),
         ),
       );
-         ),
-        ),
-      );
+
       if (saved == true) {
         final rolesChanged = !_sameInts(originalRoles, selectedRoles);
         final overridesChanged = overrideSupported &&
