@@ -510,5 +510,39 @@ uat_case('uat_audit_daily_draft_edit_reject_and_additional_cancel', function () 
     if(($evening['status']??'')!=='evening_draft')throw new RuntimeException('F04 evening still blocked after additional cancellation');
 });
 
+
+uat_case('uat_audit_daily_cancel_reopen_unique_cycle', function () use ($self,$manager,$wpdb) {
+    // F04: cancelling an unissued request does not destroy the unique employee/day record.
+    $date=(new DateTimeImmutable(uat_date()))->modify('-202 days')->format('Y-m-d');
+    $created=uat_dispatch('daily.create',$self,[
+        'branch_id'=>1,'employee_id'=>10,'business_date'=>$date,
+        'lines'=>[['product_id'=>100,'quantity'=>1]],
+    ]);
+    $id=(int)$created['id'];$request=(int)$created['request_id'];
+    uat_dispatch('daily.submit',$self,['id'=>$id]);
+    $cancel=uat_dispatch('daily.cancel_cycle',$self,[
+        'id'=>$id,'reason'=>'Submitted in error, cancel it',
+    ]);
+    if (($cancel['status']??'')!=='cancelled') throw new RuntimeException('F04 initial order cancellation failed');
+    try { uat_dispatch('daily.create',$self,[
+        'branch_id'=>1,'employee_id'=>10,'business_date'=>$date,
+        'lines'=>[['product_id'=>100,'quantity'=>1]],
+    ]); throw new RuntimeException('F04 duplicate order created after cancel'); }
+    catch(DomainException $e) {
+        if($e->codeKey!=='daily_duplicate'||$e->httpStatus!==409)throw $e;
+    }
+    $reopened=uat_dispatch('daily.reopen_draft',$self,['id'=>$id]);
+    if(($reopened['status']??'')!=='morning_draft')throw new RuntimeException('F04 reopening canceled draft failed');
+    uat_dispatch('daily.edit_draft',$self,['id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>2]]]);
+    uat_dispatch('daily.submit',$self,['id'=>$id]);
+    uat_dispatch('daily.approve',$manager,['id'=>$request]);
+    try { uat_dispatch('daily.cancel_cycle',$self,['id'=>$id,'reason'=>'Too late to cancel']); }
+    catch(DomainException $e) {
+        if($e->codeKey==='daily_state_invalid'&&$e->httpStatus===409)return;
+        throw $e;
+    }
+    throw new RuntimeException('F04 approved stock request could be cancelled');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
