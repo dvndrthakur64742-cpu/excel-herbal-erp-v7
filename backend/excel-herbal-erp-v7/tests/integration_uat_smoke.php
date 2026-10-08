@@ -8,6 +8,8 @@ use ExcelHerbal\ERP7\Domain\DomainException;
 use ExcelHerbal\ERP7\Http\ApiDispatch;
 use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Capabilities;
+use ExcelHerbal\ERP7\Inventory\StockService;
+use ExcelHerbal\ERP7\Inventory\InventoryService;
 
 if (!function_exists('get_option')) {
     function get_option($name, $default = false) {
@@ -222,6 +224,18 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
     ]);
     $cycle=(int)$created['id']; $request=(int)$created['request_id'];
     if (($created['status'] ?? '') !== 'morning_draft') throw new RuntimeException('daily create status mismatch');
+    // F03: having branch + DAILY_OTHERS is not sufficient without reporting scope.
+    $outsideTeam = uat_actor(30, [1,2], [Capabilities::DAILY_OTHERS], 'ASM');
+    foreach (['daily.submit','daily.additional','daily.evening_start','daily.evening_save','daily.evening_submit'] as $action) {
+        try { uat_dispatch($action,$outsideTeam,['id'=>$cycle,'lines'=>[]]); }
+        catch (DomainException $e) {
+            if ($e->codeKey==='employee_scope_forbidden' && $e->httpStatus===403) continue;
+            throw $e;
+        }
+        throw new RuntimeException('out-of-hierarchy Daily Order write accepted: '.$action);
+    }
+    $state=(string)$wpdb->get_var($wpdb->prepare('SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle));
+    if ($state!=='morning_draft') throw new RuntimeException('denied hierarchy write changed Daily Order state');
     if ((uat_dispatch('daily.submit',$self,['id'=>$cycle])['status'] ?? '') !== 'stock_requested') throw new RuntimeException('daily submit failed');
     uat_expect_forbidden(
         fn()=>uat_dispatch('daily.approve',$self,['id'=>$request]),
@@ -236,6 +250,23 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
         'wholesale_details'=>[],'price_reason'=>'',
     ]);
     if (abs((float)$saved['expected_amount']-200.0)>0.005) throw new RuntimeException('daily expected amount mismatch');
+    // F01: unchanged repeated saves must not compound distributions; edited returns recalculate from source snapshots.
+    $saveLines = fn(int $returns) => [
+        'id'=>$cycle,'lines'=>[['issue_line_id'=>$issueLineId,'return_quantity'=>$returns,'wholesale_quantity'=>0,'retail_rate'=>100,'wholesale_rate'=>0]],
+        'wholesale_details'=>[],'price_reason'=>'',
+    ];
+    foreach ([1,1,1,0,0] as $returnQty) {
+        $reSaved=uat_dispatch('daily.evening_save',$self,$saveLines($returnQty));
+        $expected=($returnQty===1)?100.0:200.0;
+        $line=$wpdb->get_row($wpdb->prepare('SELECT points,salary_fund,ho_amount,bm_profit,office_expense FROM '.Db::table('evening_lines').' WHERE issue_line_id=%d',$issueLineId),ARRAY_A);
+        if (abs((float)$reSaved['expected_amount']-$expected)>.005 ||
+            abs((float)$line['points']-(($returnQty===1)?2.0:4.0))>.005 ||
+            abs((float)$line['salary_fund']-(($returnQty===1)?10.0:20.0))>.005 ||
+            abs((float)$line['ho_amount']-(($returnQty===1)?60.0:120.0))>.005 ||
+            abs((float)$line['bm_profit']-(($returnQty===1)?20.0:40.0))>.005 ||
+            abs((float)$line['office_expense']-(($returnQty===1)?10.0:20.0))>.005)
+            throw new RuntimeException('F01 evening save compounded the original distribution');
+    }
     uat_dispatch('daily.evening_submit',$self,['id'=>$cycle]);
     $posted=uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>0]);
     if (($posted['status']??'')!=='completed'||abs((float)$posted['amount']-200.0)>0.005) throw new RuntimeException('daily final post mismatch');
@@ -243,6 +274,48 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
     $custody=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=10');
     $perf=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('performance_entries').' WHERE source_type=\'daily_cycle\' AND source_id='.(int)$cycle);
     if(abs($warehouse-98.0)>0.001||abs($custody)>0.001||$perf!==1) throw new RuntimeException("daily invariant mismatch warehouse={$warehouse} custody={$custody} perf={$perf}");
+});
+
+
+uat_case('uat_audit_batch_without_expiry_and_expired_quarantine', function () use ($manager,$wpdb) {
+    // F02: batch-required without expiry tracking must remain issueable when expires_on is NULL.
+    uat_insert($wpdb,'products',[
+        'id'=>101,'company_id'=>1,'sku'=>'UAT-BATCH-101','name'=>'Batch tracked no expiry',
+        'uom'=>'PCS','batch_tracking'=>'required','expiry_tracking'=>0,'status'=>'active','created_at'=>'2026-01-01 00:00:00',
+    ]);
+    $yesterday=(new DateTimeImmutable(Db::today()))->modify('-1 day')->format('Y-m-d');
+    uat_insert($wpdb,'batches',[
+        'id'=>1011,'company_id'=>1,'product_id'=>101,'batch_no'=>'NO-EXPIRY',
+        'expires_on'=>null,'status'=>'active','created_at'=>'2026-01-01 00:00:00',
+    ]);
+    uat_insert($wpdb,'batches',[
+        'id'=>1012,'company_id'=>1,'product_id'=>101,'batch_no'=>'EXPIRED',
+        'expires_on'=>$yesterday,'status'=>'active','created_at'=>'2026-01-01 00:00:00',
+    ]);
+    foreach ([[1011,5],[1012,5]] as [$batchId,$quantity]) {
+        uat_insert($wpdb,'stock_balances',[
+            'company_id'=>1,'branch_id'=>1,'product_id'=>101,'batch_key'=>$batchId,'custodian_key'=>0,
+            'quantity'=>$quantity,'average_unit_cost'=>50,'updated_at'=>'2026-01-01 00:00:00',
+        ]);
+    }
+    $available=StockService::warehouseAvailable($manager,1,101);
+    $alloc=StockService::automaticCustodyAllocations($manager,1,101,3);
+    if (abs($available-5)>0.001 || count($alloc)!==1 ||
+        (int)$alloc[0]['batch_id']!==1011 || abs((float)$alloc[0]['quantity']-3)>0.001)
+        throw new RuntimeException('F02 no-expiry batch was rejected or expired batch allocated');
+    // F07: controlled hold removes expired stock from warehouse, without allowing sale/dispatch.
+    $keeper=uat_actor(20,[1,2],[Capabilities::ADJ_CREATE],'SYSADMIN');
+    $hold=InventoryService::quarantineHold($keeper,1,101,1012,2,'Expired batch quarantine UAT');
+    if (($hold['status']??'')!=='open') throw new RuntimeException('F07 quarantine hold was not created');
+    $remaining=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=101 AND batch_key=%d AND custodian_key=0',1012));
+    if (abs($remaining-3)>0.001) throw new RuntimeException('F07 expired quarantine did not deduct source stock');
+    try { StockService::move($keeper,1,101,1012,null,'OUT',1,50,'daily_sale',999999); }
+    catch (DomainException $e) {
+        if ($e->codeKey==='batch_expired') return;
+        throw $e;
+    }
+    throw new RuntimeException('F07 expired batch became sale-eligible');
 });
 
 uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($maker,$manager,$wpdb) {
