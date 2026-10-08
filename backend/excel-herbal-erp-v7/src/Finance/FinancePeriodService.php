@@ -8,6 +8,7 @@ final class FinancePeriodService{
   [$from,$to]=Input::dateRange($from,$to,'Accounting period');
   return Transaction::run(function()use($a,$from,$to){
    $db=Db::wpdb();$periods=Db::table('accounting_periods');
+   AccountingService::lockCompanyForPeriod($a);
    $existing=$db->get_row($db->prepare("SELECT * FROM {$periods} WHERE company_id=%d AND period_start=%s AND period_end=%s FOR UPDATE",$a->companyId,$from,$to),ARRAY_A);
    $overlap=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$periods} WHERE company_id=%d AND status='closed' AND NOT(period_start=%s AND period_end=%s) AND NOT(period_end<%s OR period_start>%s)",$a->companyId,$from,$to,$from,$to));
    if($overlap)throw new DomainException('Period overlaps existing close.','period_overlap',409);
@@ -47,5 +48,5 @@ final class FinancePeriodService{
    return['id'=>$id,'status'=>'closed'];
   });
  }
- public static function reopenPeriod(Actor $a,int $id,string $reason):array{Guard::allActiveBranches($a,Capabilities::PERIOD_MANAGE);$reason=trim($reason);if(strlen($reason)<5)throw new DomainException('Reason required.');return Transaction::run(function()use($a,$id,$reason){$db=Db::wpdb();$t=Db::table('accounting_periods');$r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND company_id=%d FOR UPDATE",$id,$a->companyId),ARRAY_A);if(!$r)throw new DomainException('Accounting period not found.','period_not_found',404);if($r['status']!=='closed')throw new DomainException('Only a closed accounting period can be reopened.','period_state_invalid',409);Db::mustUpdate($db,$t,['status'=>'open','reopened_by'=>$a->employeeId,'reopened_at'=>Db::now()],['id'=>$id]);Audit::add($a,'accounting_period.reopen','accounting_period',$id,['reason'=>$reason,'from'=>$r['period_start'],'to'=>$r['period_end']]);return['id'=>$id,'status'=>'open'];});}
+ public static function reopenPeriod(Actor $a,int $id,string $reason):array{Guard::allActiveBranches($a,Capabilities::PERIOD_MANAGE);$reason=trim($reason);if(strlen($reason)<5)throw new DomainException('Reason required.');return Transaction::run(function()use($a,$id,$reason){$db=Db::wpdb();$t=Db::table('accounting_periods');AccountingService::lockCompanyForPeriod($a);$r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND company_id=%d FOR UPDATE",$id,$a->companyId),ARRAY_A);if(!$r)throw new DomainException('Accounting period not found.','period_not_found',404);if($r['status']!=='closed')throw new DomainException('Only a closed accounting period can be reopened.','period_state_invalid',409);Db::mustUpdate($db,$t,['status'=>'open','reopened_by'=>$a->employeeId,'reopened_at'=>Db::now()],['id'=>$id]);Audit::add($a,'accounting_period.reopen','accounting_period',$id,['reason'=>$reason,'from'=>$r['period_start'],'to'=>$r['period_end']]);return['id'=>$id,'status'=>'open'];});}
 }
