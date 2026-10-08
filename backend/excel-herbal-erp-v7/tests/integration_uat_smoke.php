@@ -424,5 +424,45 @@ uat_case('uat_no_negative_stock_and_balanced_journals', function () use ($wpdb) 
     if($negative!==0||$unbalanced!==0) throw new RuntimeException("closing invariant mismatch negative_stock={$negative} unbalanced_journals={$unbalanced}");
 });
 
+
+uat_case('uat_audit_daily_history_server_pagination', function () use ($self,$wpdb) {
+    // F05: 150+ orders must remain visible across pages and searchable by id/date/status.
+    $origin=new DateTimeImmutable(uat_date());
+    for ($i=1;$i<=150;$i++) {
+        $day=$origin->modify('-'.$i.' days')->format('Y-m-d');
+        uat_insert($wpdb,'daily_cycles',[
+            'id'=>20000+$i,'company_id'=>1,'branch_id'=>1,'employee_id'=>10,
+            'business_date'=>$day,'status'=>'completed','created_by'=>10,
+            'created_at'=>'2026-01-01 00:00:00',
+        ]);
+    }
+    $first=uat_dispatch('daily.search',$self,[
+        'branch_id'=>1,'page'=>1,'page_size'=>25,'status'=>'completed',
+    ]);
+    $last=uat_dispatch('daily.search',$self,[
+        'branch_id'=>1,'page'=>7,'page_size'=>25,'status'=>'completed',
+    ]);
+    if ((int)($first['total']??0)<151||count($first['items']??[])!==25||
+        empty($first['has_more'])||empty($last['items'])||!empty($last['has_more']))
+        throw new RuntimeException('F05 page seven or total count is incorrect');
+    $query=uat_dispatch('daily.search',$self,[
+        'branch_id'=>1,'page'=>1,'page_size'=>25,'query'=>'20001',
+    ]);
+    if (count($query['items']??[])!==1||(int)$query['items'][0]['id']!==20001)
+        throw new RuntimeException('F05 older record not found by order ID');
+    $date=$origin->modify('-1 day')->format('Y-m-d');
+    $dated=uat_dispatch('daily.search',$self,[
+        'branch_id'=>1,'date_from'=>$date,'date_to'=>$date,
+    ]);
+    if (count($dated['items']??[])!==1||(int)$dated['items'][0]['id']!==20001)
+        throw new RuntimeException('F05 business date filter failed');
+    $outsideTeam=uat_actor(30,[1,2],[Capabilities::DAILY_OTHERS],'ASM');
+    $denied=uat_dispatch('daily.search',$outsideTeam,[
+        'branch_id'=>1,'query'=>'20001',
+    ]);
+    if ((int)($denied['total']??-1)!==0||!empty($denied['items']))
+        throw new RuntimeException('F05 out-of-scope history visible');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
