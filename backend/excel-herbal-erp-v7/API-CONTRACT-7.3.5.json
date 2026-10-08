@@ -742,6 +742,13 @@
       "required_params": []
     },
     {
+      "method": "GET",
+      "path": "/daily/cycles/search",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
       "method": "POST",
       "path": "/daily/cycles",
       "auth": true,
@@ -769,6 +776,31 @@
     },
     {
       "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/reopen-draft",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/cancel",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/edit-draft",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/daily/cycles/(?P<id>\\d+)/additional",
       "auth": true,
       "idempotency_required": true,
@@ -782,6 +814,24 @@
       "auth": true,
       "idempotency_required": true,
       "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/requests/(?P<id>\\d+)/cancel-additional",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/daily/requests/(?P<id>\\d+)/reject",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
     },
     {
       "method": "GET",
