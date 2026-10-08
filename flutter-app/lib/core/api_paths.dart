@@ -180,8 +180,11 @@ abstract final class ApiPaths {
   static String leaveDecision(int id) => '/workforce/leave/$id/decision';
   static String dailyDetail(int id) => '/daily/cycles/$id';
   static String dailySubmit(int id) => '/daily/cycles/$id/submit';
+  static String dailyEditDraft(int id) => '/daily/cycles/$id/edit-draft';
   static String dailyAdditional(int id) => '/daily/cycles/$id/additional';
   static String dailyApprove(int id) => '/daily/requests/$id/approve';
+  static String dailyReject(int id) => '/daily/requests/$id/reject';
+  static String dailyCancelAdditional(int id) => '/daily/requests/$id/cancel-additional';
   static String dailyIssuePreflight(int id) =>
       '/daily/requests/$id/issue-preflight';
   static String dailyIssue(int id) => '/daily/requests/$id/issue';
