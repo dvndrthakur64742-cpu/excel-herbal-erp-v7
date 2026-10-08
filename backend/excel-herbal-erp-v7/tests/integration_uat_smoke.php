@@ -12,6 +12,7 @@ use ExcelHerbal\ERP7\Inventory\StockService;
 use ExcelHerbal\ERP7\Inventory\InventoryService;
 use ExcelHerbal\ERP7\Finance\AccountingService;
 use ExcelHerbal\ERP7\Finance\FinanceClosingService;
+use ExcelHerbal\ERP7\Finance\FinancePeriodService;
 
 if (!function_exists('get_option')) {
     function get_option($name, $default = false) {
@@ -542,6 +543,56 @@ uat_case('uat_audit_daily_cancel_reopen_unique_cycle', function () use ($self,$m
         throw $e;
     }
     throw new RuntimeException('F04 approved stock request could be cancelled');
+});
+
+
+uat_case('uat_audit_applied_locked_stock_cost', function () use ($manager,$wpdb) {
+    // R02: caller-estimated cost can go stale; the movement must report the locked ledger cost.
+    uat_insert($wpdb,'products',[
+        'id'=>1099,'company_id'=>1,'sku'=>'UAT-COST-1099','name'=>'Cost-lock test product',
+        'uom'=>'PCS','batch_tracking'=>'off','expiry_tracking'=>0,
+        'status'=>'active','created_at'=>'2026-01-01 00:00:00',
+    ]);
+    uat_insert($wpdb,'stock_balances',[
+        'company_id'=>1,'branch_id'=>1,'product_id'=>1099,'batch_key'=>0,
+        'custodian_key'=>0,'quantity'=>5,'average_unit_cost'=>60,
+        'updated_at'=>'2026-01-01 00:00:00',
+    ]);
+    $old=StockService::cost($manager,1,1099,null,null);
+    $changed=$wpdb->update(Db::table('stock_balances'),
+        ['average_unit_cost'=>75],['company_id'=>1,'branch_id'=>1,'product_id'=>1099,'batch_key'=>0,'custodian_key'=>0]);
+    if($changed===false)throw new RuntimeException('R02 fixture cost update failed');
+    $effective=StockService::move($manager,1,1099,null,null,'OUT',2,$old,'stock_adjustment',99001);
+    $ledger=(float)$wpdb->get_var($wpdb->prepare(
+        "SELECT unit_cost FROM ".Db::table('stock_ledger')." WHERE source_type='stock_adjustment' AND source_id=%d AND product_id=1099 ORDER BY id DESC LIMIT 1",99001));
+    if(abs($effective-75)>0.0001||abs($ledger-$effective)>0.0001) {
+        throw new RuntimeException('R02 caller snapshot diverged from applied ledger cost');
+    }
+});
+
+uat_case('uat_audit_period_close_posting_guard', function () use ($wpdb) {
+    // R01: closing and posting now share the locked company row; a completed close blocks posting.
+    $date='2019-01-15';
+    foreach([1,2] as $branch) {
+        uat_insert($wpdb,'branch_closings',[
+            'company_id'=>1,'branch_id'=>$branch,'business_date'=>$date,
+            'status'=>'closed','created_by'=>20,'closed_by'=>30,
+            'created_at'=>'2019-01-01 00:00:00','closed_at'=>'2019-01-15 23:00:00',
+        ]);
+    }
+    $actor=uat_actor(20,[1,2],[Capabilities::PERIOD_MANAGE],'SYSADMIN');
+    $closed=FinancePeriodService::closePeriod($actor,$date,$date);
+    if(($closed['status']??'')!=='closed')throw new RuntimeException('R01 period did not close');
+    try {
+        AccountingService::post($actor,1,'expense',999999,$date.' 12:00:00',[
+            ['account_id'=>1,'debit'=>50,'credit'=>0],
+            ['account_id'=>3,'debit'=>0,'credit'=>50],
+        ],'Closed period must reject');
+    } catch(DomainException $e) {
+        if($e->codeKey==='accounting_period_closed'&&$e->httpStatus===409)return;
+        throw $e;
+    }
+    throw new RuntimeException('R01 posted a journal into closed period');
 });
 
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
