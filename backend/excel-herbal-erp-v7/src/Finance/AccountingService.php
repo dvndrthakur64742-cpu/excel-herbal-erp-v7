@@ -12,7 +12,21 @@ final class AccountingService{
  public static function account(Actor $a,int $id):array{$db=Db::wpdb();$r=$db->get_row($db->prepare("SELECT * FROM ".Db::table('accounts')." WHERE company_id=%d AND id=%d AND active=1",$a->companyId,$id),ARRAY_A);if(!$r)throw new DomainException('Active account not found.','account_invalid',422);return$r;}
  public static function paymentAccount(Actor $a,int $id):array{$r=self::account($a,$id);$sub=strtolower(trim((string)($r['subtype']??'')));if((string)$r['type']!=='asset'||!in_array($sub,['cash','bank','upi'],true))throw new DomainException('Payment account must be Cash, Bank or UPI ledger.','payment_account_invalid',422);return$r;}
  public static function bankAccount(Actor $a,int $id):array{$r=self::paymentAccount($a,$id);$sub=strtolower(trim((string)($r['subtype']??'')));if(!in_array($sub,['bank','upi'],true))throw new DomainException('Bank reconciliation requires Bank or UPI ledger.','bank_account_invalid',422);return$r;}
- public static function assertPeriodOpen(Actor $a,string $date):void{$businessDate=Input::date(substr(trim($date),0,10),'Journal business date');$db=Db::wpdb();if((int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('accounting_periods')." WHERE company_id=%d AND status='closed' AND %s BETWEEN period_start AND period_end",$a->companyId,$businessDate)))throw new DomainException('Accounting period closed.','accounting_period_closed',409);}
+ /**
+  * Shared company-row lock used by journal posting and accounting period transitions.
+  * Call only inside Transaction::run, so concurrent close/post share one serialization point.
+  */
+ public static function lockCompanyForPeriod(Actor $a):void{
+  $db=Db::wpdb();$id=$db->get_var($db->prepare("SELECT id FROM ".Db::table('companies')." WHERE id=%d FOR UPDATE",$a->companyId));
+  if(!$id)throw new DomainException('Company financial lock unavailable.','accounting_company_lock_failed',500);
+ }
+ public static function assertPeriodOpen(Actor $a,string $date):void{
+  $businessDate=Input::date(substr(trim($date),0,10),'Journal business date');
+  $db=Db::wpdb();
+  // Locking read sees the latest committed close even after an outer transaction's snapshot.
+  $closed=$db->get_var($db->prepare("SELECT id FROM ".Db::table('accounting_periods')." WHERE company_id=%d AND status='closed' AND %s BETWEEN period_start AND period_end LIMIT 1 FOR UPDATE",$a->companyId,$businessDate));
+  if($closed)throw new DomainException('Accounting period closed.','accounting_period_closed',409);
+ }
 
  private static function sourceTable(string $source):string{
   $map=['counter_sale'=>'counter_sales','customer_receipt'=>'customer_receipts','daily_cycle'=>'daily_cycles','expense'=>'expenses','payroll'=>'payroll_runs','payroll_payment'=>'payroll_runs','purchase_bill'=>'purchase_bills','supplier_payment'=>'supplier_payments','stock_transfer_dispatch'=>'stock_transfers','stock_transfer_receive'=>'stock_transfers','stock_transfer_cancel'=>'stock_transfers','stock_transfer_variance'=>'stock_transfers','stock_adjustment'=>'stock_adjustments','stock_quarantine_writeoff'=>'stock_quarantine','reversal'=>'reversals'];
@@ -38,6 +52,8 @@ final class AccountingService{
   }if(abs($dr-$cr)>.005)throw new DomainException('Journal not balanced.','journal_unbalanced',409);
   return Transaction::run(function()use($a,$branch,$source,$sourceId,$date,$lines,$memo){
    $db=Db::wpdb();$h=Db::table('journal_entries');
+   self::lockCompanyForPeriod($a);
+   self::assertPeriodOpen($a,$date);
    self::lockSource($a,$source,$sourceId);
    $existing=(int)$db->get_var($db->prepare("SELECT id FROM {$h} WHERE company_id=%d AND source_type=%s AND source_id=%d AND status='posted' ORDER BY id DESC LIMIT 1 FOR UPDATE",$a->companyId,$source,$sourceId));
    if($existing)return$existing;
