@@ -181,6 +181,8 @@ abstract final class ApiPaths {
   static String dailyDetail(int id) => '/daily/cycles/$id';
   static String dailySubmit(int id) => '/daily/cycles/$id/submit';
   static String dailyEditDraft(int id) => '/daily/cycles/$id/edit-draft';
+  static String dailyCancelCycle(int id) => '/daily/cycles/$id/cancel';
+  static String dailyReopenDraft(int id) => '/daily/cycles/$id/reopen-draft';
   static String dailyAdditional(int id) => '/daily/cycles/$id/additional';
   static String dailyApprove(int id) => '/daily/requests/$id/approve';
   static String dailyReject(int id) => '/daily/requests/$id/reject';
