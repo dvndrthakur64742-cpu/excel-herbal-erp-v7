@@ -66,7 +66,7 @@ void main() {
     expect(dailyOverview, contains('extension _MyWorkDailyOverviewImpl'));
     expect(dailyOverview, contains('Widget _dailyImpl()'));
     expect(dailyOrder, contains('extension _MyWorkDailyOrderImpl'));
-    expect(dailyOrder, contains('Future<void> _newDailyOrderImpl()'));
+    expect(dailyOrder, contains('Future<void> _newDailyOrderImpl({int? editId})'));
     expect(dailyOrder, contains('Future<void> _issueDailyImpl('));
     expect(dailyClosing, contains('extension _MyWorkDailyClosingImpl'));
     expect(dailyClosing, contains('Future<void> _editEveningImpl('));
