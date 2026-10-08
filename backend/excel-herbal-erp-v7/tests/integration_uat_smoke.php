@@ -464,5 +464,51 @@ uat_case('uat_audit_daily_history_server_pagination', function () use ($self,$wp
         throw new RuntimeException('F05 out-of-scope history visible');
 });
 
+
+uat_case('uat_audit_daily_draft_edit_reject_and_additional_cancel', function () use ($self,$manager,$wpdb) {
+    // F04: a rejected initial order returns to editable draft; rejected/cancelled additional does not block evening.
+    $date=(new DateTimeImmutable(uat_date()))->modify('-201 days')->format('Y-m-d');
+    $created=uat_dispatch('daily.create',$self,[
+        'branch_id'=>1,'employee_id'=>10,'business_date'=>$date,
+        'lines'=>[['product_id'=>100,'quantity'=>1]],
+    ]);
+    $id=(int)$created['id'];$request=(int)$created['request_id'];
+    $edited=uat_dispatch('daily.edit_draft',$self,[
+        'id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>2]],
+    ]);
+    if (($edited['status']??'')!=='morning_draft')throw new RuntimeException('F04 draft edit failed');
+    $quantity=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT quantity FROM '.Db::table('daily_request_lines').' WHERE daily_request_id=%d',$request));
+    if(abs($quantity-2)>0.001)throw new RuntimeException('F04 draft quantity not updated');
+    $outside=uat_actor(30,[1,2],[Capabilities::DAILY_OTHERS],'ASM');
+    try { uat_dispatch('daily.edit_draft',$outside,[
+        'id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>5]],
+    ]);throw new RuntimeException('F04 unauthorized edit succeeded'); }
+    catch(DomainException $e) {
+        if ($e->codeKey!=='employee_scope_forbidden'||$e->httpStatus!==403)throw $e;
+    }
+    uat_dispatch('daily.submit',$self,['id'=>$id]);
+    uat_dispatch('daily.reject',$manager,['id'=>$request,'reason'=>'Incorrect requested quantity']);
+    $cycleStatus=(string)$wpdb->get_var($wpdb->prepare('SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$id));
+    $requestStatus=(string)$wpdb->get_var($wpdb->prepare('SELECT status FROM '.Db::table('daily_requests').' WHERE id=%d',$request));
+    if($cycleStatus!=='morning_draft'||$requestStatus!=='draft')throw new RuntimeException('F04 rejected request did not return to draft');
+    uat_dispatch('daily.edit_draft',$self,['id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>1]]]);
+    uat_dispatch('daily.submit',$self,['id'=>$id]);
+    uat_dispatch('daily.approve',$manager,['id'=>$request]);
+    uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]]);
+    $extra=uat_dispatch('daily.additional',$self,['id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>1]]]);
+    uat_dispatch('daily.reject',$manager,['id'=>(int)$extra['id'],'reason'=>'Requested stock is not required']);
+    $next=uat_dispatch('daily.additional',$self,['id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>1]]]);
+    uat_dispatch('daily.approve',$manager,['id'=>(int)$next['id']]);
+    uat_dispatch('daily.cancel_additional',$self,[
+        'id'=>(int)$next['id'],'reason'=>'Cancel after revised demand',
+    ]);
+    $remaining=(int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM ".Db::table('daily_requests')." WHERE daily_cycle_id=%d AND type='additional' AND status IN ('draft','submitted','approved')",$id));
+    if($remaining!==0)throw new RuntimeException('F04 additional request remained pending');
+    $evening=uat_dispatch('daily.evening_start',$self,['id'=>$id]);
+    if(($evening['status']??'')!=='evening_draft')throw new RuntimeException('F04 evening still blocked after additional cancellation');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
