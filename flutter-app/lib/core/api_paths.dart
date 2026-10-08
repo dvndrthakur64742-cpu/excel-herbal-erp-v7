@@ -36,7 +36,8 @@ abstract final class ApiPaths {
       leavePending = '/workforce/leave/pending',
       products = '/catalog/products',
       dailyTargetEmployees = '/daily/target-employees',
-      dailyCycles = '/daily/cycles';
+      dailyCycles = '/daily/cycles',
+      dailyHistorySearch = '/daily/cycles/search';
 
   static const inventoryStock = '/inventory/stock',
       transfers = '/inventory/transfers',
