@@ -92,6 +92,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       var saving = false;
       var selectedOnly = false;
       var exitPromptOpen = false;
+      var allowExit = false;
       final originalEmployee = selectedEmployee;
       final originalQuantities = <int, String>{for (final e in qty.entries) e.key: e.value.text.trim()};
 
@@ -133,6 +134,15 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               0,
               (sum, line) => sum + (line['quantity'] as num),
             );
+
+            void closeForm() {
+              if (!dialogContext.mounted || allowExit) return;
+              setLocalState(() => allowExit = true);
+              // PopScope refreshes its pop entry on the next frame.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              });
+            }
 
             Future<void> persist(String targetMode) async {
               if (saving) return;
@@ -177,7 +187,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                         'Check this order in the list before retrying.';
                   }
                 }
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                closeForm();
               } catch (e) {
                 if (dialogContext.mounted) {
                   setLocalState(() {
@@ -194,7 +204,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                   qty.entries.any((entry) =>
                       entry.value.text.trim() != originalQuantities[entry.key]);
               if (!dirty) {
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                closeForm();
                 return;
               }
               exitPromptOpen = true;
@@ -225,16 +235,16 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               exitPromptOpen = false;
               if (!dialogContext.mounted) return;
               if (action == 'discard') {
-                Navigator.pop(dialogContext);
+                closeForm();
               } else if (action == 'save') {
                 await persist('draft');
               }
             }
 
             return PopScope(
-              canPop: false,
+              canPop: allowExit,
               onPopInvokedWithResult: (didPop, _) {
-                if (!didPop && !saving) requestExit();
+                if (!didPop && !saving && !allowExit) requestExit();
               },
               child: AlertDialog(
               titlePadding: const EdgeInsets.fromLTRB(20, 18, 12, 8),
