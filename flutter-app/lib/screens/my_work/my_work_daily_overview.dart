@@ -227,8 +227,10 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                 height: MediaQuery.sizeOf(dialogContext).height * .68,
                 child: Column(
                   children: [
-                    SingleChildScrollView(
-                      child: Wrap(
+                    Flexible(
+                      flex: 1,
+                      child: SingleChildScrollView(
+                        child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         crossAxisAlignment: WrapCrossAlignment.center,
@@ -290,10 +292,12 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                             label: const Text('Search'),
                           ),
                         ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
                     Expanded(
+                      flex: 2,
                       child: FutureBuilder<Map<String, dynamic>>(
                         future: current,
                         builder: (context, result) {
@@ -708,11 +712,26 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     final out = <PopupMenuEntry<String>>[
       const PopupMenuItem(value: 'view', child: Text('View Details')),
     ];
+
     if (status == 'morning_draft' &&
         DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
       out.add(const PopupMenuItem(
         value: 'edit_draft',
         child: Text('Edit Draft'),
+      ));
+    }
+    if (const {'morning_draft', 'stock_requested'}.contains(status) &&
+        DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
+      out.add(const PopupMenuItem(
+        value: 'cancel_cycle',
+        child: Text('Cancel Order (reason required)'),
+      ));
+    }
+    if (status == 'cancelled' &&
+        DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
+      out.add(const PopupMenuItem(
+        value: 'reopen_draft',
+        child: Text('Reopen as Draft'),
       ));
     }
     if (status == 'stock_requested' &&
