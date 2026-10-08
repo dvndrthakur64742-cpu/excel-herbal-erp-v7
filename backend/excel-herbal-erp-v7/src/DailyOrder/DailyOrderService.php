@@ -109,6 +109,46 @@ final class DailyOrderService{
    return['id'=>$request,'cycle_id'=>(int)$r['daily_cycle_id'],'status'=>'cancelled'];
   });
  }
+
+ /** A cancelled day keeps its unique record; reopening restores its original request instead of duplicating a cycle. */
+ public static function cancelCycle(Actor $a,int $id,string $reason):array{
+  $reason=trim($reason);if(strlen($reason)<5||strlen($reason)>255)throw new DomainException('Cancellation reason (5–255 chars) is required.','daily_reason_invalid',422);
+  return Transaction::run(function()use($a,$id,$reason){
+   $c=self::cycle($a,$id,true);
+   $cap=(int)$c['employee_id']===$a->employeeId?Capabilities::DAILY_SELF:Capabilities::DAILY_OTHERS;
+   Guard::branch($a,(int)$c['branch_id'],$cap);
+   if((int)$c['employee_id']!==$a->employeeId)HierarchyScope::assertCanViewEmployee($a,(int)$c['employee_id']);
+   BranchDayGuard::assertOpen($a,(int)$c['branch_id'],(string)$c['business_date']);
+   if(!in_array($c['status'],['morning_draft','stock_requested'],true))throw new DomainException('Only unapproved Daily Orders can be cancelled.','daily_state_invalid',409);
+   $db=Db::wpdb();$rt=Db::table('daily_requests');
+   $r=$db->get_row($db->prepare("SELECT * FROM {$rt} WHERE daily_cycle_id=%d AND type='initial' FOR UPDATE",$id),ARRAY_A);
+   if(!$r||!in_array($r['status'],['draft','submitted'],true))throw new DomainException('The initial request is not cancellable.','daily_request_state_invalid',409);
+   Db::mustUpdate($db,$rt,['status'=>'cancelled'],['id'=>(int)$r['id']]);
+   Db::mustUpdate($db,Db::table('daily_cycles'),['status'=>'cancelled'],['id'=>$id]);
+   Audit::add($a,'daily_order.cancel','daily_cycle',$id,['branch_id'=>(int)$c['branch_id'],'reason'=>$reason]);
+   return['id'=>$id,'status'=>'cancelled'];
+  });
+ }
+ public static function reopenCancelled(Actor $a,int $id):array{
+  return Transaction::run(function()use($a,$id){
+   $c=self::cycle($a,$id,true);
+   $cap=(int)$c['employee_id']===$a->employeeId?Capabilities::DAILY_SELF:Capabilities::DAILY_OTHERS;
+   Guard::branch($a,(int)$c['branch_id'],$cap);
+   if((int)$c['employee_id']!==$a->employeeId)HierarchyScope::assertCanViewEmployee($a,(int)$c['employee_id']);
+   BranchDayGuard::assertOpen($a,(int)$c['branch_id'],(string)$c['business_date']);
+   if($c['status']!=='cancelled')throw new DomainException('Only a cancelled initial order can be reopened.','daily_state_invalid',409);
+   $db=Db::wpdb();$rt=Db::table('daily_requests');
+   $r=$db->get_row($db->prepare("SELECT * FROM {$rt} WHERE daily_cycle_id=%d AND type='initial' FOR UPDATE",$id),ARRAY_A);
+   if(!$r||$r['status']!=='cancelled')throw new DomainException('Cancelled initial request missing.','daily_request_state_invalid',409);
+   $issued=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('daily_issue_lines')." WHERE daily_request_id=%d",(int)$r['id']));
+   $evening=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('evening_settlements')." WHERE daily_cycle_id=%d",$id));
+   if($issued||$evening)throw new DomainException('Issued or closed orders cannot reopen as drafts.','daily_state_invalid',409);
+   Db::mustUpdate($db,$rt,['status'=>'draft'],['id'=>(int)$r['id']]);
+   Db::mustUpdate($db,Db::table('daily_cycles'),['status'=>'morning_draft'],['id'=>$id]);
+   Audit::add($a,'daily_order.reopen_draft','daily_cycle',$id,['branch_id'=>(int)$c['branch_id']]);
+   return['id'=>$id,'status'=>'morning_draft'];
+  });
+ }
  public static function submit(Actor $a,int $id):array{return Transaction::run(function()use($a,$id){$c=self::cycle($a,$id,true);$cap=(int)$c['employee_id']===$a->employeeId?Capabilities::DAILY_SELF:Capabilities::DAILY_OTHERS;Guard::branch($a,(int)$c['branch_id'],$cap);if((int)$c['employee_id']!==$a->employeeId)HierarchyScope::assertCanViewEmployee($a,(int)$c['employee_id']);BranchDayGuard::assertOpen($a,(int)$c['branch_id'],(string)$c['business_date']);if($c['status']!=='morning_draft')throw new DomainException('Daily Order not draft.');$db=Db::wpdb();$r=$db->get_row($db->prepare("SELECT * FROM ".Db::table('daily_requests')." WHERE daily_cycle_id=%d AND type='initial'",$id),ARRAY_A);if(!$r||$r['status']!=='draft')throw new DomainException('Initial request is not draft.','daily_request_state_invalid',409);Db::mustUpdate($db,Db::table('daily_requests'),['status'=>'submitted'],['id'=>(int)$r['id']]);Db::mustUpdate($db,Db::table('daily_cycles'),['status'=>'stock_requested'],['id'=>$id]);Audit::add($a,'daily_order.submit','daily_cycle',$id,['branch_id'=>(int)$c['branch_id'],'request_id'=>(int)$r['id']]);return['id'=>$id,'status'=>'stock_requested'];});}
  public static function additional(Actor $a,int $id,array $lines):array{return Transaction::run(function()use($a,$id,$lines){$c=self::cycle($a,$id,true);$cap=(int)$c['employee_id']===$a->employeeId?Capabilities::DAILY_SELF:Capabilities::DAILY_OTHERS;Guard::branch($a,(int)$c['branch_id'],$cap);if((int)$c['employee_id']!==$a->employeeId)HierarchyScope::assertCanViewEmployee($a,(int)$c['employee_id']);BranchDayGuard::assertOpen($a,(int)$c['branch_id'],(string)$c['business_date']);if($c['status']!=='issued')throw new DomainException('Additional stock only after issue.');if(!$lines)throw new DomainException('Additional Stock request needs product lines.');$db=Db::wpdb();$pending=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('daily_requests')." WHERE daily_cycle_id=%d AND type='additional' AND status IN ('draft','submitted','approved')",$id));if($pending)throw new DomainException('A pending Additional Stock request already exists.','additional_request_pending',409);$prepared=[];$seen=[];foreach($lines as$x){$pid=(int)($x['product_id']??0);$qty=(float)($x['quantity']??0);if(!$pid||$qty<=0)throw new DomainException('Invalid additional line.');if(isset($seen[$pid]))throw new DomainException('Duplicate product in Additional Stock request.','duplicate_daily_line',422);$seen[$pid]=1;StockService::product($a,$pid);$prepared[]=['product_id'=>$pid,'quantity'=>$qty];}Db::mustInsert($db,Db::table('daily_requests'),['daily_cycle_id'=>$id,'type'=>'additional','status'=>'submitted','requested_by'=>$a->employeeId,'created_at'=>Db::now()]);$rid=(int)$db->insert_id;foreach($prepared as$x)Db::mustInsert($db,Db::table('daily_request_lines'),['daily_request_id'=>$rid,'product_id'=>$x['product_id'],'batch_id'=>null,'quantity'=>$x['quantity']]);Audit::add($a,'daily_order.additional','daily_request',$rid,['branch_id'=>(int)$c['branch_id'],'cycle_id'=>$id]);return['id'=>$rid,'cycle_id'=>$id,'status'=>'submitted'];});}
  public static function approve(Actor $a,int $request):array{return Transaction::run(function()use($a,$request){$db=Db::wpdb();$r=$db->get_row($db->prepare("SELECT r.*,c.branch_id,c.employee_id,c.company_id,c.business_date FROM ".Db::table('daily_requests')." r JOIN ".Db::table('daily_cycles')." c ON c.id=r.daily_cycle_id WHERE r.id=%d AND c.company_id=%d FOR UPDATE",$request,$a->companyId),ARRAY_A);if(!$r)throw new DomainException('Daily request not found.');$authority=ActingDutyService::assertAction($a,(int)$r['branch_id'],'daily.approve',(int)$r['requested_by']);if($authority['mode']==='permanent')HierarchyScope::assertCanViewEmployee($a,(int)$r['employee_id']);BranchDayGuard::assertOpen($a,(int)$r['branch_id'],(string)$r['business_date']);if($r['status']!=='submitted')throw new DomainException('Request not submitted.');if((int)$r['requested_by']===$a->employeeId)throw new DomainException('Maker cannot approve own request.','maker_checker_required',409);Db::mustUpdate($db,Db::table('daily_requests'),['status'=>'approved','approved_by'=>$a->employeeId,'approved_at'=>Db::now()],['id'=>$request]);if($r['type']==='initial')Db::mustUpdate($db,Db::table('daily_cycles'),['status'=>'approved'],['id'=>(int)$r['daily_cycle_id']]);Audit::add($a,'daily_order.approve','daily_request',$request,['branch_id'=>(int)$r['branch_id'],'cycle_id'=>(int)$r['daily_cycle_id'],'type'=>(string)$r['type']]);return['id'=>$request,'status'=>'approved'];});}
