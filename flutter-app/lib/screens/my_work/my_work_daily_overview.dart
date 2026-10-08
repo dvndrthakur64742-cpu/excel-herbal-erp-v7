@@ -16,6 +16,11 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
+              IconButton(
+                tooltip: 'Search full Daily Order history',
+                icon: const Icon(Icons.manage_search_rounded),
+                onPressed: _searchDailyHistoryImpl,
+              ),
               if (app.can('daily_order.self') || app.can('daily_order.others'))
                 FilledButton.icon(
                   onPressed: app.currentBranchId == null || _dailyOrderOpening
@@ -172,6 +177,212 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
         ),
       ],
     );
+  }
+
+
+  Future<void> _searchDailyHistoryImpl() async {
+    final api = ref.read(apiClientProvider);
+    final app = ref.read(appStateProvider);
+    final query = TextEditingController();
+    final from = TextEditingController();
+    final to = TextEditingController();
+    String status = '';
+    int page = 1;
+    const pageSize = 25;
+
+    Future<Map<String, dynamic>> fetchPage() async {
+      return Map<String, dynamic>.from(
+        await api.get(
+          ApiPaths.dailyHistorySearch,
+          query: {
+            if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+            'page': page,
+            'page_size': pageSize,
+            if (query.text.trim().isNotEmpty) 'query': query.text.trim(),
+            if (status.isNotEmpty) 'status': status,
+            if (from.text.trim().isNotEmpty) 'date_from': from.text.trim(),
+            if (to.text.trim().isNotEmpty) 'date_to': to.text.trim(),
+          },
+        ) as Map,
+      );
+    }
+
+    Future<Map<String, dynamic>> current = fetchPage();
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, update) {
+            void applyFilters() => update(() {
+              page = 1;
+              current = fetchPage();
+            });
+            return AlertDialog(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              title: const Text('Find Daily Orders'),
+              content: SizedBox(
+                width: MediaQuery.sizeOf(dialogContext).width > 820
+                    ? 760
+                    : MediaQuery.sizeOf(dialogContext).width - 56,
+                height: MediaQuery.sizeOf(dialogContext).height * .68,
+                child: Column(
+                  children: [
+                    SingleChildScrollView(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 205,
+                            child: TextField(
+                              controller: query,
+                              onSubmitted: (_) => applyFilters(),
+                              decoration: const InputDecoration(
+                                labelText: 'Order ID / Employee',
+                                isDense: true,
+                                prefixIcon: Icon(Icons.search),
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 150,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: status,
+                              isExpanded: true,
+                              decoration: const InputDecoration(labelText: 'Status', isDense: true),
+                              items: const [
+                                DropdownMenuItem(value: '', child: Text('All statuses')),
+                                DropdownMenuItem(value: 'morning_draft', child: Text('Draft')),
+                                DropdownMenuItem(value: 'stock_requested', child: Text('Pending approval')),
+                                DropdownMenuItem(value: 'approved', child: Text('Approved')),
+                                DropdownMenuItem(value: 'issued', child: Text('Issued')),
+                                DropdownMenuItem(value: 'evening_draft', child: Text('Evening draft')),
+                                DropdownMenuItem(value: 'evening_submitted', child: Text('Closing review')),
+                                DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                                DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+                                DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                              ],
+                              onChanged: (value) { status = value ?? ''; applyFilters(); },
+                            ),
+                          ),
+                          SizedBox(
+                            width: 132,
+                            child: TextField(
+                              controller: from,
+                              keyboardType: TextInputType.datetime,
+                              onSubmitted: (_) => applyFilters(),
+                              decoration: const InputDecoration(labelText: 'From YYYY-MM-DD', isDense: true),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 132,
+                            child: TextField(
+                              controller: to,
+                              keyboardType: TextInputType.datetime,
+                              onSubmitted: (_) => applyFilters(),
+                              decoration: const InputDecoration(labelText: 'To YYYY-MM-DD', isDense: true),
+                            ),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: applyFilters,
+                            icon: const Icon(Icons.filter_alt_outlined),
+                            label: const Text('Search'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: FutureBuilder<Map<String, dynamic>>(
+                        future: current,
+                        builder: (context, result) {
+                          if (result.hasError) {
+                            return Center(child: Text('Search failed: ${UiError.message(result.error!)}'));
+                          }
+                          if (!result.hasData) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          final data = result.data!;
+                          final items = ((data['items'] as List?) ?? const [])
+                              .whereType<Map>()
+                              .map((row) => Map<String, dynamic>.from(row))
+                              .toList();
+                          final total = (data['total'] as num?)?.toInt() ?? 0;
+                          final hasMore = data['has_more'] == true;
+                          return Column(
+                            children: [
+                              Expanded(
+                                child: items.isEmpty
+                                    ? const Center(child: Text('No matching authorised orders.'))
+                                    : ListView.separated(
+                                        itemCount: items.length,
+                                        separatorBuilder: (_, __) => const Divider(height: 1),
+                                        itemBuilder: (context, i) {
+                                          final row = items[i];
+                                          final orderId = int.tryParse('${row['id']}') ?? 0;
+                                          return ListTile(
+                                            title: Text('#$orderId · ${row['employee_name'] ?? 'Employee'}'),
+                                            subtitle: Text('${BusinessFormat.date(row['business_date'])} · ${_dailyRowStatusText(row)}'),
+                                            trailing: const Icon(Icons.chevron_right),
+                                            onTap: orderId == 0 ? null : () {
+                                              Navigator.pop(dialogContext);
+                                              _MyWorkDaily(this)._showDaily(orderId);
+                                            },
+                                          );
+                                        },
+                                      ),
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Flexible(child: Text('$total total · Page $page', maxLines: 1)),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Previous page',
+                                        onPressed: page <= 1 ? null : () => update(() {
+                                          page--;
+                                          current = fetchPage();
+                                        }),
+                                        icon: const Icon(Icons.chevron_left),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Next page',
+                                        onPressed: !hasMore ? null : () => update(() {
+                                          page++;
+                                          current = fetchPage();
+                                        }),
+                                        icon: const Icon(Icons.chevron_right),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    } finally {
+      query.dispose();
+      from.dispose();
+      to.dispose();
+    }
   }
 
   Future<List<Map<String, dynamic>>> _dailyRowsImpl(
