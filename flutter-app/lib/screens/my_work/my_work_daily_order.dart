@@ -65,6 +65,8 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       String? formError;
       var saving = false;
       var selectedOnly = false;
+      var exitPromptOpen = false;
+      final originalEmployee = selectedEmployee;
 
       List<Map<String, dynamic>> collectLines() {
         final lines = <Map<String, dynamic>>[];
@@ -157,8 +159,53 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               }
             }
 
+            Future<void> requestExit() async {
+              if (saving || exitPromptOpen) return;
+              final dirty = selectedEmployee != originalEmployee ||
+                  qty.values.any((controller) => controller.text.trim().isNotEmpty);
+              if (!dirty) {
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                return;
+              }
+              exitPromptOpen = true;
+              final action = await showDialog<String>(
+                context: dialogContext,
+                barrierDismissible: false,
+                builder: (confirmContext) => AlertDialog(
+                  title: const Text('Unsaved Daily Order'),
+                  content: const Text(
+                    'You have entered order details. Save a draft before leaving, or discard your changes.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(confirmContext, 'continue'),
+                      child: const Text('Continue Editing'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(confirmContext, 'discard'),
+                      child: const Text('Discard'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(confirmContext, 'save'),
+                      child: const Text('Save Draft'),
+                    ),
+                  ],
+                ),
+              );
+              exitPromptOpen = false;
+              if (!dialogContext.mounted) return;
+              if (action == 'discard') {
+                Navigator.pop(dialogContext);
+              } else if (action == 'save') {
+                await persist('draft');
+              }
+            }
+
             return PopScope(
-              canPop: !saving,
+              canPop: false,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop && !saving) requestExit();
+              },
               child: AlertDialog(
               titlePadding: const EdgeInsets.fromLTRB(20, 18, 12, 8),
               title: Row(
@@ -166,8 +213,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                   const Expanded(child: Text('Daily Order · Morning Stock')),
                   IconButton(
                     tooltip: 'Close',
-                    onPressed:
-                        saving ? null : () => Navigator.pop(dialogContext),
+                    onPressed: saving ? null : requestExit,
                     icon: const Icon(Icons.close_rounded),
                   ),
                 ],
@@ -527,8 +573,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      saving ? null : () => Navigator.pop(dialogContext),
+                  onPressed: saving ? null : requestExit,
                   child: const Text('Cancel'),
                 ),
                 FilledButton.tonalIcon(
