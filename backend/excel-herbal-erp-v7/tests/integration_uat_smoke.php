@@ -10,6 +10,8 @@ use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Capabilities;
 use ExcelHerbal\ERP7\Inventory\StockService;
 use ExcelHerbal\ERP7\Inventory\InventoryService;
+use ExcelHerbal\ERP7\Finance\AccountingService;
+use ExcelHerbal\ERP7\Finance\FinanceClosingService;
 
 if (!function_exists('get_option')) {
     function get_option($name, $default = false) {
@@ -379,6 +381,38 @@ uat_case('uat_hr_document_download_and_revoke', function () use ($manager) {
     try { uat_dispatch('org.document_download',$manager,['id'=>10,'document_id'=>72]); }
     catch(DomainException $e){ if($e->codeKey==='document_not_found'&&$e->httpStatus===404)return; throw $e; }
     throw new RuntimeException('inactive HR document remained downloadable');
+});
+
+
+uat_case('uat_audit_journal_negative_opposite_side_rejected', function () use ($manager) {
+    // F08: balanced totals must not allow negative values on the opposite side.
+    try {
+        AccountingService::post($manager,1,'expense',999999,Db::businessNow(),[
+            ['account_id'=>1,'debit'=>100,'credit'=>-50],
+            ['account_id'=>3,'debit'=>-50,'credit'=>100],
+        ],'Must reject signed opposite-side journal');
+    }
+    catch (DomainException $e) {
+        if ($e->codeKey==='journal_amount_invalid' && $e->httpStatus===422) return;
+        throw $e;
+    }
+    throw new RuntimeException('F08 signed journal amounts were accepted');
+});
+
+uat_case('uat_audit_repeat_branch_close_preserves_checker', function () use ($wpdb) {
+    // F09: a second distinct close request must not replace the original checker/timestamp.
+    $makerActor=uat_actor(30,[2],[Capabilities::BRANCH_CLOSE],'SYSADMIN');
+    $checkerA=uat_actor(20,[2],[Capabilities::BRANCH_CLOSE],'SYSADMIN');
+    $checkerB=uat_actor(10,[2],[Capabilities::BRANCH_CLOSE],'SYSADMIN');
+    $draft=FinanceClosingService::closingDraft($makerActor,2,uat_date());
+    $id=(int)$draft['id'];
+    $first=FinanceClosingService::closeBranch($checkerA,$id);
+    if (($first['status']??'')!=='closed') throw new RuntimeException('F09 first branch close failed');
+    $before=$wpdb->get_row($wpdb->prepare('SELECT closed_by,closed_at,preflight_json FROM '.Db::table('branch_closings').' WHERE id=%d',$id),ARRAY_A);
+    $second=FinanceClosingService::closeBranch($checkerB,$id);
+    $after=$wpdb->get_row($wpdb->prepare('SELECT closed_by,closed_at,preflight_json FROM '.Db::table('branch_closings').' WHERE id=%d',$id),ARRAY_A);
+    if (($second['status']??'')!=='closed'||(int)$after['closed_by']!==20||$before!=$after)
+        throw new RuntimeException('F09 repeat close overwrote original closing metadata');
 });
 
 uat_case('uat_no_negative_stock_and_balanced_journals', function () use ($wpdb) {
