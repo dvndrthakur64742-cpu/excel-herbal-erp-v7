@@ -676,7 +676,35 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         await _newDailyOrderImpl(editId: id);
         return;
       }
-      if (action == 'reject' || action == 'cancel_additional') {
+      if (action == 'reopen_draft') {
+        await api.post(ApiPaths.dailyReopenDraft(id), data: const {});
+        message = 'Cancelled order reopened as a draft. You can edit or submit it.';
+      } else if (action == 'cancel_cycle') {
+        final controller = TextEditingController();
+        final reason = await showDialog<String>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Cancel Daily Order?'),
+            content: TextField(
+              controller: controller,
+              maxLength: 255,
+              decoration: const InputDecoration(labelText: 'Cancellation reason (minimum 5 characters)'),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Keep Order')),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+                child: const Text('Cancel Order'),
+              ),
+            ],
+          ),
+        );
+        controller.dispose();
+        if (reason == null) return;
+        if (reason.length < 5) throw Exception('Please give a reason (at least five characters).');
+        await api.post(ApiPaths.dailyCancelCycle(id), data: {'reason': reason});
+        message = 'Daily Order cancelled. Use Reopen Draft if you need to correct it.';
+      } else if (action == 'reject' || action == 'cancel_additional') {
         final detail = await _MyWorkDaily(this)._dailyDetail(id);
         final requests = ((detail['requests'] as List?) ?? const [])
             .whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
