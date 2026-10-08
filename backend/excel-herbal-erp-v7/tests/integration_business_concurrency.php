@@ -12,6 +12,9 @@ use ExcelHerbal\ERP7\Payroll\PayrollPerformanceService;
 use ExcelHerbal\ERP7\Payroll\SalaryService;
 use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Capabilities;
+use ExcelHerbal\ERP7\Database\Transaction;
+use ExcelHerbal\ERP7\Finance\AccountingService;
+use ExcelHerbal\ERP7\Finance\FinancePeriodService;
 
 const EH7_BC_DATE = '2026-09-01';
 
@@ -23,6 +26,8 @@ function bc_rebuild_schema(Eh7IntegrationWpdb $db): void {
     $names = [
         'stock_transfer_lines', 'stock_transfers', 'branch_closings', 'hr_separations',
         'audit_log', 'performance_entries', 'leave_requests', 'attendance', 'holidays',
+        'accounts', 'journal_entries', 'journal_lines', 'number_series',
+        'expenses', 'daily_cycles', 'stock_adjustments', 'reversals', 'accounting_periods',
         'settings', 'payroll_items', 'payroll_runs', 'salary_revisions',
         'employee_branch_authorities', 'employee_branch_history', 'employees', 'branches', 'companies',
     ];
@@ -146,6 +151,64 @@ function bc_seed_transfer(Eh7IntegrationWpdb $db): void {
     ]);
 }
 
+
+function bc_seed_finance_close_race(Eh7IntegrationWpdb $db): void {
+    bc_insert($db,'companies',['id'=>1,'name'=>'Finance Concurrency Co','status'=>'active','created_at'=>'2026-01-01 00:00:00']);
+    foreach ([1,2] as $branch) {
+        bc_insert($db,'branches',[
+            'id'=>$branch,'company_id'=>1,'code'=>'B'.$branch,'name'=>'Branch '.$branch,
+            'is_head_office'=>$branch===1?1:0,'status'=>'active','created_at'=>'2026-01-01 00:00:00',
+        ]);
+        bc_insert($db,'branch_closings',[
+            'company_id'=>1,'branch_id'=>$branch,'business_date'=>'2019-01-15',
+            'status'=>'closed','created_by'=>101,'closed_by'=>101,
+            'created_at'=>'2019-01-15 22:00:00','closed_at'=>'2019-01-15 22:30:00',
+        ]);
+    }
+    foreach ([[1,'TEST_CASH','asset'],[2,'TEST_EXPENSE','expense']] as [$id,$code,$type]) {
+        bc_insert($db,'accounts',[
+            'id'=>$id,'company_id'=>1,'code'=>$code,'name'=>$code,'type'=>$type,'active'=>1,
+        ]);
+    }
+    bc_insert($db,'expenses',[
+        'id'=>1,'company_id'=>1,'branch_id'=>1,'expense_head_id'=>1,
+        'amount'=>50,'payment_account_id'=>1,'status'=>'approved',
+        'expense_date'=>'2019-01-15','description'=>'Race source',
+        'created_by'=>101,'approved_by'=>101,'created_at'=>'2019-01-15 10:00:00',
+    ]);
+}
+
+/** Named-lock notification forces journal posting to start after closer owns the company-row lock. */
+function bc_close_period_with_signal(): array {
+    $actor=bc_actor([Capabilities::PERIOD_MANAGE]);
+    return Transaction::run(function()use($actor) {
+        AccountingService::lockCompanyForPeriod($actor);
+        $db=Db::wpdb();
+        $held=$db->get_var("SELECT GET_LOCK('eh7_bc_period_close_ready',5)");
+        if((int)$held!==1)throw new RuntimeException('Finance close signal lock unavailable');
+        try {
+            usleep(450000);
+            return FinancePeriodService::closePeriod($actor,'2019-01-15','2019-01-15');
+        } finally {
+            $db->get_var("SELECT RELEASE_LOCK('eh7_bc_period_close_ready')");
+        }
+    });
+}
+function bc_post_during_period_close(): int {
+    $db=Db::wpdb();$deadline=microtime(true)+5;$seen=false;
+    do {
+        $held=$db->get_var("SELECT IS_USED_LOCK('eh7_bc_period_close_ready')");
+        if($held!==null){$seen=true;break;}
+        usleep(10000);
+    } while(microtime(true)<$deadline);
+    if(!$seen)throw new RuntimeException('Never observed pending finance close');
+    $actor=bc_actor([Capabilities::PERIOD_MANAGE]);
+    return AccountingService::post($actor,1,'expense',1,'2019-01-15 12:00:00',[
+        ['account_id'=>2,'debit'=>50,'credit'=>0],
+        ['account_id'=>1,'debit'=>0,'credit'=>50],
+    ],'Reject if period close committed first');
+}
+
 function bc_wait(float $startAt): void {
     while (($remaining = $startAt - microtime(true)) > 0) {
         usleep((int)min(50000, max(1000, $remaining * 1000000)));
@@ -178,6 +241,8 @@ function bc_worker(string $mode, float $startAt): never {
             'head-office-a' => OrganizationBranchService::createBranch(
                 bc_actor([Capabilities::BRANCH_MANAGE]), 'HO-A', 'Head Office A', true
             ),
+            'period-close-guard' => bc_close_period_with_signal(),
+            'period-post-guard' => bc_post_during_period_close(),
             'head-office-b' => OrganizationBranchService::createBranch(
                 bc_actor([Capabilities::BRANCH_MANAGE]), 'HO-B', 'Head Office B', true
             ),
@@ -367,6 +432,23 @@ bc_case('business_single_head_office_is_concurrency_safe', function () use ($wpd
     if ($count !== 1 || $audits !== 1) {
         throw new RuntimeException("Head Office invariant mismatch branches={$count} audits={$audits}");
     }
+});
+
+
+bc_case('business_period_close_vs_journal_posting_is_serialized', function()use($wpdb) {
+    bc_rebuild_schema($wpdb);
+    bc_seed_finance_close_race($wpdb);
+    $results=bc_parallel(['period-close-guard','period-post-guard']);
+    $closer=array_values(array_filter($results,static fn($row)=>$row['mode']==='period-close-guard'))[0]??[];
+    $poster=array_values(array_filter($results,static fn($row)=>$row['mode']==='period-post-guard'))[0]??[];
+    if(($closer['ok']??false)!==true || ($closer['result']['status']??'')!=='closed')
+        throw new RuntimeException('Period close did not commit: '.json_encode($results));
+    if(($poster['ok']??true)!==false || ($poster['code']??'')!=='accounting_period_closed')
+        throw new RuntimeException('Concurrent journal bypassed closed period: '.json_encode($results));
+    $journals=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'));
+    $closed=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('accounting_periods')." WHERE company_id=1 AND status='closed'");
+    if($journals!==0||$closed!==1)
+        throw new RuntimeException('Invalid finance closing race journals='.$journals.' closed='.$closed);
 });
 
 echo ($failed ? 'FAILED' : 'PASSED')." business concurrency suite\n";
