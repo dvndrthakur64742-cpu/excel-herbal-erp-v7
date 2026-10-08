@@ -27,7 +27,15 @@ final class AccountingService{
 
  public static function post(Actor $a,?int $branch,string $source,int $sourceId,string $date,array $lines,string $memo=''):int{
   self::assertPeriodOpen($a,$date);if(count($lines)<2)throw new DomainException('Journal needs at least two lines.');
-  $dr=0.0;$cr=0.0;foreach($lines as$l){self::account($a,(int)$l['account_id']);$d=round((float)($l['debit']??0),2);$c=round((float)($l['credit']??0),2);if(($d>0)==($c>0))throw new DomainException('Each journal line must be debit or credit.');$dr+=$d;$cr+=$c;}if(abs($dr-$cr)>.005)throw new DomainException('Journal not balanced.','journal_unbalanced',409);
+  $dr=0.0;$cr=0.0;foreach($lines as$l){
+   self::account($a,(int)$l['account_id']);
+   $rawDebit=$l['debit']??0;$rawCredit=$l['credit']??0;
+   if(!is_numeric($rawDebit)||!is_numeric($rawCredit)||!is_finite((float)$rawDebit)||!is_finite((float)$rawCredit)||(float)$rawDebit<0||(float)$rawCredit<0)
+    throw new DomainException('Journal amounts must be finite and nonnegative.','journal_amount_invalid',422);
+   $d=round((float)$rawDebit,2);$c=round((float)$rawCredit,2);
+   if(($d>0)==($c>0))throw new DomainException('Each journal line must be debit or credit.','journal_line_invalid',422);
+   $dr+=$d;$cr+=$c;
+  }if(abs($dr-$cr)>.005)throw new DomainException('Journal not balanced.','journal_unbalanced',409);
   return Transaction::run(function()use($a,$branch,$source,$sourceId,$date,$lines,$memo){
    $db=Db::wpdb();$h=Db::table('journal_entries');
    self::lockSource($a,$source,$sourceId);
