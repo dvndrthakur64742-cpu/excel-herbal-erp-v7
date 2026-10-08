@@ -1,7 +1,7 @@
 part of 'my_work_screen.dart';
 
 extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
-  Future<void> _newDailyOrderImpl() async {
+  Future<void> _newDailyOrderImpl({int? editId}) async {
     if (_dailyOrderOpening) return;
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
@@ -55,9 +55,35 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         }
       }
 
+      final initialQuantities = <int, String>{};
+      if (editId != null) {
+        final detail = Map<String, dynamic>.from(
+          await api.get(ApiPaths.dailyDetail(editId)) as Map,
+        );
+        final cycle = Map<String, dynamic>.from((detail['cycle'] as Map?) ?? const {});
+        if ('${cycle['status']}' != 'morning_draft') {
+          throw Exception('Only a morning draft may be edited.');
+        }
+        selectedEmployee = int.parse('${cycle['employee_id']}');
+        final requests = ((detail['requests'] as List?) ?? const [])
+            .whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
+        final initial = requests.where((r) => '${r['type']}' == 'initial').toList();
+        if (initial.length != 1 || '${initial.first['status']}' != 'draft') {
+          throw Exception('The original draft request is unavailable.');
+        }
+        for (final raw in ((initial.first['lines'] as List?) ?? const [])) {
+          final line = Map<String, dynamic>.from(raw as Map);
+          final productId = int.parse('${line['product_id']}');
+          final count = num.parse('${line['quantity']}');
+          if (!WholePcs.isWhole(count)) throw Exception('Draft contains non-whole PCS.');
+          initialQuantities[productId] = count.toInt().toString();
+        }
+      }
       final qty = <int, TextEditingController>{
         for (final p in products)
-          int.parse('${p['id']}'): TextEditingController(),
+          int.parse('${p['id']}'): TextEditingController(
+            text: initialQuantities[int.parse('${p['id']}')] ?? '',
+          ),
       };
       final search = TextEditingController();
       String? mode;
@@ -67,6 +93,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       var selectedOnly = false;
       var exitPromptOpen = false;
       final originalEmployee = selectedEmployee;
+      final originalQuantities = <int, String>{for (final e in qty.entries) e.key: e.value.text.trim()};
 
       List<Map<String, dynamic>> collectLines() {
         final lines = <Map<String, dynamic>>[];
@@ -125,13 +152,15 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               try {
                 final created = Map<String, dynamic>.from(
                   await api.post(
-                    ApiPaths.dailyCycles,
-                    data: {
-                      'branch_id': app.currentBranchId,
-                      'employee_id': selectedEmployee,
-                      'business_date': app.businessDate,
-                      'lines': lines,
-                    },
+                    editId == null ? ApiPaths.dailyCycles : ApiPaths.dailyEditDraft(editId),
+                    data: editId == null
+                        ? {
+                            'branch_id': app.currentBranchId,
+                            'employee_id': selectedEmployee,
+                            'business_date': app.businessDate,
+                            'lines': lines,
+                          }
+                        : {'lines': lines},
                   ) as Map,
                 );
                 mode = 'draft';
@@ -162,7 +191,8 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
             Future<void> requestExit() async {
               if (saving || exitPromptOpen) return;
               final dirty = selectedEmployee != originalEmployee ||
-                  qty.values.any((controller) => controller.text.trim().isNotEmpty);
+                  qty.entries.any((entry) =>
+                      entry.value.text.trim() != originalQuantities[entry.key]);
               if (!dirty) {
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
                 return;
@@ -210,7 +240,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               titlePadding: const EdgeInsets.fromLTRB(20, 18, 12, 8),
               title: Row(
                 children: [
-                  const Expanded(child: Text('Daily Order · Morning Stock')),
+                  Expanded(child: Text(editId == null ? 'Daily Order · Morning Stock' : 'Edit Daily Order #$editId')),
                   IconButton(
                     tooltip: 'Close',
                     onPressed: saving ? null : requestExit,
@@ -244,7 +274,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                               ),
                             )
                             .toList(),
-                        onChanged: saving
+                        onChanged: saving || editId != null
                             ? null
                             : (v) {
                                 if (v != null) {
@@ -616,7 +646,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
           refresh++;
           message = submitError ?? (mode == 'submit'
               ? 'Daily Order submitted for approval.'
-              : 'Daily Order draft saved.');
+              : editId != null ? 'Daily Order draft updated.' : 'Daily Order draft saved.');
         });
       }
     } catch (e) {
@@ -642,7 +672,54 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         await _MyWorkDaily(this)._showDaily(id);
         return;
       }
-      if (action == 'submit') {
+      if (action == 'edit_draft') {
+        await _newDailyOrderImpl(editId: id);
+        return;
+      }
+      if (action == 'reject' || action == 'cancel_additional') {
+        final detail = await _MyWorkDaily(this)._dailyDetail(id);
+        final requests = ((detail['requests'] as List?) ?? const [])
+            .whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
+        final candidates = requests.where((r) =>
+            action == 'reject'
+                ? '${r['status']}' == 'submitted'
+                : '${r['type']}' == 'additional' &&
+                  const {'draft', 'submitted', 'approved'}.contains('${r['status']}')).toList();
+        if (candidates.isEmpty) throw Exception('No pending request for this action.');
+        final pending = candidates.last;
+        final controller = TextEditingController();
+        final reason = await showDialog<String>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(action == 'reject' ? 'Reject Request' : 'Cancel Additional Request'),
+            content: TextField(
+              controller: controller,
+              maxLength: 255,
+              decoration: const InputDecoration(
+                labelText: 'Reason (minimum 5 characters)',
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Back')),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+                child: const Text('Confirm'),
+              ),
+            ],
+          ),
+        );
+        controller.dispose();
+        if (reason == null) return;
+        if (reason.length < 5) throw Exception('Please enter a reason of at least 5 characters.');
+        final requestId = int.parse('${pending['id']}');
+        await api.post(
+          action == 'reject' ? ApiPaths.dailyReject(requestId) : ApiPaths.dailyCancelAdditional(requestId),
+          data: {'reason': reason},
+        );
+        message = action == 'reject'
+            ? 'Request rejected with reason. Draft can be corrected or closing can continue.'
+            : 'Pending additional request cancelled. Evening closing can continue.';
+      } else if (action == 'submit') {
         await api.post(ApiPaths.dailySubmit(id), data: const {});
         message = 'Daily Order submitted for approval.';
       } else if (action == 'approve') {
