@@ -65,15 +65,53 @@ Get-ChildItem -LiteralPath $artifactRoot -Force | Copy-Item -Destination $candid
 $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory(
-  $candidateDir,
-  $zipPath,
-  [System.IO.Compression.CompressionLevel]::Optimal,
-  $false
+# ZipFile.CreateFromDirectory may emit platform-native separators in entry
+# names on Windows. The WordPress UAT handler correctly rejects backslashes.
+# Create portable forward-slash-only entries and validate before upload.
+$archiveRoot = (Resolve-Path -LiteralPath $candidateDir).Path
+$archiveFiles = @(Get-ChildItem -LiteralPath $candidateDir -Recurse -File -Force)
+$archive = [System.IO.Compression.ZipFile]::Open(
+  $zipPath, [System.IO.Compression.ZipArchiveMode]::Create
 )
+try {
+  foreach ($file in $archiveFiles) {
+    $relative = $file.FullName.Substring($archiveRoot.Length).TrimStart([char[]]@([char]92,[char]47))
+    $entryName = $relative.Replace([char]92,[char]47)
+    if (-not $entryName -or $entryName -match '(^/|\\|^[A-Za-z]:|(^|/)\.\.?(/|$))') {
+      throw ('Unsafe portable web ZIP entry: ' + $entryName)
+    }
+    $entry = $archive.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
+    $inputStream = [System.IO.File]::OpenRead($file.FullName)
+    $entryStream = $entry.Open()
+    try { $inputStream.CopyTo($entryStream) }
+    finally {
+      $entryStream.Dispose()
+      $inputStream.Dispose()
+    }
+  }
+} finally { $archive.Dispose() }
+
 if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) {
   throw 'Verified UAT candidate ZIP was not created.'
 }
+$check = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+try {
+  $entries = @($check.Entries | ForEach-Object { $_.FullName })
+  if ($entries.Count -ne $archiveFiles.Count) {
+    throw 'ZIP entries do not match the verified artifact file count.'
+  }
+  foreach ($entryName in $entries) {
+    if (-not $entryName -or $entryName -match '(^/|\\|^[A-Za-z]:|(^|/)\.\.?(/|$))') {
+      throw ('UAT web ZIP rejected by WordPress-compatible path guard: ' + $entryName)
+    }
+  }
+  foreach ($required in @('index.html', 'main.dart.js', 'flutter_bootstrap.js', 'SHA256SUMS.txt', '.last_build_id')) {
+    if ($entries -cnotcontains $required) {
+      throw ('Certified UAT ZIP missing required entry: ' + $required)
+    }
+  }
+} finally { $check.Dispose() }
+Write-Host ('PASS portable_uat_zip_entries=' + $archiveFiles.Count)
 Write-Host ('PASS hosted_uat_artifact_source_head=' + $SourceHead)
 Write-Host ('PASS hosted_uat_artifact_verified_files=' + $manifest.Count)
 Write-Host ('PASS hosted_uat_artifact_main_sha256=' + $manifest['main.dart.js'])
