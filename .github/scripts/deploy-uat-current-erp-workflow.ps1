@@ -898,7 +898,9 @@ function Deploy-WebRuntime {
   # browser response while it is still visible, not just the unchanged health SHA.
   Start-Sleep -Seconds 3
   try {
-    Write-Host ('INFO web_deploy_browser_url=' + (Normalize-WebAddress (Get-ChromeWindowAddress (Root $chrome))))
+    $currentAddress = Normalize-WebAddress (Get-ChromeWindowAddress (Root $chrome))
+    $currentPage = [Uri]('https://' + $currentAddress)
+    Write-Host ('INFO web_deploy_browser_page=' + $currentPage.Host + $currentPage.AbsolutePath)
     Write-UiHints (Root $chrome) 'web_deploy_after_submit'
   } catch {
     Write-Host ('INFO web_deploy_browser_feedback_unavailable=' + $_.Exception.GetType().Name)
