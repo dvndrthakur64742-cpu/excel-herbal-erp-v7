@@ -427,7 +427,7 @@ function Write-UiHints([System.Windows.Automation.AutomationElement]$Root,[strin
   foreach ($element in $all) {
     try {
       $name = ([string]$element.Current.Name).Trim()
-      if ($name -and $name.Length -lt 240 -and $name -match '(?i)replace|plugin|upload|install|update|error|failed|already|activate|return') {
+      if ($name -and $name.Length -lt 240 -and $name -match '(?i)replace|plugin|upload|install|update|error|failed|already|activate|return|certified|maximum|invalid|expired|forbidden|too large|size limit|verification|permission|web bundle') {
         if (-not $seen.ContainsKey($name)) {
           $seen[$name] = $true
           Write-Host ('INFO UI: ' + $name + ' [' + $element.Current.ControlType.ProgrammaticName + ']')
@@ -894,6 +894,15 @@ function Deploy-WebRuntime {
   if (-not $submit) { throw 'Deploy Certified Web Bundle submit control disappeared before submission.' }
   Invoke-Element $submit
   Write-Host 'INFO web_deploy_submit_invoked=true'
+  # The UAT PHP handler returns an admin notice for rejected uploads. Capture the
+  # browser response while it is still visible, not just the unchanged health SHA.
+  Start-Sleep -Seconds 3
+  try {
+    Write-Host ('INFO web_deploy_browser_url=' + (Normalize-WebAddress (Get-ChromeWindowAddress (Root $chrome))))
+    Write-UiHints (Root $chrome) 'web_deploy_after_submit'
+  } catch {
+    Write-Host ('INFO web_deploy_browser_feedback_unavailable=' + $_.Exception.GetType().Name)
+  }
 
   $marker = ''
   $serverHash = ''
@@ -913,7 +922,12 @@ function Deploy-WebRuntime {
     }
   }
 
-  if ($marker -ne $SourceHead) { throw ('Live server-side web source marker mismatch after deployment wait: ' + $marker) }
+  if ($marker -ne $SourceHead) {
+    try { Write-UiHints (Root $chrome) 'web_deploy_final_browser_response' } catch {
+      Write-Host ('INFO web_deploy_browser_feedback_unavailable=' + $_.Exception.GetType().Name)
+    }
+    throw ('Live server-side web source marker mismatch after deployment wait: ' + $marker)
+  }
   if ($serverHash -ne $expectedMainHash) { throw ('Live server-side web main.dart.js hash mismatch: ' + $serverHash) }
   if ($serverManifest -ne $expectedManifestHash) { throw ('Live server-side web manifest hash mismatch: ' + $serverManifest) }
 
