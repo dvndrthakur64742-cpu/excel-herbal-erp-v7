@@ -6,10 +6,11 @@
     "status": "passed",
     "evidence": [
       "github-actions:37605825518",
-      "github-actions:37611310384"
+      "github-actions:37611310384",
+      "github-actions:37930701014"
     ],
-    "baseline_head": "3c38773b0ea0ff335dca062f4be0eddd4512baf0",
-    "note": "Latest runtime-affecting Android GPS testability refactor is certified green at 3c38773b0ea0ff335dca062f4be0eddd4512baf0 (PHP regression, Flutter analyze/tests/web compile). Subsequent commits through 6ec5186c7daaab0037a1fb21f1e7fd56169677bf change release evidence and CI/UAT proof only; exact-head ERP correction verification also passed at run 37611310384."
+    "baseline_head": "b15ed0daf4c9b9cd565b7b0889c48ddb6ab0a9fb",
+    "note": "Runtime-affecting UAT source b15ed0daf4c9b9cd565b7b0889c48ddb6ab0a9fb certified by ERP correction verification run 37930701014: PHP/MariaDB, Flutter Analyze/tests/web build, controlled staging deployment, backend/web SHA attestation, authenticated screen smoke and final UAT bundle PASS. Later commits ead9982, 89582b8 are audit trigger/release evidence only. Other specialized UAT workflows do not automatically pass as part of this run. No production approval."
   },
   "manual_gates": [
     {
@@ -35,7 +36,7 @@
     {
       "id": "environment_hardening",
       "required": true,
-      "status": "pending",
+      "status": "passed",
       "evidence": [
         "office-audit:wp-environment-type-undefined",
         "office-audit:disallow-file-edit-undefined",
@@ -56,9 +57,14 @@
         "github-actions:37620205932",
         "artifact:11481337642",
         "uat-proof:wp-environment-type-undefined-disallow-file-edit-undefined",
-        "deployed-source-head:75b53898d163623888c9cc347f7498c9f1c9aa61"
+        "deployed-source-head:75b53898d163623888c9cc347f7498c9f1c9aa61",
+        "github-actions:37934202152",
+        "artifact:11617264619",
+        "host-config:WP_ENVIRONMENT_TYPE=staging",
+        "host-config:DISALLOW_FILE_EDIT=true",
+        "verified-deployed-source-head:b15ed0daf4c9b9cd565b7b0889c48ddb6ab0a9fb"
       ],
-      "note": "Latest authenticated BUILD/UAT host audit (GitHub Actions 37620205932 / artifact 11481337642) against deployed source head 75b53898d163623888c9cc347f7498c9f1c9aa61 confirms ERP environment=staging but WordPress host constants remain unset: WP_ENVIRONMENT_TYPE is undefined and DISALLOW_FILE_EDIT is undefined. Other hardening checks remain PASS. Do not mark this gate passed until those two wp-config.php constants are set on office.excelherbal.in and the audit is re-run successfully."
+      "note": "PASS on authenticated 2026-10-09 host hardening re-audit (GitHub Actions 37934202152, artifact 11617264619). Both wp-config constants are explicitly defined: WP_ENVIRONMENT_TYPE=staging and DISALLOW_FILE_EDIT=true. The verified deployed backend and web runtime are at b15ed0daf4c9b9cd565b7b0889c48ddb6ab0a9fb. This closes only host environment hardening; business-report Accounts review and named Operational Owner/HR/Accounts pilot sign-off still require human acceptance. Production remains fail-closed."
     },
     {
       "id": "real_http_bearer_401_403",
