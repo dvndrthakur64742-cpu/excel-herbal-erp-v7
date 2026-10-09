@@ -12,6 +12,7 @@ final class UatWebDeployAdmin{
     private const ATTEST_ACTION='eh7_uat_web_attest';
     private const MAX_BYTES=52428800;
     private const DESKTOP_CACHE_BUSTER_OPTION='eh7_setup_web_bundle_uploaded_at';
+    private const LAST_RESULT_OPTION='eh7_uat_web_deploy_last_result';
 
     public static function boot():void{
         add_action('admin_menu',[self::class,'menu']);
@@ -42,6 +43,8 @@ final class UatWebDeployAdmin{
                 echo '<p><strong>UAT deployment authority:</strong> WordPress administrator · controlled BUILD/UAT fallback</p>';
             }
             echo '<p><strong>Current runtime:</strong> '.esc_html(is_file($target.'/main.dart.js')?'present':'missing').'</p>';
+            $maxUpload=min(self::MAX_BYTES,(int)wp_max_upload_size());
+            echo '<p><strong>Maximum accepted ZIP size:</strong> '.esc_html(size_format($maxUpload)).'. A larger upload cannot reach this deployment handler.</p>';
             echo '<form method="post" enctype="multipart/form-data" action="'.esc_url(admin_url('admin-post.php')).'">';
             wp_nonce_field(self::ACTION);
             echo '<input type="hidden" name="action" value="'.esc_attr(self::ACTION).'">';
@@ -100,9 +103,23 @@ final class UatWebDeployAdmin{
                     'created_at'=>gmdate('c'),
                 ],false);
             }
+            update_option(self::LAST_RESULT_OPTION,[
+                'ok'=>true,
+                'source_head'=>$sourceHead,
+                'main_sha256'=>$result['main_sha256'],
+                'manifest_sha256'=>$result['manifest_sha256'],
+                'created_at'=>gmdate('c'),
+            ],false);
             set_transient(self::resultKey(),['ok'=>true,'message'=>'Certified UAT web bundle deployed. Source '.$sourceHead.' · main.dart.js '.$result['main_sha256']],180);
         }catch(\Throwable $e){
-            set_transient(self::resultKey(),['ok'=>false,'message'=>$e->getMessage()],180);
+            $diagnostic=substr((string)$e->getMessage(),0,400);
+            update_option(self::LAST_RESULT_OPTION,[
+                'ok'=>false,
+                'source_head'=>$sourceHead,
+                'message'=>$diagnostic,
+                'created_at'=>gmdate('c'),
+            ],false);
+            set_transient(self::resultKey(),['ok'=>false,'message'=>$diagnostic],180);
         }
         wp_safe_redirect(admin_url('tools.php?page='.self::PAGE));
         exit;
