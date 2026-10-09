@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "gate": "environment_hardening",
-  "status": "pending",
-  "audited_at": "2026-10-07",
+  "status": "passed",
+  "audited_at": "2026-10-09",
   "staging_url": "https://office.excelherbal.in",
   "passed": {
     "erp_environment_staging": true,
@@ -16,12 +16,13 @@
     "force_ssl_admin": true,
     "wp_debug": false,
     "mariadb_transaction_isolation": "READ-COMMITTED",
-    "mariadb_max_allowed_packet": 1073741824
+    "mariadb_max_allowed_packet": 1073741824,
+    "wp_environment_type_defined": true,
+    "wp_environment_type": "staging",
+    "disallow_file_edit_defined": true,
+    "disallow_file_edit": true
   },
-  "blockers": {
-    "WP_ENVIRONMENT_TYPE": "undefined",
-    "DISALLOW_FILE_EDIT": "undefined"
-  },
+  "blockers": {},
   "advisory_updates": {
     "plugins": [
       {
@@ -59,8 +60,23 @@
     "define('WP_ENVIRONMENT_TYPE', 'staging');",
     "define('DISALLOW_FILE_EDIT', true);"
   ],
-  "note": "Latest authenticated runtime audit confirms both required host constants are still undefined. Do not mark passed until wp-config.php contains the required constants and a follow-up audit returns passed.",
+  "note": "Authenticated GitHub Actions re-audit on 2026-10-09 PASS: the deployed office BUILD/UAT backend reports WP_ENVIRONMENT_TYPE=staging and DISALLOW_FILE_EDIT=true as explicitly defined, without remaining host-hardening blockers. Additional historical host metrics and advisory updates were collected 2026-10-07, not re-tested by this scoped audit. This closes environment_hardening only; staging_safety, Accounts review and pilot approvals are separate. No production approval or deployment.",
   "latest_runtime_audit": {
+    "workflow_run": "37934202152",
+    "artifact_id": "11617264619",
+    "workflow_source_head": "ead9982cfbd3f0836b8ba70a8f860867f76e33f1",
+    "deployed_source_head": "b15ed0daf4c9b9cd565b7b0889c48ddb6ab0a9fb",
+    "tested_at_utc": "2026-10-09T13:04:37.1105805Z",
+    "reported_environment": "staging",
+    "wp_environment_type_defined": true,
+    "wp_environment_type": "staging",
+    "disallow_file_edit_defined": true,
+    "disallow_file_edit": true,
+    "status": "passed",
+    "evidence_artifact": "EH7-v7.4.0-Staging-Host-Hardening"
+  },
+  "historical_host_checks_audited_at": "2026-10-07",
+  "prior_runtime_audit": {
     "workflow_run": "37620205932",
     "artifact_id": "11481337642",
     "workflow_source_head": "0051dcb4760b998aa6916607f65d2700e5ed9c13",
