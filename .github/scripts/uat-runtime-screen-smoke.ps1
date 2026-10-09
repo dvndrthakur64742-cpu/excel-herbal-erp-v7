@@ -271,7 +271,8 @@ function Assert-NoBootstrapCrash([System.Diagnostics.Process]$Process,[string]$L
     'ERP server business date is unavailable or invalid.',
     'Bad state: No element',
     'StateError',
-    'ERP startup data is unavailable.'
+    'ERP startup data is unavailable.',
+    'This section could not load'
   )) {
     if ($joined -like ('*' + $bad + '*')) {
       Write-UiHints $Process ($Label + '_bootstrap_crash')
@@ -440,6 +441,49 @@ try {
     }
   }
 
+  # Inspect an existing closing draft without changing quantities or submitting
+  # business data. A target without an accessible draft is explicitly untested.
+  $evidence.phase = 'daily_order_closing'
+  $myWork = Find-ByNameLike (Root $chrome) @('My Work')
+  if (-not $myWork -or -not (Try-Invoke $myWork)) {
+    throw 'My Work navigation is missing after module smoke.'
+  }
+  $daily = Wait-ForAnyName $chrome @('Daily Order') 15
+  if (-not $daily) {
+    $evidence.results['daily_order_closing'] = 'not_tested_no_authorised_daily_tab'
+    Write-Host 'INFO closing_smoke_not_tested=no_authorised_daily_tab'
+  } else {
+    if (-not (Try-Invoke $daily)) { throw 'Daily Order tab could not be opened.' }
+    $dailyTitle = Wait-ForAnyName $chrome @('Daily Orders') 20
+    if (-not $dailyTitle) { throw 'Daily Order list did not render.' }
+    Assert-NoBootstrapCrash $chrome 'daily_order_list'
+    $continueClosing = Wait-ForAnyName $chrome @('Continue Closing') 10
+    if (-not $continueClosing) {
+      $evidence.results['daily_order_closing'] = 'not_tested_no_accessible_evening_draft'
+      Write-Host 'INFO closing_smoke_not_tested=no_accessible_evening_draft'
+    } else {
+      if (-not (Try-Invoke $continueClosing)) { throw 'Continue Closing could not be invoked.' }
+      $closingTitle = Wait-ForAnyName $chrome @('Evening Closing', 'This section could not load') 20
+      if (-not $closingTitle) { throw 'Evening Closing form did not open.' }
+      Start-Sleep -Milliseconds 750
+      Assert-NoBootstrapCrash $chrome 'daily_order_closing'
+      $saveDraft = Find-ByNameLike (Root $chrome) @('Save Draft')
+      $submit = Find-ByNameLike (Root $chrome) @('Save & Submit')
+      $cancel = Find-ByNameLike (Root $chrome) @('Cancel')
+      if (-not $saveDraft -or -not $submit -or -not $cancel) {
+        throw 'Evening Closing form is missing expected save/submit/cancel controls.'
+      }
+      # Cancel the unchanged form; never save or submit an employee order.
+      if (-not (Try-Invoke $cancel)) { throw 'Unchanged Evening Closing could not be dismissed.' }
+      Start-Sleep -Milliseconds 750
+      if (Find-ByNameLike (Root $chrome) @('Evening Closing', 'Unsaved Evening Closing')) {
+        throw 'Unchanged Evening Closing remained open after Cancel.'
+      }
+      $evidence.results['daily_order_closing'] = 'passed_read_only_open_cancel'
+      Write-Host 'PASS uat_daily_order_closing_open_cancel'
+    }
+  }
+
   $evidence['status'] = 'passed'
   $evidence.phase = 'complete'
   Write-Host 'PASSED authenticated UAT runtime screen smoke'
@@ -465,3 +509,4 @@ finally {
     }
   }
 }
+
