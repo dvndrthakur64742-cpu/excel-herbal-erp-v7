@@ -18,10 +18,10 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
     for (final l in lines) {
       final key = int.parse('${l['issue_line_id']}');
       returns[key] = TextEditingController(
-        text: '${l['return_quantity'] ?? 0}',
+        text: WholePcs.apiQuantityText(l['return_quantity']),
       );
       wholesale[key] = TextEditingController(
-        text: '${l['wholesale_quantity'] ?? 0}',
+        text: WholePcs.apiQuantityText(l['wholesale_quantity']),
       );
       wholesaleRate[key] = TextEditingController(
         text: '${l['wholesale_rate'] ?? 0}',
