@@ -7,10 +7,13 @@
     "evidence": [
       "github-actions:37605825518",
       "github-actions:37611310384",
-      "github-actions:37930701014"
+      "github-actions:37930701014",
+      "github-actions:38027297734",
+      "github-actions:38034404917",
+      "github-actions:38040500406"
     ],
-    "baseline_head": "b15ed0daf4c9b9cd565b7b0889c48ddb6ab0a9fb",
-    "note": "Runtime-affecting UAT source b15ed0daf4c9b9cd565b7b0889c48ddb6ab0a9fb certified by ERP correction verification run 37930701014: PHP/MariaDB, Flutter Analyze/tests/web build, controlled staging deployment, backend/web SHA attestation, authenticated screen smoke and final UAT bundle PASS. Later commits ead9982, 89582b8 are audit trigger/release evidence only. Other specialized UAT workflows do not automatically pass as part of this run. No production approval."
+    "baseline_head": "6eb337c15d01055ad91fa875ca6bc319de0c12fb",
+    "note": "Current BUILD/UAT backend and Flutter web both verify source head 6eb337c15d01055ad91fa875ca6bc319de0c12fb via exact-head GitHub deployment run 38027297734 (attempt 3): PHP/MariaDB, Flutter Analyze/tests/Web Build, controlled host SHA+manifest attestation, authenticated screen smoke and Daily Order read-only integrity PASS. Subsequent branch-only code/test verification run 38040500406 on b221938a4a9ad9ce7fcd3f781b2c084c7d9f49b1 passed synthetic mixed Daily Order, transfer, disposable MariaDB, Flutter and Web Build. Script timeout fix CI run 38034404917 PASS. Test/evidence-only commits do not change the deployed ERP version. No production approval; business report human Accounts review and named pilot sign-offs pending."
   },
   "manual_gates": [
     {
@@ -140,7 +143,7 @@
         "uat-reconciliation:finance-4-of-4-matched",
         "release-evidence:release-gates/evidence/business-report-review-2026-10-07.json"
       ],
-      "note": "Automated report/reconciliation proof is complete and a reviewer packet is prepared at release-gates/evidence/business-report-review-2026-10-07.json. Trial Balance debit=credit 388,580; Assets 69,370 = Liabilities 67,200 + Equity 2,170; P&L profit 2,170 = Current Earnings 2,170; Stock reconciliation 35/35 matched; Finance reconciliation 4/4 matched. Gate remains pending only for named human Accounts review/sign-off."
+      "note": "Automated reconciliation packet is complete: Trial Balance debit=credit 388,580; Assets 69,370 = Liabilities 67,200 + Equity 2,170; profit 2,170 matches earnings; stock reconciliation 35/35, finance reconciliation 4/4. Gate is still pending a named independent Accounts human review/sign-off. Do not interpret automated mathematical balance as human approval."
     },
     {
       "id": "pilot_signoff",
@@ -148,9 +151,10 @@
       "status": "pending",
       "evidence": [
         "repo-template:pilot-signoff.json",
-        "release-evidence:release-gates/evidence/pilot-signoff-2026-10-07.json"
+        "release-evidence:release-gates/evidence/pilot-signoff-2026-10-07.json",
+        "github-actions:38040500406"
       ],
-      "note": "Final sign-off packet is prepared. Operational owner, HR and Accounts must each be named and marked passed; CI evidence cannot substitute for these human acceptances."
+      "note": "Technical baseline refreshed and pilot packet corrected after verified host hardening and full mixed Daily Order synthetic CI success (run 38040500406). Operational owner, HR, and Accounts must still each be named, independently sign, and be marked passed in the release evidence packet; no evidence or automated CI can substitute for this. Office remains unsanitized BUILD/UAT. Production remains blocked."
     }
   ],
   "approval": {
