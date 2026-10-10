@@ -237,11 +237,19 @@ class _AppShellState extends ConsumerState<AppShell> {
                     'Global Search',
                     Icons.manage_search_outlined,
                   ),
+                if (app.can('administration.access.manage'))
+                  _desktopTile(
+                    'administration',
+                    'Manage Permissions',
+                    Icons.admin_panel_settings_outlined,
+                  ),
                 const SizedBox(height: 10),
                 _sectionLabel(context, 'MODULES'),
                 ...app.sections
                     .where(
-                      (s) => !const {'home', 'my_work'}.contains('${s['id']}'),
+                      (s) => !const {'home', 'my_work'}.contains('${s['id']}') &&
+                          !('${s['id']}' == 'administration' &&
+                              app.can('administration.access.manage')),
                     )
                     .map(
                       (s) => _desktopTile(
