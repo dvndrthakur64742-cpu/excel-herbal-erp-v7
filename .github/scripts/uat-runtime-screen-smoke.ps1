@@ -473,8 +473,32 @@ try {
       if (-not $saveDraft -or -not $submit -or -not $cancel) {
         throw 'Evening Closing form is missing expected save/submit/cancel controls.'
       }
+      # Test the explicit Submit confirmation without persisting or submitting
+      # any business data. The first click only opens a confirmation dialog.
+      if (-not (Try-Invoke $submit)) {
+        throw 'Evening Closing confirmation could not be opened.'
+      }
+      $confirmation = Wait-ForAnyName $chrome @('Confirm Evening Submission') 15
+      if (-not $confirmation) {
+        throw 'Evening submission did not require explicit confirmation.'
+      }
+      $reviewQuantities = Find-ByNameLike (Root $chrome) @('Review Quantities')
+      if (-not $reviewQuantities -or -not (Try-Invoke $reviewQuantities)) {
+        throw 'Could not safely cancel Evening submission confirmation.'
+      }
+      Start-Sleep -Milliseconds 500
+      Assert-NoBootstrapCrash $chrome 'daily_order_submit_review'
+      if (-not (Find-ByNameLike (Root $chrome) @('Save & Submit'))) {
+        throw 'Evening Closing form was lost after cancelling submission.'
+      }
+      $evidence.results['evening_submit_confirmation'] = 'passed_read_only_cancel'
+      Write-Host 'PASS uat_daily_order_confirmation_cancel_no_mutation'
+
       # Cancel the unchanged form; never save or submit an employee order.
-      if (-not (Try-Invoke $cancel)) { throw 'Unchanged Evening Closing could not be dismissed.' }
+      $cancel = Find-ByNameLike (Root $chrome) @('Cancel')
+      if (-not $cancel -or -not (Try-Invoke $cancel)) {
+        throw 'Unchanged Evening Closing could not be dismissed.'
+      }
       Start-Sleep -Milliseconds 750
       if (Find-ByNameLike (Root $chrome) @('Evening Closing', 'Unsaved Evening Closing')) {
         throw 'Unchanged Evening Closing remained open after Cancel.'
