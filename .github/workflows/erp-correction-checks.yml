@@ -49,6 +49,956 @@ jobs:
             }
             Write-Host "PASS powershell_parse $($file.Name)"
           }
+          # Deployment is code-only. Anomaly resolution can cancel issued
+          # Daily Orders and move stock custody, so it must never run as an
+          # implicit deployment step.
+          $deployScript = Get-Content -LiteralPath '.github/scripts/deploy-uat-current-erp-workflow.ps1' -Raw
+          if ($deployScript -match '(?m)^\s*Resolve-UatAnomalies\s*(?:#.*)?
+        run: |
+          & '.github/scripts/test-uat-browser-ownership.ps1'
+      - name: Locate or install verified PHP 8.3.33 toolcache
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
+          $phpDir = Join-Path $toolRoot 'php-8.3.33'
+          $phpExe = Join-Path $phpDir 'php.exe'
+          if (-not (Test-Path -LiteralPath $phpExe -PathType Leaf)) {
+            New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
+            if (Test-Path -LiteralPath $phpDir) { Remove-Item -LiteralPath $phpDir -Recurse -Force }
+            $archive = Join-Path $env:RUNNER_TEMP 'eh7-php-8.3.33.zip'
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://downloads.php.net/~windows/releases/archives/php-8.3.33-nts-Win32-vs16-x64.zip' -OutFile $archive
+            if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '534399107056313246f424adbbb7937337e40fbbf6aa7bc26287ba9cfd2e4a2a') {
+              throw 'PHP archive checksum mismatch.'
+            }
+            Expand-Archive -LiteralPath $archive -DestinationPath $phpDir -Force
+          }
+          & $phpExe -n --version
+          if ($LASTEXITCODE -ne 0) { throw 'Cached PHP failed to start. Check the Visual C++ runtime on the runner.' }
+          "EH7_PHP_EXE=$phpExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Locate PHP 8.1 or newer
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $phpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
+          $candidates = @($env:EH7_PHP_EXE)
+          if ($phpCommand) { $candidates += $phpCommand.Source }
+          $candidates += @('C:\actions-runner\eh7-toolcache\php-8.3.33\php.exe', 'C:\php\php.exe', 'C:\xampp\php\php.exe')
+          $phpExe = $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
+          if (-not $phpExe) { throw 'PHP 8.1+ was not found. Install PHP CLI on ERP-PC and set EH7_PHP_EXE or add php.exe to the runner PATH, then restart the runner.' }
+          & $phpExe --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $phpExe -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);'
+          if ($LASTEXITCODE -ne 0) { throw 'PHP 8.1+ is required.' }
+          "EH7_PHP_EXE=$phpExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: PHP lint and 33 regression cases
+        working-directory: backend/excel-herbal-erp-v7
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(Get-ChildItem src,tests,tools -Recurse -Filter *.php -File -ErrorAction SilentlyContinue)
+          $files += Get-Item excel-herbal-erp-v7.php
+          foreach ($file in $files) {
+            & $env:EH7_PHP_EXE -l $file.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          & $env:EH7_PHP_EXE tests/regression.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:EH7_PHP_EXE tests/runtime_metadata.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:EH7_PHP_EXE tests/staging_safety.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:EH7_PHP_EXE tests/fresh_uat_bootstrap_guard.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:EH7_PHP_EXE tests/build_uat_environment.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Route and contract checks
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
+          $pythonDir = Join-Path $toolRoot 'python-3.13.7-embed'
+          $pythonExe = Join-Path $pythonDir 'python.exe'
+          if (-not (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
+            New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
+            if (Test-Path -LiteralPath $pythonDir) { Remove-Item -LiteralPath $pythonDir -Recurse -Force }
+            $archive = Join-Path $env:RUNNER_TEMP 'eh7-python-3.13.7.zip'
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-amd64.zip' -OutFile $archive
+            if ((Get-FileHash -LiteralPath $archive -Algorithm MD5).Hash -ne '77f294ec267596827a2ab06e8fa3f18c') {
+              throw 'Python archive checksum mismatch.'
+            }
+            Expand-Archive -LiteralPath $archive -DestinationPath $pythonDir -Force
+          }
+          & $pythonExe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Cached Python failed to start.' }
+          & $pythonExe backend/excel-herbal-erp-v7/tests/static_checks.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Disposable MariaDB 11.8.9 integration
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
+          $mariaRoot = Join-Path $toolRoot 'mariadb-11.8.9'
+          $serverExe = Join-Path $mariaRoot 'bin\mariadbd.exe'
+          $serverProcess = $null
+          $dataDir = Join-Path $env:RUNNER_TEMP ('eh7-mariadb-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          $serverOut = Join-Path $env:RUNNER_TEMP 'eh7-mariadb.stdout.log'
+          $serverErr = Join-Path $env:RUNNER_TEMP 'eh7-mariadb.stderr.log'
+          $previousPhpRc = $env:PHPRC
+          try {
+            if (-not (Test-Path -LiteralPath $serverExe -PathType Leaf)) {
+              New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
+              if (Test-Path -LiteralPath $mariaRoot) { Remove-Item -LiteralPath $mariaRoot -Recurse -Force }
+              $fileEndpoint = 'https://downloads.mariadb.org/rest-api/mariadb/11.8.9/mariadb-11.8.9-winx64.zip'
+              $checksum = Invoke-RestMethod -UseBasicParsing -Uri ($fileEndpoint + '/checksum')
+              $expected = ([string]$checksum.response.checksum.sha256sum).ToLowerInvariant()
+              if ($expected.Length -ne 64 -or $expected -notmatch '^[0-9a-f]+$') { throw 'MariaDB SHA-256 metadata is missing or invalid.' }
+              $downloadDir = Join-Path $toolRoot 'downloads'
+              New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
+              $archive = Join-Path $downloadDir 'mariadb-11.8.9-winx64.zip'
+              $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+              if (-not $curl) { throw 'curl.exe is required for resumable MariaDB toolcache download.' }
+              & $curl.Source --fail --location --retry 6 --retry-delay 5 --retry-all-errors --connect-timeout 30 --continue-at - --output $archive $fileEndpoint
+              if ($LASTEXITCODE -ne 0) { throw 'MariaDB resumable download failed.' }
+              $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -ne $expected) {
+                Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+                throw 'MariaDB archive checksum mismatch; cached partial archive was removed.'
+              }
+              $extractRoot = Join-Path $env:RUNNER_TEMP 'eh7-mariadb-extract'
+              if (Test-Path -LiteralPath $extractRoot) { Remove-Item -LiteralPath $extractRoot -Recurse -Force }
+              Expand-Archive -LiteralPath $archive -DestinationPath $extractRoot -Force
+              $found = Get-ChildItem -LiteralPath $extractRoot -Recurse -Filter mariadbd.exe -File | Select-Object -First 1
+              if (-not $found) { throw 'mariadbd.exe was not found in the verified MariaDB archive.' }
+              $expandedRoot = Split-Path (Split-Path $found.FullName -Parent) -Parent
+              Move-Item -LiteralPath $expandedRoot -Destination $mariaRoot
+              $serverExe = Join-Path $mariaRoot 'bin\mariadbd.exe'
+            }
+
+            $installExe = @(
+              (Join-Path $mariaRoot 'bin\mariadb-install-db.exe'),
+              (Join-Path $mariaRoot 'bin\mysql_install_db.exe')
+            ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+            $clientExe = Join-Path $mariaRoot 'bin\mariadb.exe'
+            $adminExe = Join-Path $mariaRoot 'bin\mariadb-admin.exe'
+            $dumpExe = Join-Path $mariaRoot 'bin\mariadb-dump.exe'
+            if (-not $installExe -or -not (Test-Path -LiteralPath $clientExe) -or -not (Test-Path -LiteralPath $adminExe) -or -not (Test-Path -LiteralPath $dumpExe)) {
+              throw 'MariaDB portable tools are incomplete.'
+            }
+
+            if (Test-Path -LiteralPath $dataDir) { Remove-Item -LiteralPath $dataDir -Recurse -Force }
+            $port = Get-Random -Minimum 34000 -Maximum 34999
+            $rootPassword = [guid]::NewGuid().ToString('N')
+            & $installExe "--datadir=$dataDir" "--password=$rootPassword" "--port=$port" --allow-remote-root-access
+            if ($LASTEXITCODE -ne 0) { throw 'MariaDB temporary data directory initialization failed.' }
+            $defaultsFile = Join-Path $dataDir 'my.ini'
+            if (-not (Test-Path -LiteralPath $defaultsFile -PathType Leaf)) { throw 'MariaDB temporary my.ini was not generated.' }
+
+            $serverProcess = Start-Process -FilePath $serverExe -ArgumentList @(
+              "--defaults-file=$defaultsFile",
+              '--console',
+              '--bind-address=127.0.0.1'
+            ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $serverOut -RedirectStandardError $serverErr
+
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 60; $attempt++) {
+              Start-Sleep -Seconds 1
+              if ($serverProcess.HasExited) { break }
+              & $adminExe --host=127.0.0.1 "--port=$port" --user=root "--password=$rootPassword" ping --silent 2>$null
+              if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+            }
+            if (-not $ready) {
+              if (Test-Path -LiteralPath $serverErr) { Get-Content -LiteralPath $serverErr -Tail 80 }
+              throw 'Disposable MariaDB server did not become ready.'
+            }
+
+            $database = 'eh7_integration_' + $env:GITHUB_RUN_ID + '_' + $env:GITHUB_RUN_ATTEMPT
+            & $clientExe --host=127.0.0.1 "--port=$port" --user=root "--password=$rootPassword" -e "CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+            if ($LASTEXITCODE -ne 0) { throw 'Disposable integration database could not be created.' }
+
+            $env:EH7_MARIADB_HOST = '127.0.0.1'
+            $env:EH7_MARIADB_PORT = [string]$port
+            $env:EH7_MARIADB_USER = 'root'
+            $env:EH7_MARIADB_PASSWORD = $rootPassword
+            $env:EH7_MARIADB_DATABASE = $database
+
+            $phpDir = Split-Path $env:EH7_PHP_EXE -Parent
+            $extensionDir = (Join-Path $phpDir 'ext').Replace('\','/')
+            $phpIni = Join-Path $env:RUNNER_TEMP 'eh7-mariadb-php.ini'
+            @(
+              ('extension_dir="' + $extensionDir + '"'),
+              'extension=mysqli',
+              'extension=openssl',
+              'extension=fileinfo'
+            ) | Set-Content -LiteralPath $phpIni -Encoding ascii
+            $env:PHPRC = $phpIni
+            & $env:EH7_PHP_EXE -r "if (!extension_loaded('mysqli')) { fwrite(STDERR, 'mysqli extension unavailable'); exit(7); } if (!function_exists('openssl_encrypt') || !function_exists('openssl_decrypt')) { fwrite(STDERR, 'OpenSSL extension unavailable'); exit(8); } if (!class_exists('finfo')) { fwrite(STDERR, 'fileinfo extension unavailable'); exit(9); }"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_mariadb.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_business_concurrency.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_sales_concurrency.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_purchase_concurrency.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_recovery_security.php auth
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_recovery_security.php seed-document-recovery
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            $backupFile = Join-Path $env:RUNNER_TEMP ('eh7-recovery-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '.sql')
+            $backupErr = Join-Path $env:RUNNER_TEMP 'eh7-recovery-dump.stderr.log'
+            $restoreErr = Join-Path $env:RUNNER_TEMP 'eh7-recovery-restore.stderr.log'
+            $dumpProcess = Start-Process -FilePath $dumpExe -ArgumentList @(
+              '--host=127.0.0.1',
+              "--port=$port",
+              '--user=root',
+              "--password=$rootPassword",
+              '--single-transaction',
+              '--quick',
+              '--skip-lock-tables',
+              '--default-character-set=utf8mb4',
+              '--databases',
+              $database
+            ) -Wait -PassThru -NoNewWindow -RedirectStandardOutput $backupFile -RedirectStandardError $backupErr
+            if ($dumpProcess.ExitCode -ne 0) {
+              if (Test-Path -LiteralPath $backupErr) { Get-Content -LiteralPath $backupErr -Tail 80 }
+              throw 'Disposable recovery backup export failed.'
+            }
+            if (-not (Test-Path -LiteralPath $backupFile -PathType Leaf) -or (Get-Item -LiteralPath $backupFile).Length -lt 1024) {
+              throw 'Disposable recovery backup is missing or unexpectedly small.'
+            }
+            $backupHash = (Get-FileHash -LiteralPath $backupFile -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Host "INFO recovery_backup_sha256=$backupHash"
+
+            & $clientExe --host=127.0.0.1 "--port=$port" --user=root "--password=$rootPassword" -e "DROP DATABASE $database;"
+            if ($LASTEXITCODE -ne 0) { throw 'Disposable recovery database drop failed.' }
+
+            $restoreProcess = Start-Process -FilePath $clientExe -ArgumentList @(
+              '--host=127.0.0.1',
+              "--port=$port",
+              '--user=root',
+              "--password=$rootPassword",
+              '--default-character-set=utf8mb4'
+            ) -Wait -PassThru -NoNewWindow -RedirectStandardInput $backupFile -RedirectStandardError $restoreErr
+            if ($restoreProcess.ExitCode -ne 0) {
+              if (Test-Path -LiteralPath $restoreErr) { Get-Content -LiteralPath $restoreErr -Tail 80 }
+              throw 'Disposable recovery backup restore failed.'
+            }
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_recovery_security.php verify-document-recovery
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host 'PASS mariadb_backup_restore_roundtrip'
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & $env:EH7_PHP_EXE backend/excel-herbal-erp-v7/tests/integration_business_e2e_coverage2.php
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          finally {
+            $env:PHPRC = $previousPhpRc
+            if ($serverProcess -and -not $serverProcess.HasExited) {
+              Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
+              Wait-Process -Id $serverProcess.Id -ErrorAction SilentlyContinue
+            }
+            if ($backupFile -and (Test-Path -LiteralPath $backupFile)) {
+              Remove-Item -LiteralPath $backupFile -Force -ErrorAction SilentlyContinue
+            }
+            if ($backupErr -and (Test-Path -LiteralPath $backupErr)) {
+              Remove-Item -LiteralPath $backupErr -Force -ErrorAction SilentlyContinue
+            }
+            if ($restoreErr -and (Test-Path -LiteralPath $restoreErr)) {
+              Remove-Item -LiteralPath $restoreErr -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path -LiteralPath $dataDir) {
+              Remove-Item -LiteralPath $dataDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
+  flutter-integration:
+    if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/erp735-document-integration') && (github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[deploy-only-session-race]'))
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Locate or install Flutter 3.44.9
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not ${env:ProgramFiles(x86)}) {
+            $pf86 = 'C:\Program Files (x86)'
+            if (-not (Test-Path -LiteralPath $pf86 -PathType Container)) {
+              throw 'Standard Program Files (x86) directory is unavailable on the Windows runner.'
+            }
+            "ProgramFiles(x86)=$pf86" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            ${env:ProgramFiles(x86)} = $pf86
+          }
+
+          $flutterExe = 'C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat'
+          if (-not (Test-Path -LiteralPath $flutterExe -PathType Leaf)) {
+            $flutter = Get-Command flutter.bat -ErrorAction SilentlyContinue
+            if ($flutter) {
+              $flutterExe = $flutter.Source
+            } else {
+              $flutterRoot = Join-Path $env:RUNNER_TEMP 'eh7-flutter-3.44.9'
+              $flutterSdk = Join-Path $flutterRoot 'flutter'
+              $flutterExe = Join-Path $flutterSdk 'bin\flutter.bat'
+              if (-not (Test-Path -LiteralPath $flutterExe -PathType Leaf)) {
+                if (Test-Path -LiteralPath $flutterRoot) {
+                  Remove-Item -LiteralPath $flutterRoot -Recurse -Force
+                }
+                New-Item -ItemType Directory -Path $flutterRoot -Force | Out-Null
+                & git clone --depth 1 --branch 3.44.9 https://github.com/flutter/flutter.git $flutterSdk
+                if ($LASTEXITCODE -ne 0) { throw 'Flutter 3.44.9 clone failed.' }
+              }
+            }
+          }
+          & $flutterExe --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = (& $flutterExe --version --machine | ConvertFrom-Json).frameworkVersion
+          if ($version -ne '3.44.9') { throw ('Flutter version mismatch: ' + $version) }
+          "EH7_FLUTTER_EXE=$flutterExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Dependencies
+        working-directory: flutter-app
+        run: |
+          & $env:EH7_FLUTTER_EXE pub get
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify pinned dependency lockfile
+        working-directory: flutter-app
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git diff -- pubspec.lock
+          git diff --quiet -- pubspec.lock
+          if ($LASTEXITCODE -ne 0) {
+            throw 'pubspec.lock changes under pinned Flutter 3.44.9. Regenerate and commit the lockfile before production certification.'
+          }
+      - name: Analyze
+        working-directory: flutter-app
+        run: |
+          & $env:EH7_FLUTTER_EXE analyze
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Tests
+        working-directory: flutter-app
+        run: |
+          & $env:EH7_FLUTTER_EXE test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Production web compile and invariants
+        working-directory: flutter-app
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & $env:EH7_FLUTTER_EXE build web --release --no-pub --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $index = 'build/web/index.html'
+          $main = 'build/web/main.dart.js'
+          if (-not (Test-Path -LiteralPath $index -PathType Leaf)) { throw 'Production web index.html was not generated.' }
+          if (-not (Test-Path -LiteralPath $main -PathType Leaf)) { throw 'Production web main.dart.js was not generated.' }
+          if (-not (Select-String -LiteralPath $index -SimpleMatch '<html lang="en">' -Quiet)) { throw 'Production web lang metadata is missing.' }
+          if (-not (Select-String -LiteralPath $index -SimpleMatch 'Excel Herbal ERP operations portal' -Quiet)) { throw 'Production web meta description is missing.' }
+          if (-not (Select-String -LiteralPath $main -SimpleMatch 'office.excelherbal.in/wp-json/excel-herbal-erp/v7' -Quiet)) { throw 'Production API base URL is missing from compiled web output.' }
+          if (Select-String -LiteralPath $main -SimpleMatch 'UAT BUILD' -Quiet) { throw 'UAT marker leaked into production web output.' }
+      - name: Create production web SHA-256 manifest
+        working-directory: flutter-app
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = (Resolve-Path 'build/web').Path
+          $lines = Get-ChildItem -LiteralPath $root -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $relative = $_.FullName.Substring($root.Length + 1).Replace('\','/')
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $relative"
+          }
+          $lines | Set-Content -LiteralPath 'build/web/SHA256SUMS.txt' -Encoding ascii
+          if (-not (Test-Path -LiteralPath 'build/web/SHA256SUMS.txt' -PathType Leaf)) { throw 'Web SHA-256 manifest was not created.' }
+      - name: Persist exact-head production web candidate on runner
+        working-directory: flutter-app
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $env:GITHUB_SHA)
+          $candidateDir = Join-Path $releaseRoot 'web'
+          $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
+          if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $candidateDir -Force | Out-Null
+          Copy-Item -Path 'build/web/*' -Destination $candidateDir -Recurse -Force
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+          $root = (Resolve-Path -LiteralPath $candidateDir).Path
+          $archive = [System.IO.Compression.ZipFile]::Open($zipPath,[System.IO.Compression.ZipArchiveMode]::Create)
+          try {
+            Get-ChildItem -LiteralPath $candidateDir -Recurse -File | ForEach-Object {
+              $relative = $_.FullName.Substring($root.Length).TrimStart([char[]]@([char]92,[char]47))
+              $entryName = $relative.Replace([char]92,[char]47)
+              $entry = $archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
+              $entryStream = $entry.Open()
+              $fileStream = [System.IO.File]::OpenRead($_.FullName)
+              try { $fileStream.CopyTo($entryStream) }
+              finally { $fileStream.Dispose(); $entryStream.Dispose() }
+            }
+          } finally { $archive.Dispose() }
+          $check = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          try {
+            $names = @($check.Entries | ForEach-Object { $_.FullName })
+            if ($names | Where-Object { $_.Contains([char]92) }) { throw 'Web candidate ZIP contains Windows backslash entries.' }
+            foreach ($required in @('index.html','main.dart.js','flutter_bootstrap.js','SHA256SUMS.txt')) {
+              if ($names -notcontains $required) { throw ('Web candidate ZIP missing required entry: ' + $required) }
+            }
+          } finally { $check.Dispose() }
+          if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw 'Local production web candidate ZIP was not created.' }
+          $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$zipHash  Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip" | Set-Content -LiteralPath (Join-Path $releaseRoot 'WEB-CANDIDATE-ZIP-SHA256.txt') -Encoding ascii
+          Write-Host "Exact-head web candidate preserved at $releaseRoot"
+
+
+      - name: Build controlled UAT web candidate
+        if: ${{ contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true) }}
+        working-directory: flutter-app
+        env:
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $site = [Uri]$env:UAT_SITE_URL.TrimEnd('/')
+          if (-not $site.IsAbsoluteUri -or $site.Scheme -ne 'https') { throw 'Controlled UAT site must use HTTPS.' }
+          if ($site.Host -ine 'office.excelherbal.in' -and $site.Host -notmatch '(?i)(^|[-.])(uat|staging)([-.]|$)') { throw 'BUILD/UAT hostname must be office.excelherbal.in or explicitly contain uat/staging.' }
+          $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
+
+          & $env:EH7_FLUTTER_EXE build web --release --no-pub --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=$apiBase --dart-define=EH7_ENVIRONMENT=uat
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $index = 'build/web/index.html'
+          $main = 'build/web/main.dart.js'
+          if (-not (Test-Path -LiteralPath $index -PathType Leaf)) { throw 'Controlled UAT web index.html was not generated.' }
+          if (-not (Test-Path -LiteralPath $main -PathType Leaf)) { throw 'Controlled UAT web main.dart.js was not generated.' }
+          if (-not (Select-String -LiteralPath $main -SimpleMatch $apiBase -Quiet)) { throw 'Controlled UAT API base URL is missing from compiled web output.' }
+
+          $root = (Resolve-Path 'build/web').Path
+          $manifest = Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object FullName | ForEach-Object {
+            $relative = $_.FullName.Substring($root.Length + 1).Replace('\','/')
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $relative"
+          }
+          $manifest | Set-Content -LiteralPath 'build/web/SHA256SUMS.txt' -Encoding ascii
+
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA)
+          $candidateDir = Join-Path $releaseRoot 'web'
+          $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
+          if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $candidateDir -Force | Out-Null
+          Copy-Item -Path 'build/web/*' -Destination $candidateDir -Recurse -Force
+
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archiveRoot = (Resolve-Path -LiteralPath $candidateDir).Path
+          $archive = [System.IO.Compression.ZipFile]::Open($zipPath,[System.IO.Compression.ZipArchiveMode]::Create)
+          try {
+            Get-ChildItem -LiteralPath $candidateDir -Recurse -File | ForEach-Object {
+              $relative = $_.FullName.Substring($archiveRoot.Length).TrimStart([char[]]@([char]92,[char]47))
+              $entryName = $relative.Replace([char]92,[char]47)
+              $entry = $archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
+              $entryStream = $entry.Open()
+              $fileStream = [System.IO.File]::OpenRead($_.FullName)
+              try { $fileStream.CopyTo($entryStream) }
+              finally { $fileStream.Dispose(); $entryStream.Dispose() }
+            }
+          } finally { $archive.Dispose() }
+
+          Write-Host "PASS controlled_uat_web_candidate=$releaseRoot"
+          Write-Host "PASS controlled_uat_api_base=$apiBase"
+
+
+      - name: Publish verified controlled-UAT web candidate for runner-independent preparation
+        if: ${{ contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-UAT-Web-${{ github.sha }}
+          path: flutter-app/build/web/
+          if-no-files-found: error
+          # Flutter's SHA256SUMS manifest includes the hidden .last_build_id file.
+          include-hidden-files: true
+          retention-days: 7
+
+  prepare-uat-candidate:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
+    needs: [php-regression, flutter-integration]
+    # Candidate preparation must not block on the local deployment machine.
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Download immutable same-run UAT web artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: EH7-UAT-Web-${{ github.sha }}
+          path: ${{ runner.temp }}/eh7-uat-web
+      - name: Verify artifact manifest and build deployment ZIP
+        run: |
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:RUNNER_TEMP 'eh7-uat-web')
+
+  deploy-uat-current-erp:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
+    needs: [php-regression, flutter-integration, prepare-uat-candidate]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 25
+    env:
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Download exact-head candidate from successful hosted build
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: EH7-UAT-Web-${{ github.sha }}
+          path: ${{ runner.temp }}/eh7-uat-web
+      - name: Verify and stage exact-head candidate on deployment runner
+        run: |
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:RUNNER_TEMP 'eh7-uat-web')
+      - name: Deploy backend and certified web through current ERP workflow
+        run: |
+          & '.github/scripts/deploy-uat-current-erp-workflow.ps1' -SourceHead $env:GITHUB_SHA -UatSiteUrl $env:UAT_SITE_URL
+      - name: Strict controlled UAT preflight
+        run: |
+          $hostName = ([Uri]$env:UAT_SITE_URL).Host
+          if ($hostName -ieq 'office.excelherbal.in') {
+            New-Item -ItemType Directory -Path 'dist/staging-target-preflight' -Force | Out-Null
+            @{
+              skipped = $true
+              reason = 'office BUILD/UAT workspace is not the isolated fresh-synthetic release-UAT target'
+              source_head = $env:GITHUB_SHA
+              target_host = $hostName
+            } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath 'dist/staging-target-preflight/EVIDENCE.json' -Encoding utf8
+            Write-Host 'INFO strict_isolated_uat_preflight=skipped office_build_uat_workspace=true'
+            exit 0
+          }
+          $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
+          & '.github/scripts/staging-target-preflight.ps1' `
+            -ApiBase $apiBase `
+            -ExpectedSourceHead $env:GITHUB_SHA
+      - name: Upload controlled UAT preflight evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-Controlled-UAT-Preflight-Evidence
+          path: dist/staging-target-preflight/EVIDENCE.json
+          if-no-files-found: warn
+      - name: Verify live backend head and certified web artifact SHA
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $health = $null
+          $lastHealthError = ''
+          for ($attempt = 1; $attempt -le 6; $attempt++) {
+            try {
+              $health = Invoke-RestMethod -UseBasicParsing -Uri ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+              break
+            } catch {
+              $lastHealthError = $_.Exception.Message
+              if ($attempt -lt 6) {
+                Start-Sleep -Seconds ([Math]::Min(10, $attempt * 2))
+              }
+            }
+          }
+          if (-not $health) { throw ('Live health verification failed after retries: ' + $lastHealthError) }
+          $healthData = if ($health.data) { $health.data } else { $health }
+          if ([string]$healthData.environment -ne 'staging') { throw ('Controlled UAT environment mismatch: ' + [string]$healthData.environment) }
+          $liveHead = if ($health.data -and $health.data.source_head) { [string]$health.data.source_head } elseif ($health.source_head) { [string]$health.source_head } else { '' }
+          if ($liveHead -ne $env:GITHUB_SHA) { throw ('Live backend source_head mismatch: ' + $liveHead) }
+
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $env:GITHUB_SHA)
+          $candidate = Join-Path $releaseRoot 'web\\main.dart.js'
+          if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'Exact-head candidate main.dart.js is missing.' }
+          $live = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
+          $liveDownloaded = $false
+          $lastLiveCurlExit = 0
+          for ($downloadAttempt = 1; $downloadAttempt -le 4; $downloadAttempt++) {
+            Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
+            & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 90 --output $live ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
+            $lastLiveCurlExit = $LASTEXITCODE
+            if ($lastLiveCurlExit -eq 0 -and (Test-Path -LiteralPath $live -PathType Leaf) -and (Get-Item -LiteralPath $live).Length -gt 0) {
+              $liveDownloaded = $true
+              break
+            }
+            if ($downloadAttempt -lt 4) { Start-Sleep -Seconds ([Math]::Min(8, $downloadAttempt * 2)) }
+          }
+          if (-not $liveDownloaded) { throw ('Live web verification download failed after retries. curl_exit=' + $lastLiveCurlExit) }
+          $expected = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actual = (Get-FileHash -LiteralPath $live -Algorithm SHA256).Hash.ToLowerInvariant()
+          Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
+          if ($expected -ne $actual) { throw ('Live web artifact SHA mismatch. expected=' + $expected + ' actual=' + $actual) }
+
+          $runtime = if ($health.data -and $health.data.web_runtime) { $health.data.web_runtime } elseif ($health.web_runtime) { $health.web_runtime } else { $null }
+          if (-not $runtime) { throw 'Health endpoint did not expose web_runtime integrity.' }
+          $webHead = [string]$runtime.source_head
+          $serverHash = [string]$runtime.main_sha256
+          if ($webHead -ne $env:GITHUB_SHA) { throw ('Live web source_head mismatch: ' + $webHead) }
+          if ($serverHash -ne $expected) { throw ('Live server-side web SHA mismatch. expected=' + $expected + ' actual=' + $serverHash) }
+
+          Write-Host "PASS live_backend_source_head=$liveHead"
+          Write-Host "PASS live_web_source_head=$webHead"
+          Write-Host "PASS live_web_sha256=$actual"
+          Write-Host "PASS live_server_web_sha256=$serverHash"
+
+  deploy-uat-web-session-race:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-uat-session-race]')
+    needs: [php-regression, flutter-integration]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    env:
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Deploy certified web candidate through local authenticated WordPress session
+        run: |
+          & '.github/scripts/deploy-uat-web-via-visible-wp-session.ps1' -SourceHead $env:GITHUB_SHA -UatSiteUrl $env:UAT_SITE_URL
+      - name: Verify live session-race build marker
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $env:GITHUB_SHA)
+          $candidate = Join-Path $releaseRoot 'web\\main.dart.js'
+          $live = Join-Path $env:RUNNER_TEMP 'eh7-live-session-race-main.js'
+          $liveDownloaded = $false
+          $lastLiveCurlExit = 0
+          for ($downloadAttempt = 1; $downloadAttempt -le 4; $downloadAttempt++) {
+            Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
+            & curl.exe --fail --location --silent --show-error --connect-timeout 15 --max-time 90 --output $live ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/main.dart.js?cb=' + [Guid]::NewGuid().ToString('N'))
+            $lastLiveCurlExit = $LASTEXITCODE
+            if ($lastLiveCurlExit -eq 0 -and (Test-Path -LiteralPath $live -PathType Leaf) -and (Get-Item -LiteralPath $live).Length -gt 0) {
+              $liveDownloaded = $true
+              break
+            }
+            if ($downloadAttempt -lt 4) { Start-Sleep -Seconds ([Math]::Min(8, $downloadAttempt * 2)) }
+          }
+          if (-not $liveDownloaded) { throw ('Live session-race verification download failed after retries. curl_exit=' + $lastLiveCurlExit) }
+          $expected = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actual = (Get-FileHash -LiteralPath $live -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($expected -ne $actual) { throw 'Live Flutter web hash does not match exact-head candidate.' }
+          Write-Host "PASS live_web_sha256=$actual"
+          Remove-Item -LiteralPath $live -Force -ErrorAction SilentlyContinue
+
+  deploy-only-session-race:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[deploy-only-session-race]')
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    env:
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify certified session-race candidate is present
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceHead = '64f5e580b3e9ae9da94c977981f6c3ea76d073da'
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $sourceHead)
+          foreach ($required in @(
+            (Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'),
+            (Join-Path $releaseRoot 'web\\main.dart.js'),
+            (Join-Path $releaseRoot 'web\\SHA256SUMS.txt')
+          )) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+              throw ('Certified session-race candidate is missing: ' + $required)
+            }
+          }
+          Write-Host ('PASS certified_session_race_candidate=' + $sourceHead)
+      - name: Deploy certified session-race candidate through exact web upload form
+        run: |
+          & '.github/scripts/deploy-uat-web-via-visible-wp-session.ps1' -SourceHead '64f5e580b3e9ae9da94c977981f6c3ea76d073da' -UatSiteUrl $env:UAT_SITE_URL
+
+
+  final-uat-bundle:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true)) && !contains(github.event.head_commit.message, '[deploy-only-session-race]')
+    needs: [php-regression, flutter-integration, prepare-uat-candidate]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 30
+    env:
+      UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Download exact-head candidate from successful hosted build
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: EH7-UAT-Web-${{ github.sha }}
+          path: ${{ runner.temp }}/eh7-uat-web
+      - name: Verify and stage exact-head candidate on deployment runner
+        run: |
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:RUNNER_TEMP 'eh7-uat-web')
+      - name: Build single-upload exact-head UAT deployment bundle
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $sourceWeb = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA + '\web')
+          if (-not (Test-Path -LiteralPath (Join-Path $sourceWeb 'index.html') -PathType Leaf)) { throw 'Exact-head web candidate directory is missing.' }
+          $work = Join-Path $env:RUNNER_TEMP ('eh7-final-bundle-' + [Guid]::NewGuid().ToString('N'))
+          $payload = Join-Path $work 'eh7-uat-deploy'
+          $plugin = Join-Path $payload 'plugin\excel-herbal-erp-v7'
+          $web = Join-Path $payload 'web\eh7-flutter-web'
+          New-Item -ItemType Directory -Path $plugin -Force | Out-Null
+          New-Item -ItemType Directory -Path $web -Force | Out-Null
+          Copy-Item -Path 'backend\excel-herbal-erp-v7\*' -Destination $plugin -Recurse -Force
+          Copy-Item -Path (Join-Path $sourceWeb '*') -Destination $web -Recurse -Force
+          $uatHost = ([Uri]$env:UAT_SITE_URL.TrimEnd('/')).Host.ToLowerInvariant()
+          $allowOffice = if ($uatHost -eq 'office.excelherbal.in') { 'true' } else { 'false' }
+          @(
+            '<?php',
+            "if(!defined('ABSPATH'))exit;",
+            "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');",
+            "define('EH7_DEPLOY_ENVIRONMENT','staging');",
+            "define('EH7_BUILD_UAT_ALLOW_OFFICE',$allowOffice);",
+            "define('EH7_BUILD_UAT_HOST','$uatHost');"
+          ) | Set-Content -LiteralPath (Join-Path $plugin 'build-meta.php') -Encoding ascii
+          $schemaLine = Select-String -LiteralPath (Join-Path $plugin 'src\Database\Schema.php') -Pattern "public const VERSION='([^']+)'" | Select-Object -First 1
+          if (-not $schemaLine) { throw 'Schema version could not be read.' }
+          $schemaVersion = $schemaLine.Matches.Groups[1].Value
+          $pluginMainHash = (Get-FileHash -LiteralPath (Join-Path $plugin 'excel-herbal-erp-v7.php') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $webMainHash = (Get-FileHash -LiteralPath (Join-Path $web 'main.dart.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "commit=$env:GITHUB_SHA",
+            "schema=$schemaVersion",
+            "plugin_entrypoint_sha256=$pluginMainHash",
+            "web_main_sha256=$webMainHash",
+            "purpose=build-uat-final-bundle",
+            "production_approved=false"
+          ) | Set-Content -LiteralPath (Join-Path $payload 'FINAL-MANIFEST.txt') -Encoding ascii
+          @(
+            'ONE-UPLOAD UAT DEPLOYMENT BUNDLE',
+            '',
+            '1. Confirm the target is the current BUILD/UAT host and keep its current rollback copy.',
+            '2. Upload this bundle to Hostinger File Manager and extract to a temporary folder.',
+            '3. Replace wp-content/plugins/excel-herbal-erp-v7 with plugin/excel-herbal-erp-v7.',
+            '4. Replace wp-content/uploads/eh7-flutter-web with web/eh7-flutter-web.',
+            '5. Do not activate any duplicate ERP plugin copy.',
+            '6. Verify /excel-herbal-erp/v7/health source_head matches FINAL-MANIFEST.txt.',
+            '7. Open Administration > System Health and run Resolve Safe UAT Anomalies once.',
+            '8. PR remains draft; this bundle is not production approval.'
+          ) | Set-Content -LiteralPath (Join-Path $payload 'DEPLOY-INSTRUCTIONS.txt') -Encoding utf8
+          foreach ($required in @(
+            (Join-Path $plugin 'excel-herbal-erp-v7.php'),
+            (Join-Path $plugin 'build-meta.php'),
+            (Join-Path $plugin 'src\Core\Autoloader.php'),
+            (Join-Path $web 'index.html'),
+            (Join-Path $web 'main.dart.js'),
+            (Join-Path $web 'flutter_bootstrap.js'),
+            (Join-Path $web 'SHA256SUMS.txt')
+          )) { if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw ('Final bundle missing required file: ' + $required) } }
+          $desktopRoot = Join-Path $env:USERPROFILE ('Desktop\EH7-UAT-Final\' + $env:GITHUB_SHA)
+          if (Test-Path -LiteralPath $desktopRoot) { Remove-Item -LiteralPath $desktopRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $desktopRoot -Force | Out-Null
+          $zipPath = Join-Path $desktopRoot 'EH7-UAT-Final-Bundle.zip'
+          $root = (Resolve-Path -LiteralPath $payload).Path
+          $archive = [System.IO.Compression.ZipFile]::Open($zipPath,[System.IO.Compression.ZipArchiveMode]::Create)
+          try {
+            Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object {
+              $relative = $_.FullName.Substring($root.Length).TrimStart([char[]]@([char]92,[char]47))
+              $entryName = $relative -replace '\\','/'
+              $entry = $archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
+              $entryStream = $entry.Open()
+              $fileStream = [System.IO.File]::OpenRead($_.FullName)
+              try { $fileStream.CopyTo($entryStream) }
+              finally { $fileStream.Dispose(); $entryStream.Dispose() }
+            }
+          } finally { $archive.Dispose() }
+          $verify = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          try {
+            $names = @($verify.Entries | ForEach-Object { $_.FullName })
+            if ($names | Where-Object { $_.Contains([char]92) }) { throw 'Final bundle contains Windows backslash entries.' }
+            foreach ($required in @(
+              'plugin/excel-herbal-erp-v7/excel-herbal-erp-v7.php',
+              'plugin/excel-herbal-erp-v7/build-meta.php',
+              'plugin/excel-herbal-erp-v7/src/Core/Autoloader.php',
+              'web/eh7-flutter-web/index.html',
+              'web/eh7-flutter-web/main.dart.js',
+              'FINAL-MANIFEST.txt',
+              'DEPLOY-INSTRUCTIONS.txt'
+            )) { if ($names -notcontains $required) { throw ('Final bundle ZIP missing required entry: ' + $required) } }
+          } finally { $verify.Dispose() }
+          $bundleHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$bundleHash  EH7-UAT-Final-Bundle.zip" | Set-Content -LiteralPath (Join-Path $desktopRoot 'FINAL-BUNDLE-SHA256.txt') -Encoding ascii
+          Copy-Item -LiteralPath (Join-Path $payload 'FINAL-MANIFEST.txt') -Destination $desktopRoot -Force
+          Write-Host "FINAL_BUNDLE_DIR=$desktopRoot"
+          Write-Host "FINAL_BUNDLE_SHA256=$bundleHash"
+          Remove-Item -LiteralPath $work -Recurse -Force
+
+  uat-daily-order-integrity-smoke:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[uat-daily-order]')
+    needs: [deploy-uat-current-erp]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Repair legacy Daily Order commercial snapshots and verify completed cycles
+        env:
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
+            throw 'EH7_STAGING_UAT_MOBILE / EH7_STAGING_UAT_PASSWORD secrets are required.'
+          }
+          $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
+          & '.github/scripts/uat-daily-order-repair-smoke.ps1' -ApiBase $apiBase -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Print Daily Order UAT evidence
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath 'dist/uat-daily-order/EVIDENCE.json' -PathType Leaf) {
+            Get-Content -LiteralPath 'dist/uat-daily-order/EVIDENCE.json'
+          } else {
+            Write-Host 'INFO Daily Order UAT evidence file was not created.'
+          }
+      - name: Upload Daily Order UAT evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-UAT-Daily-Order-Evidence
+          path: dist/uat-daily-order/EVIDENCE.json
+          if-no-files-found: warn
+
+  uat-runtime-screen-smoke:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
+    needs: [deploy-uat-current-erp]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify authenticated Home and six business module landing screens
+        env:
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+        run: |
+          $appUrl = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-content/uploads/eh7-flutter-web/'
+          & '.github/scripts/uat-runtime-screen-smoke.ps1' -AppUrl $appUrl -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
+      - name: Print UAT runtime screen evidence
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath 'dist/uat-runtime-screen-smoke/EVIDENCE.json' -PathType Leaf) {
+            Get-Content -LiteralPath 'dist/uat-runtime-screen-smoke/EVIDENCE.json'
+          } else {
+            Write-Host 'INFO UAT runtime screen evidence file was not created.'
+          }
+      - name: Upload UAT runtime screen evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-UAT-Runtime-Screen-Evidence
+          path: dist/uat-runtime-screen-smoke/EVIDENCE.json
+          if-no-files-found: warn
+
+  uat-private-document-http-smoke:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
+    needs: [deploy-uat-current-erp]
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Classify private-document smoke target
+        id: private_doc_target
+        env:
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $site = [Uri]$env:UAT_SITE_URL.TrimEnd('/')
+          $health = Invoke-RestMethod -UseBasicParsing -Uri ($env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7/health?cb=' + [Guid]::NewGuid().ToString('N')) -TimeoutSec 20
+          $data = if ($health.data) { $health.data } else { $health }
+          if ([string]$data.environment -ne 'staging') { throw ('Private-document smoke refuses non-staging environment: ' + [string]$data.environment) }
+          if ([string]$data.source_head -ne $env:GITHUB_SHA) { throw ('Private-document smoke source mismatch: ' + [string]$data.source_head) }
+
+          if ($site.Host -ieq 'office.excelherbal.in') {
+            New-Item -ItemType Directory -Path 'dist/staging-private-document' -Force | Out-Null
+            @{
+              schema_version = 1
+              gate = 'hr_multipart_private_document'
+              target_host = $site.Host
+              source_head = [string]$data.source_head
+              tested_at_utc = [DateTime]::UtcNow.ToString('o')
+              commit = $env:GITHUB_SHA
+              run_id = $env:GITHUB_RUN_ID
+              status = 'skipped_build_uat'
+              reason = 'office BUILD/UAT workspace is not the isolated fresh-synthetic release-UAT target; real multipart document mutation is reserved for isolated staging'
+            } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath 'dist/staging-private-document/EVIDENCE.json' -Encoding utf8
+            "run_smoke=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "PASS private_document_target_build_uat_skip host=$($site.Host) source_head=$($data.source_head)"
+            exit 0
+          }
+
+          if ($data.staging_safety.sanitized -ne $true) { throw 'Private-document smoke requires a sanitized isolated staging target.' }
+          if ($data.staging_safety.source_head_match -ne $true) { throw 'Private-document smoke requires staging-safety source-head attestation.' }
+          if ($data.uat_bootstrap.seeded -ne $true) { throw 'Private-document smoke requires seeded isolated UAT data.' }
+          if ($data.uat_bootstrap.synthetic_only -ne $true) { throw 'Private-document smoke requires synthetic-only UAT data.' }
+          if ($data.uat_bootstrap.source_head_match -ne $true) { throw 'Private-document smoke requires UAT-bootstrap source-head attestation.' }
+          "run_smoke=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "PASS private_document_target_isolated environment=staging source_head=$($data.source_head)"
+      - name: Multipart upload encrypted authenticated download and deactivate
+        if: steps.private_doc_target.outputs.run_smoke == 'true'
+        env:
+          UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
+            throw 'EH7_STAGING_UAT_MOBILE / EH7_STAGING_UAT_PASSWORD secrets are required.'
+          }
+          $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
+          & '.github/scripts/staging-private-document-smoke.ps1' -ApiBase $apiBase -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Print private-document evidence
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath 'dist/staging-private-document/EVIDENCE.json' -PathType Leaf) {
+            Get-Content -LiteralPath 'dist/staging-private-document/EVIDENCE.json'
+          } else {
+            Write-Host 'INFO private-document evidence file was not created.'
+          }
+      - name: Upload private-document evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-UAT-Private-Document-HTTP-Evidence
+          path: dist/staging-private-document/EVIDENCE.json
+          if-no-files-found: warn
+
+
+
+  host-hardening-audit:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' && contains(github.event.head_commit.message, '[host-audit]')
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify WordPress host hardening constants
+        id: audit
+        continue-on-error: true
+        env:
+          STAGING_API: ${{ vars.EH7_CONTROLLED_UAT_API_BASE || 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7' }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
+            throw 'Required staging UAT credentials are not configured.'
+          }
+          & '.github/scripts/staging-host-hardening-audit.ps1' -ApiBase $env:STAGING_API -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD
+      - name: Print host hardening evidence
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath 'dist/staging-host-hardening/EVIDENCE.json' -PathType Leaf) {
+            Get-Content -LiteralPath 'dist/staging-host-hardening/EVIDENCE.json'
+          } else {
+            Write-Host 'INFO host hardening evidence file was not created.'
+          }
+      - name: Upload host hardening evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-v7.4.0-Staging-Host-Hardening
+          path: dist/staging-host-hardening/EVIDENCE.json
+          if-no-files-found: warn
+      - name: Report host hardening audit outcome
+        if: always()
+        run: |
+          Write-Host "HOST_HARDENING_AUDIT_OUTCOME=${{ steps.audit.outcome }}"
+) {
+            throw 'Unsafe automatic UAT operational cleanup detected in deployment workflow.'
+          }
+          Write-Host 'PASS no_automatic_operational_cleanup_during_deploy'
       - name: Test UAT browser ownership without opening a browser
         run: |
           & '.github/scripts/test-uat-browser-ownership.ps1'
