@@ -526,8 +526,10 @@ jobs:
   prepare-uat-candidate:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
     needs: [php-regression, flutter-integration]
-    # Candidate preparation must not block on the local deployment machine.
-    runs-on: windows-latest
+    # GitHub-hosted windows-latest provisioning failed before job setup twice.
+    # Use the available Windows CI/deployment runner for SHA-verified prep.
+    # Job runs after Flutter and PHP, so it does not contend with their tests.
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
