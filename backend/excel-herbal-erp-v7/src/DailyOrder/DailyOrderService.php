@@ -191,6 +191,20 @@ final class DailyOrderService{
   return Transaction::run(function()use($a,$id){
    $c=self::cycle($a,$id,true);$cap=(int)$c['employee_id']===$a->employeeId?Capabilities::DAILY_SELF:Capabilities::DAILY_OTHERS;Guard::branch($a,(int)$c['branch_id'],$cap);if((int)$c['employee_id']!==$a->employeeId)HierarchyScope::assertCanViewEmployee($a,(int)$c['employee_id']);BranchDayGuard::assertOpen($a,(int)$c['branch_id'],(string)$c['business_date']);if($c['status']!=='evening_draft')throw new DomainException('Evening not draft.');
    $db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT * FROM ".Db::table('evening_settlements')." WHERE daily_cycle_id=%d FOR UPDATE",$id),ARRAY_A);if(!$e||$e['status']!=='draft')throw new DomainException('Evening Settlement is not draft.','evening_state_invalid',409);
+   // Never submit unsaved or stale totals. EveningStart creates draft lines
+   // with default retail assumptions, but only EveningSave reconciles them
+   // into expected_amount after the employee verifies returns/wholesale.
+   $closingLines=(array)$db->get_results($db->prepare("SELECT issued_quantity,return_quantity,retail_quantity,wholesale_quantity,retail_rate,wholesale_rate,total_amount FROM ".Db::table('evening_lines')." WHERE evening_settlement_id=%d FOR UPDATE",(int)$e['id']),ARRAY_A);
+   if(!$closingLines)throw new DomainException('Evening Closing has no issued lines.','evening_lines_missing',409);
+   $computed=0.0;
+   foreach($closingLines as$line){
+    $issued=(float)$line['issued_quantity'];$ret=(float)$line['return_quantity'];$retail=(float)$line['retail_quantity'];$wh=(float)$line['wholesale_quantity'];
+    if($issued<0||$ret<0||$retail<0||$wh<0||abs(($ret+$retail+$wh)-$issued)>.0001)throw new DomainException('Evening Closing quantities do not reconcile.','evening_quantities_mismatch',409);
+    $lineAmount=round($retail*(float)$line['retail_rate']+$wh*(float)$line['wholesale_rate'],2);
+    if(abs($lineAmount-(float)$line['total_amount'])>.005)throw new DomainException('Evening Closing line amount does not reconcile.','evening_totals_mismatch',409);
+    $computed+=$lineAmount;
+   }
+   if(abs(round($computed,2)-round((float)$e['expected_amount'],2))>.005)throw new DomainException('Save and verify the Evening Closing totals before submission.','evening_totals_mismatch',409);
    Db::mustUpdate($db,Db::table('evening_settlements'),['status'=>'submitted','submitted_by'=>$a->employeeId,'submitted_at'=>Db::now()],['id'=>(int)$e['id']]);
    Db::mustUpdate($db,Db::table('daily_cycles'),['status'=>'evening_submitted'],['id'=>$id]);
    Audit::add($a,'daily_order.evening_submit','daily_cycle',$id,['branch_id'=>(int)$c['branch_id'],'evening_id'=>(int)$e['id'],'expected_amount'=>(float)$e['expected_amount']]);
