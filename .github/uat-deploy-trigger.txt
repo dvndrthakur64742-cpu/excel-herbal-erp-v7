@@ -38,3 +38,4 @@ Office BUILD/UAT environment policy + picker/path hardening certified at c5c7c8e
 2026-10-07 deploy non-secret host-hardening health probe for authenticated-independent BUILD/UAT verification.
 2026-10-08 deploy latest certified branch head after finance concurrency regression coverage.
 2026-10-10 controlled BUILD/UAT: deploy verified service-level whole-PCS evening guard, explicit Evening Submit confirmation, and read-only submit/cancel UI smoke. Keep production_approved=false; do not post business data.
+2026-10-10 certified Daily Order Evening Submit safety: deploy exact-head PHP reconciliation guard, testable explicit confirmation UI, MariaDB/Flutter green run 38026973811. Code-only UAT workflow; do NOT execute operational anomaly cleanup or touch cancelled cycle #8.
