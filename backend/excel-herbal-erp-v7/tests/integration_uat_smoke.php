@@ -347,6 +347,133 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
 });
 
 
+
+uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function () use ($self,$manager,$wpdb) {
+    // Disposable, seeded MariaDB only. Exercise the full transaction with
+    // returns, wholesale, mixed settlement and immutable financial/stock writes.
+    // Use a unique synthetic business day outside the history-pagination range.
+    $day=(new DateTimeImmutable(uat_date()))->modify('-203 days')->format('Y-m-d');
+    $created=uat_dispatch('daily.create',$self,[
+        'branch_id'=>1,'employee_id'=>10,'business_date'=>$day,
+        'lines'=>[['product_id'=>100,'quantity'=>5]],
+    ]);
+    $cycle=(int)$created['id'];$request=(int)$created['request_id'];
+    uat_dispatch('daily.submit',$self,['id'=>$cycle]);
+    uat_dispatch('daily.approve',$manager,['id'=>$request]);
+    uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]]);
+    $evening=uat_dispatch('daily.evening_start',$self,['id'=>$cycle]);
+    $eveningId=(int)$evening['evening_id'];
+    $issuedLineId=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT issue_line_id FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d',$eveningId
+    ));
+    $saved=uat_dispatch('daily.evening_save',$self,[
+        'id'=>$cycle,
+        'lines'=>[[
+            'issue_line_id'=>$issuedLineId,'return_quantity'=>1,'wholesale_quantity'=>2,
+            'retail_rate'=>100,'wholesale_rate'=>80,
+        ]],
+        'wholesale_details'=>['wholesale_customer_name'=>'Synthetic Wholesale Buyer'],
+        'price_reason'=>'UAT fixture — prices taken from issue snapshots',
+    ]);
+    if (abs((float)$saved['expected_amount']-360)>.005) throw new RuntimeException('Mixed closing amount must be 2*100 + 2*80 = 360');
+    $line=$wpdb->get_row($wpdb->prepare(
+        'SELECT issued_quantity,return_quantity,retail_quantity,wholesale_quantity,total_amount FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d',$eveningId
+    ),ARRAY_A);
+    if (abs((float)$line['issued_quantity']-5)>.001 ||
+        abs((float)$line['return_quantity']-1)>.001 ||
+        abs((float)$line['retail_quantity']-2)>.001 ||
+        abs((float)$line['wholesale_quantity']-2)>.001 ||
+        abs((float)$line['total_amount']-360)>.005) {
+        throw new RuntimeException('Mixed wholesale/retail/return quantities failed to reconcile');
+    }
+    uat_dispatch('daily.evening_submit',$self,['id'=>$cycle]);
+
+    // A dual-capability maker must not approve their own settlement.
+    $dual=uat_actor(10,[1,2],[
+        Capabilities::DAILY_SELF,Capabilities::DAILY_APPROVE,
+        Capabilities::DAILY_ISSUE,Capabilities::DAILY_REVIEW,
+    ],'SYSADMIN');
+    uat_expect_forbidden(
+        fn()=>uat_dispatch('daily.final_post',$dual,['id'=>$cycle,'cash'=>200,'upi'=>160]),
+        'Evening maker final-posted their own submitted settlement'
+    );
+    $failureCases=[
+        ['cash'=>201,'upi'=>160],
+        ['cash'=>200,'upi'=>-1],
+    ];
+    foreach($failureCases as$bad) {
+        $rejected=false;
+        try {
+            uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>$bad['cash'],'upi'=>$bad['upi']]);
+        } catch(DomainException $e) {
+            if($e->httpStatus!==409 && $e->httpStatus!==422) throw $e;
+            $rejected=true;
+        }
+        if(!$rejected) throw new RuntimeException('Non-reconciled cash/UPI payment was accepted');
+        $status=(string)$wpdb->get_var($wpdb->prepare('SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle));
+        $movements=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('stock_ledger')." WHERE source_id=%d AND source_type IN ('daily_return','daily_sale')",$cycle
+        ));
+        if($status!=='evening_submitted'||$movements!==0) {
+            throw new RuntimeException('Rejected Final Post mutated order or stock');
+        }
+    }
+    $posted=uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>160]);
+    if(($posted['status']??'')!=='completed'||abs((float)($posted['amount']??0)-360)>.005) {
+        throw new RuntimeException('Mixed settlement Final Post failed');
+    }
+    $settlement=$wpdb->get_row($wpdb->prepare(
+        'SELECT status,cash_amount,upi_amount,submitted_by,reviewed_by FROM '.Db::table('evening_settlements').' WHERE id=%d',$eveningId
+    ),ARRAY_A);
+    if($settlement['status']!=='posted'||abs((float)$settlement['cash_amount']-200)>.005||
+        abs((float)$settlement['upi_amount']-160)>.005||
+        (int)$settlement['submitted_by']!==(int)$self->employeeId||
+        (int)$settlement['reviewed_by']!==(int)$manager->employeeId) {
+        throw new RuntimeException('Maker-checker and split-payment settlement was not persisted');
+    }
+    $warehouse=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+    );
+    $custody=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=10'
+    );
+    if(abs($warehouse-94)>.001||abs($custody)>.001) {
+        throw new RuntimeException("Mixed settlement stock custody wrong warehouse={$warehouse} employee={$custody}");
+    }
+    $returned=(float)$wpdb->get_var($wpdb->prepare(
+        "SELECT COALESCE(SUM(quantity),0) FROM ".Db::table('stock_ledger')." WHERE source_type='daily_return' AND source_id=%d AND direction='IN'",$cycle
+    ));
+    $sold=(float)$wpdb->get_var($wpdb->prepare(
+        "SELECT COALESCE(SUM(quantity),0) FROM ".Db::table('stock_ledger')." WHERE source_type='daily_sale' AND source_id=%d AND direction='OUT'",$cycle
+    ));
+    if(abs($returned-1)>.001||abs($sold-4)>.001)throw new RuntimeException('Mixed settlement stock ledger mismatch');
+    $journal=$wpdb->get_row($wpdb->prepare(
+        "SELECT id FROM ".Db::table('journal_entries')." WHERE source_type='daily_cycle' AND source_id=%d",$cycle
+    ),ARRAY_A);
+    if(!$journal) throw new RuntimeException('Daily sale/COGS journal absent after Final Post');
+    $totals=$wpdb->get_row($wpdb->prepare(
+        'SELECT SUM(debit) d,SUM(credit) c FROM '.Db::table('journal_lines').' WHERE journal_entry_id=%d',(int)$journal['id']
+    ),ARRAY_A);
+    if(abs((float)$totals['d']-560)>.005||abs((float)$totals['c']-560)>.005) {
+        throw new RuntimeException('Mixed settlement journal must balance 360 sales + 200 COGS');
+    }
+    $performance=$wpdb->get_row($wpdb->prepare(
+        "SELECT points,salary_fund FROM ".Db::table('performance_entries')." WHERE source_type='daily_cycle' AND source_id=%d",$cycle
+    ),ARRAY_A);
+    if(!$performance||abs((float)$performance['points']-8)>.005||
+       abs((float)$performance['salary_fund']-40)>.005)throw new RuntimeException('Performance distribution mismatch');
+    try {
+        uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>160]);
+        throw new RuntimeException('Final Post was replayed and could duplicate stock/journal');
+    } catch(DomainException $e) {
+        if($e->httpStatus<400||$e->httpStatus>=500)throw $e;
+    }
+    $journalCount=(int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM ".Db::table('journal_entries')." WHERE source_type='daily_cycle' AND source_id=%d",$cycle
+    ));
+    if($journalCount!==1)throw new RuntimeException('Final Post replay duplicated journal');
+});
+
 uat_case('uat_audit_batch_without_expiry_and_expired_quarantine', function () use ($manager,$wpdb) {
     // F02: batch-required without expiry tracking must remain issueable when expires_on is NULL.
     uat_insert($wpdb,'products',[
