@@ -169,32 +169,8 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                   !sheetContext.mounted) return;
               submitPromptOpen = true;
               try {
-                final confirmed = await showDialog<bool>(
-                  context: sheetContext,
-                  barrierDismissible: false,
-                  builder: (confirmationContext) => AlertDialog(
-                    title: const Text('Confirm Evening Submission'),
-                    content: const Text(
-                      'Please verify Return and Wholesale Qty for every '
-                      'issued product. All remaining PCS will be recorded '
-                      'as Retail Sold. After submission you cannot edit '
-                      'this closing. A separate authorised reviewer must '
-                      'complete Final Post. Continue?',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () =>
-                            Navigator.pop(confirmationContext, false),
-                        child: const Text('Review Quantities'),
-                      ),
-                      FilledButton(
-                        onPressed: () =>
-                            Navigator.pop(confirmationContext, true),
-                        child: const Text('Confirm & Submit'),
-                      ),
-                    ],
-                  ),
-                );
+                final confirmed =
+                    await confirmEveningClosingSubmission(sheetContext);
                 if (confirmed == true && sheetContext.mounted) {
                   await persist('submit');
                 }
