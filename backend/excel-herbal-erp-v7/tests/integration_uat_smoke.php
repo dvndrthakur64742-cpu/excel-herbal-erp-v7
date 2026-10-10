@@ -838,5 +838,55 @@ uat_case('uat_audit_period_close_posting_guard', function () use ($wpdb) {
     throw new RuntimeException('R01 posted a journal into closed period');
 });
 
+uat_case('uat_admin_access_atomic_save_and_rollback', function () use ($wpdb) {
+    // Disposable MariaDB only: access changes are not made on Office BUILD/UAT.
+    $admin=uat_actor(20,[1,2],[Capabilities::ACCESS,Capabilities::ACCESS_MANAGE],'SYSADMIN');
+    $role=uat_dispatch('access.role_create',$admin,[
+        'code'=>'UAT_REPORT_CLERK','name'=>'UAT Report Clerk',
+    ]);
+    $roleId=(int)$role['id'];
+    uat_dispatch('access.role_caps',$admin,[
+        'id'=>$roleId,'capabilities'=>[Capabilities::REPORTS_VIEW],
+        'reason'=>'UAT role permissions setup',
+    ]);
+    $saved=uat_dispatch('access.employee_update',$admin,[
+        'id'=>10,'role_ids'=>[$roleId],
+        'grants'=>[Capabilities::INVENTORY_VIEW],
+        'denies'=>[Capabilities::DAILY_SELF],
+        'reason'=>'UAT atomic access editing',
+    ]);
+    if(count($saved['roles']??[])!==1||
+       !in_array(Capabilities::REPORTS_VIEW,$saved['effective_capabilities']??[],true)||
+       !in_array(Capabilities::INVENTORY_VIEW,$saved['effective_capabilities']??[],true)||
+       in_array(Capabilities::DAILY_SELF,$saved['effective_capabilities']??[],true)) {
+        throw new RuntimeException('Atomic employee access save failed to compute role/grant/deny');
+    }
+    $auditBefore=(int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM ".Db::table('audit_logs')." WHERE company_id=%d AND entity_type='employee' AND entity_id=%d",1,10
+    ));
+    try {
+        // Removing the role succeeds in the inner savepoint; the invalid
+        // override must roll back that removal and all audit side effects.
+        uat_dispatch('access.employee_update',$admin,[
+            'id'=>10,'role_ids'=>[],
+            'grants'=>['invalid.unknown_capability'],'denies'=>[],
+            'reason'=>'Invalid override rollback verification',
+        ]);
+        throw new RuntimeException('Unknown capability was assigned to employee');
+    } catch(DomainException $e) {
+        if($e->codeKey!=='capability_invalid'||$e->httpStatus!==422)throw $e;
+    }
+    $after=uat_dispatch('access.employee',$admin,['id'=>10]);
+    if(count($after['roles']??[])!==1 ||
+       !in_array(Capabilities::INVENTORY_VIEW,$after['effective_capabilities']??[],true) ||
+       in_array(Capabilities::DAILY_SELF,$after['effective_capabilities']??[],true)) {
+        throw new RuntimeException('Failed atomic update partially changed employee access');
+    }
+    $auditAfter=(int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM ".Db::table('audit_logs')." WHERE company_id=%d AND entity_type='employee' AND entity_id=%d",1,10
+    ));
+    if($auditBefore!==$auditAfter)throw new RuntimeException('Rejected access change persisted an audit event');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
