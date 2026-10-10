@@ -145,6 +145,7 @@ final class ApiContract
             'comm.task_reassign'=>['employee_id'],
             'access.role_create'=>['code','name'],
             'access.role_caps'=>['capabilities','reason'],
+            'access.employee_update'=>['reason'],
             'access.employee_roles'=>['role_ids','reason'],
             'access.employee_overrides'=>['grants','denies','reason'],
             'admin.delegation_create'=>['delegate_employee_id','branch_id','action_code','starts_at','ends_at','reason'],
@@ -187,6 +188,14 @@ final class ApiContract
             if($v===null||(is_string($v)&&trim($v)==='')){
                 throw new DomainException($key.' is required.','parameter_required',422);
             }
+        }
+
+        if($handler==='access.employee_update') {
+            $roles=$request->get_param('role_ids');
+            $grants=$request->get_param('grants');
+            $denies=$request->get_param('denies');
+            if($roles===null&&$grants===null&&$denies===null)throw new DomainException('Select a role or permission change.','access_change_required',422);
+            if(($grants===null)!==($denies===null))throw new DomainException('Grant and deny overrides must be supplied together.','capability_override_invalid',422);
         }
 
         // Recovery GPS accepts either lat/lng or latitude/longitude aliases.
