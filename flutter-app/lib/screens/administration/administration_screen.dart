@@ -906,32 +906,36 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             );
           }
         } else {
-          if (rolesChanged) {
-            await ref.read(apiClientProvider).post(
-              ApiPaths.employeeRoles(id),
-              data: {
-                'role_ids': selectedRoles.toList()..sort(),
-                'reason': reason.text.trim(),
-              },
+          if (rolesChanged || overridesChanged) {
+            final updated = Map<String, dynamic>.from(
+              await ref.read(apiClientProvider).post(
+                ApiPaths.employeeAccess(id),
+                data: {
+                  if (rolesChanged) 'role_ids': selectedRoles.toList()..sort(),
+                  if (overridesChanged) ...{
+                    'grants': grants.toList()..sort(),
+                    'denies': denies.toList()..sort(),
+                  },
+                  'reason': reason.text.trim(),
+                },
+              ) as Map,
             );
-          }
-          if (overridesChanged) {
-            await ref.read(apiClientProvider).post(
-              ApiPaths.employeeOverrides(id),
-              data: {
-                'grants': grants.toList()..sort(),
-                'denies': denies.toList()..sort(),
-                'reason': reason.text.trim(),
-              },
-            );
-          }
-          if (mounted) {
-            setState(() {
-              message = rolesChanged || overridesChanged
-                  ? 'Employee access updated.'
-                  : 'No access changes.';
-              if (rolesChanged || overridesChanged) refresh++;
-            });
+            // Only show success after the committed server response. The
+            // returned effective capabilities include designation defaults
+            // and explicit Deny overrides (role removal alone is not Deny).
+            final applied = ((updated['effective_capabilities'] as List?) ??
+                    const [])
+                .length;
+            await ref.read(appStateProvider.notifier).refreshBootstrap();
+            if (mounted) {
+              setState(() {
+                message =
+                    'Employee access saved atomically. $applied effective permissions; refresh employee session to apply changed access.';
+                refresh++;
+              });
+            }
+          } else if (mounted) {
+            setState(() => message = 'No access changes.');
           }
         }
       }
