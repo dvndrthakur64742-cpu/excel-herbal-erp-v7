@@ -366,6 +366,24 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
     $issuedLineId=(int)$wpdb->get_var($wpdb->prepare(
         'SELECT issue_line_id FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d',$eveningId
     ));
+    // Wholesale discount must not consume retail units' BM/Salary allocations.
+    // Fixture: wholesale 2*100, BM 20/unit and Salary Fund 10/unit.
+    // Rate 60 would split discount 40/40, exhausting more than the
+    // wholesale Salary Fund's available 20 and must fail without writes.
+    try {
+        uat_dispatch('daily.evening_save',$self,[
+            'id'=>$cycle,
+            'lines'=>[[
+                'issue_line_id'=>$issuedLineId,'return_quantity'=>1,'wholesale_quantity'=>2,
+                'retail_rate'=>100,'wholesale_rate'=>60,
+            ]],
+            'wholesale_details'=>['wholesale_customer_name'=>'Synthetic Wholesale Buyer'],
+            'price_reason'=>'Negative allocation rejection test',
+        ]);
+        throw new RuntimeException('Wholesale discount exceeded salary allocation but was saved');
+    } catch(DomainException $err) {
+        if($err->codeKey!=='wholesale_discount_exceeds_allocation')throw $err;
+    }
     $saved=uat_dispatch('daily.evening_save',$self,[
         'id'=>$cycle,
         'lines'=>[[
@@ -377,7 +395,7 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
     ]);
     if (abs((float)$saved['expected_amount']-360)>.005) throw new RuntimeException('Mixed closing amount must be 2*100 + 2*80 = 360');
     $line=$wpdb->get_row($wpdb->prepare(
-        'SELECT issued_quantity,return_quantity,retail_quantity,wholesale_quantity,total_amount FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d',$eveningId
+        'SELECT issued_quantity,return_quantity,retail_quantity,wholesale_quantity,total_amount,ho_amount,bm_profit,office_expense,points,salary_fund FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d',$eveningId
     ),ARRAY_A);
     if (abs((float)$line['issued_quantity']-5)>.001 ||
         abs((float)$line['return_quantity']-1)>.001 ||
@@ -385,6 +403,17 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
         abs((float)$line['wholesale_quantity']-2)>.001 ||
         abs((float)$line['total_amount']-360)>.005) {
         throw new RuntimeException('Mixed wholesale/retail/return quantities failed to reconcile');
+    }
+    // 4 sold PCS * [HO 60 + BM 20 + Office 10 + Salary Fund 10]
+    // less 40 wholesale discount => BM -20 and Salary Fund -20.
+    if(abs((float)$line['ho_amount']-240)>.005||
+       abs((float)$line['bm_profit']-60)>.005||
+       abs((float)$line['office_expense']-40)>.005||
+       abs((float)$line['salary_fund']-20)>.005||
+       abs((float)$line['points']-8)>.005||
+       abs((float)$line['ho_amount']+(float)$line['bm_profit']+
+           (float)$line['office_expense']+(float)$line['salary_fund']-360)>.005) {
+        throw new RuntimeException('Wholesale BM/Salary 50-50 distribution did not reconcile');
     }
     uat_dispatch('daily.evening_submit',$self,['id'=>$cycle]);
 
@@ -461,7 +490,7 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
         "SELECT points,salary_fund FROM ".Db::table('performance_entries')." WHERE source_type='daily_cycle' AND source_id=%d",$cycle
     ),ARRAY_A);
     if(!$performance||abs((float)$performance['points']-8)>.005||
-       abs((float)$performance['salary_fund']-40)>.005)throw new RuntimeException('Performance distribution mismatch');
+       abs((float)$performance['salary_fund']-20)>.005)throw new RuntimeException('Performance distribution mismatch after 50/50 wholesale discount');
     try {
         uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>160]);
         throw new RuntimeException('Final Post was replayed and could duplicate stock/journal');
