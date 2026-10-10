@@ -335,7 +335,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                                       const SizedBox(height: 6),
                                       Text(
                                         wholesaleEnabled
-                                            ? 'Wholesale Qty aur Wholesale Rate product-wise enter karein.'
+                                            ? 'Wholesale Qty/Rate enter karein. Discount ka 50% BM Profit aur 50% Salary Fund se ghatega. HO, Office aur Points unchanged rahenge.'
                                             : 'Wholesale No: sirf Return Qty enter karein.',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
@@ -360,7 +360,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                                       Expanded(
                                         child: Text(
                                           wholesaleEnabled
-                                              ? 'Return, Wholesale Qty aur Wholesale Rate enter karein. Retail Sold ERP automatically calculate karega.'
+                                              ? 'Return aur Wholesale enter karein. ERP Retail Sold calculate karega; Wholesale Discount BM Profit aur Salary Fund se 50/50 katega. Limit se zyada discount save nahi hoga.'
                                               : 'Sirf Return Qty enter karein. Retail Sold ERP automatically calculate karega.',
                                         ),
                                       ),
