@@ -862,7 +862,7 @@ uat_case('uat_admin_access_atomic_save_and_rollback', function () use ($wpdb) {
         throw new RuntimeException('Atomic employee access save failed to compute role/grant/deny');
     }
     $auditBefore=(int)$wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM ".Db::table('audit_logs')." WHERE company_id=%d AND entity_type='employee' AND entity_id=%d",1,10
+        "SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=%d AND entity_type='employee' AND entity_id=%d",1,10
     ));
     try {
         // Removing the role succeeds in the inner savepoint; the invalid
@@ -883,7 +883,7 @@ uat_case('uat_admin_access_atomic_save_and_rollback', function () use ($wpdb) {
         throw new RuntimeException('Failed atomic update partially changed employee access');
     }
     $auditAfter=(int)$wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM ".Db::table('audit_logs')." WHERE company_id=%d AND entity_type='employee' AND entity_id=%d",1,10
+        "SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=%d AND entity_type='employee' AND entity_id=%d",1,10
     ));
     if($auditBefore!==$auditAfter)throw new RuntimeException('Rejected access change persisted an audit event');
 });
