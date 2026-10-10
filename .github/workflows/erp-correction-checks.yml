@@ -772,8 +772,9 @@ jobs:
             '4. Replace wp-content/uploads/eh7-flutter-web with web/eh7-flutter-web.',
             '5. Do not activate any duplicate ERP plugin copy.',
             '6. Verify /excel-herbal-erp/v7/health source_head matches FINAL-MANIFEST.txt.',
-            '7. Open Administration > System Health and run Resolve Safe UAT Anomalies once.',
-            '8. PR remains draft; this bundle is not production approval.'
+            '7. Read-only checks only. Do NOT run Resolve Safe UAT Anomalies or alter any UAT orders, stock, payroll, attendance, roles or HR records.',
+            '8. Any future test-data reset requires a separate explicit owner approval, backup and dedicated cutover plan.',
+            '9. PR remains draft; this bundle is not production approval.'
           ) | Set-Content -LiteralPath (Join-Path $payload 'DEPLOY-INSTRUCTIONS.txt') -Encoding utf8
           foreach ($required in @(
             (Join-Path $plugin 'excel-herbal-erp-v7.php'),
