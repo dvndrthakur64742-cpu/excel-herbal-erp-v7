@@ -95,6 +95,7 @@ $evidence = [ordered]@{
     tested_at_utc = [DateTime]::UtcNow.ToString('o')
     commit = $env:GITHUB_SHA
     run_id = $env:GITHUB_RUN_ID
+    business_mutation_policy = 'read_only; authentication_session_cleanup_only'
     results = [ordered]@{}
 }
 $access = ''
@@ -143,26 +144,12 @@ try {
         $evidence['negative_stock_before'] = [int]$beforeData.stock.negative_balances
 
         if ($beforeMismatch -gt 0) {
-            $repairKey = 'uat-daily-commercial-repair-' + $expectedHead
-            $repairBody = @{
-                operation = 'repair_daily_commercial_snapshots'
-                confirmation = 'REPAIR_DAILY_COMMERCIAL_SNAPSHOTS'
-                reason = 'Controlled BUILD/UAT Daily Order legacy commercial snapshot repair before real-user verification.'
-            }
-            $repair = Send-Eh7 -Method POST -Path '/administration/maintenance/cleanup' -Bearer $access -IdempotencyKey $repairKey -Body $repairBody
-            Assert-Ok $repair 'legacy_snapshot_repair'
-            $evidence['repair'] = [ordered]@{
-                issue_lines_repaired = [int]$repair.Json.data.issue_lines_repaired
-                evening_lines_repaired = [int]$repair.Json.data.evening_lines_repaired
-                remaining_mismatches = [int]$repair.Json.data.remaining_mismatches
-            }
-            if ([int]$repair.Json.data.remaining_mismatches -ne 0) {
-                throw 'Legacy snapshot repair completed with remaining mismatches.'
-            }
-            $evidence.results['legacy_snapshot_repair'] = 'passed'
-        } else {
-            $evidence.results['legacy_snapshot_repair'] = 'not_required'
+            $evidence.results['legacy_snapshot_repair'] = 'blocked_requires_separate_approval'
+            throw ("Found $beforeMismatch legacy distribution snapshot mismatches. " +
+                   'This live UAT verification is READ ONLY for business records; ' +
+                   'a separately reviewed maintenance repair is required before certification.')
         }
+        $evidence.results['legacy_snapshot_repair'] = 'not_required'
 
         $after = Send-Eh7 -Method GET -Path '/administration/diagnostics' -Bearer $access
         Assert-Ok $after 'diagnostics_after'
