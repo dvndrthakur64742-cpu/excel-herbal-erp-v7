@@ -27,8 +27,10 @@ defaults:
 jobs:
   php-regression:
     if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/erp735-document-integration') && (github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[deploy-only-session-race]'))
-    # Fallback to the connected controlled Windows runner while GitHub-hosted
-    # jobs fail before assignment. All databases in this job are disposable.
+    # Both code checks share a single connected Windows runner. Do not queue
+    # concurrent execution on that one device: first finish Flutter, then use
+    # a fresh runner slot for disposable MariaDB / PHP tests.
+    needs: [flutter-integration]
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 45
     steps:
@@ -825,7 +827,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Repair legacy Daily Order commercial snapshots and verify completed cycles
+      - name: Verify Daily Order completed-cycle integrity (read-only)
         env:
           UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
           UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
