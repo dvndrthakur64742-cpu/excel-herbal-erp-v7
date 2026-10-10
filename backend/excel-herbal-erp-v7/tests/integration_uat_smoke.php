@@ -248,6 +248,18 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
     if ((uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]])['status'] ?? '') !== 'issued') throw new RuntimeException('daily issue automatic allocation failed');
     $evening=uat_dispatch('daily.evening_start',$self,['id'=>$cycle]); $eveningId=(int)$evening['evening_id'];
     $issueLineId=(int)$wpdb->get_var($wpdb->prepare('SELECT issue_line_id FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d LIMIT 1',$eveningId));
+    // EveningStart pre-fills sales, but the header is not yet verified.
+    // Direct Submit without Save Draft must fail with no business mutation.
+    try {
+        uat_dispatch('daily.evening_submit',$self,['id'=>$cycle]);
+        throw new RuntimeException('Unverified Evening Closing was submitted without Save Draft');
+    } catch (DomainException $e) {
+        if ($e->codeKey !== 'evening_totals_mismatch' || $e->httpStatus !== 409) throw $e;
+    }
+    if ((string)$wpdb->get_var($wpdb->prepare('SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle))!=='evening_draft') {
+        throw new RuntimeException('Rejected direct submit changed Daily Order state');
+    }
+
     $saved=uat_dispatch('daily.evening_save',$self,[
         'id'=>$cycle,'lines'=>[['issue_line_id'=>$issueLineId,'return_quantity'=>0,'wholesale_quantity'=>0,'retail_rate'=>100,'wholesale_rate'=>0]],
         'wholesale_details'=>[],'price_reason'=>'',
@@ -307,6 +319,23 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
             abs((float)$line['bm_profit']-(($returnQty===1)?20.0:40.0))>.005 ||
             abs((float)$line['office_expense']-(($returnQty===1)?10.0:20.0))>.005)
             throw new RuntimeException('F01 evening save compounded the original distribution');
+    }
+    // Stale/corrupted settlement totals must fail closed even after Save.
+    // The disposable MariaDB fixture is restored before the normal final post.
+    if ($wpdb->update(Db::table('evening_settlements'),['expected_amount'=>99],['id'=>$eveningId])===false) {
+        throw new RuntimeException('Could not stage synthetic stale-total fixture');
+    }
+    try {
+        uat_dispatch('daily.evening_submit',$self,['id'=>$cycle]);
+        throw new RuntimeException('Mismatched Evening Closing header total was submitted');
+    } catch (DomainException $e) {
+        if ($e->codeKey !== 'evening_totals_mismatch' || $e->httpStatus !== 409) throw $e;
+    }
+    if ((string)$wpdb->get_var($wpdb->prepare('SELECT status FROM '.Db::table('evening_settlements').' WHERE id=%d',$eveningId))!=='draft') {
+        throw new RuntimeException('Rejected amount mismatch modified settlement status');
+    }
+    if ($wpdb->update(Db::table('evening_settlements'),['expected_amount'=>200],['id'=>$eveningId])===false) {
+        throw new RuntimeException('Could not restore synthetic verified total');
     }
     uat_dispatch('daily.evening_submit',$self,['id'=>$cycle]);
     $posted=uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>0]);
