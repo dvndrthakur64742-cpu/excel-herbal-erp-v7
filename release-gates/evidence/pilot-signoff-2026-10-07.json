@@ -2,31 +2,36 @@
   "schema_version": 1,
   "gate": "pilot_signoff",
   "status": "pending",
-  "tested_source_head": "625512d951e8cf14a59bd568eca47d3332ffa0c0",
-  "release_branch_head": "c60ac55612698ed959adc71a35ce5116c5b680c2",
+  "tested_source_head": "6eb337c15d01055ad91fa875ca6bc319de0c12fb",
+  "release_branch_head": "b221938a4a9ad9ce7fcd3f781b2c084c7d9f49b1",
   "staging_url": "https://office.excelherbal.in",
   "evidence_runs": [
     "37584136642",
     "37605825503",
     "37608960515",
     "37609743903",
-    "37610292140"
+    "37610292140",
+    "38027297734",
+    "38034404917",
+    "38040500406"
   ],
   "completed_technical_gates": [
     "host_backup_restore",
     "real_http_bearer_401_403",
     "android_physical_gps",
-    "hr_multipart_private_document"
+    "hr_multipart_private_document",
+    "environment_hardening"
   ],
   "open_gates": [
-    "environment_hardening",
     "business_report_review",
     "pilot_signoff"
   ],
   "known_accepted_limitations": [
     "ERP remains BUILD/UAT, not production.",
     "Android pilot APK is UAT-only and not production-signed.",
-    "Host hardening constants WP_ENVIRONMENT_TYPE and DISALLOW_FILE_EDIT are not yet set."
+    "Office BUILD/UAT carries unsanitized operational data; synthetic stock/HR mutations are restricted to disposable isolated MariaDB tests.",
+    "Live Evening Closing confirmation end-to-end browser acceptance requires a safe synthetic draft on a separate isolated UAT; the exact widget dialog and MariaDB full settlement flow have passed automated tests.",
+    "Host hardening WP_ENVIRONMENT_TYPE=staging and DISALLOW_FILE_EDIT=true is verified and already passed; it is not an open gate."
   ],
   "signoffs": {
     "operational_owner": {
@@ -49,5 +54,5 @@
     }
   },
   "change_ticket": "",
-  "notes": "Complete only after the remaining host hardening and Accounts review gates pass."
+  "notes": "Refreshed technical evidence as of 2026-10-10. Live BUILD/UAT exact-head backend/web 6eb337c PASS in run 38027297734; branch-only synthetic mixed Daily Order/Inventory transfer tests PASS at b221938 in run 38040500406; host hardening passed earlier. Pending independent Accounts business report review and genuine Operational Owner / HR / Accounts pilot sign-offs. This packet itself does not approve production."
 }
