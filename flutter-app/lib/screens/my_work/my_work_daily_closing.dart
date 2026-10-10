@@ -42,6 +42,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
     var saving = false;
     var allowExit = false;
     var exitPromptOpen = false;
+    var submitPromptOpen = false;
     List<String> formSnapshot() => [
       '$wholesaleEnabled',
       for (final c in returns.values) c.text,
@@ -160,6 +161,45 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                     formError = UiError.message(e);
                   });
                 }
+              }
+            }
+
+            Future<void> confirmSubmit() async {
+              if (saving || allowExit || submitPromptOpen ||
+                  !sheetContext.mounted) return;
+              submitPromptOpen = true;
+              try {
+                final confirmed = await showDialog<bool>(
+                  context: sheetContext,
+                  barrierDismissible: false,
+                  builder: (confirmationContext) => AlertDialog(
+                    title: const Text('Confirm Evening Submission'),
+                    content: const Text(
+                      'Please verify Return and Wholesale Qty for every '
+                      'issued product. All remaining PCS will be recorded '
+                      'as Retail Sold. After submission you cannot edit '
+                      'this closing. A separate authorised reviewer must '
+                      'complete Final Post. Continue?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.pop(confirmationContext, false),
+                        child: const Text('Review Quantities'),
+                      ),
+                      FilledButton(
+                        onPressed: () =>
+                            Navigator.pop(confirmationContext, true),
+                        child: const Text('Confirm & Submit'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true && sheetContext.mounted) {
+                  await persist('submit');
+                }
+              } finally {
+                submitPromptOpen = false;
               }
             }
 
@@ -747,7 +787,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                                     label: const Text('Save Draft'),
                                   ),
                                   FilledButton.icon(
-                                    onPressed: saving ? null : () => persist('submit'),
+                                    onPressed: saving ? null : confirmSubmit,
                                     icon: const Icon(Icons.check_circle_outline),
                                     label: const Text('Save & Submit'),
                                   ),
