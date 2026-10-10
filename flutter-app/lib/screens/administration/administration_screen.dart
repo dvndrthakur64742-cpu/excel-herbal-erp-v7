@@ -524,6 +524,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       ...((role['capabilities'] as List?) ?? const []).map((e) => '$e'),
     };
     final reason = TextEditingController();
+    String? reasonError;
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -556,7 +557,10 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: reason,
-                  decoration: const InputDecoration(labelText: 'Change Reason'),
+                  decoration: InputDecoration(
+                    labelText: 'Change Reason (5+ characters)',
+                    errorText: reasonError,
+                  ),
                 ),
               ],
             ),
@@ -567,7 +571,14 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () {
+                if (reason.text.trim().length < 5) {
+                  setLocal(() => reasonError =
+                      'Please enter a reason with at least 5 characters.');
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
               child: const Text('Save'),
             ),
           ],
