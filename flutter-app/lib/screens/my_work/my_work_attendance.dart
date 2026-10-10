@@ -161,27 +161,37 @@ extension _MyWorkAttendance on _MyWorkScreenState {
           'lng': p.longitude,
         },
       );
-      var gpsStarted = !checkIn;
+      final tracker = ref.read(gpsTrackingProvider);
       if (checkIn) {
         try {
-          await ref.read(gpsTrackingProvider).start();
-          gpsStarted = true;
-        } catch (_) {
-          gpsStarted = false;
-          // Attendance remains successful even if periodic tracking could not
-          // start; the ERP Tools screen exposes the tracking status/retry.
+          await tracker.start();
+        } catch (e) {
+          // Check-in is already persisted; a GPS failure must not be presented
+          // as a failed attendance write.
+          if (mounted) {
+            _setFeatureState(() {
+              refresh++;
+              message = 'Check-In successful, lekin Duty GPS shuru nahi hua: ${UiError.message(e)}';
+            });
+          }
+          return;
         }
       } else {
-        ref.read(gpsTrackingProvider).stop();
+        // An explicit successful server checkout is an authorised GPS stop.
+        // stop() without status is intentionally rejected by the tracker.
+        tracker.stop(status: 'checked_out');
       }
       if (mounted) {
         _setFeatureState(() {
           refresh++;
-          message = checkIn
-              ? (gpsStarted
-                  ? 'Check-In successful. GPS tracking started.'
-                  : 'Check-In successful. GPS tracking could not start; Duty GPS card se retry karein.')
-              : 'Check-Out successful. GPS tracking stopped.';
+          message = !checkIn
+              ? 'Check-Out successful. GPS tracking stopped.'
+              : tracker.dutyStatus == 'scheduled'
+                  ? 'Check-In successful. GPS tracking 10:30 AM par shuru hoga.'
+                  : tracker.active && tracker.lastError == null &&
+                          tracker.lastSentAt != null
+                      ? 'Check-In successful. GPS point recorded; tracking active.'
+                      : 'Check-In successful, lekin GPS point confirm nahi hua: ${tracker.lastError ?? tracker.dutyStatus}. Duty GPS status aur Location Permission check karein.';
         });
       }
     } catch (e) {
