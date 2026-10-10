@@ -179,6 +179,21 @@ final class DailyOrderService{
    $expected=0.0;$hasWholesale=false;
    foreach($stored as$r){
     $x=$map[(int)$r['issue_line_id']]??throw new DomainException('Issued line missing from Evening Settlement.','evening_line_missing',422);$issued=(float)$r['issued_quantity'];$ret=0;$wh=0;try{$ret=WholePcsGuard::assertWhole($x['return_quantity']??0,'return_quantity');$wh=WholePcsGuard::assertWhole($x['wholesale_quantity']??0,'wholesale_quantity');}catch(\InvalidArgumentException $error){throw new DomainException($error->getMessage(),'whole_pcs_required',422);}if($ret+$wh>$issued+.0001)throw new DomainException('Return + wholesale cannot exceed issued.');$retail=$issued-$ret-$wh;$rr=(float)($x['retail_rate']??$r['retail_rate']);$wr=(float)($x['wholesale_rate']??0);$approved=(float)$r['retail_rate'];if(abs($rr-$approved)>.005)throw new DomainException('Retail rate cannot change without approved pricing authority.','price_authority_required',409);if($rr<0||$wr<0||($wh>0&&($wr<=0||$wr>$rr)))throw new DomainException('Invalid retail/wholesale sale rate.');$amount=round($retail*$rr+$wh*$wr,2);$snapshot=$snapshots[(int)$r['issue_line_id']]??throw new DomainException('Original issued line missing.','evening_issue_snapshot_missing',409);$sold=$retail+$wh;$ho=round($sold*(float)$snapshot['ho_amount_snapshot'],2);$bm=round($sold*(float)$snapshot['bm_profit_snapshot'],2);$expense=round($sold*(float)$snapshot['office_expense_snapshot'],2);$points=round($sold*(float)$snapshot['points_snapshot'],2);$salary=round($sold*(float)$snapshot['salary_fund_snapshot'],2);
+     // Owner-approved wholesale allocation: split the wholesale discount 50/50
+     // between BM Profit and Salary Fund; leave HO, Office and Points unchanged.
+     // Validate against the wholesale units' own budget (not retail units).
+     // Any odd paise goes to BM; Salary Fund receives the exact remainder.
+     $discount=round($wh*max(0.0,$rr-$wr),2);
+     $bmDiscount=round($discount/2,2);
+     $salaryDiscount=round($discount-$bmDiscount,2);
+     if($bmDiscount>round($wh*(float)$snapshot['bm_profit_snapshot'],2)+.005||
+        $salaryDiscount>round($wh*(float)$snapshot['salary_fund_snapshot'],2)+.005) {
+         throw new DomainException('Wholesale discount exceeds BM Profit or Salary Fund available on wholesale units. Raise wholesale rate.','wholesale_discount_exceeds_allocation',422);
+     }
+     $bm=round($bm-$bmDiscount,2);$salary=round($salary-$salaryDiscount,2);
+     if(abs(round($ho+$bm+$expense+$salary,2)-$amount)>.01) {
+         throw new DomainException('Wholesale distribution does not reconcile to actual sales.','wholesale_distribution_mismatch',422);
+     }
     Db::mustUpdate($db,Db::table('evening_lines'),['return_quantity'=>$ret,'retail_quantity'=>$retail,'wholesale_quantity'=>$wh,'retail_rate'=>$rr,'wholesale_rate'=>$wr,'total_amount'=>$amount,'ho_amount'=>$ho,'bm_profit'=>$bm,'office_expense'=>$expense,'points'=>$points,'salary_fund'=>$salary],['id'=>(int)$r['id']]);$expected+=$amount;if($wh>0)$hasWholesale=true;
    }
    if($hasWholesale&&trim((string)($wholesale['wholesale_customer_name']??''))==='')throw new DomainException('Wholesale customer name required.');
