@@ -37,3 +37,4 @@ Office BUILD/UAT environment policy + picker/path hardening certified at c5c7c8e
 2026-10-07 host-hardening diagnostics + release evidence guard: deploy current exact head to office BUILD/UAT so authenticated diagnostics can verify the real WordPress host constants separately from package staging markers.
 2026-10-07 deploy non-secret host-hardening health probe for authenticated-independent BUILD/UAT verification.
 2026-10-08 deploy latest certified branch head after finance concurrency regression coverage.
+2026-10-10 controlled BUILD/UAT: deploy verified service-level whole-PCS evening guard, explicit Evening Submit confirmation, and read-only submit/cancel UI smoke. Keep production_approved=false; do not post business data.
