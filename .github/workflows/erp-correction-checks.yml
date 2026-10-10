@@ -512,16 +512,13 @@ jobs:
           Write-Host "PASS controlled_uat_api_base=$apiBase"
 
 
-      - name: Publish verified controlled-UAT web candidate for runner-independent preparation
+      - name: Verify and stage exact-head UAT web directly on trusted Windows runner
         if: ${{ contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true) }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: EH7-UAT-Web-${{ github.sha }}
-          path: flutter-app/build/web/
-          if-no-files-found: error
-          # Flutter's SHA256SUMS manifest includes the hidden .last_build_id file.
-          include-hidden-files: true
-          retention-days: 7
+        run: |
+          # The runner's GitHub artifact endpoint can fail DNS (ENOTFOUND).
+          # Verify the just-built files locally with the same fail-closed
+          # per-file SHA256SUMS and portable ZIP integrity checks.
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:GITHUB_WORKSPACE 'flutter-app\build\web')
 
   prepare-uat-candidate:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
@@ -533,14 +530,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Download immutable same-run UAT web artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: EH7-UAT-Web-${{ github.sha }}
-          path: ${{ runner.temp }}/eh7-uat-web
-      - name: Verify artifact manifest and build deployment ZIP
+      - name: Verify exact-head local UAT web candidate and rebuild SHA-attested ZIP
         run: |
-          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:RUNNER_TEMP 'eh7-uat-web')
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA + '\web')
+          if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'Exact-head UAT web candidate missing on runner.' }
+          $temporary = Join-Path $env:RUNNER_TEMP ('eh7-verified-web-' + [Guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+          Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $temporary -Recurse -Force
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir $temporary
+          Remove-Item -LiteralPath $temporary -Recurse -Force
+          Write-Host 'PASS local_sha_attested_uat_candidate_prepared'
 
   deploy-uat-current-erp:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
@@ -551,14 +551,16 @@ jobs:
       UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Download exact-head candidate from successful hosted build
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: EH7-UAT-Web-${{ github.sha }}
-          path: ${{ runner.temp }}/eh7-uat-web
-      - name: Verify and stage exact-head candidate on deployment runner
+      - name: Verify and stage local exact-head candidate on deployment runner
         run: |
-          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:RUNNER_TEMP 'eh7-uat-web')
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA + '\web')
+          if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'Exact-head UAT web candidate missing on deployment runner.' }
+          $temporary = Join-Path $env:RUNNER_TEMP ('eh7-verified-web-' + [Guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+          Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $temporary -Recurse -Force
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir $temporary
+          Remove-Item -LiteralPath $temporary -Recurse -Force
       - name: Deploy backend and certified web through current ERP workflow
         run: |
           & '.github/scripts/deploy-uat-current-erp-workflow.ps1' -SourceHead $env:GITHUB_SHA -UatSiteUrl $env:UAT_SITE_URL
@@ -717,14 +719,16 @@ jobs:
       UAT_SITE_URL: ${{ inputs.controlled_uat_site_url || vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Download exact-head candidate from successful hosted build
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: EH7-UAT-Web-${{ github.sha }}
-          path: ${{ runner.temp }}/eh7-uat-web
-      - name: Verify and stage exact-head candidate on deployment runner
+      - name: Verify and stage local exact-head candidate on deployment runner
         run: |
-          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:RUNNER_TEMP 'eh7-uat-web')
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA + '\web')
+          if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'Exact-head UAT web candidate missing on deployment runner.' }
+          $temporary = Join-Path $env:RUNNER_TEMP ('eh7-verified-web-' + [Guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+          Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $temporary -Recurse -Force
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir $temporary
+          Remove-Item -LiteralPath $temporary -Recurse -Force
       - name: Build single-upload exact-head UAT deployment bundle
         run: |
           $ErrorActionPreference = 'Stop'
@@ -772,8 +776,9 @@ jobs:
             '4. Replace wp-content/uploads/eh7-flutter-web with web/eh7-flutter-web.',
             '5. Do not activate any duplicate ERP plugin copy.',
             '6. Verify /excel-herbal-erp/v7/health source_head matches FINAL-MANIFEST.txt.',
-            '7. Open Administration > System Health and run Resolve Safe UAT Anomalies once.',
-            '8. PR remains draft; this bundle is not production approval.'
+            '7. Read-only checks only. Never run UAT anomaly cleanup or alter operational records.',
+            '8. Any future test-data reset requires a separate owner approval, verified backup and controlled cutover.',
+            '9. PR remains draft; this bundle is not production approval.'
           ) | Set-Content -LiteralPath (Join-Path $payload 'DEPLOY-INSTRUCTIONS.txt') -Encoding utf8
           foreach ($required in @(
             (Join-Path $plugin 'excel-herbal-erp-v7.php'),
