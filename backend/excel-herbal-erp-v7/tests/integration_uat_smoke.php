@@ -516,6 +516,10 @@ uat_case('uat_audit_batch_without_expiry_and_expired_quarantine', function () us
 });
 
 uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($maker,$manager,$wpdb) {
+    // Assert this transfer's delta instead of a brittle stock total:
+    // earlier disposable Daily Order tests may add completed sales.
+    $sourceBefore=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    $destBefore=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     $created=uat_dispatch('inventory.transfer_create',$maker,[
         'source_branch_id'=>1,'destination_branch_id'=>2,'lines'=>[['product_id'=>100,'quantity'=>5]],'notes'=>'UAT transfer',
     ]);
@@ -529,7 +533,9 @@ uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($mak
     if((uat_dispatch('inventory.transfer_receive',$manager,['id'=>$id,'lines'=>[['transfer_line_id'=>$lineId,'received_quantity'=>5]]])['status']??'')!=='received') throw new RuntimeException('transfer receive failed');
     $source=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     $dest=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
-    if(abs($source-93.0)>0.001||abs($dest-5.0)>0.001) throw new RuntimeException("transfer invariant mismatch source={$source} dest={$dest}");
+    if(abs($source-($sourceBefore-5.0))>0.001||abs($dest-($destBefore+5.0))>0.001) {
+        throw new RuntimeException("transfer delta mismatch source={$sourceBefore}->{$source} destination={$destBefore}->{$dest}");
+    }
 });
 
 uat_case('uat_finance_expense_maker_checker', function () use ($maker,$manager,$wpdb) {
