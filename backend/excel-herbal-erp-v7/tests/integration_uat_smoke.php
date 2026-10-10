@@ -415,6 +415,20 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
            (float)$line['office_expense']+(float)$line['salary_fund']-360)>.005) {
         throw new RuntimeException('Wholesale BM/Salary 50-50 distribution did not reconcile');
     }
+    // Simulate a stale/misallocated closing on disposable data. Submission
+    // must refuse a distribution that differs from the actual sale.
+    Db::mustUpdate($wpdb,Db::table('evening_lines'),['bm_profit'=>61],['id'=>(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT id FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d',$eveningId
+    ))]);
+    try {
+        uat_dispatch('daily.evening_submit',$self,['id'=>$cycle]);
+        throw new RuntimeException('Stale distribution incorrectly submitted');
+    } catch(DomainException $err) {
+        if($err->codeKey!=='evening_distribution_mismatch')throw $err;
+    }
+    Db::mustUpdate($wpdb,Db::table('evening_lines'),['bm_profit'=>60],['id'=>(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT id FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d',$eveningId
+    ))]);
     uat_dispatch('daily.evening_submit',$self,['id'=>$cycle]);
 
     // A dual-capability maker must not approve their own settlement.
