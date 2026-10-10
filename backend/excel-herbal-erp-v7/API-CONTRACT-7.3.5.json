@@ -1865,6 +1865,15 @@
     },
     {
       "method": "POST",
+      "path": "/administration/employees/(?P<id>\\d+)/access",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/administration/employees/(?P<id>\\d+)/roles",
       "auth": true,
       "idempotency_required": true,
