@@ -1010,7 +1010,11 @@ try {
   Deploy-BackendPlugin $backendZip
   Assert-ControlledUatTarget -RequireErpHealth $true
   Deploy-WebRuntime
-  Resolve-UatAnomalies
+  # Never mutate operational UAT data during a code deployment.
+  # Stale Daily Orders, attendance exceptions, payroll drafts and authority
+  # records require separate review and explicit authorisation. In particular,
+  # Resolve-UatAnomalies may cancel issued stock cycles and move custody.
+  Write-Host 'PASS deployment_operational_data_unchanged_by_cleanup_step'
 } finally {
   Remove-Item -LiteralPath $backendZip -Force -ErrorAction SilentlyContinue
 }
