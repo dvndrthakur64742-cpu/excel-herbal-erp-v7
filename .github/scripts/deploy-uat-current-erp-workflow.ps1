@@ -910,7 +910,10 @@ function Deploy-WebRuntime {
   $serverHash = ''
   $serverManifest = ''
   $runtime = $null
-  for ($attempt = 1; $attempt -le 18; $attempt++) {
+  # On this host WordPress can finish extracting a certified web ZIP after
+  # Chrome has returned and after the old 18-poll cutoff. Stay fail-closed on
+  # exact live source head + main/manifest hashes, but allow bounded latency.
+  for ($attempt = 1; $attempt -le 36; $attempt++) {
     Start-Sleep -Seconds 5
     try {
       $runtime = Get-WebRuntimeHealth
