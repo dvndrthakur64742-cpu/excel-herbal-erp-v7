@@ -253,6 +253,44 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
         'wholesale_details'=>[],'price_reason'=>'',
     ]);
     if (abs((float)$saved['expected_amount']-200.0)>0.005) throw new RuntimeException('daily expected amount mismatch');
+    // Service-level validation must reject invalid PCS even for internal
+    // ApiDispatch callers that do not pass through the HTTP payload guard.
+    // Failed writes must roll back and retain the last verified settlement.
+    foreach ([
+        ['return_quantity'=>-1,'wholesale_quantity'=>0],
+        ['return_quantity'=>0,'wholesale_quantity'=>-1],
+        ['return_quantity'=>0.5,'wholesale_quantity'=>0],
+        ['return_quantity'=>0,'wholesale_quantity'=>0.5],
+    ] as $invalidQuantities) {
+        $rejected=false;
+        try {
+            uat_dispatch('daily.evening_save',$self,[
+                'id'=>$cycle,
+                'lines'=>[[
+                    'issue_line_id'=>$issueLineId,
+                    'return_quantity'=>$invalidQuantities['return_quantity'],
+                    'wholesale_quantity'=>$invalidQuantities['wholesale_quantity'],
+                    'retail_rate'=>100,
+                    'wholesale_rate'=>0,
+                ]],
+                'wholesale_details'=>[],
+                'price_reason'=>'',
+            ]);
+        } catch (DomainException $e) {
+            if ($e->codeKey!=='whole_pcs_required' || $e->httpStatus!==422) throw $e;
+            $rejected=true;
+        }
+        if (!$rejected) throw new RuntimeException('Invalid Evening Closing PCS were accepted by service.');
+        $current=$wpdb->get_row($wpdb->prepare(
+            'SELECT return_quantity,wholesale_quantity,total_amount FROM '.Db::table('evening_lines').' WHERE issue_line_id=%d',
+            $issueLineId
+        ),ARRAY_A);
+        if (abs((float)$current['return_quantity'])>.0001 ||
+            abs((float)$current['wholesale_quantity'])>.0001 ||
+            abs((float)$current['total_amount']-200)>.005) {
+            throw new RuntimeException('Rejected PCS input modified persisted Evening Closing.');
+        }
+    }
     // F01: unchanged repeated saves must not compound distributions; edited returns recalculate from source snapshots.
     $saveLines = fn(int $returns) => [
         'id'=>$cycle,'lines'=>[['issue_line_id'=>$issueLineId,'return_quantity'=>$returns,'wholesale_quantity'=>0,'retail_rate'=>100,'wholesale_rate'=>0]],
