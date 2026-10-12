@@ -117,7 +117,22 @@ class GpsTrackingService extends ChangeNotifier {
     _scheduleTimer = null;
     _armed = true;
     if (!_active) {
-      final permissionReady = await _ensurePermission();
+      bool permissionReady;
+      try {
+        permissionReady = await _ensurePermission();
+      } catch (e) {
+        // Browser/device geolocation APIs can throw when unavailable or blocked
+        // (for example, a browser permission API failure). Keep attendance intact,
+        // expose the real GPS failure in the UI, and allow an explicit retry.
+        _active = false;
+        _pointTimer?.cancel();
+        _pointTimer = null;
+        _dutyStatus = 'unavailable';
+        _lastError = 'Unable to check device location permission: ${UiError.message(e)}';
+        _scheduleAutoStop(attendance);
+        notifyListeners();
+        return;
+      }
       if (!permissionReady) {
         _active = false;
         _pointTimer?.cancel();
