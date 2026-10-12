@@ -216,7 +216,9 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     );
   }
 
-  Future<Position> _position() async {
+  Future<Position> _position({
+    Duration timeLimit = const Duration(seconds: 20),
+  }) async {
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -228,7 +230,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
     return Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 20),
+        timeLimit: timeLimit,
       ),
     );
   }
