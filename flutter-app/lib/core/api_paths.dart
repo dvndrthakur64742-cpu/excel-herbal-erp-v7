@@ -241,6 +241,9 @@ abstract final class ApiPaths {
   static String promotionDecision(int id) =>
       '/performance/promotions/$id/decision';
 
+  static String reportReviewSnapshot(int id) =>
+      '/reports/reviews/$id/snapshot';
+
   static String reportReviewDecision(int id) =>
       '/reports/reviews/$id/decision';
 

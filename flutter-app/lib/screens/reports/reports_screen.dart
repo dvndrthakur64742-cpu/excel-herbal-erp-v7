@@ -276,8 +276,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         _feedback =
             'Report snapshot submitted. It is not approved until a different authorised Accounts reviewer records a decision.';
         _reloadTick++;
-        if (ref.read(appStateProvider).can('finance.report.review') &&
-            ref.read(appStateProvider).can('finance.accounting.view')) {
+        if (ref.read(appStateProvider).can('finance.accounting.view') ||
+            ref.read(appStateProvider).can('reports.view')) {
           type = 'accounts_review';
         }
       });
@@ -291,42 +291,21 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   Future<void> _viewReviewReport(Map<String, dynamic> review) async {
     final type = '${review['report_type'] ?? ''}';
     final report = switch (type) {
-      'trial_balance' => (
-          ApiPaths.trialBalance,
-          'trial_balance',
-          'Trial Balance',
-        ),
-      'profit_loss' => (ApiPaths.profitLoss, 'profit_loss', 'Profit & Loss'),
-      'balance_sheet' => (
-          ApiPaths.balanceSheet,
-          'balance_sheet',
-          'Balance Sheet',
-        ),
-      'stock_reconciliation' => (
-          ApiPaths.stockReconciliation,
-          'stock_reconciliation',
-          'Stock Reconciliation',
-        ),
-      'finance_reconciliation' => (
-          ApiPaths.financeReconciliation,
-          'finance_reconciliation',
-          'Finance Reconciliation',
-        ),
+      'trial_balance' => ('trial_balance', 'Trial Balance'),
+      'profit_loss' => ('profit_loss', 'Profit & Loss'),
+      'balance_sheet' => ('balance_sheet', 'Balance Sheet'),
+      'stock_reconciliation' => ('stock_reconciliation', 'Stock Reconciliation'),
+      'finance_reconciliation' => ('finance_reconciliation', 'Finance Reconciliation'),
       _ => null,
     };
     if (report == null) return;
-    final query = <String, dynamic>{
-      if (review['branch_id'] != null) 'branch_id': review['branch_id'],
-      if (type == 'profit_loss') ...{
-        'from': review['period_from'],
-        'to': review['period_to'],
-      },
-      if (type == 'trial_balance' || type == 'balance_sheet')
-        'to': review['as_of_date'],
-    };
     try {
-      final data = await ref.read(apiClientProvider).get(report.$1, query: query);
-      final rows = ((data as List?) ?? const [])
+      final data = await ref.read(apiClientProvider).get(
+        ApiPaths.reportReviewSnapshot((review['id'] as num).toInt()),
+      );
+      final response = Map<String, dynamic>.from(data as Map);
+      final storedReview = Map<String, dynamic>.from(response['review'] as Map);
+      final rows = ((response['rows'] as List?) ?? const [])
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
       if (!mounted) return;
@@ -346,30 +325,39 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            report.$3,
+                            report.$2,
                             style: Theme.of(dialogContext).textTheme.titleLarge,
                           ),
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(dialogContext),
-                          tooltip: 'Close report preview',
+                          tooltip: 'Close report snapshot',
                           icon: const Icon(Icons.close),
                         ),
                       ],
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Live data preview. Approval is blocked if this report no longer matches the submitted snapshot.',
+                        'Stored submitted snapshot · status ${storedReview['status']} · SHA-256 ${storedReview['snapshot_hash']}',
+                      ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 6, 16, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'This is the immutable data submitted for review. Approval is blocked if the current report no longer matches it.',
                       ),
                     ),
                   ),
                   const Divider(),
                   Expanded(
-                    child: RecordsList(recordType: report.$2, rows: rows),
+                    child: RecordsList(recordType: report.$1, rows: rows),
                   ),
                 ],
               ),
@@ -379,7 +367,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       );
     } catch (e) {
       if (mounted) {
-        setState(() => _feedback = 'Could not open report preview: ${UiError.message(e)}');
+        setState(() => _feedback = 'Could not open stored report snapshot: ${UiError.message(e)}');
       }
     }
   }
@@ -467,8 +455,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ),
       ]);
     }
-    if (app.can('finance.report.review') &&
-        app.can('finance.accounting.view')) {
+    if (app.can('finance.accounting.view') || app.can('reports.view')) {
       out.add(
         const _ReportOption(
           'accounts_review',

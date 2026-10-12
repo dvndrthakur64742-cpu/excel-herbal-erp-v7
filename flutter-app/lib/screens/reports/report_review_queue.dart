@@ -140,36 +140,36 @@ class _ReviewCard extends StatelessWidget {
             if (pending) ...[
               const SizedBox(height: 12),
               Text(
-                'Approval is recorded against the reviewer identity and time. The requester cannot approve their own submission.',
+                row['can_decide'] == true
+                    ? 'Your decision will be recorded with your identity and time. The requester cannot approve their own submission.'
+                    : 'This request is visible to you, but only a different authorised reviewer can decide it.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
+            ],
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: busy ? null : () => onView(row),
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('View report'),
+                ),
+                if (pending && row['can_decide'] == true) ...[
                   OutlinedButton.icon(
-                    onPressed: busy ? null : () => onView(row),
-                    icon: const Icon(Icons.visibility_outlined),
-                    label: const Text('View report'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: busy
-                        ? null
-                        : () => _askDecision(context, 'reject'),
+                    onPressed: busy ? null : () => _askDecision(context, 'reject'),
                     icon: const Icon(Icons.close_rounded),
                     label: const Text('Reject'),
                   ),
                   FilledButton.icon(
-                    onPressed: busy
-                        ? null
-                        : () => _askDecision(context, 'approve'),
+                    onPressed: busy ? null : () => _askDecision(context, 'approve'),
                     icon: const Icon(Icons.verified_outlined),
                     label: const Text('Approve'),
                   ),
                 ],
-              ),
-            ],
+              ],
+            ),
           ],
         ),
       ),

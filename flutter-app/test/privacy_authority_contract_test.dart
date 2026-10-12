@@ -283,10 +283,13 @@ void main() {
     expect(reports, contains("'accounts_review'"));
     expect(reports, contains('Submit for Accounts Review'));
     expect(reports, contains('ApiPaths.reportReviewDecision(id)'));
+    expect(reports, contains('ApiPaths.reportReviewSnapshot('));
     expect(queue, contains('Confirm approval'));
     expect(queue, contains('Confirm rejection'));
     expect(service, contains('report_review_maker_checker'));
     expect(service, contains('report_snapshot_stale'));
+    expect(service, contains('snapshot_json'));
+    expect(service, contains('viewSnapshot'));
   });
 
 }
