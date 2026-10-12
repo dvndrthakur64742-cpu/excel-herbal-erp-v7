@@ -67,7 +67,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
+          # Keep checksum-verified tool downloads outside RUNNER_TEMP, which is cleaned between jobs.
+          $toolRoot = 'C:\actions-runner\eh7-toolcache'
           $phpDir = Join-Path $toolRoot 'php-8.3.33'
           $phpExe = Join-Path $phpDir 'php.exe'
           if (-not (Test-Path -LiteralPath $phpExe -PathType Leaf)) {
@@ -121,7 +122,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
+          $toolRoot = 'C:\actions-runner\eh7-toolcache'
           $pythonDir = Join-Path $toolRoot 'python-3.13.7-embed'
           $pythonExe = Join-Path $pythonDir 'python.exe'
           if (-not (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
@@ -142,7 +143,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
+          $toolRoot = 'C:\actions-runner\eh7-toolcache'
           $mariaRoot = Join-Path $toolRoot 'mariadb-11.8.9'
           $serverExe = Join-Path $mariaRoot 'bin\mariadbd.exe'
           $serverProcess = $null
