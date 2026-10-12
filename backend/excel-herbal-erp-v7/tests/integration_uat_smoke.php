@@ -634,7 +634,12 @@ uat_case('uat_accounts_report_review_maker_checker_snapshot_stale_and_approval',
     $ownRows = array_values(array_filter($ownQueue, static fn($row) => (int)($row['id'] ?? 0) === $ownId));
     if (count($ownRows) !== 1 || ($ownRows[0]['can_decide'] ?? true) !== false ||
         (int)($ownRows[0]['requested_by'] ?? 0) !== 10) {
-        throw new RuntimeException('Submitter could not see only their own Accounts review without decision rights');
+        $observed = $ownRows[0] ?? [];
+        throw new RuntimeException('Submitter own-review visibility mismatch: id='.$ownId.
+            ', matches='.count($ownRows).
+            ', can_decide='.var_export($observed['can_decide'] ?? null, true).
+            ', requested_by='.var_export($observed['requested_by'] ?? null, true).
+            ', queue_count='.count($ownQueue));
     }
     $ownSnapshot = uat_dispatch('reports.review_snapshot', $basicReporter, ['id'=>$ownId]);
     if (($ownSnapshot['review']['status'] ?? '') !== 'pending' || !is_array($ownSnapshot['rows'] ?? null)) {
