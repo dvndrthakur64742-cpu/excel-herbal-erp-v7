@@ -180,6 +180,7 @@ try {
     if ($completed.Count -lt 1) { throw 'No completed Daily Order cycle exists for real-data verification.' }
 
     $verifiedCycles = @()
+    $verifiedSalesReports = @()
     foreach ($summary in ($completed | Select-Object -First 3)) {
         $cycleId = [int]$summary.id
         $detail = Send-Eh7 -Method GET -Path ("/daily/cycles/$cycleId") -Bearer $access
@@ -220,6 +221,82 @@ try {
         }
         if ([Math]::Abs([double]($settled - $expected)) -gt 0.01) {
             throw "Cycle $cycleId cash+UPI does not equal expected amount."
+        }
+
+        # Read-only check: each verified posted Daily Order appears once in Sales Summary.
+        $businessDate = [string]$data.cycle.business_date
+        $branchId = [int]$data.cycle.branch_id
+        if ($branchId -le 0 -or $businessDate -notmatch '^\d{4}-\d{2}-\d{2}
+            cycle_id = $cycleId
+            business_date = [string]$data.cycle.business_date
+            request_count = $requests.Count
+            evening_line_count = @($data.evening.lines).Count
+            expected_amount = [string]$data.evening.expected_amount
+            cash_amount = [string]$data.evening.cash_amount
+            upi_amount = [string]$data.evening.upi_amount
+            status = 'passed'
+        }
+    }
+
+    $evidence['verified_completed_cycles'] = $verifiedCycles
+    $evidence['verified_sales_report_rows'] = $verifiedSalesReports
+    $evidence.results['completed_cycle_invariants'] = 'passed'
+    $evidence.results['sales_summary_daily_order_inclusion'] = 'passed'
+    $evidence['status'] = 'passed'
+    Write-Host ('PASS verified_completed_cycles=' + $verifiedCycles.Count)
+    if ($diagnosticsAuthorized) {
+        Write-Host ('PASS legacy_snapshot_mismatches_before=' + $beforeMismatch)
+        Write-Host ('PASS legacy_snapshot_mismatches_after=' + $afterMismatch)
+    } else {
+        Write-Host 'INFO legacy snapshot diagnostics verified separately under administrator scope.'
+    }
+    Write-Host 'PASSED Daily Order controlled UAT integrity smoke'
+}
+finally {
+    if (-not [string]::IsNullOrWhiteSpace($access)) {
+        try { [void](Send-Eh7 -Method POST -Path '/auth/logout' -Bearer $access) } catch {}
+    }
+    $dir = Split-Path -Parent $EvidencePath
+    if (-not [string]::IsNullOrWhiteSpace($dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    $evidence | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $EvidencePath -Encoding utf8
+    $client.Dispose()
+}
+) {
+            throw "Cycle $cycleId has an invalid branch or business date for Sales Summary verification."
+        }
+        $reportPath = '/reports/sales?branch_id=' + $branchId +
+            '&from=' + [Uri]::EscapeDataString($businessDate) +
+            '&to=' + [Uri]::EscapeDataString($businessDate)
+        $salesReport = Send-Eh7 -Method GET -Path $reportPath -Bearer $access
+        Assert-Ok $salesReport ("sales_report_" + $cycleId)
+        $salesRows = @($salesReport.Json.data)
+        $matchingRows = @($salesRows | Where-Object {
+            [string]$_.source_type -eq 'daily_order' -and [int]$_.source_id -eq $cycleId
+        })
+        if ($matchingRows.Count -ne 1) {
+            throw "Sales Summary must contain exactly one Daily Order row for cycle $cycleId; found $($matchingRows.Count)."
+        }
+        $salesRow = $matchingRows[0]
+        if ([string]$salesRow.status -ne 'posted' -or
+            [string]$salesRow.reference -ne ("DO-" + $cycleId) -or
+            [Math]::Abs([double](To-Decimal $salesRow.gross_amount) - [double]$expected) -gt 0.01 -or
+            [Math]::Abs([double](To-Decimal $salesRow.paid_amount) - [double]$settled) -gt 0.01 -or
+            [Math]::Abs([double](To-Decimal $salesRow.outstanding_amount)) -gt 0.01) {
+            throw "Sales Summary fields or source identity do not reconcile for Daily Order $cycleId."
+        }
+        $verifiedSalesReports += [ordered]@{
+            cycle_id = $cycleId
+            branch_id = $branchId
+            business_date = $businessDate
+            source_type = [string]$salesRow.source_type
+            source_id = [int]$salesRow.source_id
+            reference = [string]$salesRow.reference
+            gross_amount = [string]$salesRow.gross_amount
+            paid_amount = [string]$salesRow.paid_amount
+            outstanding_amount = [string]$salesRow.outstanding_amount
+            status = 'passed'
         }
         $verifiedCycles += [ordered]@{
             cycle_id = $cycleId

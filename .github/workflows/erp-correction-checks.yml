@@ -899,7 +899,9 @@ jobs:
   uat-private-document-http-smoke:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
     needs: [deploy-uat-current-erp]
-    runs-on: windows-latest
+    # GitHub-hosted Windows provisioning fails before setup for this repository.
+    # Use the trusted Windows runner; office BUILD/UAT is classified read-only.
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
