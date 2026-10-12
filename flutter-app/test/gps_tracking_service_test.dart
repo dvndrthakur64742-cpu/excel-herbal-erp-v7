@@ -35,6 +35,10 @@ class _FakeGpsApi implements GpsApiTransport {
 
 class _FakeLocation implements GpsLocationPlatform {
   bool enabled = true;
+  Object? locationServiceError;
+  Object? permissionCheckError;
+  Object? permissionRequestError;
+  Object? currentFixError;
   LocationPermission permission = LocationPermission.always;
   LocationPermission requestedPermission = LocationPermission.always;
   int permissionRequests = 0;
@@ -46,19 +50,27 @@ class _FakeLocation implements GpsLocationPlatform {
   );
 
   @override
-  Future<LocationPermission> checkPermission() async => permission;
+  Future<LocationPermission> checkPermission() async {
+    if (permissionCheckError != null) throw permissionCheckError!;
+    return permission;
+  }
 
   @override
   Future<GpsFix> currentFix() async {
     fixRequests++;
+    if (currentFixError != null) throw currentFixError!;
     return fix;
   }
 
   @override
-  Future<bool> isLocationServiceEnabled() async => enabled;
+  Future<bool> isLocationServiceEnabled() async {
+    if (locationServiceError != null) throw locationServiceError!;
+    return enabled;
+  }
 
   @override
   Future<LocationPermission> requestPermission() async {
+    if (permissionRequestError != null) throw permissionRequestError!;
     permissionRequests++;
     permission = requestedPermission;
     return permission;
@@ -87,6 +99,48 @@ void main() {
       expect(service.locationDisabled, isTrue);
       expect(service.lastError, contains('Device location is off'));
       expect(location.fixRequests, 0);
+    });
+
+    test('surfaces browser location-service API failures and remains retryable', () async {
+      final api = _FakeGpsApi(_attendance('active'));
+      final location = _FakeLocation()
+        ..locationServiceError = StateError('location service API failed');
+      final service = GpsTrackingService.forTest(
+        api: api,
+        location: location,
+      );
+
+      await service.start();
+
+      expect(service.active, isFalse);
+      expect(service.dutyStatus, 'unavailable');
+      expect(service.lastError, contains('location service API failed'));
+      expect(api.posts, isEmpty);
+
+      location.locationServiceError = null;
+      await service.sync();
+      expect(service.active, isTrue);
+      expect(api.posts, hasLength(1));
+      service.stop(status: 'checked_out');
+      service.dispose();
+    });
+
+    test('surfaces browser permission-query failures instead of losing GPS state', () async {
+      final api = _FakeGpsApi(_attendance('active'));
+      final location = _FakeLocation()
+        ..permissionCheckError = StateError('permission query failed');
+      final service = GpsTrackingService.forTest(
+        api: api,
+        location: location,
+      );
+
+      await service.start();
+
+      expect(service.active, isFalse);
+      expect(service.dutyStatus, 'unavailable');
+      expect(service.lastError, contains('permission query failed'));
+      expect(api.posts, isEmpty);
+      service.dispose();
     });
 
     test('handles runtime permission denial without sending GPS', () async {
