@@ -285,7 +285,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             path: ApiPaths.reportsSales,
             recordType: 'sales',
             subtitle:
-                'Current-month sales, collections and outstanding summary.',
+                'Counter Sales + posted Daily Orders, collections and outstanding (without double count).',
             emptyMessage: 'No sales activity for the selected period.',
           ),
       };

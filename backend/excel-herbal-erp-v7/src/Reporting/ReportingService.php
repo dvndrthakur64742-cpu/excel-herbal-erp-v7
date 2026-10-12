@@ -2,7 +2,56 @@
 namespace ExcelHerbal\ERP7\Reporting;
 use ExcelHerbal\ERP7\Core\Input;use ExcelHerbal\ERP7\Database\Db;use ExcelHerbal\ERP7\Domain\DomainException;use ExcelHerbal\ERP7\Security\Actor;use ExcelHerbal\ERP7\Security\Capabilities;use ExcelHerbal\ERP7\Security\Guard;use ExcelHerbal\ERP7\Security\HierarchyScope;
 final class ReportingService{
- public static function sales(Actor $a,int $branch,string $from,string $to):array{Guard::branch($a,$branch,Capabilities::REPORTS_VIEW);[$startUtc,$endUtc]=Input::utcBoundsForBusinessRange($from,$to,'Sales report period');$db=Db::wpdb();$rows=(array)$db->get_results($db->prepare("SELECT id,sale_no reference,sale_date,gross_amount,paid_amount,outstanding_amount,status FROM ".Db::table('counter_sales')." WHERE company_id=%d AND branch_id=%d AND sale_date>=%s AND sale_date<%s ORDER BY sale_date DESC,id DESC",$a->companyId,$branch,$startUtc,$endUtc),ARRAY_A);foreach($rows as&$r){$r['business_date']=get_date_from_gmt((string)$r['sale_date'],'Y-m-d');unset($r['sale_date']);}unset($r);return$rows;}
+ public static function sales(Actor $a,int $branch,string $from,string $to):array{
+  Guard::branch($a,$branch,Capabilities::REPORTS_VIEW);
+  [$from,$to]=Input::dateRange($from,$to,'Sales report period');
+  [$startUtc,$endUtc]=Input::utcBoundsForBusinessRange($from,$to,'Sales report period');
+  $db=Db::wpdb();
+  $rows=(array)$db->get_results($db->prepare(
+   "SELECT id,sale_no reference,sale_date,gross_amount,paid_amount,outstanding_amount,status FROM ".Db::table('counter_sales').
+   " WHERE company_id=%d AND branch_id=%d AND sale_date>=%s AND sale_date<%s ORDER BY sale_date DESC,id DESC",
+   $a->companyId,$branch,$startUtc,$endUtc
+  ),ARRAY_A);
+  foreach($rows as&$row){
+   $row['business_date']=get_date_from_gmt((string)$row['sale_date'],'Y-m-d');
+   unset($row['sale_date']);
+   $row['source_type']='counter_sale';
+   $row['source_id']=(int)$row['id'];
+  }
+  unset($row);
+  // Completed Daily Orders are posted directly to journals and stock; they
+  // never create a counter_sale row. Include them once, from posted
+  // settlements only, so the report reflects both independent sale sources.
+  $daily=(array)$db->get_results($db->prepare(
+   "SELECT c.id,c.business_date,es.expected_amount,es.cash_amount,es.upi_amount ".
+   "FROM ".Db::table('daily_cycles')." c ".
+   "JOIN ".Db::table('evening_settlements')." es ON es.daily_cycle_id=c.id AND es.status='posted' ".
+   "WHERE c.company_id=%d AND c.branch_id=%d AND c.status='completed' ".
+   "AND c.business_date BETWEEN %s AND %s ORDER BY c.business_date DESC,c.id DESC",
+   $a->companyId,$branch,$from,$to
+  ),ARRAY_A);
+  foreach($daily as$cycle){
+   $id=(int)$cycle['id'];
+   $gross=round((float)$cycle['expected_amount'],2);
+   $paid=round((float)$cycle['cash_amount']+(float)$cycle['upi_amount'],2);
+   $rows[]=[
+    'id'=>'daily_order:'.$id,
+    'reference'=>'DO-'.$id,
+    'gross_amount'=>$gross,
+    'paid_amount'=>$paid,
+    'outstanding_amount'=>round($gross-$paid,2),
+    'status'=>'posted',
+    'business_date'=>(string)$cycle['business_date'],
+    'source_type'=>'daily_order',
+    'source_id'=>$id,
+   ];
+  }
+  usort($rows,static function(array $a,array $b):int{
+   $byDate=strcmp((string)$b['business_date'],(string)$a['business_date']);
+   return $byDate!==0?$byDate:strcmp((string)$b['reference'],(string)$a['reference']);
+  });
+  return $rows;
+ }
  public static function purchase(Actor $a,int $branch,string $from,string $to):array{Guard::branch($a,$branch,Capabilities::REPORTS_VIEW);[$from,$to]=Input::dateRange($from,$to,'Purchase report period');$db=Db::wpdb();return(array)$db->get_results($db->prepare("SELECT b.*,s.name supplier_name FROM ".Db::table('purchase_bills')." b JOIN ".Db::table('suppliers')." s ON s.id=b.supplier_id WHERE b.company_id=%d AND b.branch_id=%d AND b.bill_date BETWEEN %s AND %s ORDER BY b.bill_date DESC,b.id DESC",$a->companyId,$branch,$from,$to),ARRAY_A);}
  public static function stock(Actor $a,int $branch):array{Guard::branch($a,$branch,Capabilities::REPORTS_VIEW);$db=Db::wpdb();return(array)$db->get_results($db->prepare("SELECT sb.*,p.sku,p.name product_name,b.batch_no,e.full_name custodian_name FROM ".Db::table('stock_balances')." sb JOIN ".Db::table('products')." p ON p.id=sb.product_id LEFT JOIN ".Db::table('batches')." b ON b.id=NULLIF(sb.batch_key,0) LEFT JOIN ".Db::table('employees')." e ON e.id=NULLIF(sb.custodian_key,0) WHERE sb.company_id=%d AND sb.branch_id=%d AND ABS(sb.quantity)>.0001 ORDER BY p.name,b.batch_no",$a->companyId,$branch),ARRAY_A);}
  public static function finance(Actor $a,int $branch,string $from,string $to):array{Guard::branch($a,$branch,Capabilities::REPORTS_VIEW);[$from,$to]=Input::dateRange($from,$to,'Finance report period');$db=Db::wpdb();return(array)$db->get_results($db->prepare("SELECT je.id,je.entry_no,je.entry_date,je.source_type,je.source_id,je.status,je.memo,SUM(jl.debit) debit,SUM(jl.credit) credit FROM ".Db::table('journal_entries')." je JOIN ".Db::table('journal_lines')." jl ON jl.journal_entry_id=je.id WHERE je.company_id=%d AND je.branch_id=%d AND DATE(je.entry_date) BETWEEN %s AND %s GROUP BY je.id ORDER BY je.entry_date DESC,je.id DESC",$a->companyId,$branch,$from,$to),ARRAY_A);}

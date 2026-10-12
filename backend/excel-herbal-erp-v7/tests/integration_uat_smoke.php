@@ -26,6 +26,20 @@ if (!function_exists('get_option')) {
     }
 }
 
+// The disposable integration database runs outside WordPress. Mirror its
+// configured business timezone as UTC because uat_date() deliberately uses UTC.
+if (!function_exists('wp_timezone')) {
+    function wp_timezone(): DateTimeZone {
+        return new DateTimeZone('UTC');
+    }
+}
+if (!function_exists('get_date_from_gmt')) {
+    function get_date_from_gmt($gmt_string, $format = 'Y-m-d H:i:s'): string {
+        $instant = new DateTimeImmutable((string)$gmt_string, new DateTimeZone('UTC'));
+        return $instant->setTimezone(wp_timezone())->format((string)$format);
+    }
+}
+
 final class Eh7UatRequest implements ArrayAccess {
     public function __construct(private array $params = [], private array $json = []) {}
     public function get_param(string $key): mixed { return $this->params[$key] ?? null; }
@@ -515,6 +529,54 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
         "SELECT COUNT(*) FROM ".Db::table('journal_entries')." WHERE source_type='daily_cycle' AND source_id=%d",$cycle
     ));
     if($journalCount!==1)throw new RuntimeException('Final Post replay duplicated journal');
+});
+
+uat_case('uat_sales_report_consolidates_posted_daily_orders', function () use ($wpdb) {
+    $reporter=uat_actor(20,[1,2],[Capabilities::REPORTS_VIEW],'SYSADMIN');
+    $today=uat_date();
+    $rows=uat_dispatch('reports.sales',$reporter,[
+        'branch_id'=>1,'from'=>$today,'to'=>$today,
+    ]);
+    $daily=array_values(array_filter($rows,static fn($row)=>($row['source_type']??'')==='daily_order'));
+    $dbCount=(int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM ".Db::table('daily_cycles')." c ".
+        "JOIN ".Db::table('evening_settlements')." es ON es.daily_cycle_id=c.id AND es.status='posted' ".
+        "WHERE c.company_id=%d AND c.branch_id=%d AND c.status='completed' AND c.business_date=%s",
+        1,1,$today
+    ));
+    if($dbCount===0||count($daily)!==$dbCount) {
+        throw new RuntimeException('Sales report omitted or duplicated a posted Daily Order');
+    }
+    foreach($daily as$row) {
+        if(($row['status']??'')!=='posted'||
+           ($row['reference']??'')!=='DO-'.(int)$row['source_id']||
+           ($row['id']??'')!=='daily_order:'.(int)$row['source_id']||
+           abs((float)$row['gross_amount']-(float)$row['paid_amount'])>.005||
+           abs((float)$row['outstanding_amount'])>.005) {
+            throw new RuntimeException('Posted Daily Order sales report fields or source identity mismatch');
+        }
+    }
+    $pastDay=(new DateTimeImmutable($today))->modify('-203 days')->format('Y-m-d');
+    $pastRows=uat_dispatch('reports.sales',$reporter,[
+        'branch_id'=>1,'from'=>$pastDay,'to'=>$pastDay,
+    ]);
+    $pastDaily=array_values(array_filter($pastRows,static fn($row)=>($row['source_type']??'')==='daily_order'));
+    if(count($pastDaily)!==1||abs((float)$pastDaily[0]['gross_amount']-360)>.005||
+       abs((float)$pastDaily[0]['paid_amount']-360)>.005) {
+        throw new RuntimeException('Mixed Cash/UPI wholesale Daily Order absent from branch sales report');
+    }
+    $otherBranch=uat_dispatch('reports.sales',$reporter,[
+        'branch_id'=>2,'from'=>$pastDay,'to'=>$today,
+    ]);
+    foreach($otherBranch as$row) {
+        if(($row['source_type']??'')==='daily_order') {
+            throw new RuntimeException('Daily Order of branch 1 leaked to branch 2 sales report');
+        }
+    }
+    uat_expect_forbidden(fn()=>uat_dispatch('reports.sales',
+        uat_actor(10,[1],[Capabilities::DAILY_SELF],'FE'),
+        ['branch_id'=>1,'from'=>$today,'to'=>$today]
+    ),'Daily Order sales report ignored REPORTS_VIEW capability');
 });
 
 uat_case('uat_audit_batch_without_expiry_and_expired_quarantine', function () use ($manager,$wpdb) {
