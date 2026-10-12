@@ -753,9 +753,19 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                           ListView.builder(
                             padding:
                                 const EdgeInsets.fromLTRB(12, 12, 12, 20),
-                            itemCount: allCaps.length,
+                            itemCount: allCaps.length + 1,
                             itemBuilder: (context, index) {
-                              final cap = allCaps[index];
+                              if (index == 0) {
+                                return const Card(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: Text(
+                                      'Inherit uses designation and role permissions. Grant adds access. Deny blocks access even when a designation or role grants it. Removing a role alone does not remove designation defaults.',
+                                    ),
+                                  ),
+                                );
+                              }
+                              final cap = allCaps[index - 1];
                               final value = grants.contains(cap)
                                   ? 'grant'
                                   : denies.contains(cap)
