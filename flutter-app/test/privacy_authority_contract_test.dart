@@ -118,9 +118,10 @@ void main() {
       administration,
       contains('String? refreshWarning;'),
     );
+    expect(administration, contains('catch (refreshError)'));
     expect(
       administration,
-      contains('catch (refreshError) {\n              refreshWarning = UiError.message(refreshError);'),
+      contains('refreshWarning = UiError.message(refreshError);'),
     );
     expect(
       administration,
