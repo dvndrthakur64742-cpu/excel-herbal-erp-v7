@@ -26,6 +26,20 @@ if (!function_exists('get_option')) {
     }
 }
 
+// The disposable integration database runs outside WordPress. Mirror its
+// configured business timezone as UTC because uat_date() deliberately uses UTC.
+if (!function_exists('wp_timezone')) {
+    function wp_timezone(): DateTimeZone {
+        return new DateTimeZone('UTC');
+    }
+}
+if (!function_exists('get_date_from_gmt')) {
+    function get_date_from_gmt($gmt_string, $format = 'Y-m-d H:i:s'): string {
+        $instant = new DateTimeImmutable((string)$gmt_string, new DateTimeZone('UTC'));
+        return $instant->setTimezone(wp_timezone())->format((string)$format);
+    }
+}
+
 final class Eh7UatRequest implements ArrayAccess {
     public function __construct(private array $params = [], private array $json = []) {}
     public function get_param(string $key): mixed { return $this->params[$key] ?? null; }
