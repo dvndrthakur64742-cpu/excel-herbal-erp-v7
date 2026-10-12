@@ -92,6 +92,17 @@ void main() {
     expect(access, contains('array_column(\$before,\'capability\')'));
   });
 
+  test('attendance writes are not blocked by unavailable geolocation', () {
+    final attendance = File(
+      'lib/screens/my_work/my_work_attendance.dart',
+    ).readAsStringSync();
+    expect(attendance, contains('Position? p;'));
+    expect(attendance, contains('locationWarning = UiError.message(e);'));
+    expect(attendance, contains("'lat': p?.latitude"));
+    expect(attendance, contains("'lng': p?.longitude"));
+    expect(attendance, contains('Attendance location not captured:'));
+  });
+
   test('employee access save does not misreport post-commit refresh failures', () {
     final administration = File(
       'lib/screens/administration/administration_screen.dart',
