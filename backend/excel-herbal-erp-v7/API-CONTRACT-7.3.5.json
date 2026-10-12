@@ -1,5 +1,5 @@
 {
-  "contract_version": "7.3.5-contract-1",
+  "contract_version": "7.3.5-contract-2",
   "namespace": "excel-herbal-erp/v7",
   "authentication": "Bearer access token for authenticated routes",
   "idempotency_header": "X-Idempotency-Key",
@@ -44,7 +44,8 @@
     "salary_revision_approval": true,
     "payroll_working_day_proration": true,
     "private_document_download": true,
-    "stock_quarantine_workflow": true
+    "stock_quarantine_workflow": true,
+    "accounts_report_review": true
   },
   "routes": [
     {
@@ -1604,6 +1605,32 @@
       "auth": true,
       "idempotency_required": false,
       "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/reviews",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/reports/reviews",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": [
+        "report_type"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/reports/reviews/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": [
+        "decision",
+        "reason"
+      ]
     },
     {
       "method": "GET",

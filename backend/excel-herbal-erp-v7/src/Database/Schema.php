@@ -1,7 +1,7 @@
 <?php
 namespace ExcelHerbal\ERP7\Database;
 final class Schema {
-    public const VERSION='7.3.5-performance-indexes-1';
+    public const VERSION='7.3.5-report-reviews-1';
     /** @return array<string,string> */
     public static function definitions():array{$c=[];
 $c['companies']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,name VARCHAR(190) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'active',created_at DATETIME NOT NULL,PRIMARY KEY(id)";
@@ -78,6 +78,7 @@ $c['hr_candidate_documents']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company
 $c['hr_separations']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,employee_id BIGINT UNSIGNED NOT NULL,branch_id BIGINT UNSIGNED NOT NULL,separation_date DATE NOT NULL,reason VARCHAR(255) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'submitted',initiated_by BIGINT UNSIGNED NOT NULL,initiated_at DATETIME NOT NULL,reviewed_by BIGINT UNSIGNED NULL,reviewed_at DATETIME NULL,review_reason VARCHAR(255) NULL,completed_by BIGINT UNSIGNED NULL,completed_at DATETIME NULL,PRIMARY KEY(id),KEY employee_status(company_id,employee_id,status),KEY branch_status(company_id,branch_id,status,separation_date)";
 $c['announcement_acknowledgements']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,announcement_id BIGINT UNSIGNED NOT NULL,employee_id BIGINT UNSIGNED NOT NULL,acknowledged_at DATETIME NOT NULL,PRIMARY KEY(id),UNIQUE KEY announcement_employee(announcement_id,employee_id),KEY company_employee(company_id,employee_id)";
 $c['push_devices']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,employee_id BIGINT UNSIGNED NOT NULL,platform VARCHAR(20) NOT NULL,token_hash CHAR(64) NOT NULL,token_ciphertext LONGTEXT NOT NULL,token_iv VARCHAR(64) NOT NULL,token_tag VARCHAR(64) NOT NULL,device_name VARCHAR(190) NULL,active TINYINT(1) NOT NULL DEFAULT 1,last_seen_at DATETIME NOT NULL,created_at DATETIME NOT NULL,updated_at DATETIME NULL,PRIMARY KEY(id),UNIQUE KEY token_hash(token_hash),KEY employee_active(company_id,employee_id,active)";
+$c['report_reviews']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,branch_id BIGINT UNSIGNED NULL,report_type VARCHAR(40) NOT NULL,period_from DATE NULL,period_to DATE NULL,as_of_date DATE NULL,status VARCHAR(20) NOT NULL DEFAULT 'pending',snapshot_hash CHAR(64) NOT NULL,row_count INT UNSIGNED NOT NULL DEFAULT 0,summary_json LONGTEXT NOT NULL,requested_by BIGINT UNSIGNED NOT NULL,requested_at DATETIME NOT NULL,reviewed_by BIGINT UNSIGNED NULL,reviewed_at DATETIME NULL,decision_reason VARCHAR(500) NULL,PRIMARY KEY(id),KEY company_status_date(company_id,status,requested_at,id),KEY branch_status(company_id,branch_id,status,id)";
 $c['settings']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,company_id BIGINT UNSIGNED NOT NULL,setting_key VARCHAR(100) NOT NULL,setting_value LONGTEXT NULL,updated_by BIGINT UNSIGNED NULL,updated_at DATETIME NOT NULL,PRIMARY KEY(id),UNIQUE KEY uq_setting(company_id,setting_key)";
 return$c;}
     public static function maybeUpgrade():bool{

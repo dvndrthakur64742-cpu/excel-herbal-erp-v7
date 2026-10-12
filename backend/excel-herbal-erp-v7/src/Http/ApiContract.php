@@ -10,7 +10,7 @@ use ExcelHerbal\ERP7\Domain\DomainException;
  */
 final class ApiContract
 {
-    public const VERSION='7.3.5-contract-1';
+    public const VERSION='7.3.5-contract-2';
 
     /** @return array<string,bool> */
     public static function featureFlags():array
@@ -57,6 +57,7 @@ final class ApiContract
             'payroll_working_day_proration'=>true,
             'private_document_download'=>true,
             'stock_quarantine_workflow'=>true,
+            'accounts_report_review'=>true,
         ];
     }
 
@@ -154,6 +155,8 @@ final class ApiContract
             'admin.unavailability_create'=>['branch_id','starts_at','ends_at','reason'],
             'admin.unavailability_revoke'=>['reason'],
             'admin.transfer_accounting_repair'=>['confirmation'],
+            'reports.review_submit'=>['report_type'],
+            'reports.review_decision'=>['decision','reason'],
         ];
     }
 
