@@ -1617,7 +1617,7 @@
       "method": "POST",
       "path": "/reports/reviews",
       "auth": true,
-      "idempotency_required": false,
+      "idempotency_required": true,
       "required_params": [
         "report_type"
       ]
@@ -1626,7 +1626,7 @@
       "method": "POST",
       "path": "/reports/reviews/(?P<id>\\d+)/decision",
       "auth": true,
-      "idempotency_required": false,
+      "idempotency_required": true,
       "required_params": [
         "decision",
         "reason"

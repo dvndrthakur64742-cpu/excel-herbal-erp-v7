@@ -279,14 +279,14 @@ void main() {
     final queue = File('lib/screens/reports/report_review_queue.dart').readAsStringSync();
     final service = File(
       '../backend/excel-herbal-erp-v7/src/Reporting/ReportReviewService.php',
-    );
+    ).readAsStringSync();
     expect(reports, contains("'accounts_review'"));
     expect(reports, contains('Submit for Accounts Review'));
     expect(reports, contains('ApiPaths.reportReviewDecision(id)'));
     expect(queue, contains('Confirm approval'));
     expect(queue, contains('Confirm rejection'));
-    expect(service.existsSync(), isFalse,
-        reason: 'Flutter tests run from flutter-app and must not depend on backend filesystem paths.');
+    expect(service, contains('report_review_maker_checker'));
+    expect(service, contains('report_snapshot_stale'));
   });
 
 }

@@ -89,7 +89,7 @@ final class ReportReviewService
             if(!hash_equals((string)$row['snapshot_hash'],$currentHash)){
                 Db::mustUpdate($db,$table,['status'=>'stale','reviewed_by'=>$a->employeeId,'reviewed_at'=>Db::now(),'decision_reason'=>'Report data changed after submission. '.$reason],['id'=>$id,'company_id'=>$a->companyId,'status'=>'pending']);
                 Audit::add($a,'report_review.stale','report_review',$id,['branch_id'=>$branch,'report_type'=>$type,'submitted_hash'=>(string)$row['snapshot_hash'],'current_hash'=>$currentHash,'reason'=>$reason]);
-                return self::find($a->companyId,$id);
+                $stale=self::find($a->companyId,$id);$stale['result_code']='report_snapshot_stale';$stale['message']='Report data changed after submission. Submit a fresh snapshot.';return $stale;
             }
             $status=$decision==='approve'?'approved':'rejected';
             Db::mustUpdate($db,$table,['status'=>$status,'reviewed_by'=>$a->employeeId,'reviewed_at'=>Db::now(),'decision_reason'=>$reason],['id'=>$id,'company_id'=>$a->companyId,'status'=>'pending']);
