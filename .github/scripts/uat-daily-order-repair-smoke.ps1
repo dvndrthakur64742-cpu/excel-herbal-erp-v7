@@ -226,7 +226,7 @@ try {
         # Read-only check: each verified posted Daily Order appears once in Sales Summary.
         $businessDate = [string]$data.cycle.business_date
         $branchId = [int]$data.cycle.branch_id
-        if ($branchId -le 0 -or $businessDate -notmatch '^\d{4}-\d{2}-\d{2}
+        if ($branchId -le 0 -or $businessDate -notmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}
             cycle_id = $cycleId
             business_date = [string]$data.cycle.business_date
             request_count = $requests.Count
