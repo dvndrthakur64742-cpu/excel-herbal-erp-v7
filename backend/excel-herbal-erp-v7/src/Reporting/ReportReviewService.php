@@ -34,7 +34,7 @@ final class ReportReviewService
         $sql = 'SELECT r.id,r.company_id,r.branch_id,r.report_type,r.period_from,r.period_to,r.as_of_date,r.status,r.snapshot_hash,r.row_count,r.summary_json,r.requested_by,r.requested_at,r.reviewed_by,r.reviewed_at,r.decision_reason,req.full_name requester_name,rev.full_name reviewer_name ' .
             'FROM ' . Db::table('report_reviews') . ' r LEFT JOIN ' . Db::table('employees') . ' req ON req.company_id=r.company_id AND req.id=r.requested_by ' .
             'LEFT JOIN ' . Db::table('employees') . ' rev ON rev.company_id=r.company_id AND rev.id=r.reviewed_by WHERE ' . $where .
-            ' ORDER BY FIELD(r.status,\\'pending\\',\\'stale\\',\\'rejected\\',\\'approved\\'),r.requested_at DESC,r.id DESC LIMIT 200';
+            ' ORDER BY FIELD(r.status,\'pending\',\'stale\',\'rejected\',\'approved\'),r.requested_at DESC,r.id DESC LIMIT 200';
         $rows = (array)$db->get_results($db->prepare($sql, ...$args), ARRAY_A);
         $visible = [];
         foreach ($rows as $row) {
