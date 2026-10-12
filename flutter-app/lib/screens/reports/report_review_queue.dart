@@ -12,11 +12,13 @@ class ReportReviewQueue extends StatelessWidget {
     required this.rows,
     required this.busy,
     required this.onDecision,
+    required this.onView,
   });
 
   final List<Map<String, dynamic>> rows;
   final bool busy;
   final ReportReviewDecision onDecision;
+  final Future<void> Function(Map<String, dynamic> review) onView;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +38,7 @@ class ReportReviewQueue extends StatelessWidget {
         row: rows[index],
         busy: busy,
         onDecision: onDecision,
+        onView: onView,
       ),
     );
   }
@@ -46,11 +49,13 @@ class _ReviewCard extends StatelessWidget {
     required this.row,
     required this.busy,
     required this.onDecision,
+    required this.onView,
   });
 
   final Map<String, dynamic> row;
   final bool busy;
   final ReportReviewDecision onDecision;
+  final Future<void> Function(Map<String, dynamic> review) onView;
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +148,11 @@ class _ReviewCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : () => onView(row),
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('View report'),
+                  ),
                   OutlinedButton.icon(
                     onPressed: busy
                         ? null

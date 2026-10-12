@@ -97,6 +97,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       .toList(),
                   busy: _reviewBusy,
                   onDecision: _decideReview,
+                  onView: _viewReviewReport,
                 );
               }
               if (activeType == 'price_distribution') {
@@ -284,6 +285,102 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       if (mounted) setState(() => _feedback = 'Could not submit review: ${UiError.message(e)}');
     } finally {
       if (mounted) setState(() => _reviewBusy = false);
+    }
+  }
+
+  Future<void> _viewReviewReport(Map<String, dynamic> review) async {
+    final type = '${review['report_type'] ?? ''}';
+    final report = switch (type) {
+      'trial_balance' => (
+          ApiPaths.trialBalance,
+          'trial_balance',
+          'Trial Balance',
+        ),
+      'profit_loss' => (ApiPaths.profitLoss, 'profit_loss', 'Profit & Loss'),
+      'balance_sheet' => (
+          ApiPaths.balanceSheet,
+          'balance_sheet',
+          'Balance Sheet',
+        ),
+      'stock_reconciliation' => (
+          ApiPaths.stockReconciliation,
+          'stock_reconciliation',
+          'Stock Reconciliation',
+        ),
+      'finance_reconciliation' => (
+          ApiPaths.financeReconciliation,
+          'finance_reconciliation',
+          'Finance Reconciliation',
+        ),
+      _ => null,
+    };
+    if (report == null) return;
+    final query = <String, dynamic>{
+      if (review['branch_id'] != null) 'branch_id': review['branch_id'],
+      if (type == 'profit_loss') ...{
+        'from': review['period_from'],
+        'to': review['period_to'],
+      },
+      if (type == 'trial_balance' || type == 'balance_sheet')
+        'to': review['as_of_date'],
+    };
+    try {
+      final data = await ref.read(apiClientProvider).get(report.$1, query: query);
+      final rows = ((data as List?) ?? const [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1100, maxHeight: 760),
+            child: SizedBox(
+              width: MediaQuery.of(dialogContext).size.width * 0.92,
+              height: MediaQuery.of(dialogContext).size.height * 0.82,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            report.$3,
+                            style: Theme.of(dialogContext).textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          tooltip: 'Close report preview',
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Live data preview. Approval is blocked if this report no longer matches the submitted snapshot.',
+                      ),
+                    ),
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: RecordsList(recordType: report.$2, rows: rows),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _feedback = 'Could not open report preview: ${UiError.message(e)}');
+      }
     }
   }
 
