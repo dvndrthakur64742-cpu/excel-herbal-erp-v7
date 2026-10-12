@@ -124,14 +124,14 @@ final class ReportReviewService
             if(!$row)throw new DomainException('Report review request not found.','report_review_not_found',404);
             if((string)$row['status']!=='pending')throw new DomainException('This report review is no longer pending.','report_review_not_pending',409);
             if((int)$row['requested_by']===$a->employeeId)throw new DomainException('The requester cannot approve or reject their own report review.','report_review_maker_checker',403);
+            $type=(string)$row['report_type'];$branch=$row['branch_id']===null?null:(int)$row['branch_id'];
+            self::assertScope($a,$type,$branch);
             $storedRows=json_decode((string)($row['snapshot_json']??''),true);
             if(!is_array($storedRows)||!hash_equals((string)$row['snapshot_hash'],self::hashRows($storedRows))){
                 Db::mustUpdate($db,$table,['status'=>'stale','reviewed_by'=>$a->employeeId,'reviewed_at'=>Db::now(),'decision_reason'=>'Stored report snapshot failed integrity validation. '.$reason],['id'=>$id,'company_id'=>$a->companyId,'status'=>'pending']);
                 Audit::add($a,'report_review.snapshot_integrity_failed','report_review',$id,['report_type'=>(string)$row['report_type'],'snapshot_hash'=>(string)$row['snapshot_hash'],'reason'=>$reason]);
                 $stale=self::find($a->companyId,$id);$stale['result_code']='report_snapshot_integrity_failed';$stale['message']='Stored report snapshot failed integrity validation. Submit a fresh review request.';return $stale;
             }
-            $type=(string)$row['report_type'];$branch=$row['branch_id']===null?null:(int)$row['branch_id'];
-            self::assertScope($a,$type,$branch);
             $from=$row['period_from']===null?null:(string)$row['period_from'];$to=$row['period_to']===null?null:(string)$row['period_to'];$asOf=$row['as_of_date']===null?null:(string)$row['as_of_date'];
             $currentHash=self::hashRows(self::snapshot($a,$type,$branch,$from,$to,$asOf));
             if(!hash_equals((string)$row['snapshot_hash'],$currentHash)){
@@ -148,9 +148,13 @@ final class ReportReviewService
 
     private static function assertScope(Actor $a,string $type,?int $branch):void
     {
-        if($branch!==null)return;
-        if($type==='stock_reconciliation')throw new DomainException('Stock Reconciliation review must be tied to one branch.','report_review_branch_required',422);
-        Guard::allActiveBranches($a,Capabilities::ACCOUNTING_VIEW);
+        if($type==='stock_reconciliation'){
+            if($branch===null)throw new DomainException('Stock Reconciliation review must be tied to one branch.','report_review_branch_required',422);
+            Guard::branch($a,$branch,Capabilities::REPORTS_VIEW);
+            return;
+        }
+        if($branch===null)Guard::allActiveBranches($a,Capabilities::ACCOUNTING_VIEW);
+        else Guard::branch($a,$branch,Capabilities::ACCOUNTING_VIEW);
     }
 
     private static function snapshot(Actor $a,string $type,?int $branch,?string $from,?string $to,?string $asOf):array
