@@ -226,44 +226,7 @@ try {
         # Read-only check: each verified posted Daily Order appears once in Sales Summary.
         $businessDate = [string]$data.cycle.business_date
         $branchId = [int]$data.cycle.branch_id
-        if ($branchId -le 0 -or $businessDate -notmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}
-            cycle_id = $cycleId
-            business_date = [string]$data.cycle.business_date
-            request_count = $requests.Count
-            evening_line_count = @($data.evening.lines).Count
-            expected_amount = [string]$data.evening.expected_amount
-            cash_amount = [string]$data.evening.cash_amount
-            upi_amount = [string]$data.evening.upi_amount
-            status = 'passed'
-        }
-    }
-
-    $evidence['verified_completed_cycles'] = $verifiedCycles
-    $evidence['verified_sales_report_rows'] = $verifiedSalesReports
-    $evidence.results['completed_cycle_invariants'] = 'passed'
-    $evidence.results['sales_summary_daily_order_inclusion'] = 'passed'
-    $evidence['status'] = 'passed'
-    Write-Host ('PASS verified_completed_cycles=' + $verifiedCycles.Count)
-    if ($diagnosticsAuthorized) {
-        Write-Host ('PASS legacy_snapshot_mismatches_before=' + $beforeMismatch)
-        Write-Host ('PASS legacy_snapshot_mismatches_after=' + $afterMismatch)
-    } else {
-        Write-Host 'INFO legacy snapshot diagnostics verified separately under administrator scope.'
-    }
-    Write-Host 'PASSED Daily Order controlled UAT integrity smoke'
-}
-finally {
-    if (-not [string]::IsNullOrWhiteSpace($access)) {
-        try { [void](Send-Eh7 -Method POST -Path '/auth/logout' -Bearer $access) } catch {}
-    }
-    $dir = Split-Path -Parent $EvidencePath
-    if (-not [string]::IsNullOrWhiteSpace($dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    }
-    $evidence | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $EvidencePath -Encoding utf8
-    $client.Dispose()
-}
-) {
+        if ($branchId -le 0 -or $businessDate -notmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') {
             throw "Cycle $cycleId has an invalid branch or business date for Sales Summary verification."
         }
         $reportPath = '/reports/sales?branch_id=' + $branchId +
@@ -311,7 +274,9 @@ finally {
     }
 
     $evidence['verified_completed_cycles'] = $verifiedCycles
+    $evidence['verified_sales_report_rows'] = $verifiedSalesReports
     $evidence.results['completed_cycle_invariants'] = 'passed'
+    $evidence.results['sales_summary_daily_order_inclusion'] = 'passed'
     $evidence['status'] = 'passed'
     Write-Host ('PASS verified_completed_cycles=' + $verifiedCycles.Count)
     if ($diagnosticsAuthorized) {
