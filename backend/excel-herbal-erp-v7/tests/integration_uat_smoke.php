@@ -661,6 +661,16 @@ uat_case('uat_accounts_report_review_maker_checker_snapshot_stale_and_approval',
     ));
     if ($audit !== 1) throw new RuntimeException('Accounts approval audit event is missing');
 
+    $financeOnly = uat_actor(20, [1,2], [
+        Capabilities::ACCOUNTING_VIEW, Capabilities::REPORT_REVIEW,
+    ], 'SYSADMIN');
+    $financeQueue = uat_dispatch('reports.review_list', $financeOnly, ['status'=>'all']);
+    foreach ($financeQueue as $row) {
+        if (($row['report_type'] ?? '') === 'stock_reconciliation') {
+            throw new RuntimeException('Finance-only reviewer saw stock reconciliation without REPORTS_VIEW');
+        }
+    }
+
     $all = uat_dispatch('reports.review_list', $reviewer, ['status'=>'all']);
     $statuses = array_map(static fn($row) => (string)($row['status'] ?? ''), $all);
     if (!in_array('approved', $statuses, true) || !in_array('rejected', $statuses, true) || !in_array('stale', $statuses, true)) {

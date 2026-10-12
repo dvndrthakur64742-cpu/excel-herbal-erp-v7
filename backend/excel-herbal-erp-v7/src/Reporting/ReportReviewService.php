@@ -36,9 +36,19 @@ final class ReportReviewService
             'LEFT JOIN ' . Db::table('employees') . ' rev ON rev.company_id=r.company_id AND rev.id=r.reviewed_by WHERE ' . $where .
             ' ORDER BY FIELD(r.status,\'pending\',\'stale\',\'rejected\',\'approved\'),r.requested_at DESC,r.id DESC LIMIT 200';
         $rows = (array)$db->get_results($db->prepare($sql, ...$args), ARRAY_A);
-        foreach ($rows as &$row) { $row['id']=(int)$row['id']; $row['branch_id']=$row['branch_id']===null?null:(int)$row['branch_id']; $row['row_count']=(int)$row['row_count']; $row['summary']=json_decode((string)$row['summary_json'],true)?:[]; unset($row['summary_json']); }
-        unset($row);
-        return $rows;
+        $visible = [];
+        foreach ($rows as $row) {
+            // A financial reviewer without general report access must not see
+            // stock reconciliation exceptions in the Accounts review queue.
+            if ((string)$row['report_type'] === 'stock_reconciliation' && !$a->can(Capabilities::REPORTS_VIEW)) continue;
+            $row['id'] = (int)$row['id'];
+            $row['branch_id'] = $row['branch_id'] === null ? null : (int)$row['branch_id'];
+            $row['row_count'] = (int)$row['row_count'];
+            $row['summary'] = json_decode((string)$row['summary_json'], true) ?: [];
+            unset($row['summary_json']);
+            $visible[] = $row;
+        }
+        return $visible;
     }
 
     public static function submit(Actor $a, array $input): array
