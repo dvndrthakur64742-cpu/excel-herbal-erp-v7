@@ -256,9 +256,7 @@ try {
             source_type = [string]$salesRow.source_type
             source_id = [int]$salesRow.source_id
             reference = [string]$salesRow.reference
-            gross_amount = [string]$salesRow.gross_amount
-            paid_amount = [string]$salesRow.paid_amount
-            outstanding_amount = [string]$salesRow.outstanding_amount
+            amounts_reconciled = $true
             status = 'passed'
         }
         $verifiedCycles += [ordered]@{
@@ -266,9 +264,7 @@ try {
             business_date = [string]$data.cycle.business_date
             request_count = $requests.Count
             evening_line_count = @($data.evening.lines).Count
-            expected_amount = [string]$data.evening.expected_amount
-            cash_amount = [string]$data.evening.cash_amount
-            upi_amount = [string]$data.evening.upi_amount
+            settlement_reconciled = $true
             status = 'passed'
         }
     }
