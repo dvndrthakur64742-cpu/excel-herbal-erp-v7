@@ -92,6 +92,24 @@ void main() {
     expect(access, contains('array_column(\$before,\'capability\')'));
   });
 
+  test('employee access save does not misreport post-commit refresh failures', () {
+    final administration = File(
+      'lib/screens/administration/administration_screen.dart',
+    ).readAsStringSync();
+    expect(
+      administration,
+      contains('String? refreshWarning;'),
+    );
+    expect(
+      administration,
+      contains('catch (refreshError) {\n              refreshWarning = UiError.message(refreshError);'),
+    );
+    expect(
+      administration,
+      contains('Employee access saved atomically. $applied effective permissions, but app refresh failed:'),
+    );
+  });
+
   test('reserved system roles and employee mutations use central authority policy', () {
     final access = File(
       '../backend/excel-herbal-erp-v7/src/Security/AccessService.php',
