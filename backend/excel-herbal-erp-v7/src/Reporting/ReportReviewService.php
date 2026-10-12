@@ -124,6 +124,12 @@ final class ReportReviewService
             if(!$row)throw new DomainException('Report review request not found.','report_review_not_found',404);
             if((string)$row['status']!=='pending')throw new DomainException('This report review is no longer pending.','report_review_not_pending',409);
             if((int)$row['requested_by']===$a->employeeId)throw new DomainException('The requester cannot approve or reject their own report review.','report_review_maker_checker',403);
+            $storedRows=json_decode((string)($row['snapshot_json']??''),true);
+            if(!is_array($storedRows)||!hash_equals((string)$row['snapshot_hash'],self::hashRows($storedRows))){
+                Db::mustUpdate($db,$table,['status'=>'stale','reviewed_by'=>$a->employeeId,'reviewed_at'=>Db::now(),'decision_reason'=>'Stored report snapshot failed integrity validation. '.$reason],['id'=>$id,'company_id'=>$a->companyId,'status'=>'pending']);
+                Audit::add($a,'report_review.snapshot_integrity_failed','report_review',$id,['report_type'=>(string)$row['report_type'],'snapshot_hash'=>(string)$row['snapshot_hash'],'reason'=>$reason]);
+                $stale=self::find($a->companyId,$id);$stale['result_code']='report_snapshot_integrity_failed';$stale['message']='Stored report snapshot failed integrity validation. Submit a fresh review request.';return $stale;
+            }
             $type=(string)$row['report_type'];$branch=$row['branch_id']===null?null:(int)$row['branch_id'];
             self::assertScope($a,$type,$branch);
             $from=$row['period_from']===null?null:(string)$row['period_from'];$to=$row['period_to']===null?null:(string)$row['period_to'];$asOf=$row['as_of_date']===null?null:(string)$row['as_of_date'];

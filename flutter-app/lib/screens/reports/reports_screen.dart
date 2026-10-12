@@ -383,10 +383,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         data: {'decision': decision, 'reason': reason},
       );
       final status = result is Map ? '${result['status'] ?? ''}' : '';
+      final resultCode = result is Map ? '${result['result_code'] ?? ''}' : '';
       if (!mounted) return;
       setState(() {
-        _feedback = status == 'stale'
-            ? 'Review stopped: report data changed after submission. Submit a fresh snapshot.'
+        _feedback = resultCode == 'report_snapshot_integrity_failed'
+            ? 'Review stopped: stored snapshot failed integrity validation. Submit a fresh report.'
+            : status == 'stale'
+                ? 'Review stopped: report data changed after submission. Submit a fresh snapshot.'
             : status == 'approved'
                 ? 'Accounts review approved and audit-recorded.'
                 : status == 'rejected'

@@ -676,6 +676,36 @@ uat_case('uat_accounts_report_review_maker_checker_snapshot_stale_and_approval',
         if ($restored === false) throw new RuntimeException('Failed to restore disposable stock fixture after stale-snapshot test');
     }
 
+    $integrityRequest = uat_dispatch('reports.review_submit', $requester, [], [
+        'report_type'=>'finance_reconciliation', 'branch_id'=>2,
+    ]);
+    $integrityId = (int)($integrityRequest['id'] ?? 0);
+    $originalSnapshot = (string)$wpdb->get_var($wpdb->prepare(
+        'SELECT snapshot_json FROM '.Db::table('report_reviews').' WHERE company_id=%d AND id=%d', 1, $integrityId
+    ));
+    if ($integrityId < 1 || $originalSnapshot === '') throw new RuntimeException('Integrity test snapshot was not stored');
+    $tampered = $wpdb->query($wpdb->prepare(
+        'UPDATE '.Db::table('report_reviews').' SET snapshot_json=%s WHERE company_id=%d AND id=%d', '[]', 1, $integrityId
+    ));
+    if ((int)$tampered !== 1) throw new RuntimeException('Could not tamper disposable snapshot fixture');
+    try {
+        $integrity = uat_dispatch('reports.review_decision', $reviewer, [
+            'id'=>$integrityId, 'decision'=>'approve', 'reason'=>'Check stored snapshot integrity',
+        ]);
+        if (($integrity['status'] ?? '') !== 'stale' || ($integrity['result_code'] ?? '') !== 'report_snapshot_integrity_failed') {
+            throw new RuntimeException('Tampered stored snapshot was not blocked from approval');
+        }
+    } finally {
+        $restored = $wpdb->query($wpdb->prepare(
+            'UPDATE '.Db::table('report_reviews').' SET snapshot_json=%s WHERE company_id=%d AND id=%d', $originalSnapshot, 1, $integrityId
+        ));
+        if ($restored === false) throw new RuntimeException('Could not restore disposable snapshot fixture');
+    }
+    $storedIntegrity = uat_dispatch('reports.review_snapshot', $reviewer, ['id'=>$integrityId]);
+    if (($storedIntegrity['review']['status'] ?? '') !== 'stale' || !is_array($storedIntegrity['rows'] ?? null)) {
+        throw new RuntimeException('Restored immutable snapshot could not be viewed after integrity rejection');
+    }
+
     $approvedRequest = uat_dispatch('reports.review_submit', $requester, [], [
         'report_type'=>'finance_reconciliation', 'branch_id'=>2,
     ]);
