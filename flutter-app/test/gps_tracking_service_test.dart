@@ -201,6 +201,30 @@ void main() {
       service.stop(status: 'checked_out');
     });
 
+    test('surfaces current-position failures and permits immediate retry', () async {
+      final api = _FakeGpsApi(_attendance('active'));
+      final location = _FakeLocation()
+        ..currentFixError = StateError('position unavailable');
+      final service = GpsTrackingService.forTest(
+        api: api,
+        location: location,
+      );
+
+      await service.start();
+
+      expect(service.active, isTrue);
+      expect(service.lastError, contains('position unavailable'));
+      expect(api.posts, isEmpty);
+
+      location.currentFixError = null;
+      await service.sendNow();
+
+      expect(api.posts, hasLength(1));
+      expect(service.lastError, isNull);
+      service.stop(status: 'checked_out');
+      service.dispose();
+    });
+
     test('server GPS cutoff stops local tracking immediately', () async {
       final api = _FakeGpsApi(_attendance('active'))
         ..gpsPointError = const ApiException(
