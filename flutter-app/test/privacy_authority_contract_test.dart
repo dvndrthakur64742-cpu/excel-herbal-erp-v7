@@ -106,7 +106,7 @@ void main() {
     );
     expect(
       administration,
-      contains('Employee access saved atomically. $applied effective permissions, but app refresh failed:'),
+      contains('Employee access saved atomically. \$applied effective permissions, but app refresh failed:'),
     );
   });
 
