@@ -937,11 +937,19 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             final applied = ((updated['effective_capabilities'] as List?) ??
                     const [])
                 .length;
-            await ref.read(appStateProvider.notifier).refreshBootstrap();
+            // The access write has already committed. A later bootstrap refresh
+            // failure must not be reported as if the permission save failed.
+            String? refreshWarning;
+            try {
+              await ref.read(appStateProvider.notifier).refreshBootstrap();
+            } catch (refreshError) {
+              refreshWarning = UiError.message(refreshError);
+            }
             if (mounted) {
               setState(() {
-                message =
-                    'Employee access saved atomically. $applied effective permissions; refresh employee session to apply changed access.';
+                message = refreshWarning == null
+                    ? 'Employee access saved atomically. $applied effective permissions; refresh employee session to apply changed access.'
+                    : 'Employee access saved atomically. $applied effective permissions, but app refresh failed: $refreshWarning. Reload ERP to refresh permissions.';
                 refresh++;
               });
             }
