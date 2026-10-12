@@ -101,8 +101,13 @@ void main() {
     expect(attendance, contains("'lat': p?.latitude"));
     expect(attendance, contains("'lng': p?.longitude"));
     expect(attendance, contains('Attendance location not captured:'));
-    expect(attendance, contains("'lat': p?.latitude"));
-    expect(attendance, contains("'lng': p?.longitude"));
+    expect(
+      attendance,
+      contains('_position(timeLimit: const Duration(seconds: 8))'),
+    );
+    final work = File('lib/screens/my_work/my_work_screen.dart').readAsStringSync();
+    expect(work, contains('Duration timeLimit = const Duration(seconds: 20)'));
+    expect(work, contains('timeLimit: timeLimit'));
   });
 
   test('employee access save does not misreport post-commit refresh failures', () {
