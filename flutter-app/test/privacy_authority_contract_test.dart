@@ -110,6 +110,40 @@ void main() {
     expect(work, contains('timeLimit: timeLimit'));
   });
 
+  test('existing accounting and reconciliation reports are exposed by capability', () {
+    final reports = File(
+      'lib/screens/reports/reports_screen.dart',
+    ).readAsStringSync();
+    final paths = File('lib/core/api_paths.dart').readAsStringSync();
+    final records = File('lib/widgets/records_list.dart').readAsStringSync();
+
+    expect(reports, contains("if (app.can('reports.view'))"));
+    expect(reports, contains("if (app.can('finance.accounting.view'))"));
+    for (final report in [
+      'stock_reconciliation',
+      'finance_reconciliation',
+      'receivables',
+      'payables',
+      'profit_loss',
+      'balance_sheet',
+      'trial',
+    ]) {
+      expect(reports, contains("'$report'"));
+    }
+    for (final path in [
+      'stockReconciliation',
+      'financeReconciliation',
+      'receivables',
+      'payables',
+      'profitLoss',
+      'balanceSheet',
+    ]) {
+      expect(paths, contains(path));
+    }
+    expect(records, contains("'stock_reconciliation' => const ["));
+    expect(records, contains("'finance_reconciliation' => const ["));
+  });
+
   test('employee access save does not misreport post-commit refresh failures', () {
     final administration = File(
       'lib/screens/administration/administration_screen.dart',
