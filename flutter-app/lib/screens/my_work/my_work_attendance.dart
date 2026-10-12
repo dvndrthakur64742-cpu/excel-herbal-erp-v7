@@ -154,7 +154,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
     Position? p;
     String? locationWarning;
     try {
-      p = await _position();
+      p = await _position(timeLimit: const Duration(seconds: 8));
     } catch (e) {
       // The backend accepts a missing coordinate pair. Do not lose attendance
       // or block checkout just because browser/device geolocation is unavailable.
