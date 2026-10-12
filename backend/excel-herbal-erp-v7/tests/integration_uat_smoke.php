@@ -594,6 +594,12 @@ uat_case('uat_accounts_report_review_maker_checker_snapshot_stale_and_approval',
     if ($stockReviewId < 1 || ($stockRequest['status'] ?? '') !== 'pending') {
         throw new RuntimeException('Accounts review request was not persisted as pending');
     }
+    $storedStock = uat_dispatch('reports.review_snapshot', $requester, ['id'=>$stockReviewId]);
+    $storedRows = $storedStock['rows'] ?? null;
+    if (!is_array($storedRows) || count($storedRows) !== (int)$stockRequest['row_count'] ||
+        !hash_equals((string)$stockRequest['snapshot_hash'], hash('sha256', json_encode($storedRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)))) {
+        throw new RuntimeException('Stored stock report snapshot did not preserve the submitted rows/hash');
+    }
 
     try {
         uat_dispatch('reports.review_submit', $requester, [], [
@@ -619,6 +625,25 @@ uat_case('uat_accounts_report_review_maker_checker_snapshot_stale_and_approval',
     if (($rejected['status'] ?? '') !== 'rejected' || (int)($rejected['reviewed_by'] ?? 0) !== 30) {
         throw new RuntimeException('Independent Accounts rejection was not recorded with reviewer identity');
     }
+    $basicReporter = uat_actor(10, [1], [Capabilities::REPORTS_VIEW], 'FE');
+    $ownRequest = uat_dispatch('reports.review_submit', $basicReporter, [], [
+        'report_type'=>'stock_reconciliation', 'branch_id'=>1,
+    ]);
+    $ownId = (int)($ownRequest['id'] ?? 0);
+    $ownQueue = uat_dispatch('reports.review_list', $basicReporter, ['status'=>'all']);
+    $ownRows = array_values(array_filter($ownQueue, static fn($row) => (int)($row['id'] ?? 0) === $ownId));
+    if (count($ownRows) !== 1 || ($ownRows[0]['can_decide'] ?? true) !== false ||
+        (int)($ownRows[0]['requested_by'] ?? 0) !== 10) {
+        throw new RuntimeException('Submitter could not see only their own Accounts review without decision rights');
+    }
+    $ownSnapshot = uat_dispatch('reports.review_snapshot', $basicReporter, ['id'=>$ownId]);
+    if (($ownSnapshot['review']['status'] ?? '') !== 'pending' || !is_array($ownSnapshot['rows'] ?? null)) {
+        throw new RuntimeException('Submitter could not view their stored report snapshot');
+    }
+    $ownRejected = uat_dispatch('reports.review_decision', $reviewer, [
+        'id'=>$ownId, 'decision'=>'reject', 'reason'=>'Close own-submission fixture',
+    ]);
+    if (($ownRejected['status'] ?? '') !== 'rejected') throw new RuntimeException('Review fixture could not be closed');
 
     $staleRequest = uat_dispatch('reports.review_submit', $requester, [], [
         'report_type'=>'finance_reconciliation', 'branch_id'=>1,
@@ -637,6 +662,12 @@ uat_case('uat_accounts_report_review_maker_checker_snapshot_stale_and_approval',
         if (($stale['status'] ?? '') !== 'stale' || ($stale['result_code'] ?? '') !== 'report_snapshot_stale') {
             throw new RuntimeException('Changed report snapshot was not blocked and marked stale');
         }
+        $storedStale = uat_dispatch('reports.review_snapshot', $reviewer, ['id'=>$staleId]);
+        if (($storedStale['review']['status'] ?? '') !== 'stale' ||
+            ($storedStale['review']['snapshot_hash'] ?? '') !== ($staleRequest['snapshot_hash'] ?? '') ||
+            !is_array($storedStale['rows'] ?? null)) {
+            throw new RuntimeException('Stale review did not retain the original submitted snapshot for audit');
+        }
     } finally {
         $restored = $wpdb->query($wpdb->prepare(
             'UPDATE '.Db::table('stock_balances').' SET quantity=quantity-1 WHERE company_id=%d AND branch_id=%d AND product_id=%d AND batch_key=0 AND custodian_key=0',
@@ -654,6 +685,11 @@ uat_case('uat_accounts_report_review_maker_checker_snapshot_stale_and_approval',
     ]);
     if (($approved['status'] ?? '') !== 'approved' || (int)($approved['reviewed_by'] ?? 0) !== 30) {
         throw new RuntimeException('Unchanged report snapshot was not independently approved');
+    }
+    $storedApproved = uat_dispatch('reports.review_snapshot', $reviewer, ['id'=>$approvedId]);
+    if (($storedApproved['review']['status'] ?? '') !== 'approved' ||
+        count($storedApproved['rows'] ?? []) !== (int)($approved['row_count'] ?? -1)) {
+        throw new RuntimeException('Approved review did not preserve its exact report snapshot');
     }
     $audit = (int)$wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=%d AND action=%s AND entity_type='report_review' AND entity_id=%s",
@@ -677,7 +713,7 @@ uat_case('uat_accounts_report_review_maker_checker_snapshot_stale_and_approval',
         throw new RuntimeException('Accounts review queue did not return the expected decision history');
     }
     uat_expect_forbidden(fn()=>uat_dispatch('reports.review_list',
-        uat_actor(10, [1], [Capabilities::ACCOUNTING_VIEW], 'FE'),
+        uat_actor(10, [1], [Capabilities::DAILY_SELF], 'FE'),
         ['status'=>'all']
     ), 'Accounts review queue ignored finance.report.review capability');
 });

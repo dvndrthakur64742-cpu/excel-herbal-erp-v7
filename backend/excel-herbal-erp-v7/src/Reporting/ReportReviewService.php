@@ -15,8 +15,8 @@ final class ReportReviewService
 
     public static function list(Actor $a, string $status = 'pending'): array
     {
-        Guard::cap($a, Capabilities::REPORT_REVIEW);
-        Guard::cap($a, Capabilities::ACCOUNTING_VIEW);
+        Guard::any($a, [Capabilities::ACCOUNTING_VIEW, Capabilities::REPORTS_VIEW]);
+        $reviewer = $a->can(Capabilities::REPORT_REVIEW);
         $status = trim($status) === '' ? 'pending' : strtolower(trim($status));
         if (!in_array($status, ['pending','approved','rejected','stale','all'], true)) {
             throw new DomainException('Unsupported report review status.', 'report_review_status_invalid', 422);
@@ -34,17 +34,19 @@ final class ReportReviewService
         $sql = 'SELECT r.id,r.company_id,r.branch_id,r.report_type,r.period_from,r.period_to,r.as_of_date,r.status,r.snapshot_hash,r.row_count,r.summary_json,r.requested_by,r.requested_at,r.reviewed_by,r.reviewed_at,r.decision_reason,req.full_name requester_name,rev.full_name reviewer_name ' .
             'FROM ' . Db::table('report_reviews') . ' r LEFT JOIN ' . Db::table('employees') . ' req ON req.company_id=r.company_id AND req.id=r.requested_by ' .
             'LEFT JOIN ' . Db::table('employees') . ' rev ON rev.company_id=r.company_id AND rev.id=r.reviewed_by WHERE ' . $where .
-            ' ORDER BY FIELD(r.status,\'pending\',\'stale\',\'rejected\',\'approved\'),r.requested_at DESC,r.id DESC LIMIT 200';
+            ' ORDER BY FIELD(r.status,\\'pending\\',\\'stale\\',\\'rejected\\',\\'approved\\'),r.requested_at DESC,r.id DESC LIMIT 200';
         $rows = (array)$db->get_results($db->prepare($sql, ...$args), ARRAY_A);
         $visible = [];
         foreach ($rows as $row) {
-            // A financial reviewer without general report access must not see
-            // stock reconciliation exceptions in the Accounts review queue.
-            if ((string)$row['report_type'] === 'stock_reconciliation' && !$a->can(Capabilities::REPORTS_VIEW)) continue;
+            $type = (string)$row['report_type'];
+            if (!$reviewer && (int)$row['requested_by'] !== $a->employeeId) continue;
+            if ($type === 'stock_reconciliation' && !$a->can(Capabilities::REPORTS_VIEW)) continue;
+            if ($type !== 'stock_reconciliation' && !$a->can(Capabilities::ACCOUNTING_VIEW)) continue;
             $row['id'] = (int)$row['id'];
             $row['branch_id'] = $row['branch_id'] === null ? null : (int)$row['branch_id'];
             $row['row_count'] = (int)$row['row_count'];
             $row['summary'] = json_decode((string)$row['summary_json'], true) ?: [];
+            $row['can_decide'] = $reviewer && (int)$row['requested_by'] !== $a->employeeId;
             unset($row['summary_json']);
             $visible[] = $row;
         }
@@ -65,20 +67,50 @@ final class ReportReviewService
         if ($type==='profit_loss') [$from,$to]=Input::dateRange((string)($input['from']??''),(string)($input['to']??''),'Profit and Loss review period');
         elseif ($type==='trial_balance'||$type==='balance_sheet') $asOf=Input::date((string)($input['as_of_date']??$input['to']??''),'Report review as-of date');
         self::assertScope($a,$type,$branch);
-        $rows=self::snapshot($a,$type,$branch,$from,$to,$asOf); $hash=self::hashRows($rows); $summary=self::summarise($type,$rows);
+        $rows=self::snapshot($a,$type,$branch,$from,$to,$asOf);
+        $snapshotJson=wp_json_encode($rows,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+        if(!is_string($snapshotJson))throw new DomainException('Report snapshot could not be encoded.','report_snapshot_encode_failed',500);
+        $hash=hash('sha256',$snapshotJson);$summary=self::summarise($type,$rows);
         $summaryJson=wp_json_encode($summary,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         if(!is_string($summaryJson))throw new DomainException('Report review summary could not be encoded.','report_review_summary_failed',500);
         $db=Db::wpdb();$table=Db::table('report_reviews');$where='company_id=%d AND report_type=%s AND status=%s';$args=[$a->companyId,$type,'pending'];
         if($branch===null)$where.=' AND branch_id IS NULL';else{$where.=' AND branch_id=%d';$args[]=$branch;}
         foreach(['period_from'=>$from,'period_to'=>$to,'as_of_date'=>$asOf] as$column=>$value){if($value===null)$where.=' AND '.$column.' IS NULL';else{$where.=' AND '.$column.'=%s';$args[]=$value;}}
-        return Transaction::run(function()use($a,$type,$branch,$from,$to,$asOf,$hash,$summaryJson,$rows,$db,$table,$where,$args){
+        return Transaction::run(function()use($a,$type,$branch,$from,$to,$asOf,$hash,$summaryJson,$snapshotJson,$rows,$db,$table,$where,$args){
             $db->get_var($db->prepare('SELECT id FROM '.Db::table('companies').' WHERE id=%d FOR UPDATE',$a->companyId));
             $existing=(int)$db->get_var($db->prepare('SELECT id FROM '.$table.' WHERE '.$where.' LIMIT 1 FOR UPDATE',...$args));
             if($existing>0)throw new DomainException('A pending review already exists for this report scope.','report_review_pending_exists',409);
-            $id=Db::mustInsert($db,$table,['company_id'=>$a->companyId,'branch_id'=>$branch,'report_type'=>$type,'period_from'=>$from,'period_to'=>$to,'as_of_date'=>$asOf,'status'=>'pending','snapshot_hash'=>$hash,'row_count'=>count($rows),'summary_json'=>$summaryJson,'requested_by'=>$a->employeeId,'requested_at'=>Db::now()]);
+            $id=Db::mustInsert($db,$table,['company_id'=>$a->companyId,'branch_id'=>$branch,'report_type'=>$type,'period_from'=>$from,'period_to'=>$to,'as_of_date'=>$asOf,'status'=>'pending','snapshot_hash'=>$hash,'row_count'=>count($rows),'summary_json'=>$summaryJson,'snapshot_json'=>$snapshotJson,'requested_by'=>$a->employeeId,'requested_at'=>Db::now()]);
             Audit::add($a,'report_review.submit','report_review',$id,['branch_id'=>$branch,'report_type'=>$type,'snapshot_hash'=>$hash,'row_count'=>count($rows),'period_from'=>$from,'period_to'=>$to,'as_of_date'=>$asOf]);
             return self::find($a->companyId,$id);
         });
+    }
+
+    public static function viewSnapshot(Actor $a, int $id): array
+    {
+        $db = Db::wpdb();
+        $row = $db->get_row($db->prepare(
+            'SELECT id,company_id,branch_id,report_type,snapshot_hash,snapshot_json,requested_by FROM ' . Db::table('report_reviews') . ' WHERE id=%d AND company_id=%d',
+            $id, $a->companyId
+        ), ARRAY_A);
+        if (!$row) throw new DomainException('Report review request not found.', 'report_review_not_found', 404);
+        $type = (string)$row['report_type'];
+        $branch = $row['branch_id'] === null ? null : (int)$row['branch_id'];
+        $owner = (int)$row['requested_by'] === $a->employeeId;
+        if (!$owner) Guard::cap($a, Capabilities::REPORT_REVIEW);
+        if ($type === 'stock_reconciliation') {
+            if ($branch === null) throw new DomainException('Stock review snapshot has no branch scope.', 'report_review_branch_required', 422);
+            Guard::branch($a, $branch, Capabilities::REPORTS_VIEW);
+        } elseif ($branch === null) {
+            Guard::allActiveBranches($a, Capabilities::ACCOUNTING_VIEW);
+        } else {
+            Guard::branch($a, $branch, Capabilities::ACCOUNTING_VIEW);
+        }
+        $rows = json_decode((string)$row['snapshot_json'], true);
+        if (!is_array($rows) || !hash_equals((string)$row['snapshot_hash'], self::hashRows($rows))) {
+            throw new DomainException('Stored report snapshot failed its integrity check.', 'report_snapshot_integrity_failed', 500);
+        }
+        return ['review'=>self::find($a->companyId, $id), 'rows'=>$rows];
     }
 
     public static function decide(Actor $a,int $id,string $decision,string $reason):array
