@@ -69,7 +69,7 @@ for metric in [
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
 print('PASS operational diagnostics anomaly coverage')
 schema=(root/'src/Database/Schema.php').read_text()
-assert "7.3.5-report-reviews-1" in schema,'schema version was not advanced for performance index migration'
+assert "7.3.5-report-reviews-2" in schema,'schema version was not advanced for Accounts review snapshot storage'
 for token in [
  "ensureIndex('employees','branch_status'",
  "ensureIndex('parties','branch_type_status'",

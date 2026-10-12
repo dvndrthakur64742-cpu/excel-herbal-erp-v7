@@ -1,5 +1,5 @@
 {
-  "contract_version": "7.3.5-contract-2",
+  "contract_version": "7.3.5-contract-3",
   "namespace": "excel-herbal-erp/v7",
   "authentication": "Bearer access token for authenticated routes",
   "idempotency_header": "X-Idempotency-Key",
@@ -1609,6 +1609,13 @@
     {
       "method": "GET",
       "path": "/reports/reviews",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/reviews/(?P<id>\\d+)/snapshot",
       "auth": true,
       "idempotency_required": false,
       "required_params": []
