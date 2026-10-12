@@ -16,6 +16,7 @@ final class ReportReviewService
     public static function list(Actor $a, string $status = 'pending'): array
     {
         Guard::cap($a, Capabilities::REPORT_REVIEW);
+        Guard::cap($a, Capabilities::ACCOUNTING_VIEW);
         $status = trim($status) === '' ? 'pending' : strtolower(trim($status));
         if (!in_array($status, ['pending','approved','rejected','stale','all'], true)) {
             throw new DomainException('Unsupported report review status.', 'report_review_status_invalid', 422);
@@ -61,6 +62,7 @@ final class ReportReviewService
         if($branch===null)$where.=' AND branch_id IS NULL';else{$where.=' AND branch_id=%d';$args[]=$branch;}
         foreach(['period_from'=>$from,'period_to'=>$to,'as_of_date'=>$asOf] as$column=>$value){if($value===null)$where.=' AND '.$column.' IS NULL';else{$where.=' AND '.$column.'=%s';$args[]=$value;}}
         return Transaction::run(function()use($a,$type,$branch,$from,$to,$asOf,$hash,$summaryJson,$rows,$db,$table,$where,$args){
+            $db->get_var($db->prepare('SELECT id FROM '.Db::table('companies').' WHERE id=%d FOR UPDATE',$a->companyId));
             $existing=(int)$db->get_var($db->prepare('SELECT id FROM '.$table.' WHERE '.$where.' LIMIT 1 FOR UPDATE',...$args));
             if($existing>0)throw new DomainException('A pending review already exists for this report scope.','report_review_pending_exists',409);
             $id=Db::mustInsert($db,$table,['company_id'=>$a->companyId,'branch_id'=>$branch,'report_type'=>$type,'period_from'=>$from,'period_to'=>$to,'as_of_date'=>$asOf,'status'=>'pending','snapshot_hash'=>$hash,'row_count'=>count($rows),'summary_json'=>$summaryJson,'requested_by'=>$a->employeeId,'requested_at'=>Db::now()]);

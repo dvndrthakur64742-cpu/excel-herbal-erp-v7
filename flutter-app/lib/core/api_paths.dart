@@ -88,7 +88,8 @@ abstract final class ApiPaths {
       receivables = '/reports/receivables',
       payables = '/reports/payables',
       financeReconciliation = '/reports/finance-reconciliation',
-      priceDistribution = '/reports/price-distribution';
+      priceDistribution = '/reports/price-distribution',
+      reportReviews = '/reports/reviews';
 
   static const communicationSummary = '/communication/summary',
       communicationTargetEmployees = '/communication/target-employees',
@@ -239,6 +240,9 @@ abstract final class ApiPaths {
   static String rewardPay(int id) => '/performance/rewards/$id/pay';
   static String promotionDecision(int id) =>
       '/performance/promotions/$id/decision';
+
+  static String reportReviewDecision(int id) =>
+      '/reports/reviews/$id/decision';
 
   static String notificationRead(int id) =>
       '/communication/notifications/$id/read';

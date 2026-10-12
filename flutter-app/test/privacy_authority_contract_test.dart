@@ -274,4 +274,19 @@ void main() {
     expect(acting, isNot(contains('Ends At YYYY-MM-DDTHH:MM')));
   });
 
+  test('Accounts report review is snapshot-bound and maker-checker protected', () {
+    final reports = File('lib/screens/reports/reports_screen.dart').readAsStringSync();
+    final queue = File('lib/screens/reports/report_review_queue.dart').readAsStringSync();
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Reporting/ReportReviewService.php',
+    );
+    expect(reports, contains("'accounts_review'"));
+    expect(reports, contains('Submit for Accounts Review'));
+    expect(reports, contains('ApiPaths.reportReviewDecision(id)'));
+    expect(queue, contains('Confirm approval'));
+    expect(queue, contains('Confirm rejection'));
+    expect(service.existsSync(), isFalse,
+        reason: 'Flutter tests run from flutter-app and must not depend on backend filesystem paths.');
+  });
+
 }
