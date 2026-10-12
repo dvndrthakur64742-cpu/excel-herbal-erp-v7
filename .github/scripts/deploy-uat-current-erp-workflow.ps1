@@ -946,67 +946,6 @@ function Deploy-WebRuntime {
   Write-Host ('PASS live_web_manifest_sha256=' + $serverManifest)
 }
 
-function Resolve-UatAnomalies {
-  $chrome = Open-DedicatedChromeWindow -Url ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup') -TitlePattern 'EH7 UAT Cleanup'
-  Activate-OwnedChromeWindow $chrome
-  Start-Sleep -Seconds 5
-  Wait-ForWordPressAdminAuthentication $chrome ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup')
-
-  $root = Root $chrome
-  $reason = $null
-  $confirm = $null
-  $submit = $null
-  for ($pageAttempt=1; $pageAttempt -le 3; $pageAttempt++) {
-    $root = Root $chrome
-    $reason = Find-ById $root 'eh7_reason'
-    $confirm = Find-ByName $root '*confirm safe UAT anomaly resolution*' $true
-    $submit = Find-ByName $root 'Resolve Safe UAT Anomalies'
-    if ($reason -and $confirm -and $submit) { break }
-    Write-Host ('INFO uat_cleanup_controls_retry=' + $pageAttempt)
-    try { Write-UiHints $root ('uat_cleanup_controls_missing_' + $pageAttempt) } catch {}
-    Navigate-ChromeWindow $chrome ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-cleanup') 5
-  }
-  if (-not $reason -or -not $confirm -or -not $submit) {
-    throw 'EH7 UAT Cleanup controls were not found after explicit navigation retries.'
-  }
-
-  Set-ElementValue $reason 'Resolve verified post-deployment UAT anomalies after diagnostics review'
-  $toggle = $confirm.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
-  if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) { $toggle.Toggle() }
-  Invoke-Element $submit
-  Write-Host 'INFO uat_cleanup_submit_invoked=true'
-
-  $success = ''
-  $failure = ''
-  $diag = ''
-  for ($attempt = 1; $attempt -le 15; $attempt++) {
-    Start-Sleep -Seconds 2
-    try {
-      $root = Root $chrome
-      $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
-      foreach ($element in $all) {
-        try {
-          $name = ([string]$element.Current.Name).Trim()
-          if ($name -like 'UAT cleanup complete:*') { $success = $name }
-          if ($name -like 'Current diagnostics:*') { $diag = $name }
-          if ($name -like '*cleanup*' -and $name -match '(?i)(failed|error|refused|required|missing)') { $failure = $name }
-        } catch {}
-      }
-      if ($success) { break }
-      if ($failure) { break }
-    } catch {}
-    Write-Host ('INFO uat_cleanup_ui_poll=' + $attempt)
-  }
-
-  if (-not $success) {
-    try { Write-UiHints (Root $chrome) 'uat_cleanup_result_missing' } catch {}
-    if ($failure) { throw ('EH7 UAT Cleanup reported failure: ' + $failure) }
-    throw 'EH7 UAT Cleanup did not report a successful audited cleanup result.'
-  }
-  Write-Host ('PASS uat_cleanup_result=' + $success)
-  if ($diag) { Write-Host ('INFO uat_cleanup_diagnostics_label=' + $diag) }
-}
-
 Assert-ControlledUatTarget -RequireErpHealth $false
 $backendZip = New-BackendPluginZip
 try {
@@ -1017,7 +956,7 @@ try {
   # Stale Daily Orders, attendance exceptions, payroll drafts and authority
   # records require separate review and explicit authorisation. In particular,
   # Resolve-UatAnomalies may cancel issued stock cycles and move custody.
-  Write-Host 'PASS deployment_operational_data_unchanged_by_cleanup_step'
+  Write-Host 'PASS deployment_operational_data_unchanged_no_cleanup_invoked'
 } finally {
   Remove-Item -LiteralPath $backendZip -Force -ErrorAction SilentlyContinue
 }
