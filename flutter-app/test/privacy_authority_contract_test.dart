@@ -101,6 +101,8 @@ void main() {
     expect(attendance, contains("'lat': p?.latitude"));
     expect(attendance, contains("'lng': p?.longitude"));
     expect(attendance, contains('Attendance location not captured:'));
+    expect(attendance, contains("'lat': p?.latitude"));
+    expect(attendance, contains("'lng': p?.longitude"));
   });
 
   test('employee access save does not misreport post-commit refresh failures', () {
@@ -118,6 +120,10 @@ void main() {
     expect(
       administration,
       contains('Employee access saved atomically. \$applied effective permissions, but app refresh failed:'),
+    );
+    expect(
+      administration,
+      contains('Inherit uses designation and role permissions. Grant adds access. Deny blocks access'),
     );
   });
 
