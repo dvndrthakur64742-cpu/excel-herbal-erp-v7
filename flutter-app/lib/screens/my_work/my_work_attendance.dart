@@ -151,14 +151,25 @@ extension _MyWorkAttendance on _MyWorkScreenState {
       _setFeatureState(() => message = 'Authorised Branch select karein.');
       return;
     }
+    Position? p;
+    String? locationWarning;
     try {
-      final p = await _position();
+      p = await _position();
+    } catch (e) {
+      // The backend accepts a missing coordinate pair. Do not lose attendance
+      // or block checkout just because browser/device geolocation is unavailable.
+      locationWarning = UiError.message(e);
+    }
+    final locationNote = locationWarning == null
+        ? ''
+        : ' Attendance location not captured: $locationWarning';
+    try {
       await ref.read(apiClientProvider).post(
         checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
         data: {
           if (checkIn) 'branch_id': app.currentBranchId,
-          'lat': p.latitude,
-          'lng': p.longitude,
+          'lat': p?.latitude,
+          'lng': p?.longitude,
         },
       );
       final tracker = ref.read(gpsTrackingProvider);
@@ -171,7 +182,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
           if (mounted) {
             _setFeatureState(() {
               refresh++;
-              message = 'Check-In successful, lekin Duty GPS shuru nahi hua: ${UiError.message(e)}';
+              message = 'Check-In successful, lekin Duty GPS shuru nahi hua: ${UiError.message(e)}.$locationNote';
             });
           }
           return;
@@ -185,13 +196,13 @@ extension _MyWorkAttendance on _MyWorkScreenState {
         _setFeatureState(() {
           refresh++;
           message = !checkIn
-              ? 'Check-Out successful. GPS tracking stopped.'
+              ? 'Check-Out successful. GPS tracking stopped.$locationNote'
               : tracker.dutyStatus == 'scheduled'
-                  ? 'Check-In successful. GPS tracking 10:30 AM par shuru hoga.'
+                  ? 'Check-In successful. GPS tracking 10:30 AM par shuru hoga.$locationNote'
                   : tracker.active && tracker.lastError == null &&
                           tracker.lastSentAt != null
-                      ? 'Check-In successful. GPS point recorded; tracking active.'
-                      : 'Check-In successful, lekin GPS point confirm nahi hua: ${tracker.lastError ?? tracker.dutyStatus}. Duty GPS status aur Location Permission check karein.';
+                      ? 'Check-In successful. GPS point recorded; tracking active.$locationNote'
+                      : 'Check-In successful, lekin GPS point confirm nahi hua: ${tracker.lastError ?? tracker.dutyStatus}. Duty GPS status aur Location Permission check karein.$locationNote';
         });
       }
     } catch (e) {
