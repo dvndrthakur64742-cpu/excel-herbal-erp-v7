@@ -182,7 +182,8 @@ extension _MyWorkAttendance on _MyWorkScreenState {
           if (mounted) {
             _setFeatureState(() {
               refresh++;
-              message = 'Check-In successful, lekin Duty GPS shuru nahi hua: ${UiError.message(e)}.$locationNote';
+              message =
+                  'Check-In successful, lekin Duty GPS shuru nahi hua: ${UiError.message(e)}.$locationNote';
             });
           }
           return;
