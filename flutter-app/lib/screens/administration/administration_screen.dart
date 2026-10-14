@@ -928,22 +928,53 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
           }
         } else {
           if (rolesChanged || overridesChanged) {
-            final updated = Map<String, dynamic>.from(
-              await ref.read(apiClientProvider).post(
-                ApiPaths.employeeAccess(id),
-                data: {
-                  if (rolesChanged) 'role_ids': selectedRoles.toList()..sort(),
-                  if (overridesChanged) ...{
-                    'grants': grants.toList()..sort(),
-                    'denies': denies.toList()..sort(),
-                  },
-                  'reason': reason.text.trim(),
+            await ref.read(apiClientProvider).post(
+              ApiPaths.employeeAccess(id),
+              data: {
+                if (rolesChanged) 'role_ids': selectedRoles.toList()..sort(),
+                if (overridesChanged) ...{
+                  'grants': grants.toList()..sort(),
+                  'denies': denies.toList()..sort(),
                 },
+                'reason': reason.text.trim(),
+              },
+            );
+            // Confirm the write after its transaction has returned by reading
+            // the access record again through the normal authenticated GET path.
+            final updated = Map<String, dynamic>.from(
+              await ref.read(apiClientProvider).get(
+                ApiPaths.employeeAccess(id),
               ) as Map,
             );
-            // Only show success after the committed server response. The
-            // returned effective capabilities include designation defaults
-            // and explicit Deny overrides (role removal alone is not Deny).
+            final persistedRoles = <int>{
+              ...((updated['roles'] as List?) ?? const []).map(
+                (e) => int.parse('${(e as Map)['id']}'),
+              ),
+            };
+            if (rolesChanged && !_sameInts(selectedRoles, persistedRoles)) {
+              throw StateError(
+                'Employee roles did not match a fresh server read after save. Check the Audit Log before retrying.',
+              );
+            }
+            final persistedGrants = <String>{
+              ...((updated['overrides'] as List?) ?? const [])
+                  .where((e) => '${(e as Map)['effect']}' == 'grant')
+                  .map((e) => '${(e as Map)['capability']}'),
+            };
+            final persistedDenies = <String>{
+              ...((updated['overrides'] as List?) ?? const [])
+                  .where((e) => '${(e as Map)['effect']}' == 'deny')
+                  .map((e) => '${(e as Map)['capability']}'),
+            };
+            if (overridesChanged &&
+                (!_sameStrings(grants, persistedGrants) ||
+                    !_sameStrings(denies, persistedDenies))) {
+              throw StateError(
+                'Employee permission overrides did not match a fresh server read after save. Check the Audit Log before retrying.',
+              );
+            }
+            // Only show success after the committed server state is confirmed.
+            // Role removal alone does not remove designation defaults.
             final applied = ((updated['effective_capabilities'] as List?) ??
                     const [])
                 .length;
@@ -996,6 +1027,34 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
     if (closeSheet && Navigator.canPop(context)) Navigator.pop(context);
     try {
       await ref.read(apiClientProvider).post(path, data: data);
+      // Confirm role capabilities against a fresh server read before reporting success.
+      final roleMatch = RegExp(
+        r'^/administration/roles/(\d+)/capabilities$',
+      ).firstMatch(path);
+      if (roleMatch != null) {
+        final roleId = int.parse(roleMatch.group(1)!);
+        final matrix = Map<String, dynamic>.from(
+          await ref.read(apiClientProvider).get(ApiPaths.accessMatrix) as Map,
+        );
+        final roleRows = ((matrix['roles'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map));
+        final roleRowsForId = roleRows.where(
+          (role) => int.tryParse('${role['id']}') == roleId,
+        );
+        final matchingRole = roleRowsForId.isEmpty ? null : roleRowsForId.first;
+        final expected = <String>{
+          ...((data['capabilities'] as List?) ?? const []).map((e) => '$e'),
+        };
+        final actual = <String>{
+          ...((matchingRole?['capabilities'] as List?) ?? const [])
+              .map((e) => '$e'),
+        };
+        if (matchingRole == null || !_sameStrings(expected, actual)) {
+          throw StateError(
+            'Role permissions could not be verified after save. Reopen the role and check the Audit Log before retrying.',
+          );
+        }
+      }
       if (mounted) {
         setState(() {
           message = 'Saved successfully.';
