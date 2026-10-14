@@ -31,6 +31,10 @@ final class Db {
             }
             throw new DomainException('Required database insert failed.','database_insert_failed',500);
         }
-        return (int)$result;
+        // wpdb::insert() returns rows affected (normally 1), not the new primary key.
+        // Callers use this helper's return value to read/update the inserted record.
+        $id=(int)($db->insert_id??0);
+        if($id<1)throw new DomainException('Required database insert did not return a valid record ID.','database_insert_id_missing',500);
+        return $id;
     }
 }
