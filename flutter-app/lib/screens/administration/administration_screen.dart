@@ -1033,17 +1033,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       // A successful POST alone is not enough to tell the operator that the
       // permission matrix now reflects the requested state.
       final roleMatch = RegExp(
-        r'^/administration/roles/(\\d+)/capabilities
-        setState(() {
-          message = 'Saved successfully.';
-          refresh++;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
-    }
-  }
-},
+        r'^/administration/roles/(\d+)/capabilities$',
       ).firstMatch(path);
       if (roleMatch != null) {
         final roleId = int.parse(roleMatch.group(1)!);
