@@ -1097,6 +1097,15 @@ uat_case('uat_admin_access_atomic_save_and_rollback', function () use ($wpdb) {
        in_array(Capabilities::DAILY_SELF,$saved['effective_capabilities']??[],true)) {
         throw new RuntimeException('Atomic employee access save failed to compute role/grant/deny');
     }
+    // Verify the committed state through a separate service read, not only
+    // the response calculated inside the write transaction.
+    $persisted=uat_dispatch('access.employee',$admin,['id'=>10]);
+    if(count($persisted['roles']??[])!==1||
+       !in_array(Capabilities::REPORTS_VIEW,$persisted['effective_capabilities']??[],true)||
+       !in_array(Capabilities::INVENTORY_VIEW,$persisted['effective_capabilities']??[],true)||
+       in_array(Capabilities::DAILY_SELF,$persisted['effective_capabilities']??[],true)) {
+        throw new RuntimeException('Successful employee access update did not persist after commit');
+    }
     $auditBefore=(int)$wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=%d AND entity_type='employee' AND entity_id=%d",1,10
     ));
