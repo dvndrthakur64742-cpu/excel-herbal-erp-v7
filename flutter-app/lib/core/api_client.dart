@@ -406,7 +406,9 @@ class ApiClient {
     // refresh-token rotation while another is still receiving the 401 for the
     // old token. The session generation is written only after the complete new
     // token pair, so wait for that durable peer write before clearing storage.
-    for (var attempt = 0; attempt < 31; attempt++) {
+    // Allow slower UAT hosts enough time to finish the winning tab's refresh
+    // before a losing tab concludes that the shared session is invalid.
+    for (var attempt = 0; attempt < 61; attempt++) {
       final latestGeneration = await session.sessionGeneration();
       final latestRefresh = await session.refreshToken();
       final peerCompleted =
@@ -422,7 +424,7 @@ class ApiClient {
           return true;
         }
       }
-      if (attempt < 30) {
+      if (attempt < 60) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
     }
