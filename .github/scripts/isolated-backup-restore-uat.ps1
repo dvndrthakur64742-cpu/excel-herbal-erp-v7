@@ -295,7 +295,9 @@ try {
     $env:EH7_UAT_LIMITED_MOBILE = $limitedMobile
     $env:EH7_UAT_COMPANY_NAME = 'EH7 Isolated Restore UAT'
     $env:EH7_UAT_BRANCH_NAME = 'Isolated UAT Branch'
-    $bootstrapOutput = Invoke-WpCli @('eval-file','wp-content/plugins/excel-herbal-erp-v7/tools/fresh-uat-bootstrap.php')
+    $bootstrapScript = Join-Path $pluginDir 'tools\fresh-uat-bootstrap.php'
+    if (-not (Test-Path -LiteralPath $bootstrapScript -PathType Leaf)) { throw 'Fresh UAT bootstrap script is missing from the copied plugin.' }
+    $bootstrapOutput = Invoke-WpCli @('eval-file',$bootstrapScript)
     [System.IO.File]::WriteAllText($bootstrapFile, (($bootstrapOutput | ForEach-Object { [string]$_ }) -join [Environment]::NewLine), [System.Text.UTF8Encoding]::new($false))
     if ((Invoke-DbScalar "SELECT option_value FROM wp_options WHERE option_name='eh7_uat_seed_source_head' LIMIT 1") -ne $sourceHead) { throw 'Bootstrap source marker did not match exact source head.' }
     if ((Invoke-DbScalar "SELECT option_value FROM wp_options WHERE option_name='eh7_uat_seed_mode' LIMIT 1") -ne 'fresh_synthetic') { throw 'Synthetic seed mode marker is missing.' }
