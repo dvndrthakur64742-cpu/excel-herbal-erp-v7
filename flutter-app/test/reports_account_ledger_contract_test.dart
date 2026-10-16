@@ -16,7 +16,8 @@ void main() {
       screen.substring(ledgerBranch, genericLoader),
       contains('_AccountLedgerPanel('),
     );
-    expect(screen, contains("widget.api.get(ApiPaths.accountLedger,"));
+    expect(screen, contains('future: widget.api.get('));
+    expect(screen, contains('ApiPaths.accountLedger,'));
     expect(screen, contains("'account_id': selectedId"));
   });
 
