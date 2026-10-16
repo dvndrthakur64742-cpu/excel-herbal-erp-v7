@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT="$(git rev-parse --show-toplevel)"
+ROOT_RAW="$(git rev-parse --show-toplevel)"
+RUNNER_TEMP_RAW="${RUNNER_TEMP:-${TEMP:-/tmp}}"
+if command -v cygpath >/dev/null 2>&1; then
+  ROOT="$(cygpath -u "$ROOT_RAW")"
+  RUNNER_TEMP_UNIX="$(cygpath -u "$RUNNER_TEMP_RAW")"
+else
+  ROOT="$ROOT_RAW"
+  RUNNER_TEMP_UNIX="$RUNNER_TEMP_RAW"
+fi
 cd "$ROOT"
 SOURCE_HEAD="$(git rev-parse HEAD)"
 OUT="$ROOT/dist/isolated-backup-restore"
-TMP="$RUNNER_TEMP/eh7-isolated-restore-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+TMP="$RUNNER_TEMP_UNIX/eh7-isolated-restore-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 mkdir -p "$OUT" "$TMP"
 
 NET="eh7-uat-net-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
@@ -21,7 +29,8 @@ ADMIN_PASS="Eh7Admin!2026-$GITHUB_RUN_ID"
 ADMIN_MOBILE="9000000001"
 LIMITED_PASS="Eh7Field!2026-$GITHUB_RUN_ID"
 LIMITED_MOBILE="9000000002"
-BASE_URL="http://127.0.0.1:18080"
+HOST_PORT=$((20000 + GITHUB_RUN_ID % 20000))
+BASE_URL="http://127.0.0.1:$HOST_PORT"
 API="$BASE_URL/wp-json/excel-herbal-erp/v7"
 FIXTURE="$TMP/fixture.png"
 BACKUP="$OUT/isolated-wordpress-backup.sql"
@@ -67,7 +76,7 @@ for i in $(seq 1 90); do
   sleep 1
 done
 
-docker run -d --name "$WP" --network "$NET" -p 18080:80   -v "$VOL:/var/www/html"   -e WORDPRESS_DB_HOST="$DB:3306"   -e WORDPRESS_DB_USER="$DB_USER"   -e WORDPRESS_DB_PASSWORD="$DB_PASS"   -e WORDPRESS_DB_NAME="$DB_NAME"   wordpress:php8.3-apache >/dev/null
+docker run -d --name "$WP" --network "$NET" -p "$HOST_PORT:80"   -v "$VOL:/var/www/html"   -e WORDPRESS_DB_HOST="$DB:3306"   -e WORDPRESS_DB_USER="$DB_USER"   -e WORDPRESS_DB_PASSWORD="$DB_PASS"   -e WORDPRESS_DB_NAME="$DB_NAME"   wordpress:php8.3-apache >/dev/null
 
 for i in $(seq 1 90); do
   if docker exec "$WP" test -f /var/www/html/wp-config.php >/dev/null 2>&1; then break; fi
