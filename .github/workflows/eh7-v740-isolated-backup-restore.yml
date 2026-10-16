@@ -16,6 +16,20 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
+      - name: Add verified Git Bash utilities to PATH
+        shell: powershell
+        run: |
+          $gitBin = 'C:\Program Files\Git\bin'
+          $gitUsrBin = 'C:\Program Files\Git\usr\bin'
+          if (-not (Test-Path -LiteralPath (Join-Path $gitBin 'bash.exe') -PathType Leaf)) {
+            throw 'Git Bash executable is missing from the self-hosted Windows runner.'
+          }
+          if (-not (Test-Path -LiteralPath $gitUsrBin -PathType Container)) {
+            throw 'Git Unix utility directory is missing from the self-hosted Windows runner.'
+          }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $gitBin
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $gitUsrBin
+
       - name: Verify Docker environment
         shell: bash
         run: |
