@@ -820,6 +820,24 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           int.parse('${p['id']}'): TextEditingController(),
       };
       String? mode;
+      String? formError;
+
+      String? validateOrderLines() {
+        try {
+          var hasQuantity = false;
+          for (final product in products) {
+            final productId = int.parse('${product['id']}');
+            final quantity = WholePcs.parseOrZero(qty[productId]!.text);
+            if (quantity > 0) hasQuantity = true;
+          }
+          return hasQuantity
+              ? null
+              : 'Kam se kam ek product quantity required hai.';
+        } catch (error) {
+          return UiError.message(error);
+        }
+      }
+
       await showDialog<void>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -857,6 +875,23 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                         },
                       ),
                       const SizedBox(height: 12),
+                    ],
+                    if (formError != null) ...[
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
                     ],
                     ...products.map((p) {
                       final id = int.parse('${p['id']}');
@@ -918,6 +953,11 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
                                   controller: qty[id],
                                   keyboardType: TextInputType.number,
                                   inputFormatters: [WholePcs.positiveFormatter],
+                                  onChanged: (_) {
+                                    if (formError != null) {
+                                      setLocalState(() => formError = null);
+                                    }
+                                  },
                                   textAlign: TextAlign.right,
                                   decoration: const InputDecoration(
                                     hintText: '0',
@@ -946,6 +986,11 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               ),
               FilledButton.tonal(
                 onPressed: () {
+                  final error = validateOrderLines();
+                  if (error != null) {
+                    setLocalState(() => formError = error);
+                    return;
+                  }
                   mode = 'draft';
                   Navigator.pop(context);
                 },
@@ -953,6 +998,11 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
               ),
               FilledButton(
                 onPressed: () {
+                  final error = validateOrderLines();
+                  if (error != null) {
+                    setLocalState(() => formError = error);
+                    return;
+                  }
                   mode = 'submit';
                   Navigator.pop(context);
                 },
