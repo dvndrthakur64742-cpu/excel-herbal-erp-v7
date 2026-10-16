@@ -50,6 +50,12 @@ class _FakeLocation implements GpsLocationPlatform {
   );
 
   @override
+  bool get supportsBackgroundTracking => false;
+
+  @override
+  Stream<GpsFix> watchPositions() => const Stream<GpsFix>.empty();
+
+  @override
   Future<LocationPermission> checkPermission() async {
     if (permissionCheckError != null) throw permissionCheckError!;
     return permission;
