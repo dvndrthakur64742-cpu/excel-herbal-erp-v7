@@ -48,4 +48,5 @@ jobs:
           path: |
             dist/isolated-backup-restore/EVIDENCE.json
             dist/isolated-backup-restore/bootstrap.json
+            dist/isolated-backup-restore/FAILURE.json
           if-no-files-found: warn
