@@ -421,7 +421,8 @@ jobs:
         working-directory: flutter-app
         run: |
           $ErrorActionPreference = 'Stop'
-          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $env:GITHUB_SHA)
+$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-production'
+                    $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey)
           $candidateDir = Join-Path $releaseRoot 'web'
           $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
           if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
@@ -486,7 +487,8 @@ jobs:
           }
           $manifest | Set-Content -LiteralPath 'build/web/SHA256SUMS.txt' -Encoding ascii
 
-          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA)
+$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+                    $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey)
           $candidateDir = Join-Path $releaseRoot 'web'
           $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
           if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
@@ -519,7 +521,7 @@ jobs:
           # The runner's GitHub artifact endpoint can fail DNS (ENOTFOUND).
           # Verify the just-built files locally with the same fail-closed
           # per-file SHA256SUMS and portable ZIP integrity checks.
-          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:GITHUB_WORKSPACE 'flutter-app\build\web')
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:GITHUB_WORKSPACE 'flutter-app\build\web') -CandidateSlot 'deploy-uat-current-erp'
 
   prepare-uat-candidate:
     if: github.ref == 'refs/heads/codex/erp735-document-integration' && (contains(github.event.head_commit.message, '[deploy-uat-current]') || (github.event_name == 'workflow_dispatch' && inputs.deploy_controlled_uat == true))
@@ -534,12 +536,13 @@ jobs:
       - name: Verify exact-head local UAT web candidate and rebuild SHA-attested ZIP
         run: |
           $ErrorActionPreference = 'Stop'
-          $source = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA + '\web')
+$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+                    $source = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
           if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'Exact-head UAT web candidate missing on runner.' }
           $temporary = Join-Path $env:RUNNER_TEMP ('eh7-verified-web-' + [Guid]::NewGuid().ToString('N'))
           New-Item -ItemType Directory -Path $temporary -Force | Out-Null
           Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $temporary -Recurse -Force
-          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir $temporary
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir $temporary -CandidateSlot 'deploy-uat-current-erp'
           Remove-Item -LiteralPath $temporary -Recurse -Force
           Write-Host 'PASS local_sha_attested_uat_candidate_prepared'
 
@@ -555,12 +558,13 @@ jobs:
       - name: Verify and stage local exact-head candidate on deployment runner
         run: |
           $ErrorActionPreference = 'Stop'
-          $source = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA + '\web')
+$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+                    $source = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
           if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'Exact-head UAT web candidate missing on deployment runner.' }
           $temporary = Join-Path $env:RUNNER_TEMP ('eh7-verified-web-' + [Guid]::NewGuid().ToString('N'))
           New-Item -ItemType Directory -Path $temporary -Force | Out-Null
           Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $temporary -Recurse -Force
-          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir $temporary
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir $temporary -CandidateSlot 'deploy-uat-current-erp'
           Remove-Item -LiteralPath $temporary -Recurse -Force
       - name: Deploy backend and certified web through current ERP workflow
         run: |
@@ -612,7 +616,8 @@ jobs:
           $liveHead = if ($health.data -and $health.data.source_head) { [string]$health.data.source_head } elseif ($health.source_head) { [string]$health.source_head } else { '' }
           if ($liveHead -ne $env:GITHUB_SHA) { throw ('Live backend source_head mismatch: ' + $liveHead) }
 
-          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $env:GITHUB_SHA)
+$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+                    $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey)
           $candidate = Join-Path $releaseRoot 'web\\main.dart.js'
           if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'Exact-head candidate main.dart.js is missing.' }
           $live = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
@@ -723,19 +728,21 @@ jobs:
       - name: Verify and stage local exact-head candidate on deployment runner
         run: |
           $ErrorActionPreference = 'Stop'
-          $source = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA + '\web')
+$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+                    $source = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
           if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'Exact-head UAT web candidate missing on deployment runner.' }
           $temporary = Join-Path $env:RUNNER_TEMP ('eh7-verified-web-' + [Guid]::NewGuid().ToString('N'))
           New-Item -ItemType Directory -Path $temporary -Force | Out-Null
           Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $temporary -Recurse -Force
-          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir $temporary
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir $temporary -CandidateSlot 'final-uat-bundle'
           Remove-Item -LiteralPath $temporary -Recurse -Force
       - name: Build single-upload exact-head UAT deployment bundle
         run: |
           $ErrorActionPreference = 'Stop'
           Add-Type -AssemblyName System.IO.Compression
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $sourceWeb = Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\' + $env:GITHUB_SHA + '\web')
+$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-final-uat-bundle'
+                    $sourceWeb = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
           if (-not (Test-Path -LiteralPath (Join-Path $sourceWeb 'index.html') -PathType Leaf)) { throw 'Exact-head web candidate directory is missing.' }
           $work = Join-Path $env:RUNNER_TEMP ('eh7-final-bundle-' + [Guid]::NewGuid().ToString('N'))
           $payload = Join-Path $work 'eh7-uat-deploy'
