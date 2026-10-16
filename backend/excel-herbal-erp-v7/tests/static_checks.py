@@ -35,6 +35,18 @@ dispatch_defs=set(re.findall(r"function\s+([A-Za-z0-9_]+)\s*\(",dispatch))
 dispatch_calls=set(re.findall(r"self::([A-Za-z0-9_]+)\s*\(",dispatch))
 assert dispatch_calls<=dispatch_defs,('dispatcher self-call helper missing',sorted(dispatch_calls-dispatch_defs))
 print(f'PASS {len(rows)} unique route definitions and dispatch mappings')
+# Keep the published API contract in lockstep with the actual runtime registry.
+# RouteRegistry.php is PHP source, so its escaped regex literals need PHP single-quote
+# decoding before they can be compared with the JSON contract's decoded path strings.
+contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
+registry_contract=sorted((method,path.replace('\\\\\\\\','\\\\'),auth=='true') for method,path,handler,auth in rows)
+json_contract=sorted((route['method'],route['path'],bool(route['auth'])) for route in contract['routes'])
+assert registry_contract==json_contract,(
+ 'API contract differs from runtime route registry',
+ 'registry_only='+repr(sorted(set(registry_contract)-set(json_contract))[:10]),
+ 'contract_only='+repr(sorted(set(json_contract)-set(registry_contract))[:10]),
+)
+print(f'PASS API contract mirrors all {len(rows)} runtime routes')
 org_facade=(root/'src/Organization/OrganizationService.php').read_text()
 fin_facade=(root/'src/Finance/FinanceService.php').read_text()
 assert 'Db::' not in org_facade and 'Transaction::' not in org_facade,'Organization facade contains database/business implementation'
