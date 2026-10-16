@@ -1561,7 +1561,11 @@
       "path": "/reports/account-ledger",
       "auth": true,
       "idempotency_required": false,
-      "required_params": []
+      "required_params": [
+        "account_id",
+        "from",
+        "to"
+      ]
     },
     {
       "method": "GET",
