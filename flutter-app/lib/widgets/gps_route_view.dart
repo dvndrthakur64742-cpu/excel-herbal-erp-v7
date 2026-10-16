@@ -290,10 +290,10 @@ class _MapViewport {
   }
 
   static _MapPoint _project(double latitude, double longitude, int zoom) {
-    final lat = latitude.clamp(-85.05112878, 85.05112878) * math.pi / 180;
-    final world = 256.0 * (1 << zoom);
-    final x = (longitude + 180) / 360 * world;
-    final y = (1 - math.log(math.tan(lat) + 1 / math.cos(lat)) / math.pi) / 2 * world;
+    final lat = latitude.clamp(-85.05112878, 85.05112878).toDouble() * math.pi / 180;
+    final double world = (256 * (1 << zoom)).toDouble();
+    final x = ((longitude + 180) / 360 * world).toDouble();
+    final y = ((1 - math.log(math.tan(lat) + 1 / math.cos(lat)) / math.pi) / 2 * world).toDouble();
     return _MapPoint(x, y);
   }
 }
