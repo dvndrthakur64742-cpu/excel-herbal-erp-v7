@@ -51,7 +51,19 @@ print(f'PASS API contract mirrors all {len(rows)} runtime routes')
 # permitted exceptions are the three dormant compensation endpoints: the UI test
 # separately asserts that this workspace is not reachable from active navigation.
 api_paths=(root.parent.parent/'flutter-app/lib/core/api_paths.dart').read_text()
-frontend_paths={p for p in re.findall(r"=\\s*'(/[^']+)'",api_paths) if 'org_facade=(root/'src/Organization/OrganizationService.php').read_text()
+frontend_paths={p for p in re.findall(r"=\s*'(/[^']+)'",api_paths) if chr(36) not in p}
+registered_paths={path.replace(chr(92)*2,chr(92)) for _,path,_,_ in rows}
+unregistered=sorted(frontend_paths-registered_paths)
+expected_dormant={
+ '/payroll/salary-structures',
+ '/performance/rewards',
+ '/performance/promotions',
+}
+assert set(unregistered)==expected_dormant,(
+ 'frontend API path has no backend route or dormant-feature approval',unregistered
+)
+print('PASS frontend/backend endpoint parity; only explicitly dormant compensation paths remain')
+org_facade=(root/'src/Organization/OrganizationService.php').read_text()
 fin_facade=(root/'src/Finance/FinanceService.php').read_text()
 assert 'Db::' not in org_facade and 'Transaction::' not in org_facade,'Organization facade contains database/business implementation'
 assert 'Db::' not in fin_facade and 'Transaction::' not in fin_facade,'Finance facade contains database/business implementation'
