@@ -943,7 +943,10 @@ function Deploy-WebRuntime {
   [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
   Write-Host 'INFO web_deploy_submit_method=same_origin_multipart_fetch'
   $postSubmitTitle = ''
-  for ($wait = 1; $wait -le 30; $wait++) {
+    # A prior verified web upload took ~38 seconds from requestSubmit to the
+  # WordPress success result. Keep one POST in flight and wait for up to
+  # 120 seconds instead of falsely failing while the server extracts the ZIP.
+  for ($wait = 1; $wait -le 120; $wait++) {
     Start-Sleep -Seconds 1
     $postSubmitRoot = Root $chrome
     $postSubmitTitle = [string]$postSubmitRoot.Current.Name
