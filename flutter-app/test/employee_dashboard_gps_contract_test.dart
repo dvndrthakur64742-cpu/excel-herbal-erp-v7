@@ -50,7 +50,7 @@ void main() {
     expect(policy, contains("'manual_stop_allowed'=>false"));
     expect(tracking, contains('_scheduleTimer = Timer(delay'));
     expect(tracking, contains('_stopTimer = Timer(delay'));
-    expect(tracking, contains('Refuse to turn tracking off'));
+    expect(tracking, contains('Duty GPS is automatic. It stops only after checkout or the 5 PM duty cutoff.'));
     expect(coordinator, contains('ref.read(gpsTrackingProvider).sync()'));
     expect(tracking, isNot(contains('void employeeStart(')));
     expect(tracking, isNot(contains('void employeeStop(')));
