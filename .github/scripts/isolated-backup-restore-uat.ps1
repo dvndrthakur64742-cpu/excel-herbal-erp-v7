@@ -247,11 +247,11 @@ try {
 
     $wpCliUrl = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar'
     Invoke-WebRequest -UseBasicParsing -Uri $wpCliUrl -OutFile $wpCliPhar
-    $wpCliHashText = (Invoke-WebRequest -UseBasicParsing -Uri ($wpCliUrl + '.sha512')).Content.Trim().ToLowerInvariant()
-    if ($wpCliHashText -notmatch '^[0-9a-f]{128}$') { throw 'WP-CLI SHA-512 sidecar was invalid.' }
+    $wpCliHashSidecar = (Invoke-WebRequest -UseBasicParsing -Uri ($wpCliUrl + '.sha512')).Content.Trim().ToLowerInvariant()
+    if ($wpCliHashSidecar -notmatch '^\s*([0-9a-f]{128})') { throw 'WP-CLI SHA-512 sidecar was invalid.' }
+    $wpCliHashText = $Matches[1]
     if ((Get-FileHash -LiteralPath $wpCliPhar -Algorithm SHA512).Hash.ToLowerInvariant() -ne $wpCliHashText) { throw 'WP-CLI SHA-512 mismatch.' }
     Invoke-WpCli @('--info')
-    Invoke-WpCli @('core','verify-checksums')
 
     $pluginDir = Join-Path $wpRoot 'wp-content\plugins\excel-herbal-erp-v7'
     New-Item -ItemType Directory -Path $pluginDir -Force | Out-Null
@@ -264,12 +264,13 @@ try {
     )
     Set-Content -LiteralPath (Join-Path $pluginDir 'build-meta.php') -Value $metaText -Encoding ascii
 
-    Invoke-WpCli @('core','config',"--dbname=$dbName","--dbuser=$dbUser","--dbpass=$dbPassword","--dbhost=127.0.0.1:$dbPort",'--dbprefix=wp_','--skip-check')
+    Invoke-WpCli @('config','create',"--dbname=$dbName","--dbuser=$dbUser","--dbpass=$dbPassword","--dbhost=127.0.0.1:$dbPort",'--dbprefix=wp_','--skip-check')
     Invoke-WpCli @('config','set','WP_ENVIRONMENT_TYPE','staging')
     Invoke-WpCli @('config','set','DISALLOW_FILE_EDIT','true','--raw')
     Invoke-WpCli @('config','set','WP_HOME',$baseUrl)
     Invoke-WpCli @('config','set','WP_SITEURL',$baseUrl)
     Invoke-WpCli @('core','install',"--url=$baseUrl",'--title=EH7-Isolated-Recovery-UAT',"--admin_user=$adminLogin","--admin_password=$adminPassword",'--admin_email=uat@example.invalid','--skip-email')
+    Invoke-WpCli @('core','verify-checksums')
     Invoke-WpCli @('option','update','permalink_structure','/%postname%/')
     Invoke-WpCli @('rewrite','flush','--hard')
     Invoke-WpCli @('plugin','activate','excel-herbal-erp-v7')
