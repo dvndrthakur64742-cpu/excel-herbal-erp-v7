@@ -88,10 +88,10 @@ function Invoke-DbScalar {
 
 function Test-HttpStatus {
     param([string]$Url, [string]$OutputFile, [string[]]$Headers = @())
-    $args = @('-sS', '-o', $OutputFile, '-w', '%{http_code}')
-    foreach ($header in $Headers) { $args += @('-H', $header) }
-    $args += $Url
-    $status = Invoke-CurlText $args
+    $curlArguments = @('-sS', '-o', $OutputFile, '-w', '%{http_code}')
+    foreach ($header in $Headers) { $curlArguments += @('-H', $header) }
+    $curlArguments += $Url
+    $status = Invoke-CurlText $curlArguments
     if ($status -notmatch '^\d{3}$') { throw "Unexpected HTTP status result: $status" }
     return [int]$status
 }
@@ -261,7 +261,8 @@ try {
     if ($wpCliHashSidecar -notmatch '^\s*([0-9a-f]{128})') { throw 'WP-CLI SHA-512 sidecar was invalid.' }
     $wpCliHashText = $Matches[1]
     if ((Get-FileHash -LiteralPath $wpCliPhar -Algorithm SHA512).Hash.ToLowerInvariant() -ne $wpCliHashText) { throw 'WP-CLI SHA-512 mismatch.' }
-    Invoke-WpCli @('--info')
+    & $phpExe -c $phpIni $wpCliPhar --info
+    if ($LASTEXITCODE -ne 0) { throw 'WP-CLI executable failed its preflight check.' }
 
     $pluginDir = Join-Path $wpRoot 'wp-content\plugins\excel-herbal-erp-v7'
     New-Item -ItemType Directory -Path $pluginDir -Force | Out-Null
