@@ -12,6 +12,8 @@ $outDir = Join-Path $repoRoot 'dist\isolated-backup-restore'
 $tempRoot = Join-Path $env:RUNNER_TEMP ("eh7-isolated-restore-" + $runId + "-" + $attempt)
 $backupFile = Join-Path $outDir 'isolated-wordpress-backup.sql'
 $evidenceFile = Join-Path $outDir 'EVIDENCE.json'
+$failureFile = Join-Path $outDir 'FAILURE.json'
+$currentStage = 'initialize'
 $bootstrapFile = Join-Path $outDir 'bootstrap.json'
 $dbServer = $null
 $phpServer = $null
@@ -73,7 +75,7 @@ function Invoke-CurlText {
 function Invoke-WpCli {
     param([string[]]$CliArgs)
     $result = & $script:phpExe -c $script:phpIni $script:wpCliPhar @CliArgs "--path=$script:wpRoot"
-    if ($LASTEXITCODE -ne 0) { throw "WP-CLI command failed: $($CliArgs -join ' ')" }
+    if ($LASTEXITCODE -ne 0) { throw "WP-CLI command failed at '$($CliArgs[0]) $($CliArgs[1])' (exit $LASTEXITCODE)." }
     return ,$result
 }
 
@@ -139,10 +141,14 @@ function Invoke-NativeInputProcess {
 }
 
 try {
+    $currentStage = 'initialize temporary workspace'
+    Write-Output 'STAGE initialize temporary workspace'
     if (Test-Path -LiteralPath $outDir) { Remove-Item -LiteralPath $outDir -Recurse -Force }
     New-Item -ItemType Directory -Path $outDir -Force | Out-Null
     New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
+    $currentStage = 'prepare checksum-verified PHP and MariaDB tools'
+    Write-Output 'STAGE prepare checksum-verified PHP and MariaDB tools'
     if (-not (Test-Path -LiteralPath $phpExe -PathType Leaf)) {
         New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
         if (Test-Path -LiteralPath $phpDir) { Remove-Item -LiteralPath $phpDir -Recurse -Force }
@@ -215,6 +221,8 @@ try {
     & $phpExe -c $phpIni -r "if (!extension_loaded('mysqli') || !extension_loaded('openssl') || !class_exists('finfo') || !function_exists('curl_init') || !class_exists('DOMDocument') || !class_exists('ZipArchive')) { fwrite(STDERR,'Required PHP extension unavailable'); exit(9); }"
     if ($LASTEXITCODE -ne 0) { throw 'PHP mysqli/OpenSSL/fileinfo/curl/dom/zip extensions are required.' }
 
+    $currentStage = 'initialize disposable MariaDB'
+    Write-Output 'STAGE initialize disposable MariaDB'
     $dbDir = Join-Path $tempRoot 'mariadb-data'
     & $installExe "--datadir=$dbDir" "--password=$dbRootPassword" "--port=$dbPort" --allow-remote-root-access
     if ($LASTEXITCODE -ne 0) { throw 'Isolated MariaDB data directory initialization failed.' }
@@ -236,6 +244,8 @@ try {
     & $clientExe '--host=127.0.0.1' "--port=$dbPort" '--user=root' "--password=$dbRootPassword" '-e' $createSql
     if ($LASTEXITCODE -ne 0) { throw 'Unable to create fresh synthetic WordPress database.' }
 
+    $currentStage = 'install isolated WordPress core and WP-CLI'
+    Write-Output 'STAGE install isolated WordPress core and WP-CLI'
     $wpZip = Join-Path $tempRoot 'wordpress-latest.zip'
     Invoke-WebRequest -UseBasicParsing -Uri 'https://wordpress.org/latest.zip' -OutFile $wpZip
     $wpExtract = Join-Path $tempRoot 'wp-extract'
@@ -264,6 +274,8 @@ try {
     )
     Set-Content -LiteralPath (Join-Path $pluginDir 'build-meta.php') -Value $metaText -Encoding ascii
 
+    $currentStage = 'configure and initialize WordPress and ERP schema'
+    Write-Output 'STAGE configure and initialize WordPress and ERP schema'
     Invoke-WpCli @('config','create',"--dbname=$dbName","--dbuser=$dbUser","--dbpass=$dbPassword","--dbhost=127.0.0.1:$dbPort",'--dbprefix=wp_','--skip-check')
     Invoke-WpCli @('config','set','WP_ENVIRONMENT_TYPE','staging')
     Invoke-WpCli @('config','set','DISALLOW_FILE_EDIT','true','--raw')
@@ -287,6 +299,8 @@ try {
     if ((Invoke-DbScalar "SELECT option_value FROM wp_options WHERE option_name='eh7_uat_seed_source_head' LIMIT 1") -ne $sourceHead) { throw 'Bootstrap source marker did not match exact source head.' }
     if ((Invoke-DbScalar "SELECT option_value FROM wp_options WHERE option_name='eh7_uat_seed_mode' LIMIT 1") -ne 'fresh_synthetic') { throw 'Synthetic seed mode marker is missing.' }
 
+    $currentStage = 'bootstrap synthetic UAT users and start local API'
+    Write-Output 'STAGE bootstrap synthetic UAT users and start local API'
     $routerContent = @(
         '<?php',
         '$root = getenv(''EH7_UAT_WP_ROOT'') ?: getcwd();',
@@ -313,6 +327,8 @@ try {
     $health = Get-Content -LiteralPath $healthFile -Raw | ConvertFrom-Json
     if (-not $health.ok -or $health.data.source_head -ne $sourceHead -or $health.data.environment -ne 'staging' -or -not $health.data.schema_installed -or -not $health.data.uat_bootstrap.seeded -or -not $health.data.uat_bootstrap.synthetic_only) { throw 'Fresh UAT health contract did not match exact-head staging state.' }
 
+    $currentStage = 'verify authentication and limited-role boundaries'
+    Write-Output 'STAGE verify authentication and limited-role boundaries'
     if ((Test-HttpStatus "$api/me" $noTokenFile) -ne 401) { throw 'Missing bearer token did not return HTTP 401.' }
     if ((Test-HttpStatus "$api/me" $invalidTokenFile @('Authorization: Bearer definitely-invalid-token')) -ne 401) { throw 'Invalid bearer token did not return HTTP 401.' }
     $limitedToken = Get-BearerToken $limitedMobile $limitedPassword 'Isolated limited-role UAT' 'isolated-limited-role'
@@ -325,6 +341,8 @@ try {
     $null = Invoke-CurlText @('-fsS','-X','POST','-H',"Authorization: Bearer $limitedToken","$api/auth/logout")
     if ((Test-HttpStatus "$api/me" $limitedPostLogoutFile @("Authorization: Bearer $limitedToken")) -ne 401) { throw 'Limited-role token remained valid after logout.' }
 
+    $currentStage = 'verify private document upload and pre-backup download'
+    Write-Output 'STAGE verify private document upload and pre-backup download'
     [System.IO.File]::WriteAllBytes($fixture,[Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='))
     $fixtureHash = (Get-FileHash -LiteralPath $fixture -Algorithm SHA256).Hash.ToLowerInvariant()
     $adminToken = Get-BearerToken $adminMobile $adminPassword 'Isolated restore UAT' 'isolated-restore-uat'
@@ -347,6 +365,8 @@ try {
     $keyHashBefore = Invoke-DbScalar "SELECT SHA2(option_value,256) FROM wp_options WHERE option_name='eh7_document_key' LIMIT 1"
     if ($keyHashBefore -notmatch '^[0-9A-Fa-f]{64}$') { throw 'Document encryption key hash was not found before backup.' }
 
+    $currentStage = 'create database backup and capture encryption-key fingerprint'
+    Write-Output 'STAGE create database backup and capture encryption-key fingerprint'
     $dumpArgs = "--host=127.0.0.1 --port=$dbPort --user=root --password=$dbRootPassword --single-transaction --quick --skip-lock-tables --default-character-set=utf8mb4 --databases $dbName"
     $dumpPsi = [System.Diagnostics.ProcessStartInfo]::new()
     $dumpPsi.FileName = $dumpExe
@@ -371,6 +391,8 @@ try {
     if ($backupInfo.Length -le 1024) { throw 'MariaDB backup is unexpectedly small.' }
     $backupHash = (Get-FileHash -LiteralPath $backupFile -Algorithm SHA256).Hash.ToLowerInvariant()
 
+    $currentStage = 'drop and restore disposable synthetic database'
+    Write-Output 'STAGE drop and restore disposable synthetic database'
     & $clientExe '--host=127.0.0.1' "--port=$dbPort" '--user=root' "--password=$dbRootPassword" '-e' "DROP DATABASE $dbName;"
     if ($LASTEXITCODE -ne 0) { throw 'Could not drop the disposable synthetic database before restore.' }
     Invoke-NativeInputProcess $clientExe "--host=127.0.0.1 --port=$dbPort --user=root --password=$dbRootPassword" $backupFile
@@ -381,6 +403,8 @@ try {
     $postHealth = $postHealthRaw | ConvertFrom-Json
     if (-not $postHealth.ok -or $postHealth.data.source_head -ne $sourceHead -or $postHealth.data.environment -ne 'staging' -or -not $postHealth.data.schema_installed -or -not $postHealth.data.uat_bootstrap.seeded) { throw 'Post-restore health verification failed.' }
 
+    $currentStage = 'verify authenticated private document after restore and deactivation'
+    Write-Output 'STAGE verify authenticated private document after restore and deactivation'
     $adminToken = Get-BearerToken $adminMobile $adminPassword 'Isolated restore post-backup' 'isolated-restore-post-backup'
     $null = Invoke-CurlText @('-fsS','-D',$postHeaders,'-o',$postPng,'-H',"Authorization: Bearer $adminToken","$api/organization/employees/$employeeId/documents/$documentId/download")
     if (-not (Get-Content -LiteralPath $postHeaders -Raw | Select-String -Pattern '(?im)^X-EH7-Private-Document:\s*1')) { throw 'Private document header missing after restore.' }
@@ -440,9 +464,25 @@ try {
     Write-Output 'PASS isolated WordPress + MariaDB backup/restore, auth boundaries, and private document-key recovery'
 }
 catch {
-    Write-Error ("ISOLATED_RECOVERY_FAILED: " + $_.Exception.Message)
-    if ($serverError -and (Test-Path -LiteralPath $serverError)) { Get-Content -LiteralPath $serverError -Tail 30 | Write-Output }
-    if ($phpServerError -and (Test-Path -LiteralPath $phpServerError)) { Get-Content -LiteralPath $phpServerError -Tail 30 | Write-Output }
+    $safeFailure = [ordered]@{
+        schema_version = 1
+        gate = 'host_backup_restore'
+        status = 'failed'
+        source_head = $sourceHead
+        stage = $currentStage
+        message = [string]$_.Exception.Message
+        error_id = [string]$_.FullyQualifiedErrorId
+        script_line = if ($_.InvocationInfo) { [int]$_.InvocationInfo.ScriptLineNumber } else { 0 }
+        timestamp_utc = [DateTimeOffset]::UtcNow.ToString('o')
+    }
+    try {
+        [System.IO.File]::WriteAllText($failureFile, ($safeFailure | ConvertTo-Json -Depth 10 -Compress), [System.Text.UTF8Encoding]::new($false))
+    } catch {
+        Write-Warning 'Could not write isolated recovery failure evidence.'
+    }
+    Write-Error ("ISOLATED_RECOVERY_FAILED stage='$currentStage' message='" + $_.Exception.Message + "'")
+    if ($serverError -and (Test-Path -LiteralPath $serverError)) { Get-Content -LiteralPath $serverError -Tail 20 | Write-Output }
+    if ($phpServerError -and (Test-Path -LiteralPath $phpServerError)) { Get-Content -LiteralPath $phpServerError -Tail 20 | Write-Output }
     throw
 }
 finally {
