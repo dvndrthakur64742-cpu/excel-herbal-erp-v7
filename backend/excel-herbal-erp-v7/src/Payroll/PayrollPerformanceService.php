@@ -381,7 +381,7 @@ final class PayrollPerformanceService
         ), ARRAY_A);
         // A self-service dashboard must still show zero points and zero sales
         // before the employee's first qualifying transaction.
-        if (!$rows && !$peerView) {
+        if (!$rows && (!$peerView || $employee === $a->employeeId)) {
             $employee = $db->get_row($db->prepare(
                 "SELECT id employee_id,full_name,designation_code,reporting_designation_code
                  FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",
