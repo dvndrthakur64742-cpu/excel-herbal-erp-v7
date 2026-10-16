@@ -376,7 +376,9 @@ print('PASS 21 fixture records parse; PHP execution NOT performed by this script
 if len(sys.argv)>1:
  base=Path(sys.argv[1]);old=set(re.findall(r"\['(GET|POST)','([^']+)','([^']+)',(true|false)\]",(base/'src/Http/RouteRegistry.php').read_text()))
  assert old<=set(rows),'existing route lost';print(f'PASS all {len(old)} original routes retained')
-if len(sys.argv)>2:balanced(Path(sys.argv[2]));print('PASS setup assistant lexical delimiter scan (NOT PHP lint)') not in p}
+if len(sys.argv)>2:
+ balanced(Path(sys.argv[2]))
+ print('PASS setup assistant lexical delimiter scan (NOT PHP lint)')
 registered_paths={path.replace(chr(92)*2,chr(92)) for _,path,_,_ in rows}
 unregistered=sorted(frontend_paths-registered_paths)
 expected_dormant={
