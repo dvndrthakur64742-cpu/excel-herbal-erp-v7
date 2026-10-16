@@ -212,10 +212,10 @@ class _GpsTracePainter extends CustomPainter {
       double.parse('${p['latitude'] ?? p['lat']}'),
       double.parse('${p['longitude'] ?? p['lng']}'),
     )).toList(growable: false);
-    final minLat = coords.map((p) => p.$1).reduce(math.min);
-    final maxLat = coords.map((p) => p.$1).reduce(math.max);
-    final minLng = coords.map((p) => p.$2).reduce(math.min);
-    final maxLng = coords.map((p) => p.$2).reduce(math.max);
+    final minLat = coords.map((p) => p.$1).reduce((a, b) => a < b ? a : b);
+    final maxLat = coords.map((p) => p.$1).reduce((a, b) => a > b ? a : b);
+    final minLng = coords.map((p) => p.$2).reduce((a, b) => a < b ? a : b);
+    final maxLng = coords.map((p) => p.$2).reduce((a, b) => a > b ? a : b);
     final latSpan = (maxLat - minLat).abs();
     final lngSpan = (maxLng - minLng).abs();
     final usableW = rect.width;
