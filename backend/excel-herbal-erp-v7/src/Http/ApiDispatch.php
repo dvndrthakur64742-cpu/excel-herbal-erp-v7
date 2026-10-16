@@ -37,7 +37,12 @@ private static function products(Actor $a,$r):array{
  $db=Db::wpdb();$products=Db::table('products');$revisions=Db::table('product_commercial_revisions');$now=Db::now();
  $statusSql=$includeInactive?'':" AND p.status='active'";
  $sql="SELECT p.*,cr.mrp,cr.sale_price,cr.ho_amount,cr.bm_profit,cr.salary_fund,cr.office_expense,cr.points,cr.purchase_cost FROM {$products} p LEFT JOIN {$revisions} cr ON cr.id=(SELECT id FROM {$revisions} c2 WHERE c2.company_id=p.company_id AND c2.product_id=p.id AND c2.status='active' AND c2.effective_from<=%s ORDER BY c2.effective_from DESC,c2.id DESC LIMIT 1) WHERE p.company_id=%d{$statusSql} ORDER BY p.status='active' DESC,p.name";
- return(array)$db->get_results($db->prepare($sql,$now,$a->companyId),ARRAY_A);
+ $rows=(array)$db->get_results($db->prepare($sql,$now,$a->companyId),ARRAY_A);
+ if($a->can(Capabilities::DAILY_SELF)&&!$a->can(Capabilities::DAILY_OTHERS)&&!$a->can(Capabilities::PRODUCT_MANAGE)){
+  foreach($rows as&$row)foreach(['mrp','sale_price','ho_amount','bm_profit','salary_fund','office_expense','purchase_cost'] as$field)unset($row[$field]);
+  unset($row);
+ }
+ return$rows;
 }
 
 private static function audit(Actor $a,int $limit):array{Guard::cap($a,Capabilities::AUDIT_VIEW);$limit=max(1,min(500,$limit));return(array)Db::wpdb()->get_results(Db::wpdb()->prepare("SELECT * FROM ".Db::table('audit_log')." WHERE company_id=%d ORDER BY id DESC LIMIT %d",$a->companyId,$limit),ARRAY_A);}
