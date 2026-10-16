@@ -404,67 +404,68 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 onPressed: () {
                   try {
                     String? error;
-                  final lines = <Map<String, dynamic>>[];
-                  var gross = 0.0;
+                    final lines = <Map<String, dynamic>>[];
+                    var gross = 0.0;
 
-                  for (var i = 0; i < stock.length; i++) {
-                    final quantity = WholePcs.parseOrZero(qty[i]!.text);
-                    if (quantity <= 0) continue;
+                    for (var i = 0; i < stock.length; i++) {
+                      final quantity = WholePcs.parseOrZero(qty[i]!.text);
+                      if (quantity <= 0) continue;
 
-                    final available =
-                        double.tryParse('${stock[i]['quantity']}') ?? 0;
-                    if (quantity > available + .0001) {
-                      error =
-                          '${stock[i]['product_name']} quantity available stock se zyada hai.';
-                      break;
+                      final available =
+                          double.tryParse('${stock[i]['quantity']}') ?? 0;
+                      if (quantity > available + .0001) {
+                        error =
+                            '${stock[i]['product_name']} quantity available stock se zyada hai.';
+                        break;
+                      }
+
+                      final productId =
+                          int.tryParse('${stock[i]['product_id']}');
+                      final product =
+                          productId == null ? null : productById[productId];
+                      final rate = double.tryParse(
+                            '${product?['sale_price'] ?? 0}',
+                          ) ??
+                          0;
+                      if (rate <= 0) {
+                        error =
+                            '${product?['name'] ?? stock[i]['product_name'] ?? 'Product'} ka valid Sale Price available nahi hai.';
+                        break;
+                      }
+
+                      final batchKey =
+                          int.tryParse('${stock[i]['batch_key']}') ?? 0;
+                      lines.add({
+                        'product_id': stock[i]['product_id'],
+                        'quantity': quantity,
+                        if (batchKey > 0) 'batch_id': batchKey,
+                      });
+                      gross += quantity.toDouble() * rate;
                     }
 
-                    final productId =
-                        int.tryParse('${stock[i]['product_id']}');
-                    final product =
-                        productId == null ? null : productById[productId];
-                    final rate = double.tryParse(
-                          '${product?['sale_price'] ?? 0}',
-                        ) ??
-                        0;
-                    if (rate <= 0) {
+                    if (error == null && lines.isEmpty) {
                       error =
-                          '${product?['name'] ?? stock[i]['product_name'] ?? 'Product'} ka valid Sale Price available nahi hai.';
-                      break;
+                          'Kam se kam ek product ki quantity enter karein.';
                     }
 
-                    final batchKey =
-                        int.tryParse('${stock[i]['batch_key']}') ?? 0;
-                    lines.add({
-                      'product_id': stock[i]['product_id'],
-                      'quantity': quantity,
-                      if (batchKey > 0) 'batch_id': batchKey,
-                    });
-                    gross += quantity.toDouble() * rate;
-                  }
+                    final paidAmount = double.tryParse(paid.text.trim());
+                    if (error == null && paidAmount == null) {
+                      error = 'Paid Amount valid number me enter karein.';
+                    }
 
-                  if (error == null && lines.isEmpty) {
-                    error = 'Kam se kam ek product ki quantity enter karein.';
-                  }
+                    if (error == null) {
+                      error = TransactionGuardrails.counterSale(
+                        gross: gross,
+                        paid: paidAmount!,
+                        customerId: customerId,
+                        paymentAccountId: accountId,
+                      );
+                    }
 
-                  final paidAmount = double.tryParse(paid.text.trim());
-                  if (error == null && paidAmount == null) {
-                    error = 'Paid Amount valid number me enter karein.';
-                  }
-
-                  if (error == null) {
-                    error = TransactionGuardrails.counterSale(
-                      gross: gross,
-                      paid: paidAmount!,
-                      customerId: customerId,
-                      paymentAccountId: accountId,
-                    );
-                  }
-
-                  if (error != null) {
-                    setLocal(() => formError = error);
-                    return;
-                  }
+                    if (error != null) {
+                      setLocal(() => formError = error);
+                      return;
+                    }
                     Navigator.pop(context, true);
                   } catch (e) {
                     setLocal(() => formError = UiError.message(e));
