@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -766,7 +766,7 @@ class _ReportExportActions extends StatelessWidget {
     final bytes = Uint8List.fromList(utf8.encode(lines.join('\r\n')));
     await Share.shareXFiles(
       [XFile.fromData(bytes, name: _safeFilename('csv'), mimeType: 'text/csv')],
-      text: '${title} report',
+      text: '$title report',
     );
   }
 
@@ -774,7 +774,7 @@ class _ReportExportActions extends StatelessWidget {
     final workbook = Excel.createExcel();
     final sheet = workbook['Report'];
     sheet.appendRow([TextCellValue(title)]);
-    sheet.appendRow([TextCellValue('Scope: ${scope}')]);
+    sheet.appendRow([TextCellValue('Scope: $scope')]);
     sheet.appendRow(_columns.map((key) => TextCellValue(key)).toList());
     for (final row in rows) {
       sheet.appendRow(
@@ -789,7 +789,7 @@ class _ReportExportActions extends StatelessWidget {
         name: _safeFilename('xlsx'),
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       ),
-    ], text: '${title} report');
+    ], text: '$title report');
   }
 
   Future<void> _printPdf() async {
