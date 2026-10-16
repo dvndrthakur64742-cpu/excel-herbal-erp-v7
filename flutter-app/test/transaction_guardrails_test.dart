@@ -44,6 +44,48 @@ void main() {
         isNotNull,
       );
     });
+
+    test('positive payment requires a cash, bank or UPI account', () {
+      expect(
+        TransactionGuardrails.counterSale(
+          gross: 1000,
+          paid: 1000,
+          customerId: null,
+          paymentAccountId: null,
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.counterSale(
+          gross: 1000,
+          paid: 1000,
+          customerId: null,
+          paymentAccountId: 4,
+        ),
+        isNull,
+      );
+    });
+
+    test('sale total must be finite and positive', () {
+      expect(
+        TransactionGuardrails.counterSale(
+          gross: 0,
+          paid: 0,
+          customerId: 7,
+          paymentAccountId: 1,
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.counterSale(
+          gross: double.nan,
+          paid: 0,
+          customerId: 7,
+          paymentAccountId: 1,
+        ),
+        isNotNull,
+      );
+    });
   });
 
   test('customer receipt cannot exceed outstanding', () {
