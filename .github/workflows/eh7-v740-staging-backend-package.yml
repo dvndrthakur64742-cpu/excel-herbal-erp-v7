@@ -9,6 +9,7 @@ on:
       - '.github/workflows/eh7-v740-isolated-backup-restore.yml'
       - '.github/scripts/verify-release-gates.ps1'
       - '.github/scripts/isolated-backup-restore-uat.sh'
+      - '.github/scripts/isolated-backup-restore-uat.ps1'
       - 'release-gates/v7.4.0.json'
       - 'backend/excel-herbal-erp-v7/**'
 
