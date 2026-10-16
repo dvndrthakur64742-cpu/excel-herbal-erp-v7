@@ -52,12 +52,6 @@ class _FakeLocation implements GpsLocationPlatform {
   );
 
   @override
-  bool get supportsBackgroundTracking => false;
-
-  @override
-  Stream<GpsFix> watchPositions() => const Stream<GpsFix>.empty();
-
-  @override
   bool get supportsBackgroundTracking => backgroundTracking;
 
   @override
