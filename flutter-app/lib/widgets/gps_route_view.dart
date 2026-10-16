@@ -42,7 +42,7 @@ class GpsRouteView extends StatelessWidget {
           runSpacing: 8,
           children: [
             _metric(context, 'GPS points', '${ordered.length}', Icons.place_outlined),
-            _metric(context, 'Recorded travel', '${distanceKm.toStringAsFixed(2)} km', Icons.route_outlined),
+            _metric(context, 'Estimated GPS distance', '${distanceKm.toStringAsFixed(2)} km', Icons.route_outlined),
             _metric(context, 'First point', firstAt == null ? '—' : BusinessFormat.dateTime(firstAt), Icons.play_arrow_rounded),
             _metric(context, 'Last point', lastAt == null ? '—' : BusinessFormat.dateTime(lastAt), Icons.stop_rounded),
           ],
@@ -99,6 +99,14 @@ class GpsRouteView extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
+          ),
+        if (ordered.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Distance is estimated as straight-line distance between recorded GPS samples; it is not road/odometer distance.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
         if (showTimeline && ordered.isNotEmpty) ...[
