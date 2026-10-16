@@ -421,8 +421,8 @@ jobs:
         working-directory: flutter-app
         run: |
           $ErrorActionPreference = 'Stop'
-$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-production'
-                    $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey)
+          $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-production'
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey)
           $candidateDir = Join-Path $releaseRoot 'web'
           $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
           if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
@@ -487,8 +487,8 @@ $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $en
           }
           $manifest | Set-Content -LiteralPath 'build/web/SHA256SUMS.txt' -Encoding ascii
 
-$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
-                    $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey)
+          $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey)
           $candidateDir = Join-Path $releaseRoot 'web'
           $zipPath = Join-Path $releaseRoot 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
           if (Test-Path -LiteralPath $releaseRoot) { Remove-Item -LiteralPath $releaseRoot -Recurse -Force }
@@ -536,8 +536,8 @@ $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $en
       - name: Verify exact-head local UAT web candidate and rebuild SHA-attested ZIP
         run: |
           $ErrorActionPreference = 'Stop'
-$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
-                    $source = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
+          $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+          $source = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
           if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'Exact-head UAT web candidate missing on runner.' }
           $temporary = Join-Path $env:RUNNER_TEMP ('eh7-verified-web-' + [Guid]::NewGuid().ToString('N'))
           New-Item -ItemType Directory -Path $temporary -Force | Out-Null
@@ -558,8 +558,8 @@ $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $en
       - name: Verify and stage local exact-head candidate on deployment runner
         run: |
           $ErrorActionPreference = 'Stop'
-$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
-                    $source = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
+          $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+          $source = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
           if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'Exact-head UAT web candidate missing on deployment runner.' }
           $temporary = Join-Path $env:RUNNER_TEMP ('eh7-verified-web-' + [Guid]::NewGuid().ToString('N'))
           New-Item -ItemType Directory -Path $temporary -Force | Out-Null
@@ -616,8 +616,8 @@ $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $en
           $liveHead = if ($health.data -and $health.data.source_head) { [string]$health.data.source_head } elseif ($health.source_head) { [string]$health.source_head } else { '' }
           if ($liveHead -ne $env:GITHUB_SHA) { throw ('Live backend source_head mismatch: ' + $liveHead) }
 
-$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
-                    $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey)
+          $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+          $releaseRoot = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey)
           $candidate = Join-Path $releaseRoot 'web\\main.dart.js'
           if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'Exact-head candidate main.dart.js is missing.' }
           $live = Join-Path $env:RUNNER_TEMP ('eh7-live-main-' + [Guid]::NewGuid().ToString('N') + '.js')
@@ -728,8 +728,8 @@ $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $en
       - name: Verify and stage local exact-head candidate on deployment runner
         run: |
           $ErrorActionPreference = 'Stop'
-$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
-                    $source = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
+          $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+          $source = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
           if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'Exact-head UAT web candidate missing on deployment runner.' }
           $temporary = Join-Path $env:RUNNER_TEMP ('eh7-verified-web-' + [Guid]::NewGuid().ToString('N'))
           New-Item -ItemType Directory -Path $temporary -Force | Out-Null
@@ -741,8 +741,8 @@ $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $en
           $ErrorActionPreference = 'Stop'
           Add-Type -AssemblyName System.IO.Compression
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-$candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-final-uat-bundle'
-                    $sourceWeb = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
+          $candidateKey = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-final-uat-bundle'
+          $sourceWeb = Join-Path $env:USERPROFILE ('ERP7-Releases\\uat-candidates\\' + $candidateKey + '\\web')
           if (-not (Test-Path -LiteralPath (Join-Path $sourceWeb 'index.html') -PathType Leaf)) { throw 'Exact-head web candidate directory is missing.' }
           $work = Join-Path $env:RUNNER_TEMP ('eh7-final-bundle-' + [Guid]::NewGuid().ToString('N'))
           $payload = Join-Path $work 'eh7-uat-deploy'
