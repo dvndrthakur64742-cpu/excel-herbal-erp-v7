@@ -39,7 +39,7 @@ print(f'PASS {len(rows)} unique route definitions and dispatch mappings')
 # RouteRegistry.php is PHP source, so its escaped regex literals need PHP single-quote
 # decoding before they can be compared with the JSON contract's decoded path strings.
 contract=json.loads((root/'API-CONTRACT-7.3.5.json').read_text())
-registry_contract=sorted((method,path.replace('\\\\\\\\','\\\\'),auth=='true') for method,path,handler,auth in rows)
+registry_contract=sorted((method,path.replace(chr(92)*2,chr(92)),auth=='true') for method,path,handler,auth in rows)
 json_contract=sorted((route['method'],route['path'],bool(route['auth'])) for route in contract['routes'])
 assert registry_contract==json_contract,(
  'API contract differs from runtime route registry',
