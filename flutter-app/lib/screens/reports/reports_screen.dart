@@ -61,6 +61,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       'finance',
       'profit_loss',
       'price_distribution',
+      'account_ledger',
     };
     const asOfReports = {'trial', 'balance_sheet'};
     final defaultFrom = DateTime.tryParse(app.businessMonthStart) ??
@@ -78,7 +79,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };
-    final scopeLabel = activeType == 'stock'
+    final baseScopeLabel = activeType == 'stock'
         ? 'Live stock'
         : activeType == 'stock_reconciliation'
             ? 'Live stock reconciliation'
@@ -88,6 +89,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 : asOfReports.contains(activeType)
                     ? BusinessFormat.date(app.businessDate)
                     : '${BusinessFormat.date(fromValue)} – ${BusinessFormat.date(toValue)}';
+    final scopeLabel = app.currentBranchId == null
+        ? baseScopeLabel
+        : '$baseScopeLabel · Branch ${app.currentBranchId}';
 
     final reportView = needsBranch && app.currentBranchId == null
         ? const _BranchRequired()
@@ -98,6 +102,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             future: api.get(config.path, query: query),
             emptyMessage: config.emptyMessage,
             builder: (context, data) {
+              if (activeType == 'account_ledger') {
+                return _AccountLedgerPanel(
+                  api: api,
+                  query: query,
+                  config: config,
+                  scope: scopeLabel,
+                );
+              }
               if (activeType == 'price_distribution') {
                 return _PriceDistributionPanel(
                   data: data,
@@ -310,6 +322,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     if (app.can('finance.accounting.view')) {
       out.addAll(const [
         _ReportOption('trial', 'Trial Balance', Icons.balance_outlined),
+        _ReportOption(
+          'account_ledger',
+          'Account Ledger',
+          Icons.menu_book_outlined,
+        ),
         _ReportOption('profit_loss', 'Profit & Loss', Icons.trending_up),
         _ReportOption(
           'balance_sheet',
@@ -461,6 +478,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             subtitle:
                 'Ledger debit and credit balances as of the business date.',
             emptyMessage: 'No Trial Balance data is available.',
+          ),
+        'account_ledger' => const _ReportConfig(
+            title: 'Account Ledger',
+            path: ApiPaths.accountLedger,
+            recordType: 'account_ledger',
+            subtitle:
+                'Posted journal entries for one account, with optional branch scope.',
+            emptyMessage: 'No journal entries for this account and period.',
           ),
         _ => const _ReportConfig(
             title: 'Sales Summary',
@@ -709,6 +734,128 @@ class _BranchRequired extends StatelessWidget {
             ],
           ),
         ),
+      );
+}
+
+class _AccountLedgerPanel extends StatefulWidget {
+  const _AccountLedgerPanel({
+    required this.api,
+    required this.query,
+    required this.config,
+    required this.scope,
+  });
+
+  final dynamic api;
+  final Map<String, dynamic> query;
+  final _ReportConfig config;
+  final String scope;
+
+  @override
+  State<_AccountLedgerPanel> createState() => _AccountLedgerPanelState();
+}
+
+class _AccountLedgerPanelState extends State<_AccountLedgerPanel> {
+  int? _accountId;
+
+  @override
+  Widget build(BuildContext context) => AsyncPanel(
+        key: const ValueKey('account-ledger-account-list'),
+        future: widget.api.get(ApiPaths.financeBootstrap),
+        emptyMessage: 'No active ledger accounts are available.',
+        builder: (context, data) {
+          final payload = data is Map
+              ? Map<String, dynamic>.from(data)
+              : <String, dynamic>{};
+          final accounts = ((payload['accounts'] as List?) ?? const [])
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .where((row) => int.tryParse('${row['id']}') != null)
+              .toList(growable: false);
+          if (accounts.isEmpty) {
+            return const Center(child: Text('No active ledger accounts are available.'));
+          }
+
+          final firstId = int.tryParse('${accounts.first['id']}');
+          final selectedId = accounts.any(
+            (row) => int.tryParse('${row['id']}') == _accountId,
+          )
+              ? _accountId
+              : firstId;
+          final selected = accounts.firstWhere(
+            (row) => int.tryParse('${row['id']}') == selectedId,
+            orElse: () => accounts.first,
+          );
+          final ledgerQuery = <String, dynamic>{
+            ...widget.query,
+            if (selectedId != null) 'account_id': selectedId,
+          };
+          final accountLabel =
+              '${selected['code'] ?? ''} — ${selected['name'] ?? 'Account'}';
+          final scope = '${widget.scope} · $accountLabel';
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  initialValue: selectedId,
+                  decoration: const InputDecoration(
+                    labelText: 'Ledger account',
+                    prefixIcon: Icon(Icons.menu_book_outlined),
+                    isDense: true,
+                  ),
+                  items: [
+                    for (final account in accounts)
+                      DropdownMenuItem<int>(
+                        value: int.tryParse('${account['id']}'),
+                        child: Text(
+                          '${account['code'] ?? ''} — ${account['name'] ?? 'Account'}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _accountId = value),
+                ),
+              ),
+              Expanded(
+                child: selectedId == null
+                    ? const Center(child: Text('Select a ledger account.'))
+                    : AsyncPanel(
+                        key: ValueKey(
+                          'account-ledger-$selectedId-${ledgerQuery['from']}-${ledgerQuery['to']}-${ledgerQuery['branch_id']}',
+                        ),
+                        future: widget.api.get(
+                          ApiPaths.accountLedger,
+                          query: ledgerQuery,
+                        ),
+                        emptyMessage: widget.config.emptyMessage,
+                        builder: (context, data) {
+                          final rows = ((data as List?) ?? const [])
+                              .whereType<Map>()
+                              .map((row) => Map<String, dynamic>.from(row))
+                              .toList(growable: false);
+                          return Column(
+                            children: [
+                              _ReportExportActions(
+                                title: widget.config.title,
+                                scope: scope,
+                                rows: rows,
+                              ),
+                              Expanded(
+                                child: RecordsList(
+                                  recordType: widget.config.recordType,
+                                  rows: rows,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       );
 }
 
