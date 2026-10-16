@@ -157,6 +157,12 @@ for token in [
  "Audit::add($a,'leave.request'",
 ]:
  assert token in workforce,('missing workforce invariant/audit',token)
+check_in = workforce.split("public static function checkIn(", 1)[1].split("public static function checkOut(", 1)[0]
+for token in [
+ "$lat===null||$lng===null",
+ "'gps_location_required'",
+]:
+ assert token in check_in,('check-in must reject missing GPS coordinates before writing attendance',token)
 communication=(root/'src/Communication/CommunicationService.php').read_text()
 for token in [
  "FOR UPDATE",
