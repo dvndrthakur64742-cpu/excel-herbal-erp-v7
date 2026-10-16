@@ -682,3 +682,27 @@ if len(sys.argv)>1:
  base=Path(sys.argv[1]);old=set(re.findall(r"\['(GET|POST)','([^']+)','([^']+)',(true|false)\]",(base/'src/Http/RouteRegistry.php').read_text()))
  assert old<=set(rows),'existing route lost';print(f'PASS all {len(old)} original routes retained')
 if len(sys.argv)>2:balanced(Path(sys.argv[2]));print('PASS setup assistant lexical delimiter scan (NOT PHP lint)')
+
+# Employee dashboard confidentiality and GPS duty/map contracts.
+gps_policy=(root/'src/Workforce/GpsDutyPolicy.php').read_text()
+for token in [
+ "public const START='10:30:00'",
+ "public const STOP='17:00:00'",
+ "'manual_start_allowed'=>false",
+ "'manual_stop_allowed'=>false",
+]:
+ assert token in gps_policy,('missing server-owned GPS duty policy',token)
+performance=(root/'src/Payroll/PayrollPerformanceService.php').read_text()
+summary=performance[performance.index('public static function summary('):performance.index('private static function canViewPeerPerformance')]
+for token in ["'sales_count'","Db::table('counter_sales')","Db::table('daily_cycles')"]:
+ assert token in summary,('employee sales summary missing source/count',token)
+home=(root.parent.parent/'flutter-app/lib/screens/home/home_screen.dart').read_text()
+dashboard=home[home.index('class _PersonalPerformanceCard'):home.index('class _ManagementOverview')]
+assert "row['sales_count']" in dashboard and "row['points']" in dashboard,'employee dashboard must show own sales count and points'
+for forbidden in ['BusinessFormat.money','salary_fund','gross_amount','outstanding_amount']:
+ assert forbidden not in dashboard,('employee dashboard exposes monetary field',forbidden)
+route=(root.parent.parent/'flutter-app/lib/widgets/gps_route_view.dart').read_text()
+for token in ['https://tile.openstreetmap.org/','Road map · recorded GPS route','© OpenStreetMap contributors','_RoadRoutePainter']:
+ assert token in route,('GPS route road map contract missing',token)
+assert 'Recorded GPS trace · not a road map' not in route,'trace-only GPS visualization must not replace road map'
+print('PASS employee dashboard price privacy, own sales/points and scheduled road-map GPS contracts')
