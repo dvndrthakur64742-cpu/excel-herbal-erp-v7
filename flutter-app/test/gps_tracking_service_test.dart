@@ -35,6 +35,8 @@ class _FakeGpsApi implements GpsApiTransport {
 
 class _FakeLocation implements GpsLocationPlatform {
   bool enabled = true;
+  bool backgroundTracking = false;
+  int watchRequests = 0;
   Object? locationServiceError;
   Object? permissionCheckError;
   Object? permissionRequestError;
@@ -54,6 +56,15 @@ class _FakeLocation implements GpsLocationPlatform {
 
   @override
   Stream<GpsFix> watchPositions() => const Stream<GpsFix>.empty();
+
+  @override
+  bool get supportsBackgroundTracking => backgroundTracking;
+
+  @override
+  Stream<GpsFix> watchPositions() {
+    watchRequests++;
+    return const Stream<GpsFix>.empty();
+  }
 
   @override
   Future<LocationPermission> checkPermission() async {
@@ -205,6 +216,23 @@ void main() {
       expect(api.posts.single.data?['lng'], location.fix.longitude);
       expect(api.posts.single.data?['accuracy'], location.fix.accuracy);
       service.stop(status: 'checked_out');
+    });
+
+    test('uses a location stream for Android foreground duty tracking', () async {
+      final api = _FakeGpsApi(_attendance('active'));
+      final location = _FakeLocation()..backgroundTracking = true;
+      final service = GpsTrackingService.forTest(
+        api: api,
+        location: location,
+      );
+
+      await service.start();
+
+      expect(service.active, isTrue);
+      expect(location.watchRequests, 1);
+      expect(api.posts, hasLength(1));
+      service.stop(status: 'checked_out');
+      service.dispose();
     });
 
     test('surfaces current-position failures and permits immediate retry', () async {
