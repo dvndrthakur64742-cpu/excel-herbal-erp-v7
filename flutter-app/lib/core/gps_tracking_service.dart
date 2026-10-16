@@ -163,6 +163,13 @@ class GpsTrackingService extends ChangeNotifier {
           },
           onError: (Object error, StackTrace stackTrace) {
             _lastError = 'Background GPS stream error: ${UiError.message(error)}';
+            // Fall back to foreground polling if the native stream terminates;
+            // the error remains visible so the operator can diagnose gaps.
+            _pointTimer?.cancel();
+            _pointTimer = Timer.periodic(
+              const Duration(minutes: 5),
+              (_) => unawaited(sendNow()),
+            );
             notifyListeners();
           },
         );
