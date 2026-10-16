@@ -3,7 +3,7 @@ name: EH7 v7.4.0 Isolated Backup Restore UAT
 on:
   workflow_dispatch:
   push:
-    branches: [codex/erp735-document-integration, codex/reports-date-export-workflow]
+    branches: [codex/erp735-document-integration]
 
 permissions:
   contents: read
