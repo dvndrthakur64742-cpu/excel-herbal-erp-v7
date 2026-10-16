@@ -439,7 +439,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       'quantity': quantity,
                       if (batchKey > 0) 'batch_id': batchKey,
                     });
-                    gross += quantity * rate;
+                    gross += quantity.toDouble() * rate;
                   }
 
                   if (error == null && lines.isEmpty) {
