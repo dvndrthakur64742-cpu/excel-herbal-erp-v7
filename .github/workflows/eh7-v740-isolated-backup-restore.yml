@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Add verified Git Bash utilities to PATH
-        shell: powershell
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
         run: |
           $gitBin = 'C:\Program Files\Git\bin'
           $gitUsrBin = 'C:\Program Files\Git\usr\bin'
