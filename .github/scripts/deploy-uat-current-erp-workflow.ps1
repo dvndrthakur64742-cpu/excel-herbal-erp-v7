@@ -922,16 +922,51 @@ function Deploy-WebRuntime {
   Start-Sleep -Milliseconds 200
   [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
   Write-Host 'INFO web_deploy_submit_keyboard_enter=true'
-  # The UAT PHP handler returns a deployment notice after handling the POST.
-  Start-Sleep -Seconds 3
+  # A successful or rejected POST redirects back with a one-time notice. If
+  # Chrome did not submit the form (the previous runner failure mode), retry
+  # once only when the original form is still present and no result notice exists.
+  Start-Sleep -Seconds 8
+  $currentAddress = ''
+  $currentPage = $null
+  $responseText = @()
   try {
     $currentAddress = Normalize-WebAddress (Get-ChromeWindowAddress (Root $chrome))
     $currentPage = [Uri]('https://' + $currentAddress)
     Write-Host ('INFO web_deploy_browser_url=' + $currentAddress)
     Write-Host ('INFO web_deploy_browser_page=' + $currentPage.Host + $currentPage.AbsolutePath)
-    Write-UiHints (Root $chrome) 'web_deploy_after_submit'
+    $responseRoot = Root $chrome
+    $responseElements = $responseRoot.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($element in $responseElements) {
+      try {
+        $name = ([string]$element.Current.Name).Trim()
+        if ($name -match '(?i)Certified UAT web bundle deployed|Web bundle upload|Uploaded web bundle|Web bundle ZIP|ZipArchive|Web SHA-256|Web bundle missing|Unsafe web bundle path|Web staging directory|Current web runtime|Certified web runtime|Web source marker|Explicit deployment confirmation|deployment audit reason|Certified source head is invalid') {
+          $responseText += $name
+        }
+      } catch {}
+    }
+    Write-UiHints $responseRoot 'web_deploy_after_keyboard_submit'
   } catch {
     Write-Host ('INFO web_deploy_browser_feedback_unavailable=' + $_.Exception.GetType().Name)
+  }
+  if ($responseText.Count -gt 0) {
+    foreach ($notice in $responseText | Select-Object -Unique) { Write-Host ('INFO web_deploy_result_notice=' + $notice) }
+  } elseif ($currentAddress -and (Test-WebAddressMatchesTarget $currentAddress ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy'))) {
+    $retrySubmit = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_submit' @('Deploy Certified Web Bundle') ([System.Windows.Automation.InvokePattern]::Pattern)
+    if ($retrySubmit) {
+      Write-Host 'INFO web_deploy_keyboard_submit_not_observed=true'
+      Write-Host 'INFO web_deploy_submit_fallback=invoke_pattern_once'
+      Activate-OwnedChromeWindow $chrome
+      Invoke-Element $retrySubmit
+      Start-Sleep -Seconds 3
+      try {
+        $currentAddress = Normalize-WebAddress (Get-ChromeWindowAddress (Root $chrome))
+        $currentPage = [Uri]('https://' + $currentAddress)
+        Write-Host ('INFO web_deploy_browser_url_after_fallback=' + $currentAddress)
+        Write-UiHints (Root $chrome) 'web_deploy_after_submit_fallback'
+      } catch {
+        Write-Host ('INFO web_deploy_browser_feedback_unavailable_after_fallback=' + $_.Exception.GetType().Name)
+      }
+    }
   }
 
   $marker = ''
