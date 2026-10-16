@@ -19,7 +19,7 @@ final class RecoveryService {
         $recorded=trim((string)($data['recorded_at']??''));$recorded=$recorded===''?Db::now():Input::utcDateTime($recorded,'GPS recorded_at');
         return Transaction::run(function()use($a,$data,$gps,$recorded){
             $db=Db::wpdb();$att=$db->get_row($db->prepare("SELECT * FROM ".Db::table('attendance')." WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",$a->companyId,$a->employeeId,Db::today()),ARRAY_A);
-            if(!$att||!$att['check_in_at']||$att['check_out_at'])throw new DomainException('Active check-in required for GPS tracking.','gps_checkin_required',409);
+            if(!$att||!$att['check_in_at'])throw new DomainException('Attendance check-in required for scheduled GPS tracking.','gps_checkin_required',409);
             GpsDutyPolicy::assertRecordedAt($recorded,$att);
             $utc=new \DateTimeZone('UTC');$recordedAt=new \DateTimeImmutable($recorded,$utc);$earliest=(new \DateTimeImmutable((string)$att['check_in_at'],$utc))->modify('-5 minutes');$latest=(new \DateTimeImmutable('now',$utc))->modify('+10 minutes');if($recordedAt<$earliest||$recordedAt>$latest)throw new DomainException('GPS recorded_at is outside the active attendance window.','gps_recorded_time_invalid',422);
             $branch=(int)$att['branch_id']; if(!$a->hasBranch($branch))throw new DomainException('Attendance branch is outside effective authority.','branch_forbidden',403);
