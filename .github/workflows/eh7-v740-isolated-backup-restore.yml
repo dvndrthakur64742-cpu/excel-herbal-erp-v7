@@ -3,7 +3,7 @@ name: EH7 v7.4.0 Isolated Backup Restore UAT
 on:
   workflow_dispatch:
   push:
-    branches: [codex/erp735-document-integration, codex/reports-date-export-workflow]
+    branches: [codex/erp735-document-integration]
 
 permissions:
   contents: read
@@ -11,24 +11,10 @@ permissions:
 jobs:
   isolated-backup-restore:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-backup-restore-uat]')
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-
-      - name: Add verified Git Bash utilities to PATH
-        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
-        run: |
-          $gitBin = 'C:\Program Files\Git\bin'
-          $gitUsrBin = 'C:\Program Files\Git\usr\bin'
-          if (-not (Test-Path -LiteralPath (Join-Path $gitBin 'bash.exe') -PathType Leaf)) {
-            throw 'Git Bash executable is missing from the self-hosted Windows runner.'
-          }
-          if (-not (Test-Path -LiteralPath $gitUsrBin -PathType Container)) {
-            throw 'Git Unix utility directory is missing from the self-hosted Windows runner.'
-          }
-          Add-Content -LiteralPath $env:GITHUB_PATH -Value $gitBin
-          Add-Content -LiteralPath $env:GITHUB_PATH -Value $gitUsrBin
 
       - name: Verify Docker environment
         shell: bash
