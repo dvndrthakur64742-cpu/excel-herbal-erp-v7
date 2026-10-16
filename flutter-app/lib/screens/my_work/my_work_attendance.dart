@@ -195,8 +195,18 @@ extension _MyWorkAttendance on _MyWorkScreenState {
     try {
       p = await _position(timeLimit: const Duration(seconds: 8));
     } catch (e) {
-      // The backend accepts a missing coordinate pair. Do not lose attendance
-      // or block checkout just because browser/device geolocation is unavailable.
+      if (checkIn) {
+        if (mounted) {
+          _setFeatureState(() {
+            message =
+                'Check-In ke liye GPS/location zaroori hai. Device Location ON karein aur app/site ki location permission allow karke dobara try karein. ' +
+                UiError.message(e);
+          });
+        }
+        return;
+      }
+      // Checkout must remain available even if location becomes unavailable
+      // during duty; show that the checkout location was not captured.
       locationWarning = UiError.message(e);
     }
     final locationNote = locationWarning == null
