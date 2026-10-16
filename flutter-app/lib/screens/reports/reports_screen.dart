@@ -93,9 +93,16 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ? baseScopeLabel
         : '$baseScopeLabel · Branch ${app.currentBranchId}';
 
-    final reportView = needsBranch && app.currentBranchId == null
-        ? const _BranchRequired()
-        : AsyncPanel(
+    final reportView = activeType == 'account_ledger'
+        ? _AccountLedgerPanel(
+            api: api,
+            query: query,
+            config: config,
+            scope: scopeLabel,
+          )
+        : needsBranch && app.currentBranchId == null
+            ? const _BranchRequired()
+            : AsyncPanel(
             key: ValueKey(
               '$activeType-${app.currentBranchId}-$fromValue-$toValue-$reportingCategory',
             ),
@@ -104,14 +111,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 : api.get(config.path, query: query),
             emptyMessage: config.emptyMessage,
             builder: (context, data) {
-              if (activeType == 'account_ledger') {
-                return _AccountLedgerPanel(
-                  api: api,
-                  query: query,
-                  config: config,
-                  scope: scopeLabel,
-                );
-              }
               if (activeType == 'price_distribution') {
                 return _PriceDistributionPanel(
                   data: data,
