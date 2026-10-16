@@ -326,7 +326,7 @@ class _PersonalPerformanceCard extends StatelessWidget {
               leading: const Icon(Icons.insights_outlined),
               title: const Text('My Monthly Performance'),
               subtitle: Text(
-                'Points ${BusinessFormat.quantity(row['points'])} · Salary Fund ${BusinessFormat.money(row['salary_fund'])}',
+                'Sales ${BusinessFormat.quantity(row['sales_count'])} · Points ${BusinessFormat.quantity(row['points'])}',
               ),
             ),
           );
