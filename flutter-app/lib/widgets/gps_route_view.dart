@@ -199,7 +199,7 @@ class _GpsTracePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     const pad = 26.0;
-    final rect = Rect.fromLTWH(pad, pad, math.max(1, size.width - pad * 2), math.max(1, size.height - pad * 2));
+    final rect = Rect.fromLTWH(pad, pad, math.max(1.0, size.width - pad * 2).toDouble(), math.max(1.0, size.height - pad * 2).toDouble());
     final grid = Paint()..color = gridColor.withValues(alpha: .55)..strokeWidth = .7;
     for (var i = 1; i < 5; i++) {
       final x = rect.left + rect.width * i / 5;
@@ -218,7 +218,6 @@ class _GpsTracePainter extends CustomPainter {
     final maxLng = coords.map((p) => p.$2).reduce(math.max);
     final latSpan = (maxLat - minLat).abs();
     final lngSpan = (maxLng - minLng).abs();
-    final span = math.max(math.max(latSpan, lngSpan), 0.00005);
     final usableW = rect.width;
     final usableH = rect.height;
     final projected = coords.map((p) => Offset(
