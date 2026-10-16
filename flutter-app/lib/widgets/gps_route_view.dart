@@ -265,10 +265,10 @@ class _MapViewport {
       projected = current;
       if (width <= size.width - 64 && height <= size.height - 64) break;
     }
-    final minX = projected.map((p) => p.x).reduce(math.min);
-    final maxX = projected.map((p) => p.x).reduce(math.max);
-    final minY = projected.map((p) => p.y).reduce(math.min);
-    final maxY = projected.map((p) => p.y).reduce(math.max);
+    final minX = projected.map((p) => p.x).reduce((a, b) => math.min(a, b).toDouble());
+    final maxX = projected.map((p) => p.x).reduce((a, b) => math.max(a, b).toDouble());
+    final minY = projected.map((p) => p.y).reduce((a, b) => math.min(a, b).toDouble());
+    final maxY = projected.map((p) => p.y).reduce((a, b) => math.max(a, b).toDouble());
     final centerX = (minX + maxX) / 2;
     final centerY = (minY + maxY) / 2;
     final originX = centerX - size.width / 2;
