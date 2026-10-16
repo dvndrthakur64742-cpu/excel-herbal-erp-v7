@@ -52,6 +52,7 @@ class GpsTrackingService extends ChangeNotifier {
   Timer? _pointTimer;
   Timer? _scheduleTimer;
   Timer? _stopTimer;
+  StreamSubscription<GpsFix>? _positionSubscription;
   bool _active = false;
   bool _armed = false;
   bool _sending = false;
@@ -145,7 +146,29 @@ class GpsTrackingService extends ChangeNotifier {
       _dutyStatus = 'active';
       notifyListeners();
       await sendNow();
-      if (_active) {
+      if (_active && _location.supportsBackgroundTracking) {
+        // Android's foreground location service keeps collecting fixes while
+        // the employee switches apps or locks the screen. Upload no more than
+        // one point per five minutes to preserve the agreed route cadence.
+        await _positionSubscription?.cancel();
+        _positionSubscription = _location.watchPositions().listen(
+          (position) {
+            if (!_active || _sending) return;
+            final last = _lastSentAt;
+            if (last != null &&
+                DateTime.now().difference(last) < const Duration(minutes: 5)) {
+              return;
+            }
+            unawaited(_sendPosition(position));
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            _lastError = 'Background GPS stream error: ${UiError.message(error)}';
+            notifyListeners();
+          },
+        );
+      } else if (_active) {
+        // Web/browser tracking is foreground-only; browsers may throttle
+        // location and timers when a tab is backgrounded.
         _pointTimer?.cancel();
         _pointTimer = Timer.periodic(
           const Duration(minutes: 5),
@@ -211,6 +234,8 @@ class GpsTrackingService extends ChangeNotifier {
     _pointTimer?.cancel();
     _scheduleTimer?.cancel();
     _stopTimer?.cancel();
+    unawaited(_positionSubscription?.cancel());
+    _positionSubscription = null;
     _pointTimer = null;
     _scheduleTimer = null;
     _stopTimer = null;
@@ -266,6 +291,43 @@ class GpsTrackingService extends ChangeNotifier {
     }
   }
 
+  Future<void> _sendPosition(GpsFix position) async {
+    if (!_active || _sending) return;
+    _sending = true;
+    notifyListeners();
+    try {
+      await _api.post(
+        ApiPaths.gpsPoints,
+        data: {
+          'lat': position.latitude,
+          'lng': position.longitude,
+          'accuracy': position.accuracy,
+          'source': 'duty',
+          'recorded_at': DateTime.now().toUtc().toIso8601String(),
+        },
+      );
+      _lastSentAt = DateTime.now();
+      _lastError = null;
+    } catch (e) {
+      _lastError = UiError.message(e);
+      if (e is ApiException &&
+          const {
+            'gps_checkin_required',
+            'gps_window_closed',
+            'gps_recorded_date_invalid',
+          }.contains(e.code)) {
+        stop(
+          status: e.code == 'gps_window_closed'
+              ? 'auto_stopped'
+              : 'not_checked_in',
+        );
+      }
+    } finally {
+      _sending = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> _ensurePermission() async {
     final serviceEnabled = await _location.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -295,6 +357,8 @@ class GpsTrackingService extends ChangeNotifier {
     _pointTimer?.cancel();
     _scheduleTimer?.cancel();
     _stopTimer?.cancel();
+    unawaited(_positionSubscription?.cancel());
+    _positionSubscription = null;
     super.dispose();
   }
 }
