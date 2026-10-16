@@ -3,7 +3,7 @@ name: EH7 v7.4.0 Isolated Backup Restore UAT
 on:
   workflow_dispatch:
   push:
-    branches: [codex/erp735-document-integration]
+    branches: [codex/erp735-document-integration, codex/reports-date-export-workflow]
 
 permissions:
   contents: read
@@ -11,7 +11,7 @@ permissions:
 jobs:
   isolated-backup-restore:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-backup-restore-uat]')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
