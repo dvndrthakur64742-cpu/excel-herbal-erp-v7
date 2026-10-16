@@ -12,6 +12,7 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/business_date_field.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/gps_route_view.dart';
 import 'employee_designations_screen.dart';
 
 class TeamScreen extends ConsumerStatefulWidget {
@@ -457,23 +458,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                 style: TextStyle(color: Colors.black54),
               ),
               const SizedBox(height: 12),
-              if (points.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: Text('No GPS route points recorded.')),
-                )
-              else
-                for (final point in points)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.location_on_outlined),
-                    title: Text(
-                      '${point['latitude'] ?? '—'}, ${point['longitude'] ?? '—'}',
-                    ),
-                    subtitle: Text(
-                      '${BusinessFormat.dateTime(point['recorded_at'])} · accuracy ${point['accuracy_m'] ?? '—'} m',
-                    ),
-                  ),
+              GpsRouteView(points: points),
             ],
           ),
         ),
