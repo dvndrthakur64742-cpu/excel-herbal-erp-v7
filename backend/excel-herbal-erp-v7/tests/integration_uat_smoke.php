@@ -207,6 +207,20 @@ uat_case('uat_branch_scope_fail_closed', function () use ($self) {
     throw new RuntimeException('cross-branch attendance check-in was accepted');
 });
 
+uat_case('uat_attendance_checkin_requires_gps', function () use ($self) {
+    try {
+        uat_dispatch('work.check_in', $self, ['branch_id'=>1]);
+    } catch (DomainException $e) {
+        if ($e->codeKey !== 'gps_location_required' || $e->httpStatus !== 422) throw $e;
+        $today = uat_dispatch('work.attendance_today', $self);
+        if ($today && !empty($today['check_in_at'])) {
+            throw new RuntimeException('check-in without GPS created attendance');
+        }
+        return;
+    }
+    throw new RuntimeException('check-in without GPS was accepted');
+});
+
 uat_case('uat_sales_capability_fail_closed', function () use ($self) {
     try {
         uat_dispatch('sales.counter', $self, [
