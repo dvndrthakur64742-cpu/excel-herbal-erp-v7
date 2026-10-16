@@ -99,7 +99,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             key: ValueKey(
               '$activeType-${app.currentBranchId}-$fromValue-$toValue-$reportingCategory',
             ),
-            future: api.get(config.path, query: query),
+            future: activeType == 'account_ledger'
+                ? Future.value(const <dynamic>[])
+                : api.get(config.path, query: query),
             emptyMessage: config.emptyMessage,
             builder: (context, data) {
               if (activeType == 'account_ledger') {
