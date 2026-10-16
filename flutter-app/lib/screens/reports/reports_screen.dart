@@ -748,7 +748,7 @@ class _ReportExportActions extends StatelessWidget {
 
   String _csvCell(dynamic value) {
     var text = _cellText(value);
-    if (value is String && RegExp(r'^[=+@]').hasMatch(text)) {
+    if (value is String && RegExp(r'^[\u0000-\u0020]*[=+\-@]').hasMatch(text)) {
       text = "'$text";
     }
     return '"${text.replaceAll('"', '""')}"';
