@@ -880,26 +880,54 @@ function Deploy-WebRuntime {
 
   Choose-File $file $webZip $chrome
   $root = Root $chrome
-  Set-ElementValue (Find-ControlByIdOrNameLike $root 'eh7_source_head' @('*Certified source head*') ([System.Windows.Automation.ValuePattern]::Pattern)) $SourceHead
-  Set-ElementValue (Find-ControlByIdOrNameLike $root 'eh7_reason' @('*Audit reason*') ([System.Windows.Automation.ValuePattern]::Pattern)) 'Deploy certified exact-head build to controlled UAT'
-  $confirm = Find-ControlByIdOrNameLike $root 'eh7_confirm' @('*confirm this certified BUILD/UAT web deployment*') ([System.Windows.Automation.TogglePattern]::Pattern)
+  $file = Find-ControlByIdOrNameLike $root 'eh7_web_bundle' @('*Certified Flutter Web ZIP*','*Choose File*') ([System.Windows.Automation.InvokePattern]::Pattern)
+  $selectedFileLabel = if ($file) { [string]$file.Current.Name } else { '' }
+  if (-not $file -or $selectedFileLabel -notlike ('*' + [IO.Path]::GetFileName($webZip) + '*')) {
+    throw ('Certified web ZIP was not retained by the browser file input. label=' + $selectedFileLabel)
+  }
+  Write-Host ('PASS web_deploy_selected_zip=' + $selectedFileLabel)
+
+  $source = Find-ControlByIdOrNameLike $root 'eh7_source_head' @('*Certified source head*') ([System.Windows.Automation.ValuePattern]::Pattern)
+  Set-ElementValue $source $SourceHead
+  $source = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_source_head' @('*Certified source head*') ([System.Windows.Automation.ValuePattern]::Pattern)
+  $sourceValue = [string]$source.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+  if ($sourceValue -cne $SourceHead) { throw ('Certified source-head field did not retain the exact commit. value=' + $sourceValue) }
+  $reason = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_reason' @('*Audit reason*') ([System.Windows.Automation.ValuePattern]::Pattern)
+  Set-ElementValue $reason 'Deploy certified exact-head build to controlled UAT'
+  $reason = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_reason' @('*Audit reason*') ([System.Windows.Automation.ValuePattern]::Pattern)
+  $reasonValue = [string]$reason.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+  if ($reasonValue.Length -lt 10) { throw 'UAT web-deploy audit reason did not pass required-field validation.' }
+  Write-Host ('PASS web_deploy_source_head=' + $sourceValue)
+  Write-Host 'PASS web_deploy_audit_reason_present=true'
+
+  $confirm = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_confirm' @('*confirm this certified BUILD/UAT web deployment*') ([System.Windows.Automation.TogglePattern]::Pattern)
+  if (-not $confirm) { throw 'UAT web deployment confirmation checkbox is missing.' }
   $toggle = $confirm.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
   if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) { $toggle.Toggle() }
+  Start-Sleep -Milliseconds 150
+  $confirm = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_confirm' @('*confirm this certified BUILD/UAT web deployment*') ([System.Windows.Automation.TogglePattern]::Pattern)
+  $toggle = $confirm.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+  if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) {
+    throw ('UAT web deployment confirmation did not persist. ToggleState=' + $toggle.Current.ToggleState)
+  }
+  Write-Host 'PASS web_deploy_confirmation_checked=true'
 
-  # Submit the real HTML form through the visible browser. WordPress can take
-  # well over the old fixed wait to validate/extract a production Flutter ZIP,
-  # so verify by polling the server-side source marker instead of assuming a
-  # 12-18 second completion time.
+  # Use the verified, focused submit control and keyboard Enter so Chrome
+  # performs the actual HTML form submission instead of only invoking a
+  # potentially stale UI Automation pattern.
   $submit = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_submit' @('Deploy Certified Web Bundle') ([System.Windows.Automation.InvokePattern]::Pattern)
   if (-not $submit) { throw 'Deploy Certified Web Bundle submit control disappeared before submission.' }
-  Invoke-Element $submit
-  Write-Host 'INFO web_deploy_submit_invoked=true'
-  # The UAT PHP handler returns an admin notice for rejected uploads. Capture the
-  # browser response while it is still visible, not just the unchanged health SHA.
+  Activate-OwnedChromeWindow $chrome
+  $submit.SetFocus()
+  Start-Sleep -Milliseconds 200
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Write-Host 'INFO web_deploy_submit_keyboard_enter=true'
+  # The UAT PHP handler returns a deployment notice after handling the POST.
   Start-Sleep -Seconds 3
   try {
     $currentAddress = Normalize-WebAddress (Get-ChromeWindowAddress (Root $chrome))
     $currentPage = [Uri]('https://' + $currentAddress)
+    Write-Host ('INFO web_deploy_browser_url=' + $currentAddress)
     Write-Host ('INFO web_deploy_browser_page=' + $currentPage.Host + $currentPage.AbsolutePath)
     Write-UiHints (Root $chrome) 'web_deploy_after_submit'
   } catch {
