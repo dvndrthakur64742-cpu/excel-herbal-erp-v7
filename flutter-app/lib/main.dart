@@ -25,7 +25,7 @@ void main() {
           child: Padding(
             padding: EdgeInsets.all(14),
             child: Icon(
-              Icons.refresh_rounded,
+              Icons.error_outline_rounded,
               size: 30,
               color: ExcelBrand.primaryDark,
             ),
@@ -33,7 +33,7 @@ void main() {
         ),
         SizedBox(height: 16),
         Text(
-          'This section needs a refresh',
+          'This section could not load',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 18,
@@ -43,7 +43,7 @@ void main() {
         ),
         SizedBox(height: 6),
         Text(
-          'Please refresh once. Technical details have been hidden from the business screen.',
+          'Return to the previous screen and retry the action. Technical details have been hidden from the business screen.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 14, height: 1.4, color: ExcelBrand.muted),
         ),
@@ -62,7 +62,9 @@ class ExcelHerbalApp extends ConsumerWidget {
     final home = app.loading
         ? const Scaffold(body: Center(child: CircularProgressIndicator()))
         : app.authenticated
-        ? (app.businessAccessBlocked
+        ? (!app.bootstrapReady
+              ? const _BootstrapRecoveryScreen()
+              : app.businessAccessBlocked
               ? const _BranchAccessBlockedScreen()
               : const GpsTrackingCoordinator(child: AppShell()))
         : const LoginScreen();
@@ -72,6 +74,71 @@ class ExcelHerbalApp extends ConsumerWidget {
       title: 'Excel Herbal ERP',
       theme: ExcelBrand.lightTheme(),
       home: AppVersionGate(api: ref.watch(apiClientProvider), child: home),
+    );
+  }
+}
+
+class _BootstrapRecoveryScreen extends ConsumerWidget {
+  const _BootstrapRecoveryScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final app = ref.watch(appStateProvider);
+    final reason =
+        app.bootstrapCompatibilityError ??
+        app.error ??
+        'Required ERP startup information is temporarily unavailable.';
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.sync_problem_rounded, size: 56),
+                      const SizedBox(height: 16),
+                      Text(
+                        'ERP startup temporarily unavailable',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(reason, textAlign: TextAlign.center),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Business posting is paused until the server date and startup contract are valid. Navigation will resume after a successful retry.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 22),
+                      FilledButton.icon(
+                        onPressed: () => ref
+                            .read(appStateProvider.notifier)
+                            .retryBootstrap(),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Retry startup'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: () =>
+                            ref.read(appStateProvider.notifier).logout(),
+                        icon: const Icon(Icons.logout),
+                        label: const Text('Logout'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

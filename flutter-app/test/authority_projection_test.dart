@@ -170,7 +170,7 @@ void main() {
     expect(state.bottomNav.map((e) => e['id']), ['home', 'profile']);
   });
 
-  test('ERP Tools remains visible when projected capability needs it', () {
+  test('communication does not reopen legacy ERP Tools route', () {
     final state = _state(
       capabilities: const ['erp.access', 'communication.view'],
       sections: const [
@@ -182,8 +182,8 @@ void main() {
       ],
     );
 
-    expect(state.erpToolsVisible, isTrue);
-    expect(state.bottomNav.map((e) => e['id']), ['home', 'erp_tools']);
+    expect(state.erpToolsVisible, isFalse);
+    expect(state.bottomNav.map((e) => e['id']), ['home']);
   });
 
   test('aggregate branch scope remains limited to authorised branch ids', () {

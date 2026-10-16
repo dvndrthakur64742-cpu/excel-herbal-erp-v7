@@ -1,0 +1,43 @@
+name: EH7 v7.4.0 Isolated Backup Restore UAT
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/erp735-document-integration]
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-backup-restore:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-backup-restore-uat]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Verify Docker environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker version
+          docker info
+          curl --version
+          jq --version
+
+      - name: Fresh isolated WordPress + MariaDB backup/restore drill
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x .github/scripts/isolated-backup-restore-uat.sh
+          .github/scripts/isolated-backup-restore-uat.sh
+
+      - name: Upload backup/restore evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-v7.4.0-Isolated-Backup-Restore-Evidence
+          path: |
+            dist/isolated-backup-restore/EVIDENCE.json
+            dist/isolated-backup-restore/bootstrap.json
+          if-no-files-found: warn

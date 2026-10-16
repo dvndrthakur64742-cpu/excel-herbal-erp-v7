@@ -3,11 +3,10 @@ name: EH7 v7.4.0 Web Production Build
 on:
   workflow_dispatch:
   push:
-    branches: [v7-hierarchy-gps-reporting-dashboard]
+    branches: [v740-business-completion]
     paths:
       - '.github/workflows/eh7-v740-web-production-build.yml'
-      - 'flutter-app/lib/core/app_config.dart'
-      - 'flutter-app/lib/screens/auth/login_screen.dart'
+      - 'flutter-app/**'
 
 concurrency:
   group: eh7-v740-web-production-${{ github.ref }}
@@ -22,13 +21,26 @@ defaults:
 
 jobs:
   web-production:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 120
     steps:
       - name: Enable Windows long paths for runner Git
         run: git config --global core.longpaths true
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Enforce approved production release gates
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        run: |
+          & '.github/scripts/verify-release-gates.ps1' -Mode production -GateFile 'release-gates/v7.4.0.json'
+
+      - name: Verify runner is installed as a Windows service
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        run: |
+          $services = @(Get-Service 'actions.runner.*' -ErrorAction SilentlyContinue)
+          if ($services.Count -eq 0) { throw 'Production web runner must be installed as a Windows service.' }
+          if (-not ($services | Where-Object Status -eq 'Running')) { throw 'Production web runner Windows service is not running.' }
+          $services | Select-Object Name,Status,StartType | Format-Table -AutoSize
 
       - name: Bootstrap Flutter 3.44.9 from persistent cache
         run: |
@@ -56,6 +68,14 @@ jobs:
       - name: Dependencies
         working-directory: flutter-app
         run: flutter.bat pub get
+
+      - name: Verify pinned dependency lockfile
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        working-directory: flutter-app
+        run: |
+          git diff -- pubspec.lock
+          git diff --quiet -- pubspec.lock
+          if ($LASTEXITCODE -ne 0) { throw 'pubspec.lock drifted under pinned Flutter 3.44.9.' }
 
       - name: Analyze clean source
         working-directory: flutter-app
@@ -86,6 +106,10 @@ jobs:
           if not exist "flutter-app\build\web\flutter_bootstrap.js" exit /b 1
           if not exist "flutter-app\build\web\main.dart.js" exit /b 1
           findstr /c:"<base href=\"/wp-content/uploads/eh7-flutter-web/\">" "flutter-app\build\web\index.html" >nul
+          if errorlevel 1 exit /b 1
+          findstr /c:"<html lang=\"en\">" "flutter-app\build\web\index.html" >nul
+          if errorlevel 1 exit /b 1
+          findstr /c:"Excel Herbal ERP operations portal" "flutter-app\build\web\index.html" >nul
           if errorlevel 1 exit /b 1
           findstr /c:"office.excelherbal.in/wp-json/excel-herbal-erp/v7" "flutter-app\build\web\main.dart.js" >nul
           if errorlevel 1 exit /b 1
@@ -120,8 +144,7 @@ jobs:
           copy /y "%USERPROFILE%\ERP7-Releases\v7.4.0\WEB-PRODUCTION-ZIP-SHA256.txt" "dist\flutter-v7.4.0\WEB-PRODUCTION-ZIP-SHA256.txt"
 
       - name: Upload workflow artifact
-        continue-on-error: true
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Excel-Herbal-ERP-v7.4.0-Web-Production
           path: |
@@ -129,12 +152,3 @@ jobs:
             dist/flutter-v7.4.0/WEB-PRODUCTION-MAIN-SHA256.txt
             dist/flutter-v7.4.0/WEB-PRODUCTION-ZIP-SHA256.txt
           if-no-files-found: error
-
-      - name: Production web certification summary
-        run: |
-          if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\web-production\index.html" exit /b 1
-          if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\web-production\main.dart.js" exit /b 1
-          if not exist "%USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Web-Production.zip" exit /b 1
-          echo ERP7 v7.4.0 production desktop web certification gates passed.
-          echo Folder: %USERPROFILE%\ERP7-Releases\v7.4.0\web-production
-          echo ZIP: %USERPROFILE%\ERP7-Releases\v7.4.0\Excel-Herbal-ERP-v7.4.0-Web-Production.zip

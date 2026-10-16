@@ -33,6 +33,26 @@ abstract final class WholePcs {
     return int.parse(value);
   }
 
+  // WordPress / MariaDB DECIMAL columns arrive as strings (for example,
+  // "0.0000" or "3.00"). Normalize those at the API boundary before filling
+  // integer-only TextFields. Never relax user-entered whole-PCS validation.
+  static String apiQuantityText(dynamic value) {
+    if (value == null) return '0';
+    final raw = '$value'.trim();
+    if (raw.isEmpty) return '0';
+    final parsed = num.tryParse(raw);
+    if (parsed == null ||
+        !parsed.isFinite ||
+        parsed < 0 ||
+        parsed > 9007199254740991 ||
+        parsed != parsed.truncateToDouble()) {
+      throw const FormatException(
+        'Server quantity must be a non-negative whole PCS value.',
+      );
+    }
+    return parsed.toInt().toString();
+  }
+
   static bool isWhole(dynamic value) {
     final n = num.tryParse('$value');
     return n != null && n.isFinite && n == n.roundToDouble();

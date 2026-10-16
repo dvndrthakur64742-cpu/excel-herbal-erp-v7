@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "release_version": "7.4.0",
+  "production_approved": false,
+  "automated_certification": {
+    "status": "passed",
+    "evidence": [
+      "github-actions:37605825518",
+      "github-actions:37611310384",
+      "github-actions:37930701014",
+      "github-actions:38027297734",
+      "github-actions:38034404917",
+      "github-actions:38040500406"
+    ],
+    "baseline_head": "6eb337c15d01055ad91fa875ca6bc319de0c12fb",
+    "note": "Current BUILD/UAT backend and Flutter web both verify source head 6eb337c15d01055ad91fa875ca6bc319de0c12fb via exact-head GitHub deployment run 38027297734 (attempt 3): PHP/MariaDB, Flutter Analyze/tests/Web Build, controlled host SHA+manifest attestation, authenticated screen smoke and Daily Order read-only integrity PASS. Subsequent branch-only code/test verification run 38040500406 on b221938a4a9ad9ce7fcd3f781b2c084c7d9f49b1 passed synthetic mixed Daily Order, transfer, disposable MariaDB, Flutter and Web Build. Script timeout fix CI run 38034404917 PASS. Test/evidence-only commits do not change the deployed ERP version. No production approval; business report human Accounts review and named pilot sign-offs pending."
+  },
+  "manual_gates": [
+    {
+      "id": "host_backup_restore",
+      "required": true,
+      "status": "passed",
+      "evidence": [
+        "repo-workflow:eh7-v740-staging-backend-package.yml",
+        "repo-tool:fresh-uat-bootstrap.php",
+        "ci-proof:disposable-mariadb-backup-restore",
+        "repo-workflow:eh7-v740-isolated-backup-restore.yml",
+        "github-actions:37608960515",
+        "artifact:11476596111",
+        "release-evidence:release-gates/evidence/isolated-backup-restore-2026-10-07.json",
+        "isolated-uat-source-head:560dfe7238a4d3431de638068ebe30304dbd83c9",
+        "backup-sha256:8af0869ea874b3ccbd13d338e7c127de7dcad46576da7366e76ae77f831555e9",
+        "github-actions:37609743903",
+        "artifact:11476936161",
+        "isolated-uat-source-head:3fa47f0fdf7b06835f19b88a40362027b35cc58b"
+      ],
+      "note": "PASS on fresh isolated WordPress + MariaDB 11.8.9 UAT. Exact-head backend and synthetic identities were installed, a single-transaction backup was created, the database was dropped/restored, eh7_document_key recovery matched, and the encrypted private document remained byte-for-byte downloadable after restore. Latest proof: workflow 37609743903 / artifact 11476936161. A current production backup remains a deployment-day prerequisite."
+    },
+    {
+      "id": "environment_hardening",
+      "required": true,
+      "status": "passed",
+      "evidence": [
+        "office-audit:wp-environment-type-undefined",
+        "office-audit:disallow-file-edit-undefined",
+        "office-audit:core-checksums-pass-3338-files",
+        "office-audit:cron-spawn-200",
+        "office-audit:background-updates-critical-disabled",
+        "office-audit:wordpress-7.1.1-update-available",
+        "office-audit:mariadb-read-committed-max-packet-1GiB",
+        "repo-workflow:eh7-v740-staging-target-preflight.yml",
+        "repo-service:StagingSafety",
+        "repo-tool:fresh-uat-bootstrap.php",
+        "office-audit:wordpress-7.1.2",
+        "office-audit:search-indexing-disabled",
+        "office-audit:force-ssl-admin=true",
+        "office-audit:wp-debug=false",
+        "office-audit:plugin-updates-dry-run-reviewed-2026-10-07",
+        "release-evidence:release-gates/evidence/host-hardening-2026-10-07.json",
+        "github-actions:37620205932",
+        "artifact:11481337642",
+        "uat-proof:wp-environment-type-undefined-disallow-file-edit-undefined",
+        "deployed-source-head:75b53898d163623888c9cc347f7498c9f1c9aa61",
+        "github-actions:37934202152",
+        "artifact:11617264619",
+        "host-config:WP_ENVIRONMENT_TYPE=staging",
+        "host-config:DISALLOW_FILE_EDIT=true",
+        "verified-deployed-source-head:b15ed0daf4c9b9cd565b7b0889c48ddb6ab0a9fb"
+      ],
+      "note": "PASS on authenticated 2026-10-09 host hardening re-audit (GitHub Actions 37934202152, artifact 11617264619). Both wp-config constants are explicitly defined: WP_ENVIRONMENT_TYPE=staging and DISALLOW_FILE_EDIT=true. The verified deployed backend and web runtime are at b15ed0daf4c9b9cd565b7b0889c48ddb6ab0a9fb. This closes only host environment hardening; business-report Accounts review and named Operational Owner/HR/Accounts pilot sign-off still require human acceptance. Production remains fail-closed."
+    },
+    {
+      "id": "real_http_bearer_401_403",
+      "required": true,
+      "status": "passed",
+      "evidence": [
+        "office-audit:application-password-introspection-success",
+        "office-audit:disable-authentication-password=false",
+        "repo-workflow:eh7-v740-staging-http-auth-smoke.yml",
+        "github-actions:37586581037",
+        "uat-proof:missing-token-401-invalid-token-401-refresh-rotation-old-token-revocation-forbidden-403-logout-revocation",
+        "repo-workflow:eh7-v740-isolated-backup-restore.yml",
+        "planned-proof:distinct-synthetic-limited-role-401-403",
+        "github-actions:37609743903",
+        "artifact:11476936161",
+        "release-evidence:release-gates/evidence/isolated-backup-restore-2026-10-07.json",
+        "isolated-uat-proof:missing-token-401-invalid-token-401-distinct-limited-login-200-distinct-limited-forbidden-403-logout-revocation-401"
+      ],
+      "note": "PASS. Office HTTPS UAT already proved missing/invalid Bearer 401, authenticated /me, refresh rotation, old-token revocation, forbidden 403, logout and post-logout revocation. Fresh isolated UAT then proved a distinct synthetic limited-role identity can log in (200), is denied administrator diagnostics (403 permission_denied), and its token is rejected after logout (401)."
+    },
+    {
+      "id": "android_physical_gps",
+      "required": true,
+      "status": "passed",
+      "evidence": [
+        "repo-workflow:eh7-v740-staging-pilot-android.yml",
+        "repo-template:android-gps-pilot-evidence.json",
+        "github-actions:37586878301",
+        "artifact:11467730044",
+        "artifact-name:Excel-Herbal-ERP-v7.4.0-Android-Staging-Pilot-arm64",
+        "artifact-sha256:f3becdf321b8a0337c0f86dd809b305b3896536e32927203cfe86e000ee459ef",
+        "apk-abi:arm64-v8a",
+        "apk-production-signed:false",
+        "release-evidence:release-gates/evidence/android-gps-pilot-2026-10-07.json",
+        "release-evidence:release-gates/evidence/android-emulator-uat-2026-10-07.json",
+        "github-actions:37605825503",
+        "artifact:11474823963",
+        "android-emulator-api:35",
+        "android-emulator-version:15"
+      ],
+      "note": "PASS via hybrid Android UAT. Real physical device: install/login, location-enabled check-in with accepted GPS, background/resume, checkout tracking stop and logout tracking stop were operator-confirmed. Android 15/API 35 emulator automation independently passed location service ON/OFF, permission denied, denied-forever, mock GPS injection, real background/resume and restore. GpsTrackingService policy tests passed server cutoff auto-stop, checked-out stop, signed-out stop and anti-bypass behavior. This closes the Android functional gate while retaining human pilot sign-off as a separate release gate."
+    },
+    {
+      "id": "hr_multipart_private_document",
+      "required": true,
+      "status": "passed",
+      "evidence": [
+        "repo-workflow:eh7-v740-staging-private-document-smoke.yml",
+        "repo-workflow:eh7-v740-isolated-backup-restore.yml",
+        "github-actions:37608960515",
+        "artifact:11476596111",
+        "release-evidence:release-gates/evidence/isolated-backup-restore-2026-10-07.json",
+        "uat-proof:multipart-upload-attachment-zero-auth-download-sha-match-key-restore-deactivate-404",
+        "github-actions:37609743903",
+        "artifact:11476936161",
+        "uat-proof:post-restore-authenticated-private-document-sha-match"
+      ],
+      "note": "PASS on isolated staging: multipart PNG upload used private DB storage (attachment_id=0), authenticated SHA-256 download matched before backup and after matching-key restore, deactivation succeeded, inactive download returned 404, and sessions were logged out. Latest proof: workflow 37609743903 / artifact 11476936161."
+    },
+    {
+      "id": "business_report_review",
+      "required": true,
+      "status": "pending",
+      "evidence": [
+        "repo-workflow:eh7-v740-staging-report-snapshot.yml",
+        "github-actions:37585323801",
+        "artifact:11466396056",
+        "artifact-sha256:f712952563e97b9d4172794409efc263332a95cab890b927f14e4f8dc4847380",
+        "uat-reconciliation:trial-balance-388580=388580",
+        "uat-reconciliation:assets-69370=liabilities-67200+equity-2170",
+        "uat-reconciliation:profit-2170=current-earnings-2170",
+        "uat-reconciliation:stock-35-of-35-matched",
+        "uat-reconciliation:finance-4-of-4-matched",
+        "release-evidence:release-gates/evidence/business-report-review-2026-10-07.json"
+      ],
+      "note": "Automated reconciliation packet is complete: Trial Balance debit=credit 388,580; Assets 69,370 = Liabilities 67,200 + Equity 2,170; profit 2,170 matches earnings; stock reconciliation 35/35, finance reconciliation 4/4. Gate is still pending a named independent Accounts human review/sign-off. Do not interpret automated mathematical balance as human approval."
+    },
+    {
+      "id": "pilot_signoff",
+      "required": true,
+      "status": "pending",
+      "evidence": [
+        "repo-template:pilot-signoff.json",
+        "release-evidence:release-gates/evidence/pilot-signoff-2026-10-07.json",
+        "github-actions:38040500406"
+      ],
+      "note": "Technical baseline refreshed and pilot packet corrected after verified host hardening and full mixed Daily Order synthetic CI success (run 38040500406). Operational owner, HR, and Accounts must still each be named, independently sign, and be marked passed in the release evidence packet; no evidence or automated CI can substitute for this. Office remains unsanitized BUILD/UAT. Production remains blocked."
+    }
+  ],
+  "approval": {
+    "approved_by": "",
+    "approved_at": "",
+    "change_ticket": ""
+  }
+}

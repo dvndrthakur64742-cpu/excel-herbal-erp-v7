@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "gates": [
+    "host_backup_restore",
+    "hr_multipart_private_document",
+    "real_http_bearer_401_403"
+  ],
+  "status": "passed",
+  "workflow_run": "37609743903",
+  "artifact_id": "11476936161",
+  "artifact_name": "EH7-v7.4.0-Isolated-Backup-Restore-Evidence",
+  "environment": "fresh-isolated-wordpress-mariadb",
+  "source_head": "3fa47f0fdf7b06835f19b88a40362027b35cc58b",
+  "database": "MariaDB 11.8.9",
+  "wordpress_container": "wordpress:php8.3-apache",
+  "backup": {
+    "sha256": "7736add0dc490d7a77bccb7b8cf7a284b8532d5278b647f62a50043b76f02c22",
+    "bytes": 206724,
+    "single_transaction": true
+  },
+  "synthetic_seed": {
+    "passed": true,
+    "admin_employee_id": 1,
+    "limited_employee_id": 2
+  },
+  "private_document": {
+    "employee_id": 1,
+    "document_id": 1,
+    "fixture_sha256": "431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460",
+    "pre_backup_download_hash_match": true,
+    "encryption_key_hash_restored": true,
+    "post_restore_download_hash_match": true,
+    "deactivation_verified": true,
+    "inactive_download_rejected": true
+  },
+  "auth_boundaries": {
+    "missing_token_401": true,
+    "invalid_token_401": true,
+    "distinct_limited_login_200": true,
+    "distinct_limited_forbidden_403": true,
+    "limited_logout_revocation_401": true
+  },
+  "checks": {
+    "exact_head_plugin": true,
+    "staging_environment": true,
+    "schema_installed": true,
+    "fresh_uat_seeded": true,
+    "database_dump": true,
+    "database_drop": true,
+    "database_restore": true,
+    "document_key_recovery": true,
+    "authenticated_private_document_after_restore": true
+  }
+}

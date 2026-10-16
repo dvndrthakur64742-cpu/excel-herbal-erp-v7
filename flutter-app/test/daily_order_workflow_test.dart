@@ -48,6 +48,27 @@ void main() {
     );
   });
 
+  test('maker-checker blocks requester from issuing own stock', () {
+    expect(
+      DailyOrderWorkflow.canIssueRequest(
+        'approved',
+        ['daily_order.issue'],
+        requesterId: 2,
+        currentEmployeeId: 2,
+      ),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.canIssueRequest(
+        'approved',
+        ['daily_order.issue'],
+        requesterId: 6,
+        currentEmployeeId: 2,
+      ),
+      isTrue,
+    );
+  });
+
   test('maker-checker keeps older payloads compatible when identity is absent', () {
     expect(
       DailyOrderWorkflow.canApproveRequest(

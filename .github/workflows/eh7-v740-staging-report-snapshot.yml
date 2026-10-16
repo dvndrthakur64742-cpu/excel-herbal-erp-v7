@@ -1,0 +1,81 @@
+name: EH7 v7.4.0 Staging Report Snapshot
+
+on:
+  push:
+    branches: [codex/erp735-document-integration]
+  workflow_dispatch:
+    inputs:
+      staging_api_base_url:
+        description: 'Controlled staging ERP API base URL'
+        required: true
+        type: string
+      branch_id:
+        description: 'Controlled staging branch ID'
+        required: true
+        type: number
+      date_from:
+        description: 'Report start date YYYY-MM-DD'
+        required: true
+        type: string
+      date_to:
+        description: 'Report end date YYYY-MM-DD'
+        required: true
+        type: string
+      allow_office_target:
+        description: 'Explicitly allow office.excelherbal.in (keep false until backup/restore proof exists)'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+
+jobs:
+  staging-report-snapshot:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-report-snapshot-uat]')
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate controlled staging target
+        env:
+          STAGING_API: ${{ github.event_name == 'workflow_dispatch' && inputs.staging_api_base_url || 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7' }}
+          ALLOW_OFFICE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_office_target || 'true' }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+        run: |
+          $uri=[Uri]$env:STAGING_API
+          if($uri.Scheme -ne 'https'){throw 'Staging API must use HTTPS.'}
+          if(-not $uri.AbsolutePath.TrimEnd('/').EndsWith('/wp-json/excel-herbal-erp/v7')){throw 'Invalid staging API path.'}
+          if($uri.Host -ieq 'office.excelherbal.in' -and $env:ALLOW_OFFICE -ne 'true'){throw 'Office target is blocked by default.'}
+          if([string]::IsNullOrWhiteSpace($env:UAT_MOBILE)-or[string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)){throw 'Staging UAT secrets are missing.'}
+          "EH7_STAGING_API=$($uri.AbsoluteUri.TrimEnd('/'))"|Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Collect signed-in report snapshot
+        env:
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+          BRANCH_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.branch_id || 1 }}
+          DATE_FROM: ${{ github.event_name == 'workflow_dispatch' && inputs.date_from || '2026-09-01' }}
+          DATE_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.date_to || '2026-10-07' }}
+        run: |
+          & '.github/scripts/staging-report-snapshot.ps1' `
+            -ApiBase $env:EH7_STAGING_API `
+            -Mobile $env:UAT_MOBILE `
+            -Password $env:UAT_PASSWORD `
+            -BranchId ([int]$env:BRANCH_ID) `
+            -From $env:DATE_FROM `
+            -To $env:DATE_TO
+
+      - name: Upload Accounts review snapshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-v7.4.0-Staging-Report-Snapshot
+          path: dist/staging-report-snapshot/*
+          if-no-files-found: warn

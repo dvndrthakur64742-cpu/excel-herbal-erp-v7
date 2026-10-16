@@ -6,23 +6,44 @@ import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../theme/excel_brand.dart';
-import '../../widgets/async_panel.dart';
 
 class TasksScreen extends ConsumerStatefulWidget {
-  const TasksScreen({super.key});
+  const TasksScreen({super.key, this.initialTasks});
+
+  final List<Map<String, dynamic>>? initialTasks;
 
   @override
   ConsumerState<TasksScreen> createState() => _TasksScreenState();
 }
 
 class _TasksScreenState extends ConsumerState<TasksScreen> {
-  int refresh = 0;
   int? completingId;
   String? message;
+  late List<Map<String, dynamic>> _tasks;
+
+  @override
+  void initState() {
+    super.initState();
+    _tasks = _copyTasks(widget.initialTasks);
+  }
+
+  @override
+  void didUpdateWidget(covariant TasksScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.initialTasks, widget.initialTasks)) {
+      _tasks = _copyTasks(widget.initialTasks);
+    }
+  }
+
+  static List<Map<String, dynamic>> _copyTasks(
+    List<Map<String, dynamic>>? rows,
+  ) =>
+      (rows ?? const <Map<String, dynamic>>[])
+          .map(Map<String, dynamic>.from)
+          .toList();
 
   @override
   Widget build(BuildContext context) {
-    final api = ref.watch(apiClientProvider);
     return Column(
       children: [
         Padding(
@@ -59,29 +80,20 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
             ),
           ),
         Expanded(
-          child: AsyncPanel(
-            key: ValueKey(refresh),
-            future: api.get(ApiPaths.communicationSummary),
-            builder: (context, data) {
-              final d = Map<String, dynamic>.from(data as Map);
-              final tasks = ((d['tasks'] as List?) ?? const [])
-                  .map((e) => Map<String, dynamic>.from(e as Map))
-                  .toList();
-              if (tasks.isEmpty) {
-                return const Center(child: Text('No pending tasks.'));
-              }
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: tasks.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (_, i) {
-                  final task = tasks[i];
-                  final id = int.parse('${task['id']}');
-                  final busy = completingId == id;
-                  final due = task['due_at'] == null
-                      ? 'No due date'
-                      : BusinessFormat.dateTime(task['due_at']);
-                  return Card(
+          child: _tasks.isEmpty
+              ? const Center(child: Text('No pending tasks.'))
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _tasks.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) {
+                    final task = _tasks[i];
+                    final id = int.parse('${task['id']}');
+                    final busy = completingId == id;
+                    final due = task['due_at'] == null
+                        ? 'No due date'
+                        : BusinessFormat.dateTime(task['due_at']);
+                    return Card(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
                       child: Row(
@@ -139,11 +151,9 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                         ],
                       ),
                     ),
-                  );
-                },
-              );
-            },
-          ),
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -180,7 +190,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         setState(() {
           completingId = null;
           message = 'Task completed.';
-          refresh++;
+          _tasks.removeWhere((task) => int.tryParse('${task['id']}') == id);
         });
       }
     } catch (e) {

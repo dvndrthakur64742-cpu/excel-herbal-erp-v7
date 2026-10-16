@@ -1,0 +1,62 @@
+name: Daily Order live UAT gate
+on:
+  push:
+    branches: [codex/erp735-document-integration]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live-daily-order:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-daily-uat-live]')
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      UAT_SITE_URL: ${{ vars.EH7_CONTROLLED_UAT_SITE_URL || 'https://office.excelherbal.in' }}
+      UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+      UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Parse Daily Order UAT script
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.github/scripts/uat-daily-order-repair-smoke.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw 'Daily Order UAT script parse failed.'
+          }
+          Write-Host 'PASS daily_order_uat_script_parse'
+      - name: Repair legacy snapshots and verify Daily Order integrity
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
+            throw 'EH7_STAGING_UAT_MOBILE / EH7_STAGING_UAT_PASSWORD secrets are required.'
+          }
+          $apiBase = $env:UAT_SITE_URL.TrimEnd('/') + '/wp-json/excel-herbal-erp/v7'
+          $expectedLiveHead = (git log -1 --format=%H --grep='\[deploy-uat-current\]').Trim()
+          if ([string]::IsNullOrWhiteSpace($expectedLiveHead)) {
+            throw 'No deployed UAT source-head commit could be resolved from history.'
+          }
+          Write-Host "INFO expected_live_head=$expectedLiveHead"
+          & '.github/scripts/uat-daily-order-repair-smoke.ps1' -ApiBase $apiBase -Mobile $env:UAT_MOBILE -Password $env:UAT_PASSWORD -ExpectedSourceHead $expectedLiveHead
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Print Daily Order UAT evidence
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path -LiteralPath 'dist/uat-daily-order/EVIDENCE.json' -PathType Leaf) {
+            Get-Content -LiteralPath 'dist/uat-daily-order/EVIDENCE.json'
+          } else {
+            Write-Host 'INFO Daily Order UAT evidence file was not created.'
+          }
+      - name: Upload Daily Order UAT evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-UAT-Daily-Order-Live-Evidence
+          path: dist/uat-daily-order/EVIDENCE.json
+          if-no-files-found: warn

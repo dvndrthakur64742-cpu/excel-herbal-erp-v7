@@ -1,0 +1,51 @@
+name: EH7 v7.4.0 Staging Host Hardening Audit
+
+on:
+  push:
+    branches:
+      - codex/erp735-document-integration
+    paths:
+      - '.github/host-hardening-audit-trigger.txt'
+  workflow_dispatch:
+    inputs:
+      staging_api_base_url:
+        description: 'Controlled BUILD/UAT ERP API base URL'
+        required: true
+        default: 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7'
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+
+jobs:
+  staging-host-hardening-audit:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Verify WordPress host hardening constants
+        env:
+          STAGING_API: ${{ inputs.staging_api_base_url || 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7' }}
+          UAT_MOBILE: ${{ secrets.EH7_STAGING_UAT_MOBILE }}
+          UAT_PASSWORD: ${{ secrets.EH7_STAGING_UAT_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:UAT_MOBILE) -or [string]::IsNullOrWhiteSpace($env:UAT_PASSWORD)) {
+            throw 'Required staging UAT credentials are not configured.'
+          }
+          & '.github/scripts/staging-host-hardening-audit.ps1' `
+            -ApiBase $env:STAGING_API `
+            -Mobile $env:UAT_MOBILE `
+            -Password $env:UAT_PASSWORD
+
+      - name: Upload host hardening evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-v7.4.0-Staging-Host-Hardening
+          path: dist/staging-host-hardening/EVIDENCE.json
+          if-no-files-found: warn

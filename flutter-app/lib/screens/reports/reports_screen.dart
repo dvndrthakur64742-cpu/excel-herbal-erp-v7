@@ -37,22 +37,40 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ? type
         : available.first.id;
     final config = _config(activeType);
-    final needsBranch =
-        !const {'trial', 'price_distribution'}.contains(activeType);
+    final needsBranch = const {
+      'sales',
+      'purchase',
+      'stock',
+      'finance',
+      'stock_reconciliation',
+    }.contains(activeType);
 
+    const periodReports = {
+      'sales',
+      'purchase',
+      'finance',
+      'profit_loss',
+      'price_distribution',
+    };
+    const asOfReports = {'trial', 'balance_sheet'};
     final query = <String, dynamic>{
       if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
-      if (activeType != 'stock' && activeType != 'trial')
-        'from': app.businessMonthStart,
-      if (activeType != 'stock') 'to': app.businessDate,
+      if (periodReports.contains(activeType)) 'from': app.businessMonthStart,
+      if (periodReports.contains(activeType) || asOfReports.contains(activeType))
+        'to': app.businessDate,
       if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };
     final scopeLabel = activeType == 'stock'
         ? 'Live stock'
-        : activeType == 'trial'
-            ? BusinessFormat.date(app.businessDate)
-            : '${BusinessFormat.date(app.businessMonthStart)} – ${BusinessFormat.date(app.businessDate)}';
+        : activeType == 'stock_reconciliation'
+            ? 'Live stock reconciliation'
+            : const {'receivables', 'payables', 'finance_reconciliation'}
+                    .contains(activeType)
+                ? 'Current position'
+                : asOfReports.contains(activeType)
+                    ? BusinessFormat.date(app.businessDate)
+                    : '${BusinessFormat.date(app.businessMonthStart)} – ${BusinessFormat.date(app.businessDate)}';
 
     final reportView = needsBranch && app.currentBranchId == null
         ? const _BranchRequired()
@@ -188,12 +206,38 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           'Finance Movement',
           Icons.account_balance_outlined,
         ),
+        _ReportOption(
+          'stock_reconciliation',
+          'Stock Reconciliation',
+          Icons.fact_check_outlined,
+        ),
       ]);
     }
     if (app.can('finance.accounting.view')) {
-      out.add(
-        const _ReportOption('trial', 'Trial Balance', Icons.balance_outlined),
-      );
+      out.addAll(const [
+        _ReportOption('trial', 'Trial Balance', Icons.balance_outlined),
+        _ReportOption('profit_loss', 'Profit & Loss', Icons.trending_up),
+        _ReportOption(
+          'balance_sheet',
+          'Balance Sheet',
+          Icons.account_balance_wallet_outlined,
+        ),
+        _ReportOption(
+          'receivables',
+          'Receivables',
+          Icons.receipt_long_outlined,
+        ),
+        _ReportOption(
+          'payables',
+          'Payables',
+          Icons.payments_outlined,
+        ),
+        _ReportOption(
+          'finance_reconciliation',
+          'Finance Reconciliation',
+          Icons.rule_folder_outlined,
+        ),
+      ]);
     }
     return out;
   }
@@ -272,6 +316,50 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             subtitle: 'Posted journals and accounting movement summary.',
             emptyMessage: 'No finance activity for the selected period.',
           ),
+        'stock_reconciliation' => const _ReportConfig(
+            title: 'Stock Reconciliation',
+            path: ApiPaths.stockReconciliation,
+            recordType: 'stock_reconciliation',
+            subtitle:
+                'Compare current stock balances with the movement ledger; mismatches are highlighted.',
+            emptyMessage: 'No stock balance or ledger records for this branch.',
+          ),
+        'finance_reconciliation' => const _ReportConfig(
+            title: 'Finance Reconciliation',
+            path: ApiPaths.financeReconciliation,
+            recordType: 'finance_reconciliation',
+            subtitle:
+                'Compare Accounts Receivable, Accounts Payable, inventory value and journal balance controls.',
+            emptyMessage: 'No finance reconciliation checks are available.',
+          ),
+        'receivables' => const _ReportConfig(
+            title: 'Receivables',
+            path: ApiPaths.receivables,
+            recordType: 'receivables',
+            subtitle: 'Posted customer balances still outstanding, with ageing.',
+            emptyMessage: 'No outstanding customer balances.',
+          ),
+        'payables' => const _ReportConfig(
+            title: 'Payables',
+            path: ApiPaths.payables,
+            recordType: 'payables',
+            subtitle: 'Posted supplier balances still outstanding, with ageing.',
+            emptyMessage: 'No outstanding supplier balances.',
+          ),
+        'profit_loss' => const _ReportConfig(
+            title: 'Profit & Loss',
+            path: ApiPaths.profitLoss,
+            recordType: 'profit_loss',
+            subtitle: 'Income and expenses for the selected business period.',
+            emptyMessage: 'No income or expense activity for this period.',
+          ),
+        'balance_sheet' => const _ReportConfig(
+            title: 'Balance Sheet',
+            path: ApiPaths.balanceSheet,
+            recordType: 'balance_sheet',
+            subtitle: 'Assets, liabilities and equity as of the business date.',
+            emptyMessage: 'No balance sheet balances are available.',
+          ),
         'trial' => const _ReportConfig(
             title: 'Trial Balance',
             path: ApiPaths.trialBalance,
@@ -285,7 +373,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             path: ApiPaths.reportsSales,
             recordType: 'sales',
             subtitle:
-                'Current-month sales, collections and outstanding summary.',
+                'Counter Sales + posted Daily Orders, collections and outstanding (without double count).',
             emptyMessage: 'No sales activity for the selected period.',
           ),
       };

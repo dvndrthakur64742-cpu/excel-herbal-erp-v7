@@ -8,7 +8,7 @@ import '../../core/providers.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
 import '../../widgets/branch_selector.dart';
-import '../my_work/my_work_screen.dart';
+import '../my_work/my_work_workspace_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key, this.openMyWork});
@@ -52,7 +52,7 @@ class HomeScreen extends ConsumerWidget {
                     () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => const Scaffold(
-                              body: SafeArea(child: MyWorkScreen()),
+                              body: SafeArea(child: MyWorkWorkspaceScreen()),
                             ),
                           ),
                         ),
@@ -428,33 +428,37 @@ class _ManagementOverview extends StatelessWidget {
       'from': app.businessMonthStart,
       'to': app.businessDate,
     };
-    final result = <String, dynamic>{};
 
-    // Management Overview is intentionally capability-by-capability. One extra
-    // designation or reporting category can never make these requests appear.
+    // These summaries are independent, so start every authorised request
+    // together instead of stacking network round-trips on the Home screen.
+    final salesFuture = _safeRows(
+      api.get(ApiPaths.reportsSales, query: period),
+    );
+    final dailyFuture = app.can('daily_order.others')
+        ? _safeRows(api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}))
+        : Future.value(<Map<String, dynamic>>[]);
+    final performanceFuture = app.can('performance.view')
+        ? _safeRows(api.get(ApiPaths.performanceSummary, query: period))
+        : Future.value(<Map<String, dynamic>>[]);
+
+    final rows = await Future.wait([
+      salesFuture,
+      dailyFuture,
+      performanceFuture,
+    ]);
+    return {
+      'sales': rows[0],
+      'daily': rows[1],
+      'performance': rows[2],
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> _safeRows(Future<dynamic> request) async {
     try {
-      result['sales'] = _rows(await api.get(ApiPaths.reportsSales, query: period));
+      return _rows(await request);
     } catch (_) {
-      result['sales'] = <Map<String, dynamic>>[];
+      return <Map<String, dynamic>>[];
     }
-    if (app.can('daily_order.others')) {
-      try {
-        result['daily'] = _rows(
-          await api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}),
-        );
-      } catch (_) {
-        result['daily'] = <Map<String, dynamic>>[];
-      }
-    }
-    if (app.can('performance.view')) {
-      try {
-        result['performance'] =
-            _rows(await api.get(ApiPaths.performanceSummary, query: period));
-      } catch (_) {
-        result['performance'] = <Map<String, dynamic>>[];
-      }
-    }
-    return result;
   }
 
   static List<Map<String, dynamic>> _rows(dynamic value) =>

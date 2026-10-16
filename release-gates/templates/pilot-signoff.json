@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "gate": "pilot_signoff",
+  "status": "pending",
+  "tested_source_head": "",
+  "staging_url": "",
+  "evidence_runs": [],
+  "known_accepted_limitations": [],
+  "signoffs": {
+    "operational_owner": {"name":"","role":"","date":"","status":"pending"},
+    "hr": {"name":"","role":"","date":"","status":"pending"},
+    "accounts": {"name":"","role":"","date":"","status":"pending"}
+  },
+  "change_ticket": "",
+  "notes": ""
+}

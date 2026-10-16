@@ -1,18 +1,22 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/business_format.dart';
+import '../../core/open_document.dart';
 import '../../core/providers.dart';
+import '../../core/transaction_guardrails.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
-import 'hr_api_paths.dart';
+import '../../widgets/business_date_field.dart';
 
 class HrLifecycleScreen extends ConsumerStatefulWidget {
-  const HrLifecycleScreen({super.key});
+  const HrLifecycleScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   ConsumerState<HrLifecycleScreen> createState() => _HrLifecycleScreenState();
@@ -24,6 +28,15 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
 
   bool _manage(AppState app) => app.can('organization.hr.manage');
   bool _review(AppState app) => app.can('organization.hr.review');
+  bool _documentView(AppState app) => app.canAny(const [
+        'organization.hr.document.view',
+        'organization.hr.document.manage',
+      ]);
+  bool _documentDownload(AppState app) =>
+      app.can('organization.hr.document.download');
+  bool _documentManage(AppState app) =>
+      app.can('organization.hr.document.manage');
+  bool _salaryManage(AppState app) => app.can('payroll.salary.manage');
 
   @override
   Widget build(BuildContext context) {
@@ -34,53 +47,62 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       'organization.hr.review',
     ]);
     if (!allowed) {
-      return const Scaffold(
-        body: Center(child: Text('HR Lifecycle access is not authorised.')),
+      const denied = Center(
+        child: Text('HR Lifecycle access is not authorised.'),
       );
+      return widget.embedded ? denied : const Scaffold(body: denied);
     }
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('HR Lifecycle'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.person_search_outlined), text: 'Candidates'),
-              Tab(icon: Icon(Icons.person_off_outlined), text: 'Separations'),
+    const lifecycleTabs = TabBar(
+      tabs: [
+        Tab(icon: Icon(Icons.person_search_outlined), text: 'Candidates'),
+        Tab(icon: Icon(Icons.person_off_outlined), text: 'Separations'),
+      ],
+    );
+
+    final body = Column(
+      children: [
+        if (!widget.embedded)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: BranchSelector(allowAllAuthorised: true),
+          ),
+        if (widget.embedded) lifecycleTabs,
+        if (_message != null)
+          Material(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.info_outline),
+              title: Text(_message!),
+              trailing: IconButton(
+                onPressed: () => setState(() => _message = null),
+                icon: const Icon(Icons.close),
+              ),
+            ),
+          ),
+        Expanded(
+          child: TabBarView(
+            children: [
+              _candidatesTab(app),
+              _separationsTab(app),
             ],
           ),
         ),
-        body: Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
-              child: BranchSelector(allowAllAuthorised: true),
-            ),
-            if (_message != null)
-              Material(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.info_outline),
-                  title: Text(_message!),
-                  trailing: IconButton(
-                    onPressed: () => setState(() => _message = null),
-                    icon: const Icon(Icons.close),
-                  ),
-                ),
+      ],
+    );
+
+    return DefaultTabController(
+      length: 2,
+      child: widget.embedded
+          ? body
+          : Scaffold(
+              appBar: AppBar(
+                title: const Text('HR Lifecycle'),
+                bottom: lifecycleTabs,
               ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _candidatesTab(app),
-                  _separationsTab(app),
-                ],
-              ),
+              body: body,
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -123,7 +145,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
             key: ValueKey('hr-candidates-${app.currentBranchId}'),
             reloadToken: '${app.currentBranchId}-$_refresh',
             future: ref.read(apiClientProvider).get(
-                  HrApiPaths.candidates,
+                  ApiPaths.hrCandidates,
                   query: query,
                 ),
             emptyMessage: 'Koi open candidate nahi hai.',
@@ -161,7 +183,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
         ),
         title: Text(code.isEmpty ? name : '$name · $code'),
         subtitle: Text(
-          [designation, branch, if (expected.isNotEmpty) 'Joining $expected']
+          [designation, branch, if (expected.isNotEmpty) 'Joining ${BusinessFormat.date(expected)}']
               .where((e) => e.isNotEmpty)
               .join(' · '),
         ),
@@ -210,7 +232,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
             key: ValueKey('hr-separations-${app.currentBranchId}'),
             reloadToken: '${app.currentBranchId}-$_refresh',
             future: ref.read(apiClientProvider).get(
-                  HrApiPaths.separations,
+                  ApiPaths.hrSeparations,
                   query: query,
                 ),
             emptyMessage: 'Koi open separation request nahi hai.',
@@ -243,7 +265,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
         leading: const CircleAvatar(child: Icon(Icons.person_off_outlined)),
         title: Text('$name · $code'),
         subtitle: Text(
-          [designation, if (date.isNotEmpty) 'Effective $date']
+          [designation, if (date.isNotEmpty) 'Effective ${BusinessFormat.date(date)}']
               .where((e) => e.isNotEmpty)
               .join(' · '),
         ),
@@ -253,17 +275,8 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     );
   }
 
-  Widget _statusChip(String status) {
-    final words = status
-        .replaceAll('_', ' ')
-        .split(' ')
-        .where((e) => e.isNotEmpty)
-        .toList();
-    final label = words
-        .map((e) => '${e[0].toUpperCase()}${e.substring(1)}')
-        .join(' ');
-    return Chip(label: Text(label.isEmpty ? 'Status' : label));
-  }
+  Widget _statusChip(String status) =>
+      Chip(label: Text(BusinessFormat.status(status)));
 
   List<Map<String, dynamic>> _rows(dynamic data) => (data as List)
       .map((e) => Map<String, dynamic>.from(e as Map))
@@ -312,6 +325,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       final salary = TextEditingController(text: '0');
       final source = TextEditingController();
       final notes = TextEditingController();
+      String? formError;
       final ok = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
@@ -355,16 +369,18 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(labelText: 'Email'),
                     ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: salary,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                    if (_salaryManage(app)) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: salary,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Offered Monthly Salary',
+                        ),
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Offered Monthly Salary',
-                      ),
-                    ),
+                    ],
                     const SizedBox(height: 10),
                     TextField(
                       controller: source,
@@ -381,6 +397,18 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                         labelText: 'Notes (optional)',
                       ),
                     ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(dialogContext).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -392,14 +420,19 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
               ),
               FilledButton(
                 onPressed: () {
-                  final hasContact =
-                      mobile.text.trim().isNotEmpty || email.text.trim().isNotEmpty;
-                  Navigator.pop(
-                    dialogContext,
-                    name.text.trim().isNotEmpty &&
-                        designationCode != null &&
-                        hasContact,
+                  final error = TransactionGuardrails.candidateRegister(
+                    fullName: name.text,
+                    designationCode: designationCode,
+                    mobile: mobile.text,
+                    email: email.text,
+                    validateSalary: _salaryManage(app),
+                    salaryText: salary.text,
                   );
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  Navigator.pop(dialogContext, true);
                 },
                 child: const Text('Register'),
               ),
@@ -407,13 +440,24 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
           ),
         ),
       );
+      if (ok != true) {
+        name.dispose();
+        mobile.dispose();
+        email.dispose();
+        salary.dispose();
+        source.dispose();
+        notes.dispose();
+        return;
+      }
+      final offeredSalary =
+          _salaryManage(app) ? double.parse(salary.text.trim()) : null;
       final payload = <String, dynamic>{
         'branch_id': branchId,
         'full_name': name.text.trim(),
         'proposed_designation_code': designationCode,
         if (mobile.text.trim().isNotEmpty) 'mobile': mobile.text.trim(),
         if (email.text.trim().isNotEmpty) 'email': email.text.trim(),
-        'offered_monthly_salary': double.tryParse(salary.text) ?? 0,
+        if (_salaryManage(app)) 'offered_monthly_salary': offeredSalary,
         if (source.text.trim().isNotEmpty) 'source': source.text.trim(),
         if (notes.text.trim().isNotEmpty) 'notes': notes.text.trim(),
       };
@@ -423,10 +467,9 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       salary.dispose();
       source.dispose();
       notes.dispose();
-      if (ok != true) return;
       final result = await ref
           .read(apiClientProvider)
-          .post(HrApiPaths.candidates, data: payload);
+          .post(ApiPaths.hrCandidates, data: payload);
       _success('Candidate ${result['candidate_code'] ?? ''} registered.');
     } catch (error) {
       _failure(error);
@@ -438,7 +481,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (id == null) return;
     Map<String, dynamic> detail = row;
     try {
-      final loaded = await ref.read(apiClientProvider).get(HrApiPaths.candidate(id));
+      final loaded = await ref.read(apiClientProvider).get(ApiPaths.candidateDetail(id));
       detail = Map<String, dynamic>.from(loaded as Map);
     } catch (_) {
       // Keep list data available when the detail request is temporarily unavailable.
@@ -467,14 +510,15 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
               _showCandidateDetail(detail);
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.folder_outlined),
-            title: const Text('Candidate Documents'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              _showCandidateDocuments(id);
-            },
-          ),
+          if (_documentView(app))
+            ListTile(
+              leading: const Icon(Icons.folder_outlined),
+              title: const Text('Candidate Documents'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _showCandidateDocuments(id);
+              },
+            ),
           if (status == 'registered' && _review(app))
             ListTile(
               leading: const Icon(Icons.fact_check_outlined),
@@ -596,11 +640,9 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                     decoration: const InputDecoration(labelText: 'Employee Code'),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateField(
                     controller: joining,
-                    decoration: const InputDecoration(
-                      labelText: 'Expected Joining Date YYYY-MM-DD',
-                    ),
+                    label: 'Expected Joining Date',
                   ),
                 ],
                 const SizedBox(height: 10),
@@ -643,7 +685,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     try {
       await ref
           .read(apiClientProvider)
-          .post(HrApiPaths.candidateReview(id), data: payload);
+          .post(ApiPaths.candidateReview(id), data: payload);
       _success(selected ? 'Candidate selected.' : 'Candidate rejected.');
     } catch (error) {
       _failure(error);
@@ -658,13 +700,13 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       final data = branchId == null
           ? <dynamic>[]
           : await ref.read(apiClientProvider).get(
-                ApiPaths.employees,
-                query: {'branch_id': branchId},
+                ApiPaths.hrEmployeeChoices,
+                query: {
+                  'branch_id': branchId,
+                  'purpose': 'reporting',
+                },
               );
-      final selfId = int.tryParse('${app.employee['id']}');
-      final employees = _rows(data)
-          .where((e) => int.tryParse('${e['id']}') != selfId)
-          .toList();
+      final employees = _rows(data);
       if (!mounted) return;
       int? reportingId;
       final employeeCode = TextEditingController(
@@ -674,6 +716,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       final salary = TextEditingController(
         text: '${candidate['offered_monthly_salary'] ?? 0}',
       );
+      String? formError;
       final ok = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
@@ -690,20 +733,22 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                       decoration: const InputDecoration(labelText: 'Employee Code'),
                     ),
                     const SizedBox(height: 10),
-                    TextField(
+                    BusinessDateField(
                       controller: joining,
-                      decoration: const InputDecoration(
-                        labelText: 'Joining Date YYYY-MM-DD',
-                      ),
+                      label: 'Joining Date',
                     ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: salary,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                    if (_salaryManage(app)) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: salary,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Monthly Salary',
+                        ),
                       ),
-                      decoration: const InputDecoration(labelText: 'Monthly Salary'),
-                    ),
+                    ],
                     const SizedBox(height: 10),
                     DropdownButtonFormField<int?>(
                       initialValue: reportingId,
@@ -731,6 +776,18 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                         'Security roles joining ke waqt assign nahi hote. Role assignment Access Management se alag hoti hai.',
                       ),
                     ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(dialogContext).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -741,33 +798,53 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(
-                  dialogContext,
-                  employeeCode.text.trim().isNotEmpty &&
-                      joining.text.trim().isNotEmpty,
-                ),
+                onPressed: () {
+                  String? error;
+                  if (employeeCode.text.trim().isEmpty) {
+                    error = 'Employee Code is required.';
+                  } else if (joining.text.trim().isEmpty) {
+                    error = 'Joining Date is required.';
+                  } else if (_salaryManage(app)) {
+                    error = TransactionGuardrails.nonNegativeMoneyText(
+                      salary.text,
+                      label: 'Monthly Salary',
+                    );
+                  }
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  Navigator.pop(dialogContext, true);
+                },
                 child: const Text('Confirm Joining'),
               ),
             ],
           ),
         ),
       );
+      if (ok != true) {
+        employeeCode.dispose();
+        joining.dispose();
+        salary.dispose();
+        return;
+      }
       final employeeCodeValue = employeeCode.text.trim();
+      final salaryValue =
+          _salaryManage(app) ? double.parse(salary.text.trim()) : null;
       final payload = <String, dynamic>{
         if (branchId != null) 'branch_id': branchId,
         'employee_code': employeeCodeValue,
         'designation_code': '${candidate['proposed_designation_code'] ?? ''}',
         'joining_date': joining.text.trim(),
-        'monthly_salary': double.tryParse(salary.text) ?? 0,
+        if (_salaryManage(app)) 'monthly_salary': salaryValue,
         if (reportingId != null) 'reporting_employee_id': reportingId,
       };
       employeeCode.dispose();
       joining.dispose();
       salary.dispose();
-      if (ok != true) return;
       await ref
           .read(apiClientProvider)
-          .post(HrApiPaths.candidateJoining(id), data: payload);
+          .post(ApiPaths.candidateJoining(id), data: payload);
       _success('Joining confirmed for $employeeCodeValue. Credentials are pending.');
     } catch (error) {
       _failure(error);
@@ -822,7 +899,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (ok != true) return;
     try {
       await ref.read(apiClientProvider).post(
-        HrApiPaths.candidateCredentials(id),
+        ApiPaths.candidateCredentials(id),
         data: {'password': value},
       );
       _success('Login credentials issued.');
@@ -864,7 +941,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (ok != true) return;
     try {
       await ref.read(apiClientProvider).post(
-        HrApiPaths.candidateNoShow(id),
+        ApiPaths.candidateNoShow(id),
         data: {'reason': value},
       );
       _success('Candidate marked no-show.');
@@ -877,7 +954,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     try {
       final data = await ref
           .read(apiClientProvider)
-          .get(HrApiPaths.candidateDocuments(candidateId));
+          .get(ApiPaths.candidateDocuments(candidateId));
       final rows = _rows(data);
       if (!mounted) return;
       await showDialog<void>(
@@ -898,14 +975,23 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                       return ListTile(
                         leading: const Icon(Icons.description_outlined),
                         title: Text('${row['title'] ?? 'Document'}'),
-                        subtitle: Text('${row['document_type'] ?? ''}'),
-                        onTap: url.isEmpty
+                        subtitle: Text(row['migration_required'] == true
+                            ? 'Administrator migration required'
+                            : '${row['document_type'] ?? ''}'),
+                        onTap: url.isEmpty ||
+                                !_documentDownload(
+                                  ref.read(appStateProvider),
+                                )
                             ? null
-                            : () {
-                                final uri = Uri.tryParse(url);
-                                if (uri != null) launchUrl(uri);
+                            : () async {
+                                try {
+                                  await openErpDocument(ref.read(apiClientProvider), row);
+                                } catch (error) {
+                                  if (mounted) _failure(error);
+                                }
                               },
-                        trailing: _manage(ref.read(appStateProvider)) && docId != null
+                        trailing: _documentManage(ref.read(appStateProvider)) &&
+                                docId != null
                             ? IconButton(
                                 tooltip: 'Deactivate document',
                                 onPressed: () async {
@@ -920,7 +1006,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                   ),
           ),
           actions: [
-            if (_manage(ref.read(appStateProvider)))
+            if (_documentManage(ref.read(appStateProvider)))
               FilledButton.icon(
                 onPressed: () {
                   Navigator.pop(dialogContext);
@@ -1003,7 +1089,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (ok != true) return;
     try {
       await ref.read(apiClientProvider).uploadBytes(
-        HrApiPaths.candidateDocumentUpload(candidateId),
+        ApiPaths.candidateDocumentUpload(candidateId),
         bytes: bytes,
         filename: file.name,
         fields: {
@@ -1020,7 +1106,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
   Future<void> _deactivateDocument(int candidateId, int documentId) async {
     try {
       await ref.read(apiClientProvider).post(
-        HrApiPaths.candidateDocumentDeactivate(candidateId, documentId),
+        ApiPaths.candidateDocumentDeactivate(candidateId, documentId),
         data: const {},
       );
       _success('Candidate document deactivated.');
@@ -1035,13 +1121,13 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (branchId == null) return;
     try {
       final data = await ref.read(apiClientProvider).get(
-        ApiPaths.employees,
-        query: {'branch_id': branchId},
+        ApiPaths.hrEmployeeChoices,
+        query: {
+          'branch_id': branchId,
+          'purpose': 'separation',
+        },
       );
-      final selfId = int.tryParse('${app.employee['id']}');
-      final employees = _rows(data)
-          .where((e) => int.tryParse('${e['id']}') != selfId)
-          .toList();
+      final employees = _rows(data);
       if (!mounted) return;
       if (employees.isEmpty) {
         _failure(const FormatException('No eligible active employee found.'));
@@ -1076,11 +1162,9 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
                     onChanged: (v) => setLocal(() => employeeId = v),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  BusinessDateField(
                     controller: date,
-                    decoration: const InputDecoration(
-                      labelText: 'Separation Date YYYY-MM-DD',
-                    ),
+                    label: 'Separation Date',
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -1116,7 +1200,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
       reason.dispose();
       if (ok != true || employeeId == null) return;
       final result = await ref.read(apiClientProvider).post(
-        HrApiPaths.employeeSeparation(employeeId!),
+        ApiPaths.employeeSeparation(employeeId!),
         data: payload,
       );
       final blockers = (result['current_blockers'] as List?) ?? const [];
@@ -1233,7 +1317,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (ok != true) return;
     try {
       final result = await ref.read(apiClientProvider).post(
-        HrApiPaths.separationReview(id),
+        ApiPaths.separationReview(id),
         data: {'approve': approve, 'reason': value},
       );
       final blockers = (result['current_blockers'] as List?) ?? const [];
@@ -1273,7 +1357,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     if (confirmed != true) return;
     try {
       await ref.read(apiClientProvider).post(
-        HrApiPaths.separationComplete(id),
+        ApiPaths.separationComplete(id),
         data: const {},
       );
       _success('Employee separation completed and employee offboarded.');
@@ -1295,3 +1379,4 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
     setState(() => _message = UiError.message(error));
   }
 }
+

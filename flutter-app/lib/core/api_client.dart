@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 
 import 'api_paths.dart';
 import 'app_config.dart';
+import 'document_download.dart';
+import 'mutation_fingerprint.dart';
 import 'secure_session.dart';
 
 class ApiException implements Exception {
@@ -130,7 +132,7 @@ class ApiClient {
     final headers = <String, dynamic>{};
     final token = await session.accessToken();
     if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
+      headers.addAll(bearerHeaders(token));
     }
     headers['X-Idempotency-Key'] = _requestKey();
 
@@ -153,7 +155,7 @@ class ApiClient {
       if (error.response?.statusCode == 401 && await _refresh()) {
         final refreshed = await session.accessToken();
         if (refreshed != null && refreshed.isNotEmpty) {
-          headers['Authorization'] = 'Bearer $refreshed';
+          headers.addAll(bearerHeaders(refreshed));
         }
         try {
           final response = await send();
@@ -161,6 +163,52 @@ class ApiClient {
         } on DioException catch (second) {
           throw _dioException(second);
         }
+      }
+      throw _dioException(error);
+    }
+  }
+
+  Future<({Uint8List bytes, String filename, String mimeType})>
+      downloadPrivateDocument(String url, {bool retried = false}) async {
+    final uri = privateDocumentUri(dio.options.baseUrl, url);
+    final token = await session.accessToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('not_authenticated', 'Please sign in again.', 401);
+    }
+    try {
+      final response = await dio.get<List<int>>(
+        uri.toString(),
+        options: Options(
+          responseType: ResponseType.bytes,
+          followRedirects: false,
+          headers: {
+            ...bearerHeaders(token),
+            'Accept': 'application/pdf,image/jpeg,image/png,image/webp',
+          },
+        ),
+      );
+      final mime = (response.headers.value('content-type') ?? '')
+          .split(';').first.trim().toLowerCase();
+      final bytes = response.data;
+      if (response.statusCode != 200 ||
+          !{'application/pdf', 'image/jpeg', 'image/png', 'image/webp'}.contains(mime) ||
+          bytes == null || bytes.isEmpty || bytes.length > 10 * 1024 * 1024) {
+        throw const ApiException('document_response_invalid',
+            'The server did not return a supported document.');
+      }
+      return (
+        bytes: Uint8List.fromList(bytes),
+        filename: documentFilename(response.headers.value('content-disposition'), mime),
+        mimeType: mime,
+      );
+    } on DioException catch (error) {
+      if (!retried && error.response?.statusCode == 401 && await _refresh()) {
+        return downloadPrivateDocument(url, retried: true);
+      }
+      final body = error.response?.data;
+      if (body is List<int>) {
+        try { error.response?.data = jsonDecode(utf8.decode(body)); }
+        on FormatException { /* Use the normal network error if it is not JSON. */ }
       }
       throw _dioException(error);
     }
@@ -210,14 +258,19 @@ class ApiClient {
     if (authenticated) {
       final token = await session.accessToken();
       if (token != null && token.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $token';
+        headers.addAll(bearerHeaders(token));
       }
     }
 
     String? fingerprint;
     String? mutationKey;
     if (idempotent && method != 'GET') {
-      fingerprint = _mutationFingerprint(method, path, data);
+      fingerprint = buildMutationFingerprint(
+        method,
+        path,
+        query: query,
+        data: data,
+      );
       final retained = retainedMutationKey == null
           ? await _loadRetainedMutation(fingerprint)
           : null;
@@ -308,6 +361,7 @@ class ApiClient {
   Future<bool> _performRefresh() async {
     final refresh = await session.refreshToken();
     if (refresh == null || refresh.isEmpty) return false;
+    final generation = await session.sessionGeneration();
     try {
       final deviceId = await session.deviceId();
       final response = await dio.post<dynamic>(
@@ -326,16 +380,80 @@ class ApiClient {
       );
       return true;
     } on DioException catch (error) {
-      // Only an explicit refresh-token rejection invalidates the local session.
+      // A second browser tab can refresh the shared web session first. In that
+      // case this request may be rejected because it used the now-rotated
+      // refresh token. Never clear the newer shared tokens written by the
+      // winning tab; let the original API request retry with them instead.
       if (error.response?.statusCode == 400 ||
           error.response?.statusCode == 401 ||
           error.response?.statusCode == 403) {
+        if (await _adoptPeerRefresh(refresh, generation)) {
+          return true;
+        }
         await session.clear();
       }
       return false;
     } catch (_) {
       return false;
     }
+  }
+
+  Future<bool> _adoptPeerRefresh(
+    String attemptedRefresh,
+    String? attemptedGeneration,
+  ) async {
+    // Browser tabs share the web secure-storage namespace. One tab may win the
+    // refresh-token rotation while another is still receiving the 401 for the
+    // old token. The session generation is written only after the complete new
+    // token pair, so wait for that durable peer write before clearing storage.
+    // Let a slower winning browser tab finish publishing its rotated token pair
+    // before a losing tab concludes that shared credentials are invalid.
+    for (var attempt = 0; attempt < 61; attempt++) {
+      final latestGeneration = await session.sessionGeneration();
+      final latestRefresh = await session.refreshToken();
+      final peerCompleted =
+          sessionGenerationWasRotated(attemptedGeneration, latestGeneration);
+      final refreshChanged =
+          refreshTokenWasRotated(attemptedRefresh, latestRefresh);
+      if (peerCompleted || refreshChanged) {
+        final latestAccess = await session.accessToken();
+        if (latestAccess != null &&
+            latestAccess.isNotEmpty &&
+            latestRefresh != null &&
+            latestRefresh.trim().isNotEmpty) {
+          return true;
+        }
+      }
+      if (attempt < 60) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    }
+    return false;
+  }
+
+  @visibleForTesting
+  static Map<String, String> bearerHeaders(String token) => {
+        'Authorization': 'Bearer $token',
+        'X-EH7-Authorization': 'Bearer $token',
+      };
+
+  @visibleForTesting
+  static bool refreshTokenWasRotated(
+    String attemptedRefresh,
+    String? latestRefresh,
+  ) {
+    final latest = latestRefresh?.trim() ?? '';
+    return latest.isNotEmpty && latest != attemptedRefresh;
+  }
+
+  @visibleForTesting
+  static bool sessionGenerationWasRotated(
+    String? attemptedGeneration,
+    String? latestGeneration,
+  ) {
+    final attempted = attemptedGeneration?.trim() ?? '';
+    final latest = latestGeneration?.trim() ?? '';
+    return latest.isNotEmpty && latest != attempted;
   }
 
   bool _isUncertainNetworkFailure(DioException error) =>
@@ -399,24 +517,6 @@ class ApiClient {
 
   String _mutationJournalKey(String fingerprint) =>
       sha256.convert(utf8.encode(fingerprint)).toString();
-
-  String _mutationFingerprint(
-    String method,
-    String path,
-    Map<String, dynamic>? data,
-  ) =>
-      '$method|$path|${jsonEncode(_canonical(data ?? const <String, dynamic>{}))}';
-
-  dynamic _canonical(dynamic value) {
-    if (value is Map) {
-      final keys = value.keys.map((key) => '$key').toList()..sort();
-      return {for (final key in keys) key: _canonical(value[key])};
-    }
-    if (value is List) {
-      return value.map(_canonical).toList(growable: false);
-    }
-    return value;
-  }
 
   String _requestKey() =>
       '${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 31)}';

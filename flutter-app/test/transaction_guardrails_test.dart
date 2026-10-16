@@ -138,6 +138,161 @@ void main() {
     );
   });
 
+  group('master and stock entry guardrails', () {
+    test('employee creation validates required fields email mobile and date', () {
+      expect(
+        TransactionGuardrails.employeeCreate(
+          employeeCode: '',
+          fullName: 'Test Employee',
+          designationCode: 'SM',
+          mobile: '',
+          email: '',
+          joiningDate: '2026-09-30',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.employeeCreate(
+          employeeCode: 'E-100',
+          fullName: 'Test Employee',
+          designationCode: 'SM',
+          mobile: '9876543210',
+          email: 'bad-email',
+          joiningDate: '2026-09-30',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.employeeCreate(
+          employeeCode: 'E-100',
+          fullName: 'Test Employee',
+          designationCode: 'SM',
+          mobile: '+91 98765 43210',
+          email: 'employee@example.com',
+          joiningDate: '2026-09-30',
+        ),
+        isNull,
+      );
+      expect(
+        TransactionGuardrails.employeeCreate(
+          employeeCode: 'E-101',
+          fullName: 'No Extra Role Employee',
+          designationCode: 'FIELD_EXECUTIVE',
+          mobile: '',
+          email: '',
+          joiningDate: '2026-09-30',
+        ),
+        isNull,
+      );
+    });
+
+    test('candidate registration validates contact and salary text', () {
+      expect(
+        TransactionGuardrails.candidateRegister(
+          fullName: 'Candidate',
+          designationCode: 'SM',
+          mobile: '',
+          email: '',
+          validateSalary: false,
+          salaryText: '0',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.candidateRegister(
+          fullName: 'Candidate',
+          designationCode: 'SM',
+          mobile: '9876543210',
+          email: '',
+          validateSalary: true,
+          salaryText: 'abc',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.candidateRegister(
+          fullName: 'Candidate',
+          designationCode: 'SM',
+          mobile: '9876543210',
+          email: 'candidate@example.com',
+          validateSalary: true,
+          salaryText: '25000',
+        ),
+        isNull,
+      );
+      expect(
+        TransactionGuardrails.nonNegativeMoneyText(
+          '-1',
+          label: 'Monthly Salary',
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.nonNegativeMoneyText(
+          '0',
+          label: 'Monthly Salary',
+        ),
+        isNull,
+      );
+    });
+
+    test('product creation validates master structure', () {
+      expect(
+        TransactionGuardrails.productCreate(
+          sku: 'SKU-1',
+          name: 'Product',
+          uom: 'PCS',
+          batchMode: 'off',
+          expiryTracking: true,
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.productCreate(
+          sku: 'SKU-1',
+          name: 'Product',
+          uom: 'PCS',
+          batchMode: 'optional',
+          expiryTracking: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('stock transfer validates branch item and quantity', () {
+      expect(
+        TransactionGuardrails.stockTransfer(
+          sourceBranchId: 1,
+          destinationBranchId: 1,
+          itemSelected: true,
+          quantity: 1,
+          available: 10,
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.stockTransfer(
+          sourceBranchId: 1,
+          destinationBranchId: 2,
+          itemSelected: true,
+          quantity: 11,
+          available: 10,
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.stockTransfer(
+          sourceBranchId: 1,
+          destinationBranchId: 2,
+          itemSelected: true,
+          quantity: 10,
+          available: 10,
+        ),
+        isNull,
+      );
+    });
+  });
+
   test('date range validates format and sequence', () {
     expect(TransactionGuardrails.dateRange('2026-09-01', '2026-09-08'), isNull);
     expect(TransactionGuardrails.dateRange('2026-09-09', '2026-09-08'), isNotNull);

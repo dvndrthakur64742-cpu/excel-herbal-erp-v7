@@ -6,6 +6,7 @@ on:
     branches: [v740-business-completion]
     paths:
       - '.github/workflows/eh7-v740-android-production-release.yml'
+      - 'flutter-app/**'
 
 concurrency:
   group: eh7-v740-android-production-${{ github.ref }}
@@ -20,13 +21,26 @@ defaults:
 
 jobs:
   android-production:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 180
     steps:
       - name: Enable Windows long paths
         run: git config --global core.longpaths true
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Enforce approved production release gates
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        run: |
+          & '.github/scripts/verify-release-gates.ps1' -Mode production -GateFile 'release-gates/v7.4.0.json'
+
+      - name: Verify runner is installed as a Windows service
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        run: |
+          $services = @(Get-Service 'actions.runner.*' -ErrorAction SilentlyContinue)
+          if ($services.Count -eq 0) { throw 'Production release runner must be installed as a Windows service.' }
+          if (-not ($services | Where-Object Status -eq 'Running')) { throw 'Production release runner Windows service is not running.' }
+          $services | Select-Object Name,Status,StartType | Format-Table -AutoSize
 
       - name: Configure cached JDK Android SDK and Flutter
         run: |
@@ -66,6 +80,14 @@ jobs:
       - name: Dependencies
         working-directory: flutter-app
         run: flutter.bat pub get
+
+      - name: Verify pinned dependency lockfile
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        working-directory: flutter-app
+        run: |
+          git diff -- pubspec.lock
+          git diff --quiet -- pubspec.lock
+          if ($LASTEXITCODE -ne 0) { throw 'pubspec.lock drifted under pinned Flutter 3.44.9.' }
 
       - name: Analyze clean source
         working-directory: flutter-app

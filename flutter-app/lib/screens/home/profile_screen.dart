@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/api_paths.dart';
+import '../../core/providers.dart';
+import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
+import '../tools/erp_tools_screen.dart';
 import 'employee_id_card_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -119,6 +123,18 @@ class ProfileScreen extends ConsumerWidget {
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const ErpToolsScreen(accountOnly: true),
+            ),
+          ),
+          icon: const Icon(Icons.security_outlined),
+          label: const Text('Account & Security'),
+        ),
+        const SizedBox(height: 12),
+        const _ActingDutySummary(),
         if (extras.isNotEmpty) ...[
           const SizedBox(height: 12),
           Card(
@@ -282,4 +298,154 @@ class _InfoTile extends StatelessWidget {
       ),
     ),
   );
+}
+
+
+class _ActingDutySummary extends ConsumerWidget {
+  const _ActingDutySummary();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final app = ref.watch(appStateProvider);
+    final api = ref.watch(apiClientProvider);
+    final employeeId = int.tryParse('${app.employee['id'] ?? ''}') ?? 0;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: FutureBuilder<List<dynamic>>(
+          future: Future.wait<dynamic>([
+            api.get(ApiPaths.actingDelegations),
+            api.get(ApiPaths.actingInbox),
+          ]),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 72,
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
+            if (snapshot.hasError) {
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.assignment_ind_outlined),
+                title: const Text('Acting Duty'),
+                subtitle: Text(UiError.message(snapshot.error!)),
+              );
+            }
+
+            final values = snapshot.data ?? const [];
+            final delegationData = values.isNotEmpty && values[0] is Map
+                ? Map<String, dynamic>.from(values[0] as Map)
+                : <String, dynamic>{};
+            final inboxData = values.length > 1 && values[1] is Map
+                ? Map<String, dynamic>.from(values[1] as Map)
+                : <String, dynamic>{};
+            final delegations =
+                ((delegationData['delegations'] as List?) ?? const [])
+                    .map((e) => Map<String, dynamic>.from(e as Map))
+                    .where((row) {
+                      final status = '${row['effective_status'] ?? row['status'] ?? ''}';
+                      return status == 'active' || status == 'scheduled';
+                    })
+                    .toList();
+            final inbox = ((inboxData['items'] as List?) ?? const [])
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+
+            if (delegations.isEmpty && inbox.isEmpty) {
+              return const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.assignment_ind_outlined),
+                title: Text('Acting Duty'),
+                subtitle: Text(
+                  'No temporary acting duty is currently assigned. Permanent role and branch authority remain unchanged.',
+                ),
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.assignment_ind_outlined),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Acting Duty',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    if (inbox.isNotEmpty)
+                      Chip(label: Text('${inbox.length} work item${inbox.length == 1 ? '' : 's'}')),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Temporary authority is limited to the exact action, branch and time window shown below.',
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: ExcelBrand.muted),
+                ),
+                if (delegations.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  for (final row in delegations.take(4))
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        int.tryParse('${row['delegate_employee_id']}') ==
+                                employeeId
+                            ? Icons.login_rounded
+                            : Icons.logout_rounded,
+                      ),
+                      title: Text(_actingActionLabel('${row['action_code']}')),
+                      subtitle: Text(
+                        int.tryParse('${row['delegate_employee_id']}') ==
+                                employeeId
+                            ? 'From ${row['delegator_name'] ?? 'delegator'} · Branch #${row['branch_id']} · until ${row['ends_at']}'
+                            : 'To ${row['delegate_name'] ?? 'delegate'} · Branch #${row['branch_id']} · until ${row['ends_at']}',
+                      ),
+                      trailing: Text(
+                        '${row['effective_status'] ?? row['status'] ?? ''}',
+                      ),
+                    ),
+                ],
+                if (inbox.isNotEmpty) ...[
+                  const Divider(),
+                  Text(
+                    'Delegated Work Inbox',
+                    style: Theme.of(context).textTheme.labelLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  for (final item in inbox.take(4))
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.task_alt_outlined),
+                      title: Text(
+                        _actingActionLabel('${item['action_code'] ?? ''}'),
+                      ),
+                      subtitle: Text(
+                        '${(item['work'] as Map?)?['employee_name'] ?? 'Pending work'} · expires ${item['expires_at'] ?? ''}',
+                      ),
+                    ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String _actingActionLabel(String action) => switch (action) {
+        'daily.approve' => 'Approve Daily Order',
+        'daily.issue' => 'Issue Daily Stock',
+        'daily.final_post' => 'Final Post Daily Order',
+        'workforce.leave.decision' => 'Decide Leave Request',
+        _ => action,
+      };
 }

@@ -125,7 +125,15 @@ class ExcelBrand {
           vertical: 12,
         ),
         labelStyle: const TextStyle(color: muted),
+        floatingLabelStyle: const TextStyle(
+          color: primaryDark,
+          fontWeight: FontWeight.w700,
+        ),
         hintStyle: const TextStyle(color: Color(0xFF8A938E)),
+        errorStyle: const TextStyle(
+          color: danger,
+          fontWeight: FontWeight.w600,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: border),
@@ -141,6 +149,10 @@ class ExcelBrand {
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: danger),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: danger, width: 1.6),
         ),
       ),
       listTileTheme: ListTileThemeData(
@@ -176,9 +188,36 @@ class ExcelBrand {
         labelColor: primaryDark,
         unselectedLabelColor: muted,
         indicatorColor: primary,
+        indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: border,
+        labelPadding: EdgeInsets.symmetric(horizontal: 16),
         labelStyle: TextStyle(fontWeight: FontWeight.w800),
         unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      dataTableTheme: DataTableThemeData(
+        headingRowColor: WidgetStateProperty.all(primarySoft),
+        headingTextStyle: const TextStyle(
+          color: primaryDark,
+          fontWeight: FontWeight.w800,
+        ),
+        dataTextStyle: const TextStyle(color: ink),
+        dividerThickness: 1,
+        horizontalMargin: 16,
+        columnSpacing: 24,
+        decoration: BoxDecoration(
+          color: surface,
+          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thickness: WidgetStateProperty.all(6),
+        radius: const Radius.circular(999),
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.dragged)
+              ? primaryDark
+              : const Color(0xFF9AA79F),
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -224,7 +263,22 @@ class ExcelBrand {
       dialogTheme: DialogThemeData(
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        titleTextStyle: base.textTheme.titleLarge?.copyWith(
+          color: ink,
+          fontWeight: FontWeight.w800,
+        ),
+        contentTextStyle: base.textTheme.bodyMedium?.copyWith(
+          color: ink,
+          height: 1.4,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: surface,
@@ -232,6 +286,10 @@ class ExcelBrand {
         modalBackgroundColor: surface,
         modalBarrierColor: Color(0x88000000),
         showDragHandle: true,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

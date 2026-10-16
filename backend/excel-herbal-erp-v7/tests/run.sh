@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+php -r 'if (PHP_VERSION_ID < 80100) {fwrite(STDERR, "PHP 8.1+ required\n"); exit(1);}'
+while IFS= read -r file; do php -l "$file"; done < <(find src tests -type f -name '*.php')
+php -l excel-herbal-erp-v7.php
+php tests/regression.php

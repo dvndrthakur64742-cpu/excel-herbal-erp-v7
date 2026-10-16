@@ -8,6 +8,9 @@ class BranchSelector extends ConsumerWidget {
 
   final bool allowAllAuthorised;
 
+  static const double _compactBreakpoint = 600;
+  static const double _maxFieldWidth = 420;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final app = ref.watch(appStateProvider);
@@ -27,7 +30,7 @@ class BranchSelector extends ConsumerWidget {
         ? app.currentBranchId
         : (allowAllAuthorised ? -1 : null);
 
-    return DropdownButtonFormField<int>(
+    final field = DropdownButtonFormField<int>(
       key: ValueKey('${allowAllAuthorised}_${app.currentBranchId}'),
       isExpanded: true,
       menuMaxHeight: 360,
@@ -62,6 +65,19 @@ class BranchSelector extends ConsumerWidget {
         if (value != null) {
           ref.read(appStateProvider.notifier).selectBranch(value);
         }
+      },
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _compactBreakpoint) return field;
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _maxFieldWidth),
+            child: field,
+          ),
+        );
       },
     );
   }

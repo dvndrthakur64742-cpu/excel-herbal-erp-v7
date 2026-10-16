@@ -8,6 +8,8 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/module_workspace.dart';
+import 'acting_duty_admin_panel.dart';
 
 class AdministrationScreen extends ConsumerStatefulWidget {
   const AdministrationScreen({super.key});
@@ -43,6 +45,9 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         ),
       ));
     }
+    if (app.can('administration.delegation.manage')) {
+      tabs.add(('Acting Duty', const ActingDutyAdminPanel()));
+    }
     if (app.can('administration.access.manage')) {
       tabs.add(('Access', _accessTab(app.currentBranchId)));
     }
@@ -56,6 +61,12 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
               RecordsList(recordType: 'audit', rows: _rows(data)),
         ),
       ));
+    }
+    if (app.canAny(const [
+      'administration.audit.view',
+      'administration.access.manage',
+    ])) {
+      tabs.add(('System Health', _systemHealthTab()));
     }
     if (tabs.isEmpty) {
       return const Scaffold(
@@ -72,38 +83,233 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
           ),
         ),
-        body: Column(
-          children: [
-            if (app.can('administration.access.manage'))
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
-                child: BranchSelector(),
-              ),
-            if (message != null)
+        body: SafeArea(
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: Material(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                  child: ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.info_outline),
-                    title: Text(message!),
-                    trailing: IconButton(
-                      tooltip: 'Dismiss',
-                      onPressed: () => setState(() => message = null),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: ModuleWorkspaceHeader(
+                  title: 'Administration',
+                  subtitle:
+                      'Access control, acting duty, audit, reversals and system health.',
+                  icon: Icons.admin_panel_settings_outlined,
+                  contextLabel: app.currentBranchName,
                 ),
               ),
-            Expanded(
-              child: TabBarView(children: [for (final tab in tabs) tab.$2]),
+              if (app.canAny(const [
+                'administration.access.manage',
+                'administration.delegation.manage',
+              ]))
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: BranchSelector(),
+                ),
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: ModuleMessageBanner(message: message!),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: ModuleSectionHeader(
+                  title: 'Control & Audit Workspace',
+                  subtitle:
+                      'Use only the administration functions authorised for your role.',
+                ),
+              ),
+              Expanded(
+                child: TabBarView(children: [for (final tab in tabs) tab.$2]),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _systemHealthTab() {
+    final app = ref.watch(appStateProvider);
+    final api = ref.watch(apiClientProvider);
+    return AsyncPanel(
+      key: ValueKey('system-health-$refresh'),
+      future: api.get(ApiPaths.diagnostics),
+      builder: (context, data) {
+        final d = Map<String, dynamic>.from(data as Map);
+        final attendance =
+            Map<String, dynamic>.from((d['attendance'] as Map?) ?? const {});
+        final daily =
+            Map<String, dynamic>.from((d['daily_order'] as Map?) ?? const {});
+        final payroll =
+            Map<String, dynamic>.from((d['payroll'] as Map?) ?? const {});
+        final access =
+            Map<String, dynamic>.from((d['access'] as Map?) ?? const {});
+        final organization =
+            Map<String, dynamic>.from((d['organization'] as Map?) ?? const {});
+        final accounting =
+            Map<String, dynamic>.from((d['accounting'] as Map?) ?? const {});
+        final stock =
+            Map<String, dynamic>.from((d['stock'] as Map?) ?? const {});
+        final status = '${d['status'] ?? 'unknown'}';
+        final attention = status == 'attention';
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: ListTile(
+                leading: Icon(
+                  attention ? Icons.warning_amber_rounded : Icons.verified_outlined,
+                ),
+                title: Text(
+                  attention ? 'Operational attention required' : 'System healthy',
+                ),
+                subtitle: Text('Checked at ${d['checked_at'] ?? '—'}'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _healthMetric(
+              'Historical attendance without checkout',
+              attendance['open_past_without_checkout'],
+            ),
+            _healthMetric(
+              'Acknowledged missing checkout records',
+              attendance['acknowledged_missing_checkout'],
+            ),
+            _healthMetric(
+              'Stale Daily Order cycles',
+              daily['stale_non_completed_cycles'],
+            ),
+            _healthMetric('Legacy payroll drafts', payroll['legacy_draft_runs']),
+            _healthMetric(
+              'Duplicate active role names',
+              access['duplicate_active_role_names'],
+            ),
+            _healthMetric(
+              'Duplicate active designation names',
+              organization['duplicate_active_designation_names'],
+            ),
+            _healthMetric(
+              'Unbalanced journals',
+              accounting['unbalanced_journals'],
+            ),
+            _healthMetric('Negative stock balances', stock['negative_balances']),
+            if (app.can('administration.access.manage')) ...[
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: attention ? _resolveSafeUatAnomalies : null,
+                icon: const Icon(Icons.auto_fix_high_outlined),
+                label: const Text('Resolve Safe UAT Anomalies'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This does not invent checkout times. Missing historical checkouts '
+                'are acknowledged as audited exceptions. Unposted stale Daily Orders '
+                'are cancelled only when stock custody can be fully proven and returned.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _healthMetric(String label, dynamic value) => Card(
+        child: ListTile(
+          dense: true,
+          title: Text(label),
+          trailing: Text(
+            '${value ?? 0}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      );
+
+  Future<void> _resolveSafeUatAnomalies() async {
+    final reason = TextEditingController(
+      text: 'UAT cleanup after verified diagnostics review',
+    );
+    String? validation;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Resolve safe UAT anomalies?'),
+          content: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'The backend will only resolve anomalies that pass strict safety '
+                  'checks. Unsafe records are skipped rather than forced.',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reason,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Audit reason'),
+                ),
+                if (validation != null) ...[
+                  const SizedBox(height: 8),
+                  Text(validation!),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (reason.text.trim().length < 10) {
+                  setLocal(
+                    () => validation =
+                        'Audit reason must contain at least 10 characters.',
+                  );
+                } else {
+                  Navigator.pop(context, true);
+                }
+              },
+              child: const Text('Resolve Safe Anomalies'),
             ),
           ],
         ),
       ),
     );
+    if (confirmed != true) {
+      reason.dispose();
+      return;
+    }
+    try {
+      final raw = await ref.read(apiClientProvider).post(
+        ApiPaths.maintenanceCleanup,
+        data: {
+          'operation': 'resolve_uat_anomalies',
+          'confirmation': 'RESOLVE_UAT_ANOMALIES',
+          'reason': reason.text.trim(),
+        },
+      );
+      final result = Map<String, dynamic>.from(raw as Map);
+      if (mounted) {
+        setState(() {
+          message =
+              'UAT cleanup complete · Attendance ${result['attendance_acknowledged'] ?? 0}, '
+              'Daily ${result['daily_cycles_cancelled'] ?? 0}, '
+              'Payroll ${result['payroll_drafts_discarded'] ?? 0}, '
+              'Roles ${result['roles_deactivated'] ?? 0}, '
+              'Designations ${result['designations_deactivated'] ?? 0}, '
+              'Skipped ${result['daily_cycles_skipped'] ?? 0}.';
+          refresh++;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      reason.dispose();
+    }
   }
 
   Widget _accessTab(int? branchId) {
@@ -117,7 +323,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       key: ValueKey('access-$refresh-$branchId'),
       future: Future.wait<dynamic>([
         api.get(ApiPaths.accessMatrix),
-        api.get(ApiPaths.employees, query: {'branch_id': branchId}),
+        api.get(ApiPaths.accessEmployees, query: {'branch_id': branchId}),
       ]),
       builder: (context, data) {
         final list = data as List;
@@ -318,6 +524,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       ...((role['capabilities'] as List?) ?? const []).map((e) => '$e'),
     };
     final reason = TextEditingController();
+    String? reasonError;
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -350,7 +557,10 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: reason,
-                  decoration: const InputDecoration(labelText: 'Change Reason'),
+                  decoration: InputDecoration(
+                    labelText: 'Change Reason (5+ characters)',
+                    errorText: reasonError,
+                  ),
                 ),
               ],
             ),
@@ -361,7 +571,14 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () {
+                if (reason.text.trim().length < 5) {
+                  setLocal(() => reasonError =
+                      'Please enter a reason with at least 5 characters.');
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
               child: const Text('Save'),
             ),
           ],
@@ -425,134 +642,277 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       final originalDenies = {...denies};
       final overrideSupported = detail.containsKey('designation_defaults');
       final reason = TextEditingController();
+      String? accessValidation;
       if (!mounted) return;
-      final saved = await showDialog<bool>(
+
+      final saved = await showModalBottomSheet<bool>(
         context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: Text('Access · ${employee['full_name']}'),
-            content: SizedBox(
-              width: 680,
-              height: MediaQuery.sizeOf(context).height * .68,
-              child: DefaultTabController(
-                length: 2,
-                child: Column(
-                  children: [
-                    const TabBar(
-                      tabs: [
-                        Tab(text: 'Roles'),
-                        Tab(text: 'Overrides'),
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (sheetContext, setLocal) => FractionallySizedBox(
+            heightFactor: .94,
+            child: DefaultTabController(
+              length: 2,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 8, 10),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.admin_panel_settings_outlined),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Roles & Permissions',
+                                style: Theme.of(sheetContext)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                              Text(
+                                '${employee['full_name']} · ${employee['employee_code']} · ${employee['designation_code']}',
+                                style:
+                                    Theme.of(sheetContext).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close',
+                          onPressed: () =>
+                              Navigator.pop(sheetContext, false),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
                       ],
                     ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          ListView(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
-                                child: Text(
-                                  'Primary designation: ${employee['designation_code']} · default permissions apply automatically.',
-                                  style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const TabBar(
+                    tabs: [
+                      Tab(text: 'Roles'),
+                      Tab(text: 'Overrides'),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        ListView(
+                          padding:
+                              const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                          children: [
+                            Text(
+                              'Primary designation: ${employee['designation_code']} · default permissions apply automatically.',
+                              style:
+                                  Theme.of(sheetContext).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 8),
+                            if (roles.isEmpty)
+                              const Padding(
+                                padding:
+                                    EdgeInsets.symmetric(vertical: 24),
+                                child: Center(
+                                  child: Text(
+                                    'No additional roles available.',
+                                  ),
                                 ),
-                              ),
+                              )
+                            else
                               ...roles.map((r) {
                                 final rid = int.parse('${r['id']}');
-                                return CheckboxListTile(
-                                  value: selectedRoles.contains(rid),
-                                  title: Text('${r['name']}'),
-                                  subtitle: Text('${r['code']}'),
-                                  onChanged: (v) => setLocal(
-                                    () => v == true
-                                        ? selectedRoles.add(rid)
-                                        : selectedRoles.remove(rid),
+                                return Card(
+                                  margin:
+                                      const EdgeInsets.only(bottom: 6),
+                                  child: CheckboxListTile(
+                                    value: selectedRoles.contains(rid),
+                                    title: Text('${r['name']}'),
+                                    subtitle: Text('${r['code']}'),
+                                    onChanged: (v) => setLocal(
+                                      () => v == true
+                                          ? selectedRoles.add(rid)
+                                          : selectedRoles.remove(rid),
+                                    ),
                                   ),
                                 );
                               }),
-                            ],
-                          ),
-                          if (!overrideSupported)
-                            const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(20),
-                                child: Text(
-                                  'Individual Grant/Deny overrides are unavailable for this employee access record.',
-                                  textAlign: TextAlign.center,
-                                ),
+                          ],
+                        ),
+                        if (!overrideSupported)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Text(
+                                'Individual Grant/Deny overrides are unavailable for this employee access record.',
+                                textAlign: TextAlign.center,
                               ),
-                            )
-                          else
-                            ListView.builder(
-                              itemCount: allCaps.length,
-                              itemBuilder: (context, index) {
-                                final cap = allCaps[index];
-                                final value = grants.contains(cap)
-                                    ? 'grant'
-                                    : denies.contains(cap)
-                                        ? 'deny'
-                                        : 'inherit';
-                                return ListTile(
-                                  dense: true,
-                                  title: Text(_capLabel(cap)),
-                                  subtitle: Text(
-                                    '$cap · Default ${defaults.contains(cap) ? 'Yes' : 'No'} · Effective ${effective.contains(cap) ? 'Yes' : 'No'}',
-                                  ),
-                                  trailing: DropdownButton<String>(
-                                    value: value,
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: 'inherit',
-                                        child: Text('Inherit'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'grant',
-                                        child: Text('Grant'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'deny',
-                                        child: Text('Deny'),
-                                      ),
-                                    ],
-                                    onChanged: (v) => setLocal(() {
-                                      grants.remove(cap);
-                                      denies.remove(cap);
-                                      if (v == 'grant') grants.add(cap);
-                                      if (v == 'deny') denies.add(cap);
-                                    }),
+                            ),
+                          )
+                        else
+                          ListView.builder(
+                            padding:
+                                const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                            itemCount: allCaps.length + 1,
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return const Card(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: Text(
+                                      'Inherit uses designation and role permissions. Grant adds access. Deny blocks access even when a designation or role grants it. Removing a role alone does not remove designation defaults.',
+                                    ),
                                   ),
                                 );
-                              },
+                              }
+                              final cap = allCaps[index - 1];
+                              final value = grants.contains(cap)
+                                  ? 'grant'
+                                  : denies.contains(cap)
+                                      ? 'deny'
+                                      : 'inherit';
+                              return Card(
+                                margin:
+                                    const EdgeInsets.only(bottom: 6),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    8,
+                                    8,
+                                    8,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _capLabel(cap),
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              '$cap\nDefault ${defaults.contains(cap) ? 'Yes' : 'No'} · Effective ${effective.contains(cap) ? 'Yes' : 'No'}',
+                                              style:
+                                                  Theme.of(sheetContext)
+                                                      .textTheme
+                                                      .bodySmall,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      DropdownButton<String>(
+                                        value: value,
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 'inherit',
+                                            child: Text('Inherit'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'grant',
+                                            child: Text('Grant'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'deny',
+                                            child: Text('Deny'),
+                                          ),
+                                        ],
+                                        onChanged: (v) => setLocal(() {
+                                          grants.remove(cap);
+                                          denies.remove(cap);
+                                          if (v == 'grant') {
+                                            grants.add(cap);
+                                          }
+                                          if (v == 'deny') {
+                                            denies.add(cap);
+                                          }
+                                        }),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                    child: TextField(
+                      controller: reason,
+                      decoration: InputDecoration(
+                        labelText: 'Change Reason',
+                        hintText: 'Required when access changes',
+                        errorText: accessValidation,
+                      ),
+                    ),
+                  ),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  Navigator.pop(sheetContext, false),
+                              child: const Text('Cancel'),
                             ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                final rolesChanged = !_sameInts(
+                                  originalRoles,
+                                  selectedRoles,
+                                );
+                                final overridesChanged =
+                                    overrideSupported &&
+                                        (!_sameStrings(
+                                              originalGrants,
+                                              grants,
+                                            ) ||
+                                            !_sameStrings(
+                                              originalDenies,
+                                              denies,
+                                            ));
+                                if ((rolesChanged ||
+                                        overridesChanged) &&
+                                    reason.text.trim().length < 5) {
+                                  setLocal(
+                                    () => accessValidation =
+                                        'Change reason must contain at least 5 characters.',
+                                  );
+                                  return;
+                                }
+                                Navigator.pop(sheetContext, true);
+                              },
+                              icon: const Icon(Icons.save_outlined),
+                              label: const Text('Save Access'),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: TextField(
-                        controller: reason,
-                        decoration: const InputDecoration(
-                          labelText: 'Change Reason',
-                          hintText: 'Required when access changes',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Save Access'),
-              ),
-            ],
           ),
         ),
       );
+
       if (saved == true) {
         final rolesChanged = !_sameInts(originalRoles, selectedRoles);
         final overridesChanged = overrideSupported &&
@@ -567,32 +927,75 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             );
           }
         } else {
-          if (rolesChanged) {
+          if (rolesChanged || overridesChanged) {
             await ref.read(apiClientProvider).post(
-              ApiPaths.employeeRoles(id),
+              ApiPaths.employeeAccess(id),
               data: {
-                'role_ids': selectedRoles.toList()..sort(),
+                if (rolesChanged) 'role_ids': selectedRoles.toList()..sort(),
+                if (overridesChanged) ...{
+                  'grants': grants.toList()..sort(),
+                  'denies': denies.toList()..sort(),
+                },
                 'reason': reason.text.trim(),
               },
             );
-          }
-          if (overridesChanged) {
-            await ref.read(apiClientProvider).post(
-              ApiPaths.employeeOverrides(id),
-              data: {
-                'grants': grants.toList()..sort(),
-                'denies': denies.toList()..sort(),
-                'reason': reason.text.trim(),
-              },
+            // Confirm the write after its transaction has returned by reading
+            // the access record again through the normal authenticated GET path.
+            final updated = Map<String, dynamic>.from(
+              await ref.read(apiClientProvider).get(
+                ApiPaths.employeeAccess(id),
+              ) as Map,
             );
-          }
-          if (mounted) {
-            setState(() {
-              message = rolesChanged || overridesChanged
-                  ? 'Employee access updated.'
-                  : 'No access changes.';
-              if (rolesChanged || overridesChanged) refresh++;
-            });
+            final persistedRoles = <int>{
+              ...((updated['roles'] as List?) ?? const []).map(
+                (e) => int.parse('${(e as Map)['id']}'),
+              ),
+            };
+            if (rolesChanged && !_sameInts(selectedRoles, persistedRoles)) {
+              throw StateError(
+                'Employee roles did not match a fresh server read after save. Check the Audit Log before retrying.',
+              );
+            }
+            final persistedGrants = <String>{
+              ...((updated['overrides'] as List?) ?? const [])
+                  .where((e) => '${(e as Map)['effect']}' == 'grant')
+                  .map((e) => '${(e as Map)['capability']}'),
+            };
+            final persistedDenies = <String>{
+              ...((updated['overrides'] as List?) ?? const [])
+                  .where((e) => '${(e as Map)['effect']}' == 'deny')
+                  .map((e) => '${(e as Map)['capability']}'),
+            };
+            if (overridesChanged &&
+                (!_sameStrings(grants, persistedGrants) ||
+                    !_sameStrings(denies, persistedDenies))) {
+              throw StateError(
+                'Employee permission overrides did not match a fresh server read after save. Check the Audit Log before retrying.',
+              );
+            }
+            // Only show success after the committed server state is confirmed.
+            // Role removal alone does not remove designation defaults.
+            final applied = ((updated['effective_capabilities'] as List?) ??
+                    const [])
+                .length;
+            // The access write has already committed. A later bootstrap refresh
+            // failure must not be reported as if the permission save failed.
+            String? refreshWarning;
+            try {
+              await ref.read(appStateProvider.notifier).refreshBootstrap();
+            } catch (refreshError) {
+              refreshWarning = UiError.message(refreshError);
+            }
+            if (mounted) {
+              setState(() {
+                message = refreshWarning == null
+                    ? 'Employee access saved atomically. $applied effective permissions; refresh employee session to apply changed access.'
+                    : 'Employee access saved atomically. $applied effective permissions, but app refresh failed: $refreshWarning. Reload ERP to refresh permissions.';
+                refresh++;
+              });
+            }
+          } else if (mounted) {
+            setState(() => message = 'No access changes.');
           }
         }
       }
@@ -624,6 +1027,34 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
     if (closeSheet && Navigator.canPop(context)) Navigator.pop(context);
     try {
       await ref.read(apiClientProvider).post(path, data: data);
+      // Confirm role capabilities against a fresh server read before reporting success.
+      final roleMatch = RegExp(
+        r'^/administration/roles/(\d+)/capabilities$',
+      ).firstMatch(path);
+      if (roleMatch != null) {
+        final roleId = int.parse(roleMatch.group(1)!);
+        final matrix = Map<String, dynamic>.from(
+          await ref.read(apiClientProvider).get(ApiPaths.accessMatrix) as Map,
+        );
+        final roleRows = ((matrix['roles'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map));
+        final roleRowsForId = roleRows.where(
+          (role) => int.tryParse('${role['id']}') == roleId,
+        );
+        final matchingRole = roleRowsForId.isEmpty ? null : roleRowsForId.first;
+        final expected = <String>{
+          ...((data['capabilities'] as List?) ?? const []).map((e) => '$e'),
+        };
+        final actual = <String>{
+          ...((matchingRole?['capabilities'] as List?) ?? const [])
+              .map((e) => '$e'),
+        };
+        if (matchingRole == null || !_sameStrings(expected, actual)) {
+          throw StateError(
+            'Role permissions could not be verified after save. Reopen the role and check the Audit Log before retrying.',
+          );
+        }
+      }
       if (mounted) {
         setState(() {
           message = 'Saved successfully.';

@@ -1,0 +1,2 @@
+2026-10-07 one-time authenticated BUILD/UAT host hardening audit trigger.
+2026-10-09 re-audit: WP_ENVIRONMENT_TYPE=staging and DISALLOW_FILE_EDIT=true independently confirmed via WPVibe and live ERP /health. Generate authenticated GitHub Actions evidence; no production promotion.

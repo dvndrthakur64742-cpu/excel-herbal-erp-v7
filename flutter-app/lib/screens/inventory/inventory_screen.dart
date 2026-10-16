@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
+import '../../core/transaction_guardrails.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/overlay_transition.dart';
 import '../../core/ui_error.dart';
@@ -109,7 +110,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ApiPaths.adjustments,
                   query: {'branch_id': app.currentBranchId},
                 ),
-          emptyMessage: 'Koi stock adjustment nahi hai.',
+          emptyMessage: 'No stock adjustments are available.',
           builder: (context, data) => RecordsList(
             recordType: 'stock_adjustment',
             rows: _rows(data),
@@ -129,7 +130,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ApiPaths.quarantine,
                   query: {'branch_id': app.currentBranchId},
                 ),
-          emptyMessage: 'Quarantine empty hai.',
+          emptyMessage: 'No quarantined stock is available.',
           builder: (context, data) => RecordsList(
             recordType: 'quarantine',
             rows: _rows(data),
@@ -162,6 +163,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           onPressed: app.currentBranchId == null ? null : _createAdjustment,
           icon: const Icon(Icons.tune_rounded, size: 18),
           label: const Text('Adjustment'),
+        ),
+      if (app.can('inventory.adjustment.create'))
+        OutlinedButton.icon(
+          onPressed: app.currentBranchId == null ? null : _createQuarantine,
+          icon: const Icon(Icons.gpp_bad_outlined, size: 18),
+          label: const Text('Quarantine Stock'),
         ),
     ];
     return DefaultTabController(
@@ -206,14 +213,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                   child: ModuleMessageBanner(message: message!),
                 ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
-                child: ModuleSectionHeader(
-                  title: 'Inventory Workspace',
-                  subtitle:
-                      'Use the tabs to review stock and controlled inventory movements.',
-                ),
-              ),
               Expanded(
                 child: app.currentBranchId == null
                     ? const Center(child: Text('Select an authorised branch.'))
@@ -250,11 +249,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     try {
       final stock = await _branchStock();
       if (stock.isEmpty)
-        throw Exception('Selected branch me transfer ke liye stock nahi hai.');
+        throw Exception('No stock is available for transfer in the selected branch.');
       int? dest;
       int? lineId;
       final qty = TextEditingController();
       final notes = TextEditingController();
+      String? formError;
+      Map<String, dynamic>? validatedStock;
+      num? validatedQuantity;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -322,6 +324,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         labelText: 'Notes (optional)',
                       ),
                     ),
+                    if (formError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -332,8 +346,29 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, dest != null && lineId != null),
+                onPressed: () {
+                  final selectedLine = lineId;
+                  final selected =
+                      selectedLine == null ? null : stock[selectedLine];
+                  final quantity = WholePcs.parseOrZero(qty.text);
+                  final available = selected == null
+                      ? 0
+                      : (double.tryParse('${selected['quantity']}') ?? 0);
+                  final error = TransactionGuardrails.stockTransfer(
+                    sourceBranchId: app.currentBranchId,
+                    destinationBranchId: dest,
+                    itemSelected: selected != null,
+                    quantity: quantity,
+                    available: available,
+                  );
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  validatedStock = selected;
+                  validatedQuantity = quantity;
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Create'),
               ),
             ],
@@ -341,14 +376,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ),
       );
       if (ok == true) {
-        final l = stock[lineId!];
-        final q = WholePcs.parseOrZero(qty.text);
-        final available = double.tryParse('${l['quantity']}') ?? 0;
-        if (q <= 0 || q > available + .0001)
-          throw Exception(
-            'Valid quantity available stock ke andar enter karein.',
-          );
-        final batchKey = int.tryParse('${l['batch_key']}') ?? 0;
+        final selectedStock = validatedStock!;
+        final q = validatedQuantity!;
+        final batchKey = int.tryParse('${selectedStock['batch_key']}') ?? 0;
         await api.post(
           ApiPaths.transfers,
           data: {
@@ -356,7 +386,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             'destination_branch_id': dest,
             'lines': [
               {
-                'product_id': l['product_id'],
+                'product_id': selectedStock['product_id'],
                 'quantity': q,
                 if (batchKey > 0) 'batch_id': batchKey,
               },
@@ -383,7 +413,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     try {
       final stock = await _branchStock();
       if (stock.isEmpty)
-        throw Exception('Adjustment ke liye stock item available nahi hai.');
+        throw Exception('No stock item is available for adjustment.');
       int? lineId;
       final delta = TextEditingController();
       final reason = TextEditingController();
@@ -457,7 +487,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       if (ok == true) {
         final l = stock[lineId!];
         final d = WholePcs.parseOrZero(delta.text, signed: true);
-        if (d == 0) throw Exception('Adjustment delta zero nahi ho sakta.');
+        if (d == 0) throw Exception('Adjustment quantity cannot be zero.');
         final batchKey = int.tryParse('${l['batch_key']}') ?? 0;
         await api.post(
           ApiPaths.adjustments,
@@ -476,7 +506,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         if (mounted)
           setState(() {
             refresh++;
-            message = 'Stock adjustment approval ke liye submit ho gaya.';
+            message = 'Stock adjustment submitted for approval.';
           });
       }
       delta.dispose();
@@ -495,7 +525,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
-            ListTile(title: Text('Transfer #$id · $status')),
+            ListTile(title: Text('Transfer #$id · ${BusinessFormat.status(status)}')),
             if (status == 'draft' && app.can('inventory.transfer.create'))
               ListTile(
                 leading: const Icon(Icons.inventory_2_outlined),
@@ -646,10 +676,118 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         if (mounted)
           setState(() {
             refresh++;
-            message = 'Transfer receipt: ${(result as Map)['status']}';
+            message = 'Transfer receipt: ${BusinessFormat.status((result as Map)['status'])}';
           });
       }
       for (final c in controllers.values) c.dispose();
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _createQuarantine() async {
+    final app = ref.read(appStateProvider);
+    final api = ref.read(apiClientProvider);
+    try {
+      final stock = await _branchStock();
+      if (stock.isEmpty) {
+        throw Exception('No stock item is available for quarantine.');
+      }
+      int? lineId;
+      final qty = TextEditingController();
+      final reason = TextEditingController();
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+            title: const Text('Quarantine Stock'),
+            content: SizedBox(
+              width: 540,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    isExpanded: true,
+                    menuMaxHeight: 360,
+                    initialValue: lineId,
+                    decoration: const InputDecoration(labelText: 'Stock Item'),
+                    items: List.generate(
+                      stock.length,
+                      (i) => DropdownMenuItem(
+                        value: i,
+                        child: Text(
+                          '${stock[i]['product_name']} · Batch ${stock[i]['batch_no'] ?? '-'} · ${BusinessFormat.quantity(stock[i]['quantity'])} PCS',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    onChanged: (v) => setLocal(() => lineId = v),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: qty,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [WholePcs.positiveFormatter],
+                    decoration: const InputDecoration(labelText: 'Quantity'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: reason,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Quarantine reason',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(
+                  context,
+                  lineId != null && reason.text.trim().length >= 5,
+                ),
+                child: const Text('Hold Stock'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (ok == true) {
+        final l = stock[lineId!];
+        final q = WholePcs.parseOrZero(qty.text);
+        final available = double.tryParse('${l['quantity']}') ?? 0;
+        if (q <= 0 || q > available + .0001) {
+          throw Exception('Enter a valid quantity within the available stock.');
+        }
+        final batchKey = int.tryParse('${l['batch_key']}') ?? 0;
+        await api.post(
+          ApiPaths.quarantine,
+          data: {
+            'branch_id': app.currentBranchId,
+            'product_id': l['product_id'],
+            'quantity': q,
+            if (batchKey > 0) 'batch_id': batchKey,
+            'reason': reason.text.trim(),
+          },
+        );
+        if (mounted) {
+          setState(() {
+            refresh++;
+            message = 'Stock moved to quarantine for controlled review.';
+          });
+        }
+      }
+      qty.dispose();
+      reason.dispose();
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }

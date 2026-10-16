@@ -1,0 +1,42 @@
+UAT deployment trigger
+
+Certified parent head: a9ac4befcc004859780d66f3ea35345f85f39ceb
+Purpose: deploy and verify the current ERP UAT release identity on office.excelherbal.in after the full green correction verification run #268.
+Scope: BUILD/UAT only; no production release.
+
+Authenticated screen-smoke gate enabled at branch head b2fbac1758187028296b2730ea067db6449dbd91.
+
+Business-safety receipt concurrency gate added at db4a481802bd6676fda62ffeb163d6ed7bb212be; deploy and run authenticated screen smoke on this exact head.
+
+Runtime screen-smoke credential and Flutter semantics fixes certified at 77a1d9083d105477e94150d4087cde61473110de.
+
+Supplier-payment concurrency gate added at 5523625e888558c32afcd990992959c5884d5589; certify and deploy exact head with authenticated runtime screens.
+
+WordPress admin navigation retry fix added at 3694bf3ac03280cf7711c2b441623bc96c059c0e; re-certify and deploy exact head.
+
+Authenticated runner-session fallback enabled at 3f42bd099bdad4d1771fe215d08761c512760fb2; certify exact head and execute runtime screen gate.
+
+Desktop workspace context header added at 79e06ab40ca5a5a8ac3b3485be1210927361ca2a; certify and deploy visible UI update with runtime screen gate.
+
+Attendance action-state UX fixed and regression-locked at e98b79d75ea3632d1999c61a6043269c38c4643f; deploy visible My Work update to BUILD/UAT.
+
+Responsive desktop workspace header regression-locked at 257e18e744921db2a03d338c88cb5dea9e4739f0; certify and deploy latest visible UX changes to BUILD/UAT.
+
+Business module titles aligned with shell navigation at 01ed932f1c838fc6ac79737fb1660dbac6ec91d6; certify and deploy latest BUILD/UAT UX set.
+
+Branch/capability mutation-boundary gate added at 6f52ac5e7c8e46eb0b70c600a838c8269686d777; certify and deploy exact BUILD/UAT head.
+
+Proxy-safe dual bearer transport added through a66f83495fabe0a0e5395ee894fb9d7dc6ce8e10 to fix repeated post-login session expiry behind stripped Authorization headers; certify and deploy exact BUILD/UAT head.
+
+Transient live main.dart.js verification retry added at 1588790273b7361745cf462c791c1214846f1961; re-certify session-auth fix and complete runtime gate.
+
+Office BUILD/UAT environment policy + picker/path hardening certified at c5c7c8ec8a7e031397dde1c817ae8d239470dfc1 in verification run 36402434679; deploy and runtime-smoke the exact successor trigger head.
+2026-09-30 UX finalization: consolidated navigation, hierarchy, tables, language consistency, and tabbed workspace cleanup.
+2026-09-30 final UX regression contract refresh after approved hierarchy simplification.
+
+2026-10-07 host-hardening diagnostics + release evidence guard: deploy current exact head to office BUILD/UAT so authenticated diagnostics can verify the real WordPress host constants separately from package staging markers.
+2026-10-07 deploy non-secret host-hardening health probe for authenticated-independent BUILD/UAT verification.
+2026-10-08 deploy latest certified branch head after finance concurrency regression coverage.
+2026-10-10 controlled BUILD/UAT: deploy verified service-level whole-PCS evening guard, explicit Evening Submit confirmation, and read-only submit/cancel UI smoke. Keep production_approved=false; do not post business data.
+2026-10-10 certified Daily Order Evening Submit safety: deploy exact-head PHP reconciliation guard, testable explicit confirmation UI, MariaDB/Flutter green run 38026973811. Code-only UAT workflow; do NOT execute operational anomaly cleanup or touch cancelled cycle #8.
+2026-10-10 controlled BUILD/UAT deployment of wholesale BM/Salary 50:50, GPS lifecycle/status, and atomic System Admin permissions. Baseline 2f919bede3ceeaa387ead7298e71124c9194d374 FULL GREEN (ERP CI 38046923489). Source-only deployment; NO data cleanup, resets, retrospective modifications or real transactions. Daily Order smoke READ-ONLY.

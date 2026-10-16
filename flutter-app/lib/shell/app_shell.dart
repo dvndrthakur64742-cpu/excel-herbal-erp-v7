@@ -10,7 +10,7 @@ import '../screens/home/enterprise_hub_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/home/profile_screen.dart';
 import '../screens/inventory/inventory_screen.dart';
-import '../screens/my_work/my_work_screen.dart';
+import '../screens/my_work/my_work_workspace_screen.dart';
 import '../screens/organization/organization_screen.dart';
 import '../screens/organization/team_screen.dart';
 import '../screens/performance/performance_screen.dart';
@@ -21,6 +21,7 @@ import '../screens/tools/erp_tools_screen.dart';
 import '../core/overlay_transition.dart';
 import '../state/app_state.dart';
 import '../theme/excel_brand.dart';
+import 'shell_layout.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -34,17 +35,46 @@ class _AppShellState extends ConsumerState<AppShell> {
   String desktopRoute = 'home';
 
   @override
+  void initState() {
+    super.initState();
+    const allowed = {
+      'home',
+      'my_work',
+      'quick_actions',
+      'tasks',
+      'erp_tools',
+      'approvals',
+      'global_search',
+      'profile',
+      'team',
+      'sales',
+      'inventory',
+      'purchase',
+      'finance',
+      'payroll_performance',
+      'reports',
+      'organization',
+      'communication',
+      'administration',
+    };
+    final requested = Uri.base.queryParameters['eh7_module']?.trim();
+    if (requested != null && allowed.contains(requested)) {
+      desktopRoute = requested;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final desktop = constraints.maxWidth >= 960;
+        final desktop = ShellLayout.isDesktopWidth(constraints.maxWidth);
         if (desktop) {
           return Scaffold(
             body: SafeArea(
               child: Row(
                 children: [
-                  SizedBox(width: 274, child: _desktopSidebar(context, app)),
+                  SizedBox(width: 248, child: _desktopSidebar(context, app)),
                   const VerticalDivider(width: 1),
                   Expanded(
                     child: ColoredBox(
@@ -176,10 +206,19 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
               children: [
-                _sectionLabel(context, 'WORKSPACE'),
+                _sectionLabel(context, 'WORK'),
                 _desktopTile('home', 'Home', Icons.home_outlined),
                 if (app.sectionVisible('my_work'))
                   _desktopTile('my_work', 'My Work', Icons.work_outline),
+                if (app.can('communication.view'))
+                  _desktopTile('tasks', 'My Tasks', Icons.task_alt_outlined),
+                if (_quickActionsVisible(app) ||
+                    _approvalVisible(app) ||
+                    !app.businessAccessBlocked ||
+                    app.erpToolsVisible) ...[
+                  const SizedBox(height: 10),
+                  _sectionLabel(context, 'CONTROL'),
+                ],
                 if (_quickActionsVisible(app))
                   _desktopTile(
                     'quick_actions',
@@ -198,19 +237,19 @@ class _AppShellState extends ConsumerState<AppShell> {
                     'Global Search',
                     Icons.manage_search_outlined,
                   ),
-                if (app.can('communication.view'))
-                  _desktopTile('tasks', 'Tasks', Icons.task_alt_outlined),
-                if (app.erpToolsVisible)
+                if (app.can('administration.access.manage'))
                   _desktopTile(
-                    'erp_tools',
-                    'My Account & Duty',
-                    Icons.badge_outlined,
+                    'administration',
+                    'Manage Permissions',
+                    Icons.admin_panel_settings_outlined,
                   ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _sectionLabel(context, 'MODULES'),
                 ...app.sections
                     .where(
-                      (s) => !const {'home', 'my_work'}.contains('${s['id']}'),
+                      (s) => !const {'home', 'my_work'}.contains('${s['id']}') &&
+                          !('${s['id']}' == 'administration' &&
+                              app.can('administration.access.manage')),
                     )
                     .map(
                       (s) => _desktopTile(
@@ -287,18 +326,20 @@ class _AppShellState extends ConsumerState<AppShell> {
         dense: true,
         leading: Icon(icon, size: 21),
         title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-        onTap: () => setState(() => desktopRoute = id),
+        onTap: () => _selectDesktopRoute(id),
       ),
     );
   }
 
   Widget _desktopContent(AppState app) {
-    if (!_routeAllowed(app, desktopRoute)) desktopRoute = 'home';
-    final child = switch (desktopRoute) {
+    final effectiveRoute = _routeAllowed(app, desktopRoute)
+        ? desktopRoute
+        : 'home';
+    final child = switch (effectiveRoute) {
       'home' => HomeScreen(
-          openMyWork: () => setState(() => desktopRoute = 'my_work'),
+          openMyWork: () => _selectDesktopRoute('my_work'),
         ),
-      'my_work' => const MyWorkScreen(),
+      'my_work' => const MyWorkWorkspaceScreen(),
       'quick_actions' => ActionsScreen(
           openConnectedAction: _openConnectedAction,
         ),
@@ -320,16 +361,21 @@ class _AppShellState extends ConsumerState<AppShell> {
       'finance' => const FinanceScreen(),
       'payroll_performance' => const PerformanceScreen(),
       'reports' => const ReportsScreen(),
-      'organization' => const OrganizationScreen(),
+      'organization' => OrganizationScreen(
+          initialTab: Uri.base.queryParameters['eh7_tab'],
+        ),
       'communication' => const CommunicationScreen(),
       'administration' => const AdministrationScreen(),
       _ => const HomeScreen(),
     };
 
+    // Desktop modules already provide their own AppBar/title/tabs. Keeping a
+    // second workspace header here created competing page hierarchies and
+    // reduced the usable data area, especially on record-heavy ERP screens.
     return Padding(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(12),
         child: Material(
           color: Theme.of(context).colorScheme.surface,
           child: child,
@@ -477,19 +523,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                         icon: _icon('${section['id']}'),
                       ),
                   ],
-                  if (app.erpToolsVisible ||
-                      _approvalVisible(app) ||
+                  if (_approvalVisible(app) ||
                       !app.businessAccessBlocked) ...[
                     const SizedBox(height: 12),
                     _drawerSectionLabel('WORKSPACE TOOLS'),
                   ],
-                  if (app.erpToolsVisible)
-                    _drawerTile(
-                      app: app,
-                      id: 'erp_tools',
-                      label: 'My Account & Duty',
-                      icon: Icons.badge_outlined,
-                    ),
                   if (_approvalVisible(app))
                     _drawerTile(
                       app: app,
@@ -611,7 +649,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget _mobilePage(AppState app, String id) => switch (id) {
         'home' =>
           HomeScreen(openMyWork: () => _selectMobileRoute(app, 'my_work')),
-        'my_work' => const MyWorkScreen(),
+        'my_work' => const MyWorkWorkspaceScreen(),
         'actions' => ActionsScreen(
             openConnectedAction: _openConnectedAction,
           ),
@@ -723,28 +761,28 @@ class _AppShellState extends ConsumerState<AppShell> {
     Widget? screen;
     switch (id) {
       case 'attendance':
-        screen = const MyWorkScreen(initialSection: 'attendance');
+        screen = const MyWorkWorkspaceScreen(initialSection: 'attendance');
         break;
       case 'daily_create':
-        screen = const MyWorkScreen(
+        screen = const MyWorkWorkspaceScreen(
           initialSection: 'daily',
           initialAction: 'new_order',
         );
         break;
       case 'evening':
-        screen = const MyWorkScreen(
+        screen = const MyWorkWorkspaceScreen(
           initialSection: 'daily',
           initialAction: 'evening',
         );
         break;
       case 'field_visit':
-        screen = const MyWorkScreen(
+        screen = const MyWorkWorkspaceScreen(
           initialSection: 'leave_visit',
           initialAction: 'field_visit',
         );
         break;
       case 'leave':
-        screen = const MyWorkScreen(
+        screen = const MyWorkWorkspaceScreen(
           initialSection: 'leave_visit',
           initialAction: 'leave',
         );
@@ -769,7 +807,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         break;
     }
     if (screen != null) {
-      final routedScreen = screen is MyWorkScreen
+      final routedScreen = screen is MyWorkWorkspaceScreen
           ? Scaffold(
               appBar: AppBar(title: const Text('My Work')),
               body: SafeArea(child: screen),
@@ -808,7 +846,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 _showQuickActions(app);
                 return;
               }
-              setState(() => mobileIndex = v);
+              _selectMobileRoute(app, id);
             },
             destinations: items
                 .map(
@@ -835,10 +873,24 @@ class _AppShellState extends ConsumerState<AppShell> {
         _ => Icons.circle_outlined,
       };
 
+  void _selectDesktopRoute(String id) {
+    final app = ref.read(appStateProvider);
+    final index = app.bottomNav.indexWhere((item) => '${item['id']}' == id);
+    setState(() {
+      desktopRoute = id;
+      if (index >= 0) mobileIndex = index;
+    });
+  }
+
   void _selectMobileRoute(AppState app, String id) {
     final items = app.bottomNav;
     final index = items.indexWhere((item) => '${item['id']}' == id);
-    if (index >= 0) setState(() => mobileIndex = index);
+    if (index >= 0) {
+      setState(() {
+        mobileIndex = index;
+        desktopRoute = id;
+      });
+    }
   }
 
   IconData _icon(String id) => switch (id) {
@@ -863,8 +915,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   void _openModule(String id) {
     final app = ref.read(appStateProvider);
     if (!_routeAllowed(app, id)) return;
-    if (MediaQuery.sizeOf(context).width >= 1100) {
-      setState(() => desktopRoute = id);
+    if (ShellLayout.isDesktopWidth(MediaQuery.sizeOf(context).width)) {
+      _selectDesktopRoute(id);
       return;
     }
     if (const {'home', 'my_work', 'actions', 'tasks', 'profile'}.contains(id)) {
@@ -961,3 +1013,4 @@ class _AppShellState extends ConsumerState<AppShell> {
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
 }
+

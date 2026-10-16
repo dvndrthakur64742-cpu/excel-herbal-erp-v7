@@ -12,6 +12,9 @@ abstract final class ApiPaths {
 
   static const branches = '/organization/branches',
       employees = '/organization/employees',
+      hrEmployeeChoices = '/organization/hr/employee-choices',
+      hrCandidates = '/organization/candidates',
+      hrSeparations = '/organization/separations',
       masterData = '/organization/master-data',
       designations = '/organization/designations',
       roles = '/organization/roles',
@@ -32,7 +35,9 @@ abstract final class ApiPaths {
       leaveMine = '/workforce/leave/mine',
       leavePending = '/workforce/leave/pending',
       products = '/catalog/products',
-      dailyCycles = '/daily/cycles';
+      dailyTargetEmployees = '/daily/target-employees',
+      dailyCycles = '/daily/cycles',
+      dailyHistorySearch = '/daily/cycles/search';
 
   static const inventoryStock = '/inventory/stock',
       transfers = '/inventory/transfers',
@@ -61,10 +66,13 @@ abstract final class ApiPaths {
       periodClose = '/finance/periods/close',
       bankReconciliations = '/finance/bank-reconciliations';
 
-  static const payrollRuns = '/payroll/runs',
+  static const salaryEmployees = '/payroll/salary-employees',
+      payrollPolicy = '/payroll/policy',
+      payrollRuns = '/payroll/runs',
       salaryStructures = '/payroll/salary-structures',
       performanceSummary = '/performance/summary',
       performanceTargets = '/performance/targets',
+      performanceTargetEmployees = '/performance/target-employees',
       performanceRewards = '/performance/rewards',
       performancePromotions = '/performance/promotions';
 
@@ -83,6 +91,7 @@ abstract final class ApiPaths {
       priceDistribution = '/reports/price-distribution';
 
   static const communicationSummary = '/communication/summary',
+      communicationTargetEmployees = '/communication/target-employees',
       taskManage = '/communication/tasks/manage',
       announcementManage = '/communication/announcements/manage',
       announcements = '/communication/announcements',
@@ -91,6 +100,12 @@ abstract final class ApiPaths {
       pushDevices = '/communication/push-devices',
       pushDeactivate = '/communication/push-devices/deactivate',
       tasks = '/communication/tasks',
+      actingEmployees = '/administration/acting-employees',
+      actingDelegations = '/administration/delegations',
+      actingInbox = '/administration/acting-inbox',
+      actingAuthorityStatus = '/administration/authority-status',
+      actingUnavailability = '/administration/unavailability',
+      accessEmployees = '/administration/access-employees',
       accessMatrix = '/administration/access',
       adminRoles = '/administration/roles',
       audit = '/administration/audit',
@@ -125,6 +140,27 @@ abstract final class ApiPaths {
       '/organization/employees/$id/transfer-branch';
   static String employeeDocuments(int id) =>
       '/organization/employees/$id/documents';
+  static String candidateDetail(int id) => '/organization/candidates/$id';
+  static String candidateReview(int id) =>
+      '/organization/candidates/$id/review';
+  static String candidateJoining(int id) =>
+      '/organization/candidates/$id/joining';
+  static String candidateCredentials(int id) =>
+      '/organization/candidates/$id/credentials';
+  static String candidateNoShow(int id) =>
+      '/organization/candidates/$id/no-show';
+  static String candidateDocuments(int id) =>
+      '/organization/candidates/$id/documents';
+  static String candidateDocumentUpload(int id) =>
+      '/organization/candidates/$id/documents/upload';
+  static String candidateDocumentDeactivate(int id, int documentId) =>
+      '/organization/candidates/$id/documents/$documentId/deactivate';
+  static String employeeSeparation(int id) =>
+      '/organization/employees/$id/separations';
+  static String separationReview(int id) =>
+      '/organization/separations/$id/review';
+  static String separationComplete(int id) =>
+      '/organization/separations/$id/complete';
   static String employeeDocumentUpload(int id) =>
       '/organization/employees/$id/documents/upload';
   static String employeeDocumentDeactivate(int id, int documentId) =>
@@ -144,8 +180,15 @@ abstract final class ApiPaths {
   static String leaveDecision(int id) => '/workforce/leave/$id/decision';
   static String dailyDetail(int id) => '/daily/cycles/$id';
   static String dailySubmit(int id) => '/daily/cycles/$id/submit';
+  static String dailyEditDraft(int id) => '/daily/cycles/$id/edit-draft';
+  static String dailyCancelCycle(int id) => '/daily/cycles/$id/cancel';
+  static String dailyReopenDraft(int id) => '/daily/cycles/$id/reopen-draft';
   static String dailyAdditional(int id) => '/daily/cycles/$id/additional';
   static String dailyApprove(int id) => '/daily/requests/$id/approve';
+  static String dailyReject(int id) => '/daily/requests/$id/reject';
+  static String dailyCancelAdditional(int id) => '/daily/requests/$id/cancel-additional';
+  static String dailyIssuePreflight(int id) =>
+      '/daily/requests/$id/issue-preflight';
   static String dailyIssue(int id) => '/daily/requests/$id/issue';
   static String eveningStart(int id) => '/daily/cycles/$id/evening/start';
   static String eveningSave(int id) => '/daily/cycles/$id/evening/save';
@@ -179,11 +222,16 @@ abstract final class ApiPaths {
   static String bankExclude(int id) => '/finance/bank-lines/$id/exclude';
   static String bankFinalize(int id) =>
       '/finance/bank-reconciliations/$id/finalize';
+  static String salaryRevisions(int employeeId) =>
+      '/payroll/employees/$employeeId/salary-revisions';
+  static String salaryRevisionReview(int id) =>
+      '/payroll/salary-revisions/$id/review';
   static String payrollDetail(int id) => '/payroll/runs/$id';
   static String payrollItemUpdate(int id, int itemId) =>
       '/payroll/runs/$id/items/$itemId';
   static String payrollApprove(int id) => '/payroll/runs/$id/approve';
   static String payrollPay(int id) => '/payroll/runs/$id/pay';
+  static String payrollDiscard(int id) => '/payroll/runs/$id/discard';
   static String salaryStructureApprove(int id) =>
       '/payroll/salary-structures/$id/approve';
   static String targetApprove(int id) => '/performance/targets/$id/approve';
@@ -202,6 +250,10 @@ abstract final class ApiPaths {
   static String taskReassign(int id) => '/communication/tasks/$id/reassign';
   static String taskComplete(int id) => '/communication/tasks/$id/complete';
 
+  static String delegationRevoke(int id) =>
+      '/administration/delegations/$id/revoke';
+  static String unavailabilityRevoke(int id) =>
+      '/administration/unavailability/$id/revoke';
   static String roleCapabilities(int id) =>
       '/administration/roles/$id/capabilities';
   static String employeeAccess(int id) =>

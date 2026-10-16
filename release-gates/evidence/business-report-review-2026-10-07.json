@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "gate": "business_report_review",
+  "status": "pending_human_review",
+  "staging_url": "https://office.excelherbal.in",
+  "period": {
+    "from": "2026-09-01",
+    "to": "2026-10-07"
+  },
+  "automated_evidence": {
+    "workflow_run": "37585323801",
+    "artifact_id": "11466396056",
+    "artifact_sha256": "f712952563e97b9d4172794409efc263332a95cab890b927f14e4f8dc4847380",
+    "report_endpoints_passed": 11,
+    "trial_balance": {
+      "debit": 388580,
+      "credit": 388580,
+      "matched": true
+    },
+    "balance_sheet": {
+      "assets": 69370,
+      "liabilities": 67200,
+      "equity": 2170,
+      "matched": true
+    },
+    "profit_loss": {
+      "profit": 2170,
+      "current_earnings": 2170,
+      "matched": true
+    },
+    "stock_reconciliation": {
+      "matched": 35,
+      "total": 35
+    },
+    "finance_reconciliation": {
+      "matched": 4,
+      "total": 4
+    }
+  },
+  "human_review": {
+    "reviewer_name": "",
+    "reviewer_role": "Accounts",
+    "reviewed_at": "",
+    "status": "pending",
+    "comments": ""
+  }
+}

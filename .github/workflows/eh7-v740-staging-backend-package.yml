@@ -1,0 +1,125 @@
+name: EH7 v7.4.0 Staging Backend Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/erp735-document-integration]
+    paths:
+      - '.github/workflows/eh7-v740-staging-backend-package.yml'
+      - '.github/scripts/verify-release-gates.ps1'
+      - 'release-gates/v7.4.0.json'
+      - 'backend/excel-herbal-erp-v7/**'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+
+jobs:
+  staging-backend-package:
+    if: github.ref == 'refs/heads/codex/erp735-document-integration'
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate source and fail-closed release policy
+        run: |
+          & '.github/scripts/verify-release-gates.ps1' -Mode ci -GateFile 'release-gates/v7.4.0.json'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $main='backend\excel-herbal-erp-v7\excel-herbal-erp-v7.php'
+          if(-not(Test-Path -LiteralPath $main -PathType Leaf)){throw 'Backend plugin entrypoint missing.'}
+
+      - name: Build exact-head staging plugin ZIP
+        run: |
+          $out='dist\staging-backend'
+          if(Test-Path -LiteralPath $out){Remove-Item -LiteralPath $out -Recurse -Force}
+          New-Item -ItemType Directory -Path $out -Force|Out-Null
+          $work=Join-Path $env:RUNNER_TEMP ('eh7-stage-package-'+[Guid]::NewGuid().ToString('N'))
+          $pluginDir=Join-Path $work 'excel-herbal-erp-v7'
+          New-Item -ItemType Directory -Path $pluginDir -Force|Out-Null
+          Copy-Item -Path 'backend\excel-herbal-erp-v7\*' -Destination $pluginDir -Recurse -Force
+          $buildMeta=Join-Path $pluginDir 'build-meta.php'
+          @(
+            '<?php',
+            "if(!defined('ABSPATH'))exit;",
+            "define('EH7_SOURCE_HEAD','$env:GITHUB_SHA');",
+            "define('EH7_DEPLOY_ENVIRONMENT','staging');",
+            "define('EH7_BUILD_UAT_ALLOW_OFFICE',true);",
+            "define('EH7_BUILD_UAT_HOST','office.excelherbal.in');"
+          )|Set-Content -LiteralPath $buildMeta -Encoding ascii
+          $zip=Join-Path $out 'excel-herbal-erp-v7.zip'
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          if(Test-Path -LiteralPath $zip){Remove-Item -LiteralPath $zip -Force}
+          $root=(Resolve-Path -LiteralPath $pluginDir).Path
+          $archive=[System.IO.Compression.ZipFile]::Open($zip,[System.IO.Compression.ZipArchiveMode]::Create)
+          try{
+            Get-ChildItem -LiteralPath $pluginDir -Recurse -File | ForEach-Object {
+              $relative=$_.FullName.Substring($root.Length).TrimStart([char[]]@([char]92,[char]47))
+              $entryName=$relative -replace '\\','/'
+              $entry=$archive.CreateEntry($entryName,[System.IO.Compression.CompressionLevel]::Optimal)
+              $entryStream=$entry.Open()
+              $fileStream=[System.IO.File]::OpenRead($_.FullName)
+              try{$fileStream.CopyTo($entryStream)}
+              finally{$fileStream.Dispose();$entryStream.Dispose()}
+            }
+          }finally{$archive.Dispose()}
+          $zipCheck=[System.IO.Compression.ZipFile]::OpenRead($zip)
+          try{
+            $entryNames=@($zipCheck.Entries|ForEach-Object{$_.FullName})
+            if($entryNames|Where-Object{$_.Contains([char]92)}){throw 'Staging ZIP contains Windows backslash path entries.'}
+            foreach($required in @('excel-herbal-erp-v7.php','build-meta.php','src/Core/Autoloader.php','src/Http/ApiDispatch.php','src/Administration/Environment.php','src/Administration/StagingSafety.php','src/Administration/FreshUatBootstrap.php')){
+              if($entryNames -notcontains $required){throw ('Staging ZIP missing required entry: '+$required)}
+            }
+          }finally{$zipCheck.Dispose()}
+          $verify=Join-Path $env:RUNNER_TEMP ('eh7-stage-verify-'+[Guid]::NewGuid().ToString('N'))
+          Expand-Archive -LiteralPath $zip -DestinationPath $verify -Force
+          $verifiedRoot=$verify
+          if(-not(Test-Path -LiteralPath (Join-Path $verifiedRoot 'excel-herbal-erp-v7.php'))){throw 'Staging ZIP root is invalid.'}
+          $metaText=Get-Content -LiteralPath (Join-Path $verifiedRoot 'build-meta.php') -Raw
+          if($metaText -notmatch [regex]::Escape($env:GITHUB_SHA)){throw 'Staging ZIP source-head metadata mismatch.'}
+          if($metaText -notmatch "EH7_DEPLOY_ENVIRONMENT','staging"){throw 'Staging ZIP deployment-environment marker is missing.'}
+          if($metaText -notmatch "EH7_BUILD_UAT_HOST','office\.excelherbal\.in"){throw 'Staging ZIP BUILD/UAT host marker is missing.'}
+          $zipHash=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $mainHash=(Get-FileHash -LiteralPath (Join-Path $pluginDir 'excel-herbal-erp-v7.php') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $metaHash=(Get-FileHash -LiteralPath $buildMeta -Algorithm SHA256).Hash.ToLowerInvariant()
+          Remove-Item -LiteralPath $verify -Recurse -Force
+          Remove-Item -LiteralPath $work -Recurse -Force
+          @(
+            "commit=$env:GITHUB_SHA",
+            "ref=$env:GITHUB_REF",
+            "purpose=office-build-uat-only",
+            "production_approved=false",
+            "plugin_zip_sha256=$zipHash",
+            "plugin_entrypoint_sha256=$mainHash",
+            "build_meta_sha256=$metaHash"
+          )|Set-Content -LiteralPath (Join-Path $out 'STAGING-BACKEND-MANIFEST.txt') -Encoding ascii
+          Get-Content -LiteralPath (Join-Path $out 'STAGING-BACKEND-MANIFEST.txt')
+
+      - name: Persist exact-head staging backend on runner Desktop
+        run: |
+          $source='dist\staging-backend'
+          $root=Join-Path $env:USERPROFILE 'Desktop\EH7-UAT-Packages'
+          $dest=Join-Path $root $env:GITHUB_SHA
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          Copy-Item -Path (Join-Path $source '*') -Destination $dest -Force
+          $zip=Join-Path $dest 'excel-herbal-erp-v7.zip'
+          $manifest=Join-Path $dest 'STAGING-BACKEND-MANIFEST.txt'
+          if(-not(Test-Path -LiteralPath $zip -PathType Leaf)){throw 'Persisted staging ZIP missing.'}
+          if(-not(Test-Path -LiteralPath $manifest -PathType Leaf)){throw 'Persisted staging manifest missing.'}
+          $persistedHash=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected=(Select-String -LiteralPath $manifest -Pattern '^plugin_zip_sha256=(.+)$').Matches.Groups[1].Value
+          if($persistedHash -ne $expected){throw 'Persisted staging ZIP hash mismatch.'}
+          Write-Host "PERSISTED_PACKAGE_DIR=$dest"
+          Write-Host "PERSISTED_ZIP_SHA256=$persistedHash"
+
+      - name: Upload exact-head staging backend
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-v7.4.0-Staging-Backend
+          path: dist/staging-backend/*
+          if-no-files-found: error
