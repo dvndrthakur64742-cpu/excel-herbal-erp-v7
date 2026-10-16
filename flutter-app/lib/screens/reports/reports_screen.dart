@@ -103,40 +103,40 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         : needsBranch && app.currentBranchId == null
             ? const _BranchRequired()
             : AsyncPanel(
-            key: ValueKey(
-              '$activeType-${app.currentBranchId}-$fromValue-$toValue-$reportingCategory',
-            ),
-            future: api.get(config.path, query: query),
-            emptyMessage: config.emptyMessage,
-            builder: (context, data) {
-              if (activeType == 'price_distribution') {
-                return _PriceDistributionPanel(
-                  data: data,
-                  reportingCategory: reportingCategory,
-                  onReportingCategoryChanged: (value) =>
-                      setState(() => reportingCategory = value),
-                );
-              }
-              final rows = ((data as List?) ?? const [])
-                  .map((e) => Map<String, dynamic>.from(e as Map))
-                  .toList();
-              return Column(
-                children: [
-                  _ReportExportActions(
-                    title: config.title,
-                    scope: scopeLabel,
-                    rows: rows,
-                  ),
-                  Expanded(
-                    child: RecordsList(
-                      recordType: config.recordType,
-                      rows: rows,
-                    ),
-                  ),
-                ],
+                key: ValueKey(
+                  '$activeType-${app.currentBranchId}-$fromValue-$toValue-$reportingCategory',
+                ),
+                future: api.get(config.path, query: query),
+                emptyMessage: config.emptyMessage,
+                builder: (context, data) {
+                  if (activeType == 'price_distribution') {
+                    return _PriceDistributionPanel(
+                      data: data,
+                      reportingCategory: reportingCategory,
+                      onReportingCategoryChanged: (value) =>
+                          setState(() => reportingCategory = value),
+                    );
+                  }
+                  final rows = ((data as List?) ?? const [])
+                      .map((e) => Map<String, dynamic>.from(e as Map))
+                      .toList();
+                  return Column(
+                    children: [
+                      _ReportExportActions(
+                        title: config.title,
+                        scope: scopeLabel,
+                        rows: rows,
+                      ),
+                      Expanded(
+                        child: RecordsList(
+                          recordType: config.recordType,
+                          rows: rows,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
-            },
-          );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Reports')),
