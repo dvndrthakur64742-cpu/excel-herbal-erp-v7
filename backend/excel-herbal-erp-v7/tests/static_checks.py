@@ -705,4 +705,9 @@ route=(root.parent.parent/'flutter-app/lib/widgets/gps_route_view.dart').read_te
 for token in ['https://tile.openstreetmap.org/','Road map · recorded GPS route','© OpenStreetMap contributors','_RoadRoutePainter']:
  assert token in route,('GPS route road map contract missing',token)
 assert 'Recorded GPS trace · not a road map' not in route,'trace-only GPS visualization must not replace road map'
+# Price hiding is intentionally scoped to the employee dashboard, not sales/product APIs.
+product_api=(root/'src/Http/ApiDispatch.php').read_text()
+product_loader=product_api[product_api.index('private static function products('):product_api.index('private static function audit(')]
+assert 'cr.sale_price' in product_loader, 'product/sales workflows must retain pricing data outside dashboard'
+assert "unset($row[$field])" not in product_loader, 'dashboard-only privacy must not strip prices from other employee workflows'
 print('PASS employee dashboard price privacy, own sales/points and scheduled road-map GPS contracts')
