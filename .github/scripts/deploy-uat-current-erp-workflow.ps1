@@ -925,35 +925,63 @@ function Deploy-WebRuntime {
   }
   Write-Host 'PASS web_deploy_confirmation_checked=true'
 
-  # Use a native mouse click on the verified HTML submit button. Do not retry
-  # while upload is in flight; Chrome keeps the selected ZIP open until navigation.
+  # Submit the exact multipart form through Chromium's requestSubmit API.
+  # This keeps the selected ZIP attached and includes the real submit button as
+  # the successful control. The "java" prefix is typed to avoid Chrome's
+  # protection against pasted javascript: URLs.
   $submit = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_submit' @('Deploy Certified Web Bundle') ([System.Windows.Automation.InvokePattern]::Pattern)
-  if (-not $submit) { throw 'Deploy Certified Web Bundle submit control disappeared before submission.' }
-  if (-not $submit.Current.IsEnabled -or $submit.Current.IsOffscreen) {
-    throw 'Deploy Certified Web Bundle submit control is disabled or off-screen.'
+  if (-not $submit -or -not $submit.Current.IsEnabled -or $submit.Current.IsOffscreen) {
+    throw 'Deploy Certified Web Bundle submit control is missing, disabled or off-screen.'
   }
-  $bounds = $submit.Current.BoundingRectangle
-  if ($bounds.Width -lt 10 -or $bounds.Height -lt 10 -or $bounds.X -lt 0 -or $bounds.Y -lt 0) {
-    throw ('Submit button has an invalid clickable rectangle: ' + $bounds.ToString())
-  }
-  $clickX = [int][Math]::Round($bounds.X + ($bounds.Width / 2))
-  $clickY = [int][Math]::Round($bounds.Y + ($bounds.Height / 2))
+  $expectedZipName = [IO.Path]::GetFileName($webZip)
+  $submitScript = "script:(()=>{const all=[...document.querySelectorAll('button,input[type=submit],input[type=button]')];const b=all.find(e=>((e.value||e.textContent||'').trim()==='Deploy Certified Web Bundle'));if(!b){document.title='EH7SUBMIT-NOBUTTON';return;}const f=b.closest('form');if(!f){document.title='EH7SUBMIT-NOFORM';return;}const z=f.querySelector('input[type=file][name=web_bundle]');if(!z||!z.files||z.files.length!==1){document.title='EH7SUBMIT-NOFILE';return;}if(z.files[0].name!=='$expectedZipName'){document.title='EH7SUBMIT-WRONGFILE';return;}const h=f.querySelector('[name=source_head]');const c=f.querySelector('[name=confirm]');if(!h||h.value!=='$SourceHead'||!c||!c.checked){document.title='EH7SUBMIT-FIELDS';return;}document.title='EH7SUBMIT-FIRE';if(f.requestSubmit){f.requestSubmit(b)}else{f.submit()}})()"
   Activate-OwnedChromeWindow $chrome
-  $submit.SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('^l')
   Start-Sleep -Milliseconds 150
-  [UatWindowNative]::LeftClickAt($clickX,$clickY)
-  Write-Host ('INFO web_deploy_native_click_x=' + $clickX + ' y=' + $clickY)
-  Write-Host 'INFO web_deploy_submit_native_mouse=true'
-  Start-Sleep -Seconds 5
-  try {
-    $currentAddress = Normalize-WebAddress (Get-ChromeWindowAddress (Root $chrome))
-    $currentPage = [Uri]('https://' + $currentAddress)
-    Write-Host ('INFO web_deploy_browser_url_after_click=' + $currentAddress)
-    Write-Host ('INFO web_deploy_browser_page_after_click=' + $currentPage.Host + $currentPage.AbsolutePath)
-    Write-UiHints (Root $chrome) 'web_deploy_after_native_click'
-  } catch {
-    Write-Host ('INFO web_deploy_browser_feedback_unavailable_after_click=' + $_.Exception.GetType().Name)
+  [System.Windows.Forms.SendKeys]::SendWait('java')
+  [System.Windows.Forms.Clipboard]::SetText($submitScript)
+  [System.Windows.Forms.SendKeys]::SendWait('^v')
+  Start-Sleep -Milliseconds 150
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Write-Host 'INFO web_deploy_submit_method=javascript-requestSubmit'
+  Start-Sleep -Seconds 8
+
+  $postSubmitRoot = Root $chrome
+  $postSubmitTitle = [string]$postSubmitRoot.Current.Name
+  $postSubmitAddress = Normalize-WebAddress (Get-ChromeWindowAddress $postSubmitRoot)
+  Write-Host ('INFO web_deploy_post_submit_title=' + $postSubmitTitle)
+  Write-Host ('INFO web_deploy_post_submit_url=' + $postSubmitAddress)
+  try { Write-UiHints $postSubmitRoot 'web_deploy_after_request_submit' } catch {}
+  if ($postSubmitTitle -match '^EH7SUBMIT-(NOBUTTON|NOFORM|NOFILE|WRONGFILE|FIELDS)$') {
+    throw ('WordPress form preflight failed in page JavaScript: ' + $postSubmitTitle)
   }
+
+  # A posted form either navigates to admin-post.php while WordPress handles the
+  # multipart upload, or redirects back to the tool page after a result notice.
+  $postedToAdminPost = $postSubmitAddress -match '(?i)/wp-admin/admin-post\.php(?:\?|$)'
+  $returnedToDeployPage = Test-WebAddressMatchesTarget $postSubmitAddress ($script:uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy')
+  if (-not $postedToAdminPost -and $returnedToDeployPage) {
+    $fileAfterSubmit = Find-ControlByIdOrNameLike $postSubmitRoot 'eh7_web_bundle' @('*Certified Flutter Web ZIP*','*Choose File*') ([System.Windows.Automation.InvokePattern]::Pattern)
+    $fileAfterSubmitName = if ($fileAfterSubmit) { [string]$fileAfterSubmit.Current.Name } else { '' }
+    Write-Host ('INFO web_deploy_file_input_after_submit=' + $fileAfterSubmitName)
+    if ($fileAfterSubmitName -like ('*' + $expectedZipName + '*')) {
+      throw 'WordPress multipart form did not submit: the certified ZIP remains attached to the file input.'
+    }
+    $responseElements = $postSubmitRoot.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+    $hasResultNotice = $false
+    foreach ($element in $responseElements) {
+      try {
+        if (([string]$element.Current.Name) -match '(?i)Certified UAT web bundle deployed|Web bundle upload|Uploaded web bundle|Web bundle ZIP|ZipArchive|Web SHA-256|Web bundle missing|Unsafe web bundle path|Web staging directory|Explicit deployment confirmation|deployment audit reason|Certified source head is invalid') {
+          $hasResultNotice = $true
+          break
+        }
+      } catch {}
+    }
+    if (-not $hasResultNotice) {
+      throw 'WordPress multipart form submission was not observed: tool page stayed open, the ZIP input cleared, but no deployment result notice appeared.'
+    }
+  }
+  Write-Host 'PASS web_deploy_form_post_observed=true'
 
   $marker = ''
   $serverHash = ''
