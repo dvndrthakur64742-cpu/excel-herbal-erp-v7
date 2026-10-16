@@ -259,8 +259,8 @@ class _MapViewport {
       )).toList();
       final xs = current.map((p) => p.x);
       final ys = current.map((p) => p.y);
-      final width = xs.reduce(math.max) - xs.reduce(math.min);
-      final height = ys.reduce(math.max) - ys.reduce(math.min);
+      final width = xs.reduce((a, b) => math.max(a, b).toDouble()) - xs.reduce((a, b) => math.min(a, b).toDouble());
+      final height = ys.reduce((a, b) => math.max(a, b).toDouble()) - ys.reduce((a, b) => math.min(a, b).toDouble());
       zoom = candidate;
       projected = current;
       if (width <= size.width - 64 && height <= size.height - 64) break;
