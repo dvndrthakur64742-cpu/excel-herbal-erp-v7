@@ -181,6 +181,10 @@ try {
         Remove-Item -LiteralPath $mariaExtract -Recurse -Force
     }
 
+    $installExe = @((Join-Path $mariaRoot 'bin\mariadb-install-db.exe'), (Join-Path $mariaRoot 'bin\mysql_install_db.exe')) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    $clientExe = Join-Path $mariaRoot 'bin\mariadb.exe'
+    $adminExe = Join-Path $mariaRoot 'bin\mariadb-admin.exe'
+    $dumpExe = Join-Path $mariaRoot 'bin\mariadb-dump.exe'
     $tools = @($serverExe, $installExe, $clientExe, $adminExe, $dumpExe)
     if ($tools | Where-Object { -not $_ -or -not (Test-Path -LiteralPath $_ -PathType Leaf) }) { throw 'Portable MariaDB tools are incomplete.' }
 
@@ -258,8 +262,11 @@ try {
     $wpCliUrl = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar'
     Invoke-WebRequest -UseBasicParsing -Uri $wpCliUrl -OutFile $wpCliPhar
     $wpCliHashSidecar = (Invoke-WebRequest -UseBasicParsing -Uri ($wpCliUrl + '.sha512')).Content.Trim().ToLowerInvariant()
-    if ($wpCliHashSidecar -notmatch '^\s*([0-9a-f]{128})') { throw 'WP-CLI SHA-512 sidecar was invalid.' }
-    $wpCliHashText = $Matches[1]
+    if ($wpCliHashSidecar -match '^\s*([0-9a-f]{128})') {
+        $wpCliHashText = $Matches[1]
+    } else {
+        throw 'WP-CLI SHA-512 sidecar was invalid.'
+    }
     if ((Get-FileHash -LiteralPath $wpCliPhar -Algorithm SHA512).Hash.ToLowerInvariant() -ne $wpCliHashText) { throw 'WP-CLI SHA-512 mismatch.' }
     & $phpExe -c $phpIni $wpCliPhar --info
     if ($LASTEXITCODE -ne 0) { throw 'WP-CLI executable failed its preflight check.' }
