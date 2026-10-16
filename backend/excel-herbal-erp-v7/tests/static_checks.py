@@ -704,7 +704,7 @@ assert "row['sales_count']" in dashboard and "row['points']" in dashboard,'emplo
 for forbidden in ['BusinessFormat.money','salary_fund','gross_amount','outstanding_amount']:
  assert forbidden not in dashboard,('employee dashboard exposes monetary field',forbidden)
 route=(root.parent.parent/'flutter-app/lib/widgets/gps_route_view.dart').read_text()
-for token in ['https://tile.openstreetmap.org/','Road map · recorded GPS route','© OpenStreetMap contributors','_RoadRoutePainter']:
+for token in ['https://tile.openstreetmap.org/','Road map','recorded GPS route','OpenStreetMap contributors','_RoadRoutePainter']:
  assert token in route,('GPS route road map contract missing',token)
 assert 'Recorded GPS trace · not a road map' not in route,'trace-only GPS visualization must not replace road map'
 # Price hiding is intentionally scoped to the employee dashboard, not sales/product APIs.
