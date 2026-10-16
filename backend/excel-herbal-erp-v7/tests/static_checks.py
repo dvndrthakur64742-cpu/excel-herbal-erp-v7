@@ -63,6 +63,26 @@ assert set(unregistered)==expected_dormant,(
  'frontend API path has no backend route or dormant-feature approval',unregistered
 )
 print('PASS frontend/backend endpoint parity; only explicitly dormant compensation paths remain')
+payroll=(root/'src/Payroll/PayrollPerformanceService.php').read_text()
+for token in [
+ "'payroll_zero_total'",
+ 'if($netTotal<=0)',
+ 'if ($total <= 0)',
+]:
+ assert token in payroll,('missing payroll zero-net guard',token)
+assert payroll.count("'payroll_zero_total'")>=3,'zero-net guard must protect generate, approve and pay'
+auth=(root/'src/Security/MobileAuth.php').read_text()
+for token in [
+ "'refresh_invalid'",
+ "'refresh_revoke_failed'",
+ "'logout_revoke_failed'",
+ "'refresh_hash'=>hash('sha256',$refresh)"
+]:
+ assert token in auth,('missing mobile session lifecycle guard',token)
+sessions=(root/'src/Security/SessionService.php').read_text()
+for token in ['public static function revokeMine','public static function logoutAll','revoked_at']:
+ assert token in sessions,('missing explicit session revocation control',token)
+print('PASS payroll zero-net and mobile session lifecycle guardrails')
 org_facade=(root/'src/Organization/OrganizationService.php').read_text()
 fin_facade=(root/'src/Finance/FinanceService.php').read_text()
 assert 'Db::' not in org_facade and 'Transaction::' not in org_facade,'Organization facade contains database/business implementation'
