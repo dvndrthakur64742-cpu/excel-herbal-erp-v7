@@ -202,7 +202,7 @@ uat_case('uat_bootstrap_contract_metadata', function () use ($self) {
 });
 
 uat_case('uat_branch_scope_fail_closed', function () use ($self) {
-    try { uat_dispatch('work.check_in', $self, ['branch_id'=>2]); }
+    try { uat_dispatch('work.check_in', $self, ['branch_id'=>2,'lat'=>31.9579,'lng'=>77.1095]); }
     catch (DomainException $e) { if ($e->codeKey === 'branch_forbidden' && $e->httpStatus === 403) return; throw $e; }
     throw new RuntimeException('cross-branch attendance check-in was accepted');
 });
@@ -225,7 +225,7 @@ uat_case('uat_sales_capability_fail_closed', function () use ($self) {
 });
 
 uat_case('uat_attendance_checkin_today_checkout', function () use ($self) {
-    $in = uat_dispatch('work.check_in', $self, ['branch_id'=>1]);
+    $in = uat_dispatch('work.check_in', $self, ['branch_id'=>1,'lat'=>31.9579,'lng'=>77.1095]);
     if (($in['status'] ?? '') !== 'present') throw new RuntimeException('check-in status mismatch');
     $today = uat_dispatch('work.attendance_today', $self);
     if (!$today || empty($today['check_in_at']) || (int)$today['branch_id'] !== 1) throw new RuntimeException('attendance today did not reflect check-in');
