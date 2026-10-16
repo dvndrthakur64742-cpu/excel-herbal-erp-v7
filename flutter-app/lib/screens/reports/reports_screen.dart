@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
+import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import 'report_review_queue.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -21,6 +23,9 @@ class ReportsScreen extends ConsumerStatefulWidget {
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   String type = 'sales';
   String reportingCategory = '';
+  int _reloadTick = 0;
+  bool _reviewBusy = false;
+  String? _feedback;
 
   @override
   Widget build(BuildContext context) {
@@ -54,14 +59,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     };
     const asOfReports = {'trial', 'balance_sheet'};
     final query = <String, dynamic>{
-      if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+      if (activeType != 'accounts_review' && app.currentBranchId != null)
+        'branch_id': app.currentBranchId,
+      if (activeType == 'accounts_review') 'status': 'all',
       if (periodReports.contains(activeType)) 'from': app.businessMonthStart,
       if (periodReports.contains(activeType) || asOfReports.contains(activeType))
         'to': app.businessDate,
       if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };
-    final scopeLabel = activeType == 'stock'
+    final scopeLabel = activeType == 'accounts_review'
+        ? 'Accounts review queue'
+        : activeType == 'stock'
         ? 'Live stock'
         : activeType == 'stock_reconciliation'
             ? 'Live stock reconciliation'
@@ -76,11 +85,21 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ? const _BranchRequired()
         : AsyncPanel(
             key: ValueKey(
-              '$activeType-${app.currentBranchId}-${app.businessDate}-$reportingCategory',
+              '$activeType-${app.currentBranchId}-${app.businessDate}-$reportingCategory-$_reloadTick',
             ),
             future: api.get(config.path, query: query),
             emptyMessage: config.emptyMessage,
             builder: (context, data) {
+              if (activeType == 'accounts_review') {
+                return ReportReviewQueue(
+                  rows: ((data as List?) ?? const [])
+                      .map((e) => Map<String, dynamic>.from(e as Map))
+                      .toList(),
+                  busy: _reviewBusy,
+                  onDecision: _decideReview,
+                  onView: _viewReviewReport,
+                );
+              }
               if (activeType == 'price_distribution') {
                 return _PriceDistributionPanel(
                   data: data,
@@ -117,6 +136,41 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
               child: BranchSelector(allowAllAuthorised: !needsBranch),
             ),
+            if (_canSubmitReview(activeType, app))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    const Text(
+                      'Submit a fixed report snapshot for independent Accounts review.',
+                    ),
+                    FilledButton.icon(
+                      onPressed: _reviewBusy ||
+                              (activeType == 'stock_reconciliation' &&
+                                  app.currentBranchId == null)
+                          ? null
+                          : () => _submitReview(activeType, app),
+                      icon: const Icon(Icons.fact_check_outlined),
+                      label: const Text('Submit for Accounts Review'),
+                    ),
+                  ],
+                ),
+              ),
+            if (_feedback != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _feedback!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -185,6 +239,171 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
+  bool _isReviewable(String value) => const {
+        'trial',
+        'profit_loss',
+        'balance_sheet',
+        'stock_reconciliation',
+        'finance_reconciliation',
+      }.contains(value);
+
+  bool _canSubmitReview(String value, AppState app) {
+    if (!_isReviewable(value) || value == 'accounts_review') return false;
+    if (value == 'stock_reconciliation') return app.can('reports.view');
+    return app.can('finance.accounting.view');
+  }
+
+  Future<void> _submitReview(String value, AppState app) async {
+    final reportType = value == 'trial' ? 'trial_balance' : value;
+    final body = <String, dynamic>{
+      'report_type': reportType,
+      if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+      if (value == 'profit_loss') ...{
+        'from': app.businessMonthStart,
+        'to': app.businessDate,
+      },
+      if (value == 'trial' || value == 'balance_sheet')
+        'as_of_date': app.businessDate,
+    };
+    setState(() {
+      _reviewBusy = true;
+      _feedback = null;
+    });
+    try {
+      await ref.read(apiClientProvider).post(ApiPaths.reportReviews, data: body);
+      if (!mounted) return;
+      setState(() {
+        _feedback =
+            'Report snapshot submitted. It is not approved until a different authorised Accounts reviewer records a decision.';
+        _reloadTick++;
+        if (ref.read(appStateProvider).can('finance.accounting.view') ||
+            ref.read(appStateProvider).can('reports.view')) {
+          type = 'accounts_review';
+        }
+      });
+    } catch (e) {
+      if (mounted) setState(() => _feedback = 'Could not submit review: ${UiError.message(e)}');
+    } finally {
+      if (mounted) setState(() => _reviewBusy = false);
+    }
+  }
+
+  Future<void> _viewReviewReport(Map<String, dynamic> review) async {
+    final type = '${review['report_type'] ?? ''}';
+    final report = switch (type) {
+      'trial_balance' => ('trial_balance', 'Trial Balance'),
+      'profit_loss' => ('profit_loss', 'Profit & Loss'),
+      'balance_sheet' => ('balance_sheet', 'Balance Sheet'),
+      'stock_reconciliation' => ('stock_reconciliation', 'Stock Reconciliation'),
+      'finance_reconciliation' => ('finance_reconciliation', 'Finance Reconciliation'),
+      _ => null,
+    };
+    if (report == null) return;
+    try {
+      final data = await ref.read(apiClientProvider).get(
+        ApiPaths.reportReviewSnapshot((review['id'] as num).toInt()),
+      );
+      final response = Map<String, dynamic>.from(data as Map);
+      final storedReview = Map<String, dynamic>.from(response['review'] as Map);
+      final rows = ((response['rows'] as List?) ?? const [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1100, maxHeight: 760),
+            child: SizedBox(
+              width: MediaQuery.of(dialogContext).size.width * 0.92,
+              height: MediaQuery.of(dialogContext).size.height * 0.82,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            report.$2,
+                            style: Theme.of(dialogContext).textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          tooltip: 'Close report snapshot',
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Stored submitted snapshot · status ${storedReview['status']} · SHA-256 ${storedReview['snapshot_hash']}',
+                      ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 6, 16, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'This is the immutable data submitted for review. Approval is blocked if the current report no longer matches it.',
+                      ),
+                    ),
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: RecordsList(recordType: report.$1, rows: rows),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _feedback = 'Could not open stored report snapshot: ${UiError.message(e)}');
+      }
+    }
+  }
+
+  Future<void> _decideReview(int id, String decision, String reason) async {
+    setState(() {
+      _reviewBusy = true;
+      _feedback = null;
+    });
+    try {
+      final result = await ref.read(apiClientProvider).post(
+        ApiPaths.reportReviewDecision(id),
+        data: {'decision': decision, 'reason': reason},
+      );
+      final status = result is Map ? '${result['status'] ?? ''}' : '';
+      final resultCode = result is Map ? '${result['result_code'] ?? ''}' : '';
+      if (!mounted) return;
+      setState(() {
+        _feedback = resultCode == 'report_snapshot_integrity_failed'
+            ? 'Review stopped: stored snapshot failed integrity validation. Submit a fresh report.'
+            : status == 'stale'
+                ? 'Review stopped: report data changed after submission. Submit a fresh snapshot.'
+            : status == 'approved'
+                ? 'Accounts review approved and audit-recorded.'
+                : status == 'rejected'
+                    ? 'Accounts review rejected and audit-recorded.'
+                    : 'Review status updated: $status';
+        _reloadTick++;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _feedback = 'Review decision failed: ${UiError.message(e)}');
+    } finally {
+      if (mounted) setState(() => _reviewBusy = false);
+    }
+  }
+
   List<_ReportOption> _availableReports(AppState app) {
     final out = <_ReportOption>[];
     if (app.can('reports.view')) {
@@ -238,6 +457,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           Icons.rule_folder_outlined,
         ),
       ]);
+    }
+    if (app.can('finance.accounting.view') || app.can('reports.view')) {
+      out.add(
+        const _ReportOption(
+          'accounts_review',
+          'Accounts Review',
+          Icons.fact_check_outlined,
+        ),
+      );
     }
     return out;
   }
@@ -359,6 +587,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             recordType: 'balance_sheet',
             subtitle: 'Assets, liabilities and equity as of the business date.',
             emptyMessage: 'No balance sheet balances are available.',
+          ),
+        'accounts_review' => const _ReportConfig(
+            title: 'Accounts Review',
+            path: ApiPaths.reportReviews,
+            recordType: 'report_review',
+            subtitle:
+                'Independent, auditable review of fixed Trial Balance, Profit & Loss, Balance Sheet and reconciliation snapshots.',
+            emptyMessage: 'No Accounts review requests are available.',
           ),
         'trial' => const _ReportConfig(
             title: 'Trial Balance',

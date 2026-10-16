@@ -274,4 +274,22 @@ void main() {
     expect(acting, isNot(contains('Ends At YYYY-MM-DDTHH:MM')));
   });
 
+  test('Accounts report review is snapshot-bound and maker-checker protected', () {
+    final reports = File('lib/screens/reports/reports_screen.dart').readAsStringSync();
+    final queue = File('lib/screens/reports/report_review_queue.dart').readAsStringSync();
+    final service = File(
+      '../backend/excel-herbal-erp-v7/src/Reporting/ReportReviewService.php',
+    ).readAsStringSync();
+    expect(reports, contains("'accounts_review'"));
+    expect(reports, contains('Submit for Accounts Review'));
+    expect(reports, contains('ApiPaths.reportReviewDecision(id)'));
+    expect(reports, contains('ApiPaths.reportReviewSnapshot('));
+    expect(queue, contains('Confirm approval'));
+    expect(queue, contains('Confirm rejection'));
+    expect(service, contains('report_review_maker_checker'));
+    expect(service, contains('report_snapshot_stale'));
+    expect(service, contains('snapshot_json'));
+    expect(service, contains('viewSnapshot'));
+  });
+
 }

@@ -69,7 +69,7 @@ for metric in [
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
 print('PASS operational diagnostics anomaly coverage')
 schema=(root/'src/Database/Schema.php').read_text()
-assert "7.3.5-performance-indexes-1" in schema,'schema version was not advanced for performance index migration'
+assert "7.3.5-report-reviews-2" in schema,'schema version was not advanced for Accounts review snapshot storage'
 for token in [
  "ensureIndex('employees','branch_status'",
  "ensureIndex('parties','branch_type_status'",
@@ -87,6 +87,21 @@ for token in [
  assert token in schema,('missing large-data performance index',token)
 assert 'information_schema.statistics' in schema,'performance index migration is not idempotent'
 print('PASS large-data hot-path index migration')
+review_service=(root/'src/Reporting/ReportReviewService.php').read_text()
+for token in [
+ 'Capabilities::REPORT_REVIEW',
+ "'report_review_maker_checker'",
+ "'report_snapshot_stale'",
+ "ReportingService::trialBalance",
+ "ReportingService::profitLoss",
+ "ReportingService::balanceSheet",
+ "ReportingService::stockReconciliation",
+ "ReportingService::financeReconciliation",
+]:
+ assert token in review_service,('missing report review workflow invariant',token)
+assert "'report_reviews'" in schema,'report review persistence table missing'
+assert "finance.report.review" in (root/'src/Security/Capabilities.php').read_text(),'report review capability missing'
+print('PASS Accounts report review capability, snapshot and maker-checker contracts')
 for token in [
  'checkout_exception',
  'checkout_exception_reason',
