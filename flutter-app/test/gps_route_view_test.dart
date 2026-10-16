@@ -32,8 +32,8 @@ void main() {
     );
 
     expect(find.text('GPS points'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget);
-    expect(find.text('Recorded travel'), findsOneWidget);
+    expect(find.text('2'), findsWidgets);
+    expect(find.text('Estimated GPS distance'), findsOneWidget);
     expect(find.text('Route timeline'), findsOneWidget);
     expect(find.text('Recorded GPS trace · not a road map'), findsOneWidget);
   });
