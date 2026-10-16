@@ -402,7 +402,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               ),
               FilledButton(
                 onPressed: () {
-                  String? error;
+                  try {
+                    String? error;
                   final lines = <Map<String, dynamic>>[];
                   var gross = 0.0;
 
@@ -464,7 +465,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     setLocal(() => formError = error);
                     return;
                   }
-                  Navigator.pop(context, true);
+                    Navigator.pop(context, true);
+                  } catch (e) {
+                    setLocal(() => formError = UiError.message(e));
+                  }
                 },
                 child: const Text('Post Sale'),
               ),
