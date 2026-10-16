@@ -121,6 +121,7 @@ final class ApiContract
             'purchase.supplier_status'=>['active'],
             'purchase.bill'=>['branch_id','supplier_id','bill_no','bill_date','lines'],
             'purchase.payment'=>['purchase_bill_id','amount','payment_account_id'],
+            'reports.ledger'=>['account_id','from','to'],
             'finance.account_create'=>['code','name','type'],
             'finance.expense_head_create'=>['code','name','expense_account_id'],
             'finance.expense'=>['branch_id','expense_head_id','amount','payment_account_id','expense_date'],
