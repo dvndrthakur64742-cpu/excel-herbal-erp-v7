@@ -199,8 +199,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
         if (mounted) {
           _setFeatureState(() {
             message =
-                'Check-In ke liye GPS/location zaroori hai. Device Location ON karein aur app/site ki location permission allow karke dobara try karein. ' +
-                UiError.message(e);
+                'Check-In ke liye GPS/location zaroori hai. Device Location ON karein aur app/site ki location permission allow karke dobara try karein. ${UiError.message(e)}';
           });
         }
         return;
