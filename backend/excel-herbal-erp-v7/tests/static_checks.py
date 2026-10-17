@@ -760,3 +760,8 @@ for token in [
 assert scheduler.index("if ($localTime < GpsDutyPolicy::START)") < scheduler.index("$rows = $db->get_results"), 'duty start gate must precede employee query'
 assert scheduler.index("if ($localTime >= GpsDutyPolicy::STOP)") > scheduler.index("ON DUPLICATE KEY UPDATE id=id"), 'checkout gate must only run after attendance materialization'
 print('PASS scheduled duty time-window, active employee/branch, leave/holiday, and idempotency source contracts')
+
+assert "get_gmt_from_date($date . ' ' . GpsDutyPolicy::START)" in scheduler, 'scheduled check-in must convert the business-local start to UTC'
+assert "get_gmt_from_date($date . ' ' . GpsDutyPolicy::STOP)" in scheduler, 'scheduled check-out must convert the business-local stop to UTC'
+assert "$date = Db::today();" in scheduler, 'scheduler must use the configured business-local date'
+print('PASS scheduled duty business-local date and UTC conversion source contracts')
