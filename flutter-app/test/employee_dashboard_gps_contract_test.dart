@@ -63,6 +63,7 @@ void main() {
     final screen = File('lib/screens/my_work/my_work_attendance.dart').readAsStringSync();
 
     expect(backend, contains('private static function ensureScheduledAttendance'));
+    expect(backend, contains("'attendance_manual_disabled',403"));
     expect(backend, contains("current_time('H:i:s')"));
     expect(backend, contains('get_gmt_from_date'));
     expect(backend, contains('GpsDutyPolicy::START'));
