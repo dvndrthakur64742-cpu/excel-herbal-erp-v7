@@ -49,17 +49,23 @@ void main() {
     expect(workspace, contains('_tabletCardWidth = 819'));
   });
 
-  test('My Work attendance shows only the valid next action', () {
+  test('My Work attendance reflects server-scheduled duty without manual actions', () {
     final source = File(
       'lib/screens/my_work/my_work_attendance.dart',
     ).readAsStringSync();
 
     expect(source, contains("final checkedIn ="));
     expect(source, contains("final checkedOut ="));
-    expect(source, contains("if (!checkedIn)"));
-    expect(source, contains("else if (!checkedOut)"));
-    expect(source, contains("Attendance complete"));
+    expect(
+      source,
+      contains("Duty automatically starts at 10:30 AM; no manual check-in is required."),
+    );
+    expect(source, contains("Duty is automatic · 10:30 AM–5:00 PM"));
+    expect(source, contains("Attendance pending"));
     expect(source, contains("Check-Out: pending"));
+    expect(source, isNot(contains("Future<void> _attendanceAction(")));
+    expect(source, isNot(contains("ApiPaths.checkIn")));
+    expect(source, isNot(contains("ApiPaths.checkOut")));
   });
 
   test('desktop shell avoids a second competing workspace header', () {
