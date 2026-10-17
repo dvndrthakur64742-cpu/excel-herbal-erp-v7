@@ -56,6 +56,25 @@ void main() {
     expect(tracking, isNot(contains('void employeeStop(')));
   });
 
+  test('duty attendance is materialized by the server and UI has no manual start/stop controls', () {
+    final backend = File(
+      '../backend/excel-herbal-erp-v7/src/Workforce/WorkforceService.php',
+    ).readAsStringSync();
+    final screen = File('lib/screens/my_work/my_work_attendance.dart').readAsStringSync();
+
+    expect(backend, contains('private static function ensureScheduledAttendance'));
+    expect(backend, contains("current_time('H:i:s')"));
+    expect(backend, contains('get_gmt_from_date'));
+    expect(backend, contains('GpsDutyPolicy::START'));
+    expect(backend, contains('GpsDutyPolicy::STOP'));
+    expect(screen, contains('Duty automatically starts at 10:30 AM'));
+    expect(screen, contains('Duty is automatic · 10:30 AM–5:00 PM'));
+    expect(screen, isNot(contains("Text('Check-In')")));
+    expect(screen, isNot(contains("Text('Check-Out')")));
+    expect(screen, isNot(contains('_attendanceAction(true)')));
+    expect(screen, isNot(contains('_attendanceAction(false)')));
+  });
+
   test('route widget overlays recorded points on attributed OpenStreetMap road tiles', () {
     final route = File('lib/widgets/gps_route_view.dart').readAsStringSync();
     expect(route, contains('https://tile.openstreetmap.org/'));
