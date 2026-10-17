@@ -124,8 +124,24 @@ jobs:
       - name: Verify and stage immutable SHA-256 development web candidate
         run: |
           $ErrorActionPreference='Stop'
+          # PowerShell .ps1 helpers do not set LASTEXITCODE. A nonzero value may
+          # be left over from previous native commands even when staging PASSes.
+          # Stage under Stop semantics and assert the exact expected ZIP instead.
           & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:GITHUB_WORKSPACE 'flutter-app\build\web') -CandidateSlot 'deploy-uat-current-erp'
-          if($LASTEXITCODE -ne 0){throw 'Exact-head web artifact staging failed.'}
+          $suffix = $env:GITHUB_SHA + '-run' + $env:GITHUB_RUN_ID + '-attempt' + $env:GITHUB_RUN_ATTEMPT + '-slot-deploy-uat-current-erp'
+          $root = Join-Path (Join-Path $env:USERPROFILE 'ERP7-Releases\uat-candidates') $suffix
+          $zip = Join-Path $root 'Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip'
+          $js = Join-Path $root 'web\main.dart.js'
+          $manifest = Join-Path $root 'web\SHA256SUMS.txt'
+          foreach ($required in @($zip,$js,$manifest)){
+            if(-not(Test-Path -LiteralPath $required -PathType Leaf)){
+              throw ('Certified development candidate missing after staging: '+$required)
+            }
+          }
+          if((Get-Item -LiteralPath $zip).Length -lt 100000){
+            throw 'Certified development web ZIP unexpectedly small.'
+          }
+          Write-Host ('PASS exact_head_web_candidate_staged='+$suffix)
 
       - name: Replace Office development plugin and certified web, with existing rollback path
         run: |
