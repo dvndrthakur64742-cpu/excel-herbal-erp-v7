@@ -291,8 +291,148 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
         fn()=>uat_dispatch('daily.approve',$self,['id'=>$request]),
         'self-service actor approved own daily request'
     );
+    // Submitted request must not be approved if its parent cycle has
+    // unexpectedly changed stage; preserve request status and restore fixture.
+    $wpdb->update(Db::table('daily_cycles'),['status'=>'cancelled'],['id'=>$cycle]);
+    try {
+        try {
+            uat_dispatch('daily.approve',$manager,['id'=>$request]);
+            throw new RuntimeException('Approval succeeded on a cancelled parent cycle');
+        } catch(DomainException $error) {
+            if($error->codeKey!=='daily_cycle_state_invalid'||$error->httpStatus!==409)
+                throw $error;
+        }
+        $unchanged=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('daily_requests').' WHERE id=%d',$request
+        ));
+        if($unchanged!=='submitted')
+            throw new RuntimeException('Denied approval unexpectedly changed request status');
+    } finally {
+        $wpdb->update(Db::table('daily_cycles'),['status'=>'stock_requested'],['id'=>$cycle]);
+    }
     if ((uat_dispatch('daily.approve',$manager,['id'=>$request])['status'] ?? '') !== 'approved') throw new RuntimeException('daily approve failed');
+    // A corrupted approved request with no lines must never transition to
+    // issued or post stock ledger entries. Restore the synthetic fixture.
+    $requestLine=$wpdb->get_row($wpdb->prepare(
+        'SELECT * FROM '.Db::table('daily_request_lines').' WHERE daily_request_id=%d LIMIT 1',$request
+    ),ARRAY_A);
+    if(!$requestLine)throw new RuntimeException('UAT approved Daily Order line fixture missing');
+    $deleted=$wpdb->query($wpdb->prepare(
+        'DELETE FROM '.Db::table('daily_request_lines').' WHERE id=%d',(int)$requestLine['id']
+    ));
+    if($deleted!==1)throw new RuntimeException('UAT failed to remove synthetic request line');
+    try {
+        foreach(['daily.issue_preflight','daily.issue'] as $action) {
+            try { uat_dispatch($action,$manager,['id'=>$request,'allocations'=>[]]); }
+            catch(DomainException $error) {
+                if($error->codeKey==='daily_request_lines_missing' && $error->httpStatus===409)continue;
+                throw $error;
+            }
+            throw new RuntimeException('Empty approved Daily Order was accepted by '.$action);
+        }
+        $requestStatus=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('daily_requests').' WHERE id=%d',$request
+        ));
+        if($requestStatus!=='approved')
+            throw new RuntimeException('Empty request rejection changed the approved request state');
+        $invalidIssueLedger=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+            ' WHERE source_type=%s AND source_id=%d','daily_issue',$request
+        ));
+        if($invalidIssueLedger!==0)
+            throw new RuntimeException('Empty request rejection wrote a stock ledger movement');
+    } finally {
+        uat_insert($wpdb,'daily_request_lines',$requestLine);
+    }
+    $preflight=uat_dispatch('daily.issue_preflight',$manager,['id'=>$request]);
+    if (empty($preflight['all_available']) || abs((float)($preflight['requested_quantity']??0)-2)>0.001 ||
+        count($preflight['lines']??[])!==1 || empty($preflight['lines'][0]['issueable']))
+        throw new RuntimeException('Daily issue preflight did not cover approved request quantity');
+    $beforeIssueStock=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+    );
+    if(abs($beforeIssueStock-100)>0.001)throw new RuntimeException('Preflight unexpectedly changed warehouse stock');
+
+    // Supplying a valid line plus an unrelated ID must fail, not silently
+    // discard the extra allocation and issue stock against a partial payload.
+    try {
+        uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[
+            ['request_line_id'=>(int)$requestLine['id'],'quantity'=>2],
+            ['request_line_id'=>99999991,'quantity'=>1],
+        ]]);
+        throw new RuntimeException('Foreign issue allocation line was accepted');
+    } catch(DomainException $error) {
+        if($error->codeKey!=='issue_allocation_unknown_line'||$error->httpStatus!==422)throw $error;
+    }
+    $afterInvalidAllocation=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+    );
+    if(abs($afterInvalidAllocation-$beforeIssueStock)>0.001)
+        throw new RuntimeException('Rejected foreign issue allocation changed warehouse stock');
+    $invalidAllocationLedger=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+        ' WHERE source_type=%s AND source_id=%d','daily_issue',$request
+    ));
+    if($invalidAllocationLedger!==0)
+        throw new RuntimeException('Rejected foreign allocation wrote stock ledger entries');
+
+    // A request with approval cannot issue when the parent cycle has moved
+    // to an incompatible stage. Keep inventory unchanged and restore fixture.
+    $changed=$wpdb->update(Db::table('daily_cycles'),['status'=>'evening_draft'],['id'=>$cycle]);
+    if($changed!==1)throw new RuntimeException('UAT could not seed mismatched Daily Order stage');
+    try {
+        foreach(['daily.issue_preflight','daily.issue'] as $action) {
+            try {
+                uat_dispatch($action,$manager,['id'=>$request,'allocations'=>[]]);
+                throw new RuntimeException('Stock issue accepted mismatched parent cycle: '.$action);
+            } catch(DomainException $error) {
+                if($error->codeKey!=='daily_cycle_state_invalid'||$error->httpStatus!==409)throw $error;
+            }
+        }
+        $stockAfterMismatch=(float)$wpdb->get_var(
+            'SELECT quantity FROM '.Db::table('stock_balances').
+            ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+        );
+        $ledgerAfterMismatch=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+            ' WHERE source_type=%s AND source_id=%d','daily_issue',$request
+        ));
+        if(abs($stockAfterMismatch-$beforeIssueStock)>0.001||$ledgerAfterMismatch!==0)
+            throw new RuntimeException('Incompatible cycle state changed warehouse stock or ledger');
+    } finally {
+        $wpdb->update(Db::table('daily_cycles'),['status'=>'approved'],['id'=>$cycle]);
+    }
+
     if ((uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]])['status'] ?? '') !== 'issued') throw new RuntimeException('daily issue automatic allocation failed');
+    // Transfer custody must be atomic: one warehouse OUT plus one employee IN,
+    // and the request cannot issue twice on a stale/replayed action.
+    $warehouseAfterIssue=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+    );
+    $employeeAfterIssue=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=10'
+    );
+    $issueLedger=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+        ' WHERE source_type=%s AND source_id=%d', 'daily_issue', $request
+    ));
+    if(abs($warehouseAfterIssue-98)>0.001||abs($employeeAfterIssue-2)>0.001||$issueLedger!==2)
+        throw new RuntimeException('Daily issue did not move warehouse stock into employee custody exactly once');
+    $repeatWasRejected=false;
+    try { uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]]); }
+    catch (DomainException $error) { $repeatWasRejected=true; }
+    if(!$repeatWasRejected)throw new RuntimeException('Repeat stock issue succeeded unexpectedly');
+    $replayedLedger=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+        ' WHERE source_type=%s AND source_id=%d', 'daily_issue', $request
+    ));
+    if($replayedLedger!==$issueLedger)
+        throw new RuntimeException('Repeat stock issue modified the stock ledger');
+
     $evening=uat_dispatch('daily.evening_start',$self,['id'=>$cycle]); $eveningId=(int)$evening['evening_id'];
     $issueLineId=(int)$wpdb->get_var($wpdb->prepare('SELECT issue_line_id FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d LIMIT 1',$eveningId));
     // EveningStart pre-fills sales, but the header is not yet verified.
@@ -989,6 +1129,57 @@ uat_case('uat_admin_access_atomic_save_and_rollback', function () use ($wpdb) {
         "SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=%d AND entity_type='employee' AND entity_id=%d",1,10
     ));
     if($auditBefore!==$auditAfter)throw new RuntimeException('Rejected access change persisted an audit event');
+});
+
+uat_case('uat_finance_reversal_capability_and_branch_scope', function () use ($wpdb) {
+    // These are deliberately synthetic UAT records. No source journal is
+    // touched, and the test exercises denials before any reversal can post.
+    foreach ([
+        [81000,1,'pending'],[81001,2,'pending'],[81002,null,'approved'],
+    ] as [$id,$branch,$status]) {
+        uat_insert($wpdb,'reversals',[
+            'id'=>$id,'company_id'=>1,'branch_id'=>$branch,
+            'source_type'=>'expense','source_id'=>999900+$id,
+            'reason'=>'Synthetic permission scope test',
+            'status'=>$status,'requested_by'=>20,
+            'requested_at'=>'2026-01-01 00:00:00',
+        ]);
+    }
+    $limited=uat_actor(10,[1],[Capabilities::REVERSAL_CREATE],'FE');
+    $visible=uat_dispatch('finance.reversals',$limited);
+    $ids=array_map(static fn($r)=>(int)$r['id'],$visible);
+    if(!in_array(81000,$ids,true)||
+       in_array(81001,$ids,true)||
+       in_array(81002,$ids,true)) {
+        throw new RuntimeException('Branch-limited actor can see another branch/company-wide reversal');
+    }
+    $approver=uat_actor(10,[1],[Capabilities::REVERSAL_APPROVE],'FE');
+    try {
+        uat_dispatch('finance.reversal_decision',$approver,['id'=>81001,'approve'=>true]);
+        throw new RuntimeException('Cross-branch reversal approval accepted');
+    } catch (DomainException $error) {
+        if($error->codeKey!=='branch_forbidden'||$error->httpStatus!==403)throw $error;
+    }
+    try {
+        uat_dispatch('finance.reversal_execute',$approver,['id'=>81002]);
+        throw new RuntimeException('Branch-limited actor executed company-wide reversal');
+    } catch (DomainException $error) {
+        if($error->codeKey!=='all_branch_authority_required'||$error->httpStatus!==403)throw $error;
+    }
+    $withoutApproval=uat_actor(10,[1,2],[],'FE');
+    uat_expect_forbidden(
+        fn()=>uat_dispatch('finance.reversal_execute',$withoutApproval,['id'=>81002]),
+        'Reversal executed without approval capability'
+    );
+    $full=uat_actor(20,[1,2],[Capabilities::REVERSAL_APPROVE],'SYSADMIN');
+    $all=uat_dispatch('finance.reversals',$full);
+    $fullIds=array_map(static fn($row)=>(int)$row['id'],$all);
+    if(!in_array(81001,$fullIds,true)||!in_array(81002,$fullIds,true))
+        throw new RuntimeException('Company-authorized approver cannot list authorized reversals');
+    $state=(string)$wpdb->get_var($wpdb->prepare(
+        'SELECT status FROM '.Db::table('reversals').' WHERE id=%d',81002
+    ));
+    if($state!=='approved')throw new RuntimeException('Denied reversal modified source state');
 });
 
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
