@@ -17,7 +17,7 @@ jobs:
     # This job runs only on the integrated Step 1 candidate; it never touches
     # Office WordPress, hosted MariaDB, Railway or production deployment.
     if: github.event_name == 'pull_request' && github.head_ref == 'codex/erp-step1-integrated-uat-20261017'
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 45
     steps:
       - name: Checkout exact combined candidate
