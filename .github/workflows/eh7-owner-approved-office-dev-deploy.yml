@@ -23,7 +23,7 @@ jobs:
     env:
       OFFICE_DEV_SITE: https://office.excelherbal.in
       VERIFIED_APPLICATION_BASELINE: e2fdbf6cbddbfe3936f93c8df6eb55aae07ce56b
-      PREVIOUS_INSTALLED_BACKEND: d599c8d78127b566204e2a1b37f5e2790614d0a4
+      PREVIOUS_INSTALLED_BACKEND: a7f1b3429ac15fc5e61561da2d639c420c2a2d46
     steps:
       - name: Checkout approved candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
