@@ -1,6 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Railway can restore Apache module links when the container starts. PHP's
+# Apache image must run exactly one MPM; normalize it at runtime before the
+# WordPress entrypoint starts Apache.
+if command -v a2enmod >/dev/null 2>&1; then
+  a2dismod mpm_event mpm_worker >/dev/null 2>&1 || true
+  for module in /etc/apache2/mods-enabled/mpm_*.load; do
+    [[ -e "$module" ]] || continue
+    module_name="${module##*/}"
+    module_name="${module_name%.load}"
+    if [[ "$module_name" != "mpm_prefork" ]]; then
+      rm -f "/etc/apache2/mods-enabled/${module_name}.load" "/etc/apache2/mods-enabled/${module_name}.conf"
+    fi
+  done
+  a2enmod mpm_prefork >/dev/null 2>&1 || true
+  active_mpm_count="$(find /etc/apache2/mods-enabled -maxdepth 1 -name 'mpm_*.load' -print | wc -l)"
+  if [[ "$active_mpm_count" -ne 1 || ! -e /etc/apache2/mods-enabled/mpm_prefork.load ]]; then
+    echo "FATAL Apache must have exactly one active MPM (mpm_prefork); found $active_mpm_count" >&2
+    exit 68
+  fi
+  echo "EH7_APACHE_MPM active=mpm_prefork"
+fi
+
 required=(
   EH7_SOURCE_HEAD
   EH7_UAT_SITE_URL
