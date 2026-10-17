@@ -740,3 +740,23 @@ ensure_attendance=workforce[workforce.index('private static function ensureSched
 assert ensure_attendance.count('Db::mustUpdate(') == 2, 'scheduled attendance updates must fail loudly instead of silently ignoring database errors'
 assert '$db->update(' not in ensure_attendance, 'scheduled attendance must not ignore update failures'
 print('PASS server-scheduled attendance, leave/holiday exclusion, cron cleanup, manual start/stop denial and checked DB updates')
+
+
+# Regression guard: scheduled attendance must obey the business-local duty window.
+# These checks protect the scheduler's time gates, eligible workforce scope,
+# and idempotent creation. They are source-contract checks, not runtime tests.
+scheduler=(root/'src/Workforce/ScheduledAttendanceService.php').read_text()
+assert "if ($localTime < GpsDutyPolicy::START)" in scheduler, 'scheduler must not create attendance before 10:30 local time'
+assert "if ($localTime >= GpsDutyPolicy::STOP)" in scheduler, 'scheduler must close duty at/after 17:00 local time'
+for token in [
+    "e.status='active'",
+    "b.status='active'",
+    "b.company_id=e.company_id",
+    "l.status='approved'",
+    "h.active=1",
+    "ON DUPLICATE KEY UPDATE id=id",
+]:
+    assert token in scheduler, ('scheduled attendance eligibility/idempotency regression', token)
+assert scheduler.index("if ($localTime < GpsDutyPolicy::START)") < scheduler.index("$rows = $db->get_results"), 'duty start gate must precede employee query'
+assert scheduler.index("if ($localTime >= GpsDutyPolicy::STOP)") > scheduler.index("ON DUPLICATE KEY UPDATE id=id"), 'checkout gate must only run after attendance materialization'
+print('PASS scheduled duty time-window, active employee/branch, leave/holiday, and idempotency source contracts')
