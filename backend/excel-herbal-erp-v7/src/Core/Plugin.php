@@ -8,6 +8,7 @@ use ExcelHerbal\ERP7\Administration\LegacySetupAssistantGuard;
 use ExcelHerbal\ERP7\Administration\ControlCenterAdmin;
 use ExcelHerbal\ERP7\Administration\UatCleanupAdmin;
 use ExcelHerbal\ERP7\Administration\UatWebDeployAdmin;
+use ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService;
 final class Plugin{
     public static function activate():void{Schema::maybeUpgrade();}
     public static function boot():void{
