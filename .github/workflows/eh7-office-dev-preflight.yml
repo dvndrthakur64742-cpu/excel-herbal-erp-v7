@@ -26,6 +26,7 @@ jobs:
         run: |
           & '.github/scripts/office-dev-target-preflight.ps1' -CandidateHead '${{ github.event.pull_request.head.sha }}'
       - name: Package tested backend for in-place Office dev deployment
+        if: always()
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
         run: |
           $ErrorActionPreference='Stop'

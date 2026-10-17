@@ -39,12 +39,12 @@ try {
   $client=[System.Net.Http.HttpClient]::new()
   $client.Timeout=[TimeSpan]::FromSeconds(25)
   $root=$Site.TrimEnd('/')+'/wp-json/excel-herbal-erp/v7'
-  $healthResponse=$client.GetAsync($root+'/health').GetAwaiter().GetResult()
-  try {
-    if([int]$healthResponse.StatusCode -ne 200){throw 'ERP health endpoint did not return HTTP 200.'}
-    $healthText=$healthResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-    $health=$healthText | ConvertFrom-Json
-  } finally {$healthResponse.Dispose()}
+  # The connected WordPress gateway and the self-hosted runner can have
+  # different network routes. Use Windows curl with bounded timeouts rather
+  # than a .NET HttpClient request that can hang on system proxy settings.
+  $healthText = & curl.exe --fail --silent --show-error --location --connect-timeout 8 --max-time 20 --retry 1 ($root+'/health')
+  if($LASTEXITCODE -ne 0){throw ('Office health endpoint unreachable from CI Windows runner (curl exit '+$LASTEXITCODE+').')}
+  $health = ($healthText -join [Environment]::NewLine) | ConvertFrom-Json
   if(-not $health.ok -or -not $health.data){throw 'ERP health payload invalid.'}
   $h=$health.data
   if([string]$h.environment -ne 'staging'){throw 'Office development environment must report staging.'}
@@ -59,11 +59,9 @@ try {
   $evidence.tests['host_hardening']='passed'
   if(-not $h.schema_installed -or -not $h.web_runtime.present){throw 'Installed ERP schema or web runtime is missing.'}
   $evidence.tests['installed_erp_operational']='passed'
-  $contractResp=$client.GetAsync($root+'/app/capabilities').GetAwaiter().GetResult()
-  try {
-    if([int]$contractResp.StatusCode -ne 200){throw 'ERP contract endpoint returned non-200.'}
-    $contract=$contractResp.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
-  } finally {$contractResp.Dispose()}
+  $contractText = & curl.exe --fail --silent --show-error --location --connect-timeout 8 --max-time 20 --retry 1 ($root+'/app/capabilities')
+  if($LASTEXITCODE -ne 0){throw ('Office API contract unreachable from CI Windows runner (curl exit '+$LASTEXITCODE+').')}
+  $contract = ($contractText -join [Environment]::NewLine) | ConvertFrom-Json
   if(-not $contract.ok -or [string]$contract.data.contract_version -ne [string]$h.api_contract){
     throw 'ERP health and capabilities contracts disagree.'
   }
