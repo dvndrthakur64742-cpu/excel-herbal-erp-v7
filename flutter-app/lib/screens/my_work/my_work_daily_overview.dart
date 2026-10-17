@@ -447,19 +447,8 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     return code.isEmpty ? name : '$name · $code';
   }
 
-  String _statusTextImpl(String status) {
-    const map = {
-      'morning_draft': 'Draft',
-      'stock_requested': 'Approval Pending',
-      'approved': 'Issue Pending',
-      'issued': 'Evening Pending',
-      'evening_draft': 'Evening Draft',
-      'evening_submitted': 'Final Post Pending',
-      'completed': 'Completed',
-      'cancelled': 'Cancelled',
-    };
-    return map[status] ?? status;
-  }
+  String _statusTextImpl(String status) =>
+      DailyOrderWorkflow.statusLabel(status);
 
   Widget _orderStatusChipImpl(String status) {
     Color background;
@@ -513,28 +502,19 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     );
   }
 
-  String _dailyRowStatusText(Map<String, dynamic> row) {
-    final status = '${row['status'] ?? ''}';
-    final additionalStatus = '${row['additional_request_status'] ?? ''}';
-    if (status == 'issued' && additionalStatus == 'submitted') {
-      return 'Additional Approval Pending';
-    }
-    if (status == 'issued' && additionalStatus == 'approved') {
-      return 'Additional Issue Pending';
-    }
-    return _MyWorkDaily(this)._statusText(status);
-  }
+  String _dailyRowStatusText(Map<String, dynamic> row) =>
+      DailyOrderWorkflow.orderStatusLabel(row);
 
   Widget _dailyRowStatusChip(Map<String, dynamic> row) {
     final status = '${row['status'] ?? ''}';
     final label = _dailyRowStatusText(row);
-    if (label != 'Additional Approval Pending' &&
-        label != 'Additional Issue Pending') {
+    if (!label.contains('Additional Approval Pending') &&
+        !label.contains('Additional Issue Pending')) {
       return _MyWorkDaily(this)._orderStatusChip(status);
     }
     const background = Color(0xFFFFF0D8);
     const foreground = Color(0xFF8A5700);
-    final icon = label == 'Additional Issue Pending'
+    final icon = label.contains('Additional Issue Pending')
         ? Icons.inventory_2_outlined
         : Icons.task_alt_rounded;
     return Container(
