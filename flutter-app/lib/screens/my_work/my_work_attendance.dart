@@ -63,7 +63,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                                 )
                               else
                                 const Text(
-                                  'Check-In time will appear after successful attendance.',
+                                  'Duty automatically starts at 10:30 AM; no manual check-in is required.',
                                 ),
                               if (checkedIn) ...[
                                 const SizedBox(height: 2),
@@ -81,23 +81,10 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                   ),
                 ),
                 const SizedBox(height: 10),
-                if (!checkedIn)
-                  FilledButton.icon(
-                    onPressed: () => _attendanceAction(true),
-                    icon: const Icon(Icons.login),
-                    label: const Text('Check-In'),
-                  )
-                else if (!checkedOut)
-                  FilledButton.tonalIcon(
-                    onPressed: () => _attendanceAction(false),
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Check-Out'),
-                  )
-                else
-                  const Chip(
-                    avatar: Icon(Icons.check_circle_outline, size: 18),
-                    label: Text('Attendance complete'),
-                  ),
+                const Chip(
+                  avatar: Icon(Icons.schedule_outlined, size: 18),
+                  label: Text('Duty is automatic · 10:30 AM–5:00 PM'),
+                ),
               ],
             );
           },
