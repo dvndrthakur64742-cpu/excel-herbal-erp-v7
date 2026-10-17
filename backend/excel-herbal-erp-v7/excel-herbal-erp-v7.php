@@ -13,5 +13,5 @@ if(!defined('EH7_SOURCE_HEAD'))define('EH7_SOURCE_HEAD','source-tree');
 require_once EH7_DIR.'src/Core/Autoloader.php';
 \ExcelHerbal\ERP7\Core\Autoloader::register(EH7_DIR.'src');
 register_activation_hook(__FILE__,[\ExcelHerbal\ERP7\Core\Plugin::class,'activate']);
-register_deactivation_hook(__FILE__,[\\ExcelHerbal\\ERP7\\Core\\Plugin::class,'deactivate']);
+register_deactivation_hook(__FILE__,[\ExcelHerbal\ERP7\Core\Plugin::class,'deactivate']);
 add_action('plugins_loaded',[\ExcelHerbal\ERP7\Core\Plugin::class,'boot']);
