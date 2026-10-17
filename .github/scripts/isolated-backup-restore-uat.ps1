@@ -21,7 +21,7 @@ $previousPhprc = $env:PHPRC
 $previousPhpPath = $env:PATH
 $previousWpRoot = $env:EH7_UAT_WP_ROOT
 
-$toolRoot = 'C:\actions-runner\eh7-toolcache'
+$toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
 $phpDir = Join-Path $toolRoot 'php-8.3.33'
 $phpExe = Join-Path $phpDir 'php.exe'
 $mariaRoot = Join-Path $toolRoot 'mariadb-11.8.9'
