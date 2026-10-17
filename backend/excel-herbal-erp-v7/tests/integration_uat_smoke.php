@@ -273,6 +273,39 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
         'self-service actor approved own daily request'
     );
     if ((uat_dispatch('daily.approve',$manager,['id'=>$request])['status'] ?? '') !== 'approved') throw new RuntimeException('daily approve failed');
+    // A corrupted approved request with no lines must never transition to
+    // issued or post stock ledger entries. Restore the synthetic fixture.
+    $requestLine=$wpdb->get_row($wpdb->prepare(
+        'SELECT * FROM '.Db::table('daily_request_lines').' WHERE daily_request_id=%d LIMIT 1',$request
+    ),ARRAY_A);
+    if(!$requestLine)throw new RuntimeException('UAT approved Daily Order line fixture missing');
+    $deleted=$wpdb->query($wpdb->prepare(
+        'DELETE FROM '.Db::table('daily_request_lines').' WHERE id=%d',(int)$requestLine['id']
+    ));
+    if($deleted!==1)throw new RuntimeException('UAT failed to remove synthetic request line');
+    try {
+        foreach(['daily.issue_preflight','daily.issue'] as $action) {
+            try { uat_dispatch($action,$manager,['id'=>$request,'allocations'=>[]]); }
+            catch(DomainException $error) {
+                if($error->codeKey==='daily_request_lines_missing' && $error->httpStatus===409)continue;
+                throw $error;
+            }
+            throw new RuntimeException('Empty approved Daily Order was accepted by '.$action);
+        }
+        $requestStatus=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('daily_requests').' WHERE id=%d',$request
+        ));
+        if($requestStatus!=='approved')
+            throw new RuntimeException('Empty request rejection changed the approved request state');
+        $invalidIssueLedger=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+            ' WHERE source_type=%s AND source_id=%d','daily_issue',$request
+        ));
+        if($invalidIssueLedger!==0)
+            throw new RuntimeException('Empty request rejection wrote a stock ledger movement');
+    } finally {
+        uat_insert($wpdb,'daily_request_lines',$requestLine);
+    }
     $preflight=uat_dispatch('daily.issue_preflight',$manager,['id'=>$request]);
     if (empty($preflight['all_available']) || abs((float)($preflight['requested_quantity']??0)-2)>0.001 ||
         count($preflight['lines']??[])!==1 || empty($preflight['lines'][0]['issueable']))
