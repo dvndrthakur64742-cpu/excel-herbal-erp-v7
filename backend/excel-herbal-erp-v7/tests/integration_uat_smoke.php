@@ -340,6 +340,33 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
     if($invalidAllocationLedger!==0)
         throw new RuntimeException('Rejected foreign allocation wrote stock ledger entries');
 
+    // A request with approval cannot issue when the parent cycle has moved
+    // to an incompatible stage. Keep inventory unchanged and restore fixture.
+    $changed=$wpdb->update(Db::table('daily_cycles'),['status'=>'evening_draft'],['id'=>$cycle]);
+    if($changed!==1)throw new RuntimeException('UAT could not seed mismatched Daily Order stage');
+    try {
+        foreach(['daily.issue_preflight','daily.issue'] as $action) {
+            try {
+                uat_dispatch($action,$manager,['id'=>$request,'allocations'=>[]]);
+                throw new RuntimeException('Stock issue accepted mismatched parent cycle: '.$action);
+            } catch(DomainException $error) {
+                if($error->codeKey!=='daily_cycle_state_invalid'||$error->httpStatus!==409)throw $error;
+            }
+        }
+        $stockAfterMismatch=(float)$wpdb->get_var(
+            'SELECT quantity FROM '.Db::table('stock_balances').
+            ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+        );
+        $ledgerAfterMismatch=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+            ' WHERE source_type=%s AND source_id=%d','daily_issue',$request
+        ));
+        if(abs($stockAfterMismatch-$beforeIssueStock)>0.001||$ledgerAfterMismatch!==0)
+            throw new RuntimeException('Incompatible cycle state changed warehouse stock or ledger');
+    } finally {
+        $wpdb->update(Db::table('daily_cycles'),['status'=>'approved'],['id'=>$cycle]);
+    }
+
     if ((uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]])['status'] ?? '') !== 'issued') throw new RuntimeException('daily issue automatic allocation failed');
     // Transfer custody must be atomic: one warehouse OUT plus one employee IN,
     // and the request cannot issue twice on a stale/replayed action.
