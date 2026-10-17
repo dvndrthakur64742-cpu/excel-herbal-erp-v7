@@ -520,13 +520,17 @@ for token in [
  "Audit::add($a,'leave.request'",
 ]:
  assert token in workforce,('missing workforce invariant/audit',token)
+# Attendance check-in/out are intentionally disabled; location pairing is
+# validated by gpsPair() for GPS-aware visit capture instead.
 check_in = workforce.split("public static function checkIn(", 1)[1].split("public static function checkOut(", 1)[0]
-for token in [
- "$lat===null||$lng===null",
- "'gps_location_required'",
-]:
- assert token in check_in,('check-in must reject missing GPS coordinates before writing attendance',token)
-assert check_in.index("Guard::branch") < check_in.index("'gps_location_required'"), 'check-in must enforce branch authority before location validation'
+check_out = workforce.split("public static function checkOut(", 1)[1].split("public static function attendanceReport(", 1)[0]
+for section, action in [(check_in, "check-in"), (check_out, "check-out")]:
+ assert "'attendance_manual_disabled'" in section, (action, 'manual attendance must remain disabled')
+ assert "Duty is automatic from 10:30 AM to 5:00 PM" in section, (action, 'server-owned duty schedule must be explained')
+ assert "Db::mustInsert" not in section and "Db::wpdb" not in section, (action, 'disabled handler must not write attendance')
+gps_pair = workforce.split("private static function gpsPair(", 1)[1].split("\n}", 1)[0]
+for token in ["$lat===null||$lng===null", "'gps_invalid'", "GpsPointValidator::normalize"]:
+ assert token in gps_pair, ('GPS coordinate-pair validation missing from location capture', token)
 communication=(root/'src/Communication/CommunicationService.php').read_text()
 for token in [
  "FOR UPDATE",
