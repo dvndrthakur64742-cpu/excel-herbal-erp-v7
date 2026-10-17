@@ -189,7 +189,9 @@ try {
     if ($tools | Where-Object { -not $_ -or -not (Test-Path -LiteralPath $_ -PathType Leaf) }) { throw 'Portable MariaDB tools are incomplete.' }
 
     $extensionDir = Join-Path $phpDir 'ext'
-    $requiredExtensions = @('mysqli','openssl','fileinfo','curl','mbstring','dom','xml','simplexml','zip')
+    # DOM, XML and SimpleXML are built into the pinned Windows PHP 8.3 build.
+    # Only require DLLs for extensions that are actually shipped as shared modules.
+    $requiredExtensions = @('mysqli','openssl','fileinfo','curl','mbstring','zip')
     foreach ($ext in $requiredExtensions) {
         if (-not (Test-Path -LiteralPath (Join-Path $extensionDir ("php_" + $ext + ".dll")) -PathType Leaf)) { throw "Required PHP extension file is missing: $ext" }
     }
@@ -222,8 +224,8 @@ try {
     $script:limitedPassword = $limitedPassword
     $script:baseUrl = $baseUrl
 
-    & $phpExe -c $phpIni -r "if (!extension_loaded('mysqli') || !extension_loaded('openssl') || !class_exists('finfo') || !function_exists('curl_init') || !class_exists('DOMDocument') || !class_exists('ZipArchive')) { fwrite(STDERR,'Required PHP extension unavailable'); exit(9); }"
-    if ($LASTEXITCODE -ne 0) { throw 'PHP mysqli/OpenSSL/fileinfo/curl/dom/zip extensions are required.' }
+    & $phpExe -c $phpIni -r "if (!extension_loaded('mysqli') || !extension_loaded('openssl') || !class_exists('finfo') || !function_exists('curl_init') || !extension_loaded('mbstring') || !class_exists('DOMDocument') || !class_exists('SimpleXMLElement') || !function_exists('xml_parser_create') || !class_exists('ZipArchive')) { fwrite(STDERR,'Required PHP extension unavailable'); exit(9); }"
+    if ($LASTEXITCODE -ne 0) { throw 'PHP mysqli/OpenSSL/fileinfo/curl/mbstring/DOM/SimpleXML/XML/zip extensions are required.' }
 
     $currentStage = 'initialize disposable MariaDB'
     Write-Output 'STAGE initialize disposable MariaDB'
