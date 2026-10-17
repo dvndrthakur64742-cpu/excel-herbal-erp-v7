@@ -71,8 +71,8 @@ void main() {
     ).readAsStringSync();
     expect(scheduler, contains("public const HOOK = 'eh7_scheduled_attendance_tick'")); 
     expect(scheduler, contains("'interval' => 300"));
-    expect(scheduler, contains("$leave"));
-    expect(scheduler, contains("'check_out_at' => $stopUtc"));
+    expect(scheduler, contains("NOT EXISTS"));
+    expect(scheduler, contains("check_out_at"));
     expect(plugin, contains('ScheduledAttendanceService::boot()'));
 
     expect(backend, contains("'attendance_manual_disabled',403"));
