@@ -3,7 +3,7 @@ name: EH7 v7.4.0 Isolated Backup Restore UAT
 on:
   workflow_dispatch:
   push:
-    branches: [codex/erp735-document-integration]
+    branches: [codex/erp735-document-integration, codex/reports-date-export-workflow]
 
 permissions:
   contents: read
@@ -11,26 +11,34 @@ permissions:
 jobs:
   isolated-backup-restore:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-backup-restore-uat]')
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - name: Verify Docker environment
-        shell: bash
+      - name: Verify isolated recovery runner prerequisites
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
         run: |
-          set -euo pipefail
-          docker version
-          docker info
-          curl --version
-          jq --version
+          $ErrorActionPreference = 'Stop'
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
+          if (-not (Test-Path -LiteralPath $toolRoot -PathType Container)) {
+            New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $toolRoot 'php-8.3.33\php.exe') -PathType Leaf)) {
+            Write-Host 'PHP 8.3.33 will be downloaded by the isolated harness and checksum-verified.'
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $toolRoot 'mariadb-11.8.9\bin\mariadbd.exe') -PathType Leaf)) {
+            Write-Host 'MariaDB 11.8.9 will be downloaded by the isolated harness and checksum-verified.'
+          }
+          if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
+            throw 'curl.exe is required on the isolated recovery runner.'
+          }
 
       - name: Fresh isolated WordPress + MariaDB backup/restore drill
-        shell: bash
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
         run: |
-          set -euo pipefail
-          chmod +x .github/scripts/isolated-backup-restore-uat.sh
-          .github/scripts/isolated-backup-restore-uat.sh
+          & '.github/scripts/isolated-backup-restore-uat.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload backup/restore evidence
         if: always()
@@ -40,4 +48,5 @@ jobs:
           path: |
             dist/isolated-backup-restore/EVIDENCE.json
             dist/isolated-backup-restore/bootstrap.json
+            dist/isolated-backup-restore/FAILURE.json
           if-no-files-found: warn

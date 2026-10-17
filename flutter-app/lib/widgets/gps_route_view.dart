@@ -4,9 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../core/business_format.dart';
 
-/// Displays the actual recorded GPS breadcrumb sequence and its timeline.
-/// This is a trace plot (not a street/road map); every marker is a server-stored
-/// GPS point and the connecting line follows timestamp order.
+/// Displays OpenStreetMap road tiles with the server-recorded GPS route overlaid.
+/// Every route marker is a persisted point; the polyline is ordered by timestamp.
 class GpsRouteView extends StatelessWidget {
   const GpsRouteView({
     super.key,
@@ -66,46 +65,82 @@ class GpsRouteView extends StatelessWidget {
             ),
           )
         else
-          Container(
-            height: 250,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: CustomPaint(
-              painter: _GpsTracePainter(
-                points: ordered,
-                lineColor: Theme.of(context).colorScheme.primary,
-                startColor: Colors.green.shade700,
-                endColor: Colors.red.shade700,
-                gridColor: Theme.of(context).colorScheme.outlineVariant,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface.withValues(alpha: .92),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      child: Text('Recorded GPS trace · not a road map', style: TextStyle(fontSize: 11)),
-                    ),
-                  ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final size = Size(constraints.maxWidth, 270);
+              final viewport = _MapViewport.create(ordered, size);
+              final first = Theme.of(context).colorScheme.primary;
+              return Container(
+                height: size.height,
+                width: double.infinity,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                 ),
-              ),
-            ),
+                child: Stack(
+                  children: [
+                    for (final tile in viewport.tiles)
+                      Positioned(
+                        left: tile.left,
+                        top: tile.top,
+                        width: 256,
+                        height: 256,
+                        child: Image.network(
+                          'https://tile.openstreetmap.org/${viewport.zoom}/${tile.x}/${tile.y}.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const ColoredBox(
+                            color: Color(0xFFE9E7DF),
+                            child: Center(child: Icon(Icons.map_outlined, color: Color(0xFF777777))),
+                          ),
+                        ),
+                      ),
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _RoadRoutePainter(
+                          positions: viewport.positions,
+                          routeColor: first,
+                          startColor: Colors.green.shade700,
+                          endColor: Colors.red.shade700,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 8,
+                      top: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: .94),
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          child: Text('Road map · recorded GPS route', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ),
+                    const Positioned(
+                      right: 6,
+                      bottom: 4,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(color: Color(0xEFFFFFFF)),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          child: Text('© OpenStreetMap contributors', style: TextStyle(fontSize: 9, color: Color(0xFF333333))),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         if (ordered.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              'Distance is estimated as straight-line distance between recorded GPS samples; it is not road/odometer distance.',
+              'Route line connects recorded GPS samples in timestamp order. Estimated distance is straight-line distance between samples, not road/odometer distance.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -189,79 +224,126 @@ class GpsRouteView extends StatelessWidget {
   static double _radians(double degrees) => degrees * math.pi / 180;
 }
 
-class _GpsTracePainter extends CustomPainter {
-  const _GpsTracePainter({
-    required this.points,
-    required this.lineColor,
+class _MapTile {
+  const _MapTile(this.x, this.y, this.left, this.top);
+  final int x;
+  final int y;
+  final double left;
+  final double top;
+}
+
+class _MapPoint {
+  const _MapPoint(this.x, this.y);
+  final double x;
+  final double y;
+}
+
+class _MapViewport {
+  const _MapViewport({
+    required this.zoom,
+    required this.tiles,
+    required this.positions,
+  });
+  final int zoom;
+  final List<_MapTile> tiles;
+  final List<Offset> positions;
+
+  static _MapViewport create(List<Map<String, dynamic>> points, Size size) {
+    var zoom = 15;
+    List<_MapPoint> projected = [];
+    for (var candidate = 18; candidate >= 3; candidate--) {
+      final current = points.map((p) => _project(
+        double.parse('${p['latitude'] ?? p['lat']}'),
+        double.parse('${p['longitude'] ?? p['lng']}'),
+        candidate,
+      )).toList();
+      final xs = current.map((p) => p.x);
+      final ys = current.map((p) => p.y);
+      final width = xs.reduce((a, b) => math.max(a, b).toDouble()) - xs.reduce((a, b) => math.min(a, b).toDouble());
+      final height = ys.reduce((a, b) => math.max(a, b).toDouble()) - ys.reduce((a, b) => math.min(a, b).toDouble());
+      zoom = candidate;
+      projected = current;
+      if (width <= size.width - 64 && height <= size.height - 64) break;
+    }
+    final minX = projected.map((p) => p.x).reduce((a, b) => math.min(a, b).toDouble());
+    final maxX = projected.map((p) => p.x).reduce((a, b) => math.max(a, b).toDouble());
+    final minY = projected.map((p) => p.y).reduce((a, b) => math.min(a, b).toDouble());
+    final maxY = projected.map((p) => p.y).reduce((a, b) => math.max(a, b).toDouble());
+    final centerX = (minX + maxX) / 2;
+    final centerY = (minY + maxY) / 2;
+    final originX = centerX - size.width / 2;
+    final originY = centerY - size.height / 2;
+    final tileCount = 1 << zoom;
+    final tiles = <_MapTile>[];
+    for (var tx = (originX / 256).floor(); tx <= ((originX + size.width) / 256).floor(); tx++) {
+      for (var ty = (originY / 256).floor(); ty <= ((originY + size.height) / 256).floor(); ty++) {
+        if (ty < 0 || ty >= tileCount) continue;
+        final wrappedX = ((tx % tileCount) + tileCount) % tileCount;
+        tiles.add(_MapTile(wrappedX, ty, tx * 256 - originX, ty * 256 - originY));
+      }
+    }
+    return _MapViewport(
+      zoom: zoom,
+      tiles: tiles,
+      positions: projected.map((p) => Offset(p.x - originX, p.y - originY)).toList(),
+    );
+  }
+
+  static _MapPoint _project(double latitude, double longitude, int zoom) {
+    final lat = latitude.clamp(-85.05112878, 85.05112878).toDouble() * math.pi / 180;
+    final double world = (256 * (1 << zoom)).toDouble();
+    final x = ((longitude + 180) / 360 * world).toDouble();
+    final y = ((1 - math.log(math.tan(lat) + 1 / math.cos(lat)) / math.pi) / 2 * world).toDouble();
+    return _MapPoint(x, y);
+  }
+}
+
+class _RoadRoutePainter extends CustomPainter {
+  const _RoadRoutePainter({
+    required this.positions,
+    required this.routeColor,
     required this.startColor,
     required this.endColor,
-    required this.gridColor,
   });
 
-  final List<Map<String, dynamic>> points;
-  final Color lineColor;
+  final List<Offset> positions;
+  final Color routeColor;
   final Color startColor;
   final Color endColor;
-  final Color gridColor;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const pad = 26.0;
-    final rect = Rect.fromLTWH(pad, pad, math.max(1.0, size.width - pad * 2).toDouble(), math.max(1.0, size.height - pad * 2).toDouble());
-    final grid = Paint()..color = gridColor.withValues(alpha: .55)..strokeWidth = .7;
-    for (var i = 1; i < 5; i++) {
-      final x = rect.left + rect.width * i / 5;
-      final y = rect.top + rect.height * i / 5;
-      canvas.drawLine(Offset(x, rect.top), Offset(x, rect.bottom), grid);
-      canvas.drawLine(Offset(rect.left, y), Offset(rect.right, y), grid);
-    }
-
-    final coords = points.map((p) => (
-      double.parse('${p['latitude'] ?? p['lat']}'),
-      double.parse('${p['longitude'] ?? p['lng']}'),
-    )).toList(growable: false);
-    final minLat = coords.map((p) => p.$1).reduce((a, b) => a < b ? a : b);
-    final maxLat = coords.map((p) => p.$1).reduce((a, b) => a > b ? a : b);
-    final minLng = coords.map((p) => p.$2).reduce((a, b) => a < b ? a : b);
-    final maxLng = coords.map((p) => p.$2).reduce((a, b) => a > b ? a : b);
-    final latSpan = (maxLat - minLat).abs();
-    final lngSpan = (maxLng - minLng).abs();
-    final usableW = rect.width;
-    final usableH = rect.height;
-    final projected = coords.map((p) => Offset(
-      rect.left + (p.$2 - minLng) / (lngSpan == 0 ? 1 : lngSpan) * usableW,
-      rect.bottom - (p.$1 - minLat) / (latSpan == 0 ? 1 : latSpan) * usableH,
-    )).toList(growable: false);
-
-    if (projected.length > 1) {
-      final path = Path()..moveTo(projected.first.dx, projected.first.dy);
-      for (final point in projected.skip(1)) {
+    if (positions.isEmpty) return;
+    if (positions.length > 1) {
+      final path = Path()..moveTo(positions.first.dx, positions.first.dy);
+      for (final point in positions.skip(1)) {
         path.lineTo(point.dx, point.dy);
       }
-      canvas.drawPath(path, Paint()..color = lineColor..strokeWidth = 3..style = PaintingStyle.stroke..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+      canvas.drawPath(path, Paint()
+        ..color = Colors.white.withValues(alpha: .92)
+        ..strokeWidth = 8
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round);
+      canvas.drawPath(path, Paint()
+        ..color = routeColor
+        ..strokeWidth = 4
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round);
     }
-    for (var i = 0; i < projected.length; i++) {
-      final color = i == 0 ? startColor : i == projected.length - 1 ? endColor : lineColor;
-      canvas.drawCircle(projected[i], i == 0 || i == projected.length - 1 ? 6 : 3.5, Paint()..color = color);
-      if (i == 0 || i == projected.length - 1) {
-        canvas.drawCircle(projected[i], 9, Paint()..color = color.withValues(alpha: .18));
-      }
+    for (var i = 0; i < positions.length; i++) {
+      final point = positions[i];
+      final color = i == 0 ? startColor : i == positions.length - 1 ? endColor : routeColor;
+      canvas.drawCircle(point, i == 0 || i == positions.length - 1 ? 7 : 4.5, Paint()..color = Colors.white);
+      canvas.drawCircle(point, i == 0 || i == positions.length - 1 ? 5 : 3, Paint()..color = color);
     }
-    final textStyle = TextStyle(color: lineColor, fontSize: 10, fontWeight: FontWeight.w600);
-    _drawLabel(canvas, coords.first.$1.toStringAsFixed(4), Offset(rect.left, rect.bottom + 8), textStyle);
-    _drawLabel(canvas, coords.last.$1.toStringAsFixed(4), Offset(rect.right - 42, rect.top - 16), textStyle);
-  }
-
-  void _drawLabel(Canvas canvas, String text, Offset offset, TextStyle style) {
-    final painter = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr)..layout(maxWidth: 72);
-    painter.paint(canvas, offset);
   }
 
   @override
-  bool shouldRepaint(covariant _GpsTracePainter oldDelegate) =>
-      oldDelegate.points != points ||
-      oldDelegate.lineColor != lineColor ||
+  bool shouldRepaint(covariant _RoadRoutePainter oldDelegate) =>
+      oldDelegate.positions != positions ||
+      oldDelegate.routeColor != routeColor ||
       oldDelegate.startColor != startColor ||
-      oldDelegate.endColor != endColor ||
-      oldDelegate.gridColor != gridColor;
+      oldDelegate.endColor != endColor;
 }

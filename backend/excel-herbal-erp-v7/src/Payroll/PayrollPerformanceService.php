@@ -379,7 +379,54 @@ final class PayrollPerformanceService
              GROUP BY pe.employee_id,e.full_name,e.designation_code,e.reporting_designation_code ORDER BY points DESC",
             ...$args
         ), ARRAY_A);
-        foreach($rows as &$row)$row['reporting_category']=HierarchyScope::reportingCategoryForCode((string)$row['designation_code'],(string)($row['reporting_designation_code']??''));unset($row);return $rows;
+        // A self-service dashboard must still show zero points and zero sales
+        // before the employee's first qualifying transaction.
+        if (!$rows && (!$peerView || $employee === $a->employeeId)) {
+            $employee = $db->get_row($db->prepare(
+                "SELECT id employee_id,full_name,designation_code,reporting_designation_code
+                 FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",
+                $a->employeeId, $a->companyId
+            ), ARRAY_A);
+            if ($employee) {
+                $employee['points'] = 0;
+                $employee['salary_fund'] = 0;
+                $employee['reporting_category'] = HierarchyScope::reportingCategoryForCode(
+                    (string)$employee['designation_code'],
+                    (string)($employee['reporting_designation_code'] ?? '')
+                );
+                $rows[] = $employee;
+            }
+        }
+        [$startUtc,$endUtc] = Input::utcBoundsForBusinessRange($from,$to,'Performance period');
+        $sales = (array) $db->get_results($db->prepare(
+            "SELECT employee_id,SUM(sales_count) sales_count FROM (
+                SELECT s.created_by employee_id,COUNT(*) sales_count
+                FROM ".Db::table('counter_sales')." s
+                WHERE s.company_id=%d AND s.branch_id=%d AND s.status='posted'
+                  AND s.sale_date>=%s AND s.sale_date<%s
+                GROUP BY s.created_by
+                UNION ALL
+                SELECT c.employee_id,COUNT(*) sales_count
+                FROM ".Db::table('daily_cycles')." c
+                WHERE c.company_id=%d AND c.branch_id=%d AND c.status='completed'
+                  AND c.business_date BETWEEN %s AND %s
+                GROUP BY c.employee_id
+            ) employee_sales GROUP BY employee_id",
+            $a->companyId,$branch,$startUtc,$endUtc,
+            $a->companyId,$branch,$from,$to
+        ), ARRAY_A);
+        $salesByEmployee = [];
+        foreach ($sales as $sale) $salesByEmployee[(int)$sale['employee_id']] = (int)$sale['sales_count'];
+        foreach ($rows as &$row) {
+            $row['reporting_category'] = $row['reporting_category'] ??
+                HierarchyScope::reportingCategoryForCode(
+                    (string)$row['designation_code'],
+                    (string)($row['reporting_designation_code'] ?? '')
+                );
+            $row['sales_count'] = $salesByEmployee[(int)$row['employee_id']] ?? 0;
+        }
+        unset($row);
+        return $rows;
     }
 
     private static function canViewPeerPerformance(Actor $a): bool
