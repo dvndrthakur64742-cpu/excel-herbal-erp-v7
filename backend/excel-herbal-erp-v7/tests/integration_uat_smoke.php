@@ -1009,5 +1009,56 @@ uat_case('uat_admin_access_atomic_save_and_rollback', function () use ($wpdb) {
     if($auditBefore!==$auditAfter)throw new RuntimeException('Rejected access change persisted an audit event');
 });
 
+uat_case('uat_finance_reversal_capability_and_branch_scope', function () use ($wpdb) {
+    // These are deliberately synthetic UAT records. No source journal is
+    // touched, and the test exercises denials before any reversal can post.
+    foreach ([
+        [81000,1,'pending'],[81001,2,'pending'],[81002,null,'approved'],
+    ] as [$id,$branch,$status]) {
+        uat_insert($wpdb,'reversals',[
+            'id'=>$id,'company_id'=>1,'branch_id'=>$branch,
+            'source_type'=>'expense','source_id'=>999900+$id,
+            'reason'=>'Synthetic permission scope test',
+            'status'=>$status,'requested_by'=>20,
+            'requested_at'=>'2026-01-01 00:00:00',
+        ]);
+    }
+    $limited=uat_actor(10,[1],[Capabilities::REVERSAL_CREATE],'FE');
+    $visible=uat_dispatch('finance.reversals',$limited);
+    $ids=array_map(static fn($r)=>(int)$r['id'],$visible);
+    if(!in_array(81000,$ids,true)||
+       in_array(81001,$ids,true)||
+       in_array(81002,$ids,true)) {
+        throw new RuntimeException('Branch-limited actor can see another branch/company-wide reversal');
+    }
+    $approver=uat_actor(10,[1],[Capabilities::REVERSAL_APPROVE],'FE');
+    try {
+        uat_dispatch('finance.reversal_decision',$approver,['id'=>81001,'approve'=>true]);
+        throw new RuntimeException('Cross-branch reversal approval accepted');
+    } catch (DomainException $error) {
+        if($error->codeKey!=='branch_forbidden'||$error->httpStatus!==403)throw $error;
+    }
+    try {
+        uat_dispatch('finance.reversal_execute',$approver,['id'=>81002]);
+        throw new RuntimeException('Branch-limited actor executed company-wide reversal');
+    } catch (DomainException $error) {
+        if($error->codeKey!=='all_branch_authority_required'||$error->httpStatus!==403)throw $error;
+    }
+    $withoutApproval=uat_actor(10,[1,2],[],'FE');
+    uat_expect_forbidden(
+        fn()=>uat_dispatch('finance.reversal_execute',$withoutApproval,['id'=>81002]),
+        'Reversal executed without approval capability'
+    );
+    $full=uat_actor(20,[1,2],[Capabilities::REVERSAL_APPROVE],'SYSADMIN');
+    $all=uat_dispatch('finance.reversals',$full);
+    $fullIds=array_map(static fn($row)=>(int)$row['id'],$all);
+    if(!in_array(81001,$fullIds,true)||!in_array(81002,$fullIds,true))
+        throw new RuntimeException('Company-authorized approver cannot list authorized reversals');
+    $state=(string)$wpdb->get_var($wpdb->prepare(
+        'SELECT status FROM '.Db::table('reversals').' WHERE id=%d',81002
+    ));
+    if($state!=='approved')throw new RuntimeException('Denied reversal modified source state');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
