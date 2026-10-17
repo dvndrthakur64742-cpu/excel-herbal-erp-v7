@@ -736,4 +736,7 @@ assert 'ScheduledAttendanceService::deactivate()' in plugin,'scheduled attendanc
 assert 'register_deactivation_hook' in entry,'plugin deactivation hook missing'
 assert "throw new DomainException('Duty is automatic from 10:30 AM to 5:00 PM. Manual check-in is disabled.','attendance_manual_disabled',403)" in workforce
 assert "throw new DomainException('Duty is automatic from 10:30 AM to 5:00 PM. Manual check-out is disabled.','attendance_manual_disabled',403)" in workforce
-print('PASS server-scheduled attendance, leave/holiday exclusion, cron cleanup and manual start/stop denial')
+ensure_attendance=workforce[workforce.index('private static function ensureScheduledAttendance'):workforce.index('public static function checkIn')]
+assert ensure_attendance.count('Db::mustUpdate(') == 2, 'scheduled attendance updates must fail loudly instead of silently ignoring database errors'
+assert '$db->update(' not in ensure_attendance, 'scheduled attendance must not ignore update failures'
+print('PASS server-scheduled attendance, leave/holiday exclusion, cron cleanup, manual start/stop denial and checked DB updates')
