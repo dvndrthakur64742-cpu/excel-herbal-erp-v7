@@ -713,3 +713,27 @@ product_loader=product_api[product_api.index('private static function products('
 assert 'cr.sale_price' in product_loader, 'product/sales workflows must retain pricing data outside dashboard'
 assert "unset($row[$field])" not in product_loader, 'dashboard-only privacy must not strip prices from other employee workflows'
 print('PASS employee dashboard price privacy, own sales/points and scheduled road-map GPS contracts')
+
+# Server-owned recurring attendance scheduler and manual duty API denial.
+scheduler=(root/'src/Workforce/ScheduledAttendanceService.php').read_text()
+workforce=(root/'src/Workforce/WorkforceService.php').read_text()
+plugin=(root/'src/Core/Plugin.php').read_text()
+entry=(root/'excel-herbal-erp-v7.php').read_text()
+for token in [
+ "public const HOOK = 'eh7_scheduled_attendance_tick'",
+ "'interval' => 300",
+ "wp_schedule_event(time() + 60, self::INTERVAL, self::HOOK)",
+ "GpsDutyPolicy::START",
+ "GpsDutyPolicy::STOP",
+ "NOT EXISTS",
+ "l.status='approved'",
+ "h.holiday_date=%s",
+ "ON DUPLICATE KEY UPDATE id=id",
+]:
+ assert token in scheduler,('scheduled attendance contract missing',token)
+assert 'ScheduledAttendanceService::boot()' in plugin,'scheduled attendance cron not registered'
+assert 'ScheduledAttendanceService::deactivate()' in plugin,'scheduled attendance cron cleanup missing'
+assert 'register_deactivation_hook' in entry,'plugin deactivation hook missing'
+assert "throw new DomainException('Duty is automatic from 10:30 AM to 5:00 PM. Manual check-in is disabled.','attendance_manual_disabled',403)" in workforce
+assert "throw new DomainException('Duty is automatic from 10:30 AM to 5:00 PM. Manual check-out is disabled.','attendance_manual_disabled',403)" in workforce
+print('PASS server-scheduled attendance, leave/holiday exclusion, cron cleanup and manual start/stop denial')
