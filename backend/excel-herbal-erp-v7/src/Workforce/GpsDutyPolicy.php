@@ -13,9 +13,8 @@ final class GpsDutyPolicy {
         $date=(string)($attendance['business_date']??$now->format('Y-m-d'));
         $start=new \DateTimeImmutable($date.' '.self::START,$tz);
         $stop=new \DateTimeImmutable($date.' '.self::STOP,$tz);
-        $checkedIn=!empty($attendance['check_in_at']);$checkedOut=!empty($attendance['check_out_at']);
+        $checkedIn=!empty($attendance['check_in_at']);
         if(!$checkedIn)$status='not_checked_in';
-        elseif($checkedOut)$status='checked_out';
         elseif($now<$start)$status='scheduled';
         elseif($now>=$stop)$status='auto_stopped';
         else $status='active';

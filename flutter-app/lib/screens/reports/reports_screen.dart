@@ -1,4 +1,12 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:excel/excel.dart' hide Border;
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
@@ -21,6 +29,8 @@ class ReportsScreen extends ConsumerStatefulWidget {
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   String type = 'sales';
   String reportingCategory = '';
+  DateTime? _fromDate;
+  DateTime? _toDate;
 
   @override
   Widget build(BuildContext context) {
@@ -51,17 +61,25 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       'finance',
       'profit_loss',
       'price_distribution',
+      'account_ledger',
     };
     const asOfReports = {'trial', 'balance_sheet'};
+    final defaultFrom = DateTime.tryParse(app.businessMonthStart) ??
+        DateTime(DateTime.now().year, DateTime.now().month, 1);
+    final defaultTo = DateTime.tryParse(app.businessDate) ?? DateTime.now();
+    final fromDate = _fromDate ?? defaultFrom;
+    final toDate = _toDate ?? defaultTo;
+    final fromValue = _dateKey(fromDate);
+    final toValue = _dateKey(toDate);
     final query = <String, dynamic>{
       if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
-      if (periodReports.contains(activeType)) 'from': app.businessMonthStart,
-      if (periodReports.contains(activeType) || asOfReports.contains(activeType))
-        'to': app.businessDate,
+      if (periodReports.contains(activeType)) 'from': fromValue,
+      if (periodReports.contains(activeType)) 'to': toValue,
+      if (asOfReports.contains(activeType)) 'to': app.businessDate,
       if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };
-    final scopeLabel = activeType == 'stock'
+    final baseScopeLabel = activeType == 'stock'
         ? 'Live stock'
         : activeType == 'stock_reconciliation'
             ? 'Live stock reconciliation'
@@ -70,33 +88,55 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 ? 'Current position'
                 : asOfReports.contains(activeType)
                     ? BusinessFormat.date(app.businessDate)
-                    : '${BusinessFormat.date(app.businessMonthStart)} – ${BusinessFormat.date(app.businessDate)}';
+                    : '${BusinessFormat.date(fromValue)} – ${BusinessFormat.date(toValue)}';
+    final scopeLabel = app.currentBranchId == null
+        ? baseScopeLabel
+        : '$baseScopeLabel · Branch ${app.currentBranchId}';
 
-    final reportView = needsBranch && app.currentBranchId == null
-        ? const _BranchRequired()
-        : AsyncPanel(
-            key: ValueKey(
-              '$activeType-${app.currentBranchId}-${app.businessDate}-$reportingCategory',
-            ),
-            future: api.get(config.path, query: query),
-            emptyMessage: config.emptyMessage,
-            builder: (context, data) {
-              if (activeType == 'price_distribution') {
-                return _PriceDistributionPanel(
-                  data: data,
-                  reportingCategory: reportingCategory,
-                  onReportingCategoryChanged: (value) =>
-                      setState(() => reportingCategory = value),
-                );
-              }
-              return RecordsList(
-                recordType: config.recordType,
-                rows: ((data as List?) ?? const [])
-                    .map((e) => Map<String, dynamic>.from(e as Map))
-                    .toList(),
+    final reportView = activeType == 'account_ledger'
+        ? _AccountLedgerPanel(
+            api: api,
+            query: query,
+            config: config,
+            scope: scopeLabel,
+          )
+        : needsBranch && app.currentBranchId == null
+            ? const _BranchRequired()
+            : AsyncPanel(
+                key: ValueKey(
+                  '$activeType-${app.currentBranchId}-$fromValue-$toValue-$reportingCategory',
+                ),
+                future: api.get(config.path, query: query),
+                emptyMessage: config.emptyMessage,
+                builder: (context, data) {
+                  if (activeType == 'price_distribution') {
+                    return _PriceDistributionPanel(
+                      data: data,
+                      reportingCategory: reportingCategory,
+                      onReportingCategoryChanged: (value) =>
+                          setState(() => reportingCategory = value),
+                    );
+                  }
+                  final rows = ((data as List?) ?? const [])
+                      .map((e) => Map<String, dynamic>.from(e as Map))
+                      .toList();
+                  return Column(
+                    children: [
+                      _ReportExportActions(
+                        title: config.title,
+                        scope: scopeLabel,
+                        rows: rows,
+                      ),
+                      Expanded(
+                        child: RecordsList(
+                          recordType: config.recordType,
+                          rows: rows,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
-            },
-          );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Reports')),
@@ -148,6 +188,71 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                           ),
                         ),
                       ),
+                      if (periodReports.contains(activeType))
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.calendar_month_outlined),
+                                label: Text('From ${BusinessFormat.date(fromValue)}'),
+                                onPressed: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: fromDate,
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                    helpText: 'Report start date',
+                                  );
+                                  if (picked == null || !mounted) return;
+                                  if (picked.isAfter(toDate)) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('From date cannot be after To date.'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  setState(() => _fromDate = picked);
+                                },
+                              ),
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.event_outlined),
+                                label: Text('To ${BusinessFormat.date(toValue)}'),
+                                onPressed: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: toDate,
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                    helpText: 'Report end date',
+                                  );
+                                  if (picked == null || !mounted) return;
+                                  if (picked.isBefore(fromDate)) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('To date cannot be before From date.'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  setState(() => _toDate = picked);
+                                },
+                              ),
+                              TextButton.icon(
+                                onPressed: () => setState(() {
+                                  _fromDate = null;
+                                  _toDate = null;
+                                }),
+                                icon: const Icon(Icons.restart_alt),
+                                label: const Text('Reset'),
+                              ),
+                            ],
+                          ),
+                        ),
                       Expanded(child: reportView),
                     ],
                   );
@@ -216,6 +321,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     if (app.can('finance.accounting.view')) {
       out.addAll(const [
         _ReportOption('trial', 'Trial Balance', Icons.balance_outlined),
+        _ReportOption(
+          'account_ledger',
+          'Account Ledger',
+          Icons.menu_book_outlined,
+        ),
         _ReportOption('profit_loss', 'Profit & Loss', Icons.trending_up),
         _ReportOption(
           'balance_sheet',
@@ -367,6 +477,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             subtitle:
                 'Ledger debit and credit balances as of the business date.',
             emptyMessage: 'No Trial Balance data is available.',
+          ),
+        'account_ledger' => const _ReportConfig(
+            title: 'Account Ledger',
+            path: ApiPaths.accountLedger,
+            recordType: 'account_ledger',
+            subtitle:
+                'Posted journal entries for one account, with optional branch scope.',
+            emptyMessage: 'No journal entries for this account and period.',
           ),
         _ => const _ReportConfig(
             title: 'Sales Summary',
@@ -616,4 +734,288 @@ class _BranchRequired extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _AccountLedgerPanel extends StatefulWidget {
+  const _AccountLedgerPanel({
+    required this.api,
+    required this.query,
+    required this.config,
+    required this.scope,
+  });
+
+  final dynamic api;
+  final Map<String, dynamic> query;
+  final _ReportConfig config;
+  final String scope;
+
+  @override
+  State<_AccountLedgerPanel> createState() => _AccountLedgerPanelState();
+}
+
+class _AccountLedgerPanelState extends State<_AccountLedgerPanel> {
+  int? _accountId;
+
+  @override
+  Widget build(BuildContext context) => AsyncPanel(
+        key: const ValueKey('account-ledger-account-list'),
+        future: widget.api.get(ApiPaths.financeBootstrap),
+        emptyMessage: 'No active ledger accounts are available.',
+        builder: (context, data) {
+          final payload = data is Map
+              ? Map<String, dynamic>.from(data)
+              : <String, dynamic>{};
+          final accounts = ((payload['accounts'] as List?) ?? const [])
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .where((row) => int.tryParse('${row['id']}') != null)
+              .toList(growable: false);
+          if (accounts.isEmpty) {
+            return const Center(child: Text('No active ledger accounts are available.'));
+          }
+
+          final firstId = int.tryParse('${accounts.first['id']}');
+          final selectedId = accounts.any(
+            (row) => int.tryParse('${row['id']}') == _accountId,
+          )
+              ? _accountId
+              : firstId;
+          final selected = accounts.firstWhere(
+            (row) => int.tryParse('${row['id']}') == selectedId,
+            orElse: () => accounts.first,
+          );
+          final ledgerQuery = <String, dynamic>{
+            ...widget.query,
+            if (selectedId != null) 'account_id': selectedId,
+          };
+          final accountLabel =
+              '${selected['code'] ?? ''} — ${selected['name'] ?? 'Account'}';
+          final scope = '${widget.scope} · $accountLabel';
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  initialValue: selectedId,
+                  decoration: const InputDecoration(
+                    labelText: 'Ledger account',
+                    prefixIcon: Icon(Icons.menu_book_outlined),
+                    isDense: true,
+                  ),
+                  items: [
+                    for (final account in accounts)
+                      DropdownMenuItem<int>(
+                        value: int.tryParse('${account['id']}'),
+                        child: Text(
+                          '${account['code'] ?? ''} — ${account['name'] ?? 'Account'}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _accountId = value),
+                ),
+              ),
+              Expanded(
+                child: selectedId == null
+                    ? const Center(child: Text('Select a ledger account.'))
+                    : AsyncPanel(
+                        key: ValueKey(
+                          'account-ledger-$selectedId-${ledgerQuery['from']}-${ledgerQuery['to']}-${ledgerQuery['branch_id']}',
+                        ),
+                        future: widget.api.get(
+                          ApiPaths.accountLedger,
+                          query: ledgerQuery,
+                        ),
+                        emptyMessage: widget.config.emptyMessage,
+                        builder: (context, data) {
+                          final rows = ((data as List?) ?? const [])
+                              .whereType<Map>()
+                              .map((row) => Map<String, dynamic>.from(row))
+                              .toList(growable: false);
+                          return Column(
+                            children: [
+                              _ReportExportActions(
+                                title: widget.config.title,
+                                scope: scope,
+                                rows: rows,
+                              ),
+                              Expanded(
+                                child: RecordsList(
+                                  recordType: widget.config.recordType,
+                                  rows: rows,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      );
+}
+
+String _dateKey(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
+class _ReportExportActions extends StatelessWidget {
+  const _ReportExportActions({
+    required this.title,
+    required this.scope,
+    required this.rows,
+  });
+
+  final String title;
+  final String scope;
+  final List<Map<String, dynamic>> rows;
+
+  List<String> get _columns {
+    final result = <String>[];
+    for (final row in rows) {
+      for (final key in row.keys) {
+        if (!result.contains(key)) result.add(key);
+      }
+    }
+    return result;
+  }
+
+  String _safeFilename(String extension) {
+    final slug = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    return '${slug.isEmpty ? 'report' : slug}.$extension';
+  }
+
+  String _cellText(dynamic value) => value == null ? '' : value is Map || value is List
+      ? jsonEncode(value)
+      : value.toString();
+
+  String _csvCell(dynamic value) {
+    var text = _cellText(value);
+    if (value is String && RegExp(r'^[\u0000-\u0020]*[=+\-@]').hasMatch(text)) {
+      text = "'$text";
+    }
+    return '"${text.replaceAll('"', '""')}"';
+  }
+
+  Future<void> _shareCsv() async {
+    final columns = _columns;
+    final lines = <String>[
+      '"Report",${_csvCell(title)}',
+      '"Scope",${_csvCell(scope)}',
+      '',
+      columns.map(_csvCell).join(','),
+      for (final row in rows) columns.map((key) => _csvCell(row[key])).join(','),
+    ];
+    final bytes = Uint8List.fromList(utf8.encode(lines.join('\r\n')));
+    await Share.shareXFiles(
+      [XFile.fromData(bytes, name: _safeFilename('csv'), mimeType: 'text/csv')],
+      text: '$title report',
+    );
+  }
+
+  Future<void> _shareExcel() async {
+    final workbook = Excel.createExcel();
+    final sheet = workbook['Report'];
+    sheet.appendRow([TextCellValue(title)]);
+    sheet.appendRow([TextCellValue('Scope: $scope')]);
+    sheet.appendRow(_columns.map((key) => TextCellValue(key)).toList());
+    for (final row in rows) {
+      sheet.appendRow(
+        _columns.map((key) => TextCellValue(_cellText(row[key]))).toList(),
+      );
+    }
+    final encoded = workbook.encode();
+    if (encoded == null) return;
+    await Share.shareXFiles([
+      XFile.fromData(
+        Uint8List.fromList(encoded),
+        name: _safeFilename('xlsx'),
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ),
+    ], text: '$title report');
+  }
+
+  Future<void> _printPdf() async {
+    final columns = _columns;
+    final document = pw.Document();
+    document.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape,
+        build: (context) => [
+          pw.Text(title, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 4),
+          pw.Text(scope, style: const pw.TextStyle(fontSize: 9)),
+          pw.SizedBox(height: 12),
+          if (columns.isEmpty)
+            pw.Text('No report rows')
+          else
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.4),
+              children: [
+                pw.TableRow(
+                  repeat: true,
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                  children: [
+                    for (final column in columns)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text(column, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                      ),
+                  ],
+                ),
+                for (final row in rows)
+                  pw.TableRow(
+                    children: [
+                      for (final column in columns)
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(3),
+                          child: pw.Text(_cellText(row[column]), style: const pw.TextStyle(fontSize: 7)),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+    await Printing.layoutPdf(onLayout: (_) async => document.save());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.length > 10000) {
+      return const Padding(
+        padding: EdgeInsets.all(8),
+        child: Text('Export is disabled above 10,000 rows. Narrow the report date range.'),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: [
+          TextButton.icon(
+            onPressed: rows.isEmpty ? null : _shareCsv,
+            icon: const Icon(Icons.table_view_outlined, size: 18),
+            label: const Text('CSV'),
+          ),
+          TextButton.icon(
+            onPressed: rows.isEmpty ? null : _shareExcel,
+            icon: const Icon(Icons.grid_on_outlined, size: 18),
+            label: const Text('Excel'),
+          ),
+          TextButton.icon(
+            onPressed: rows.isEmpty ? null : _printPdf,
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: const Text('PDF / Print'),
+          ),
+          Text('${rows.length} rows', style: Theme.of(context).textTheme.labelSmall),
+        ],
+      ),
+    );
+  }
 }

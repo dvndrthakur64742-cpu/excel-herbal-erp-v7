@@ -1,0 +1,70 @@
+name: EH7 Office Development Preflight
+run-name: "OFFICE DEV | Source + Package | PR #${{ github.event.pull_request.number }}"
+on:
+  pull_request:
+    branches: [codex/erp735-document-integration]
+    paths:
+      - '.github/scripts/office-dev-target-preflight.ps1'
+      - '.github/workflows/eh7-office-dev-preflight.yml'
+      - 'backend/excel-herbal-erp-v7/**'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-office-dev-without-mutation:
+    if: github.head_ref == 'codex/erp-step1-integrated-uat-20261017'
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact integrated source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify current Office dev target read-only
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        run: |
+          & '.github/scripts/office-dev-target-preflight.ps1' -CandidateHead '${{ github.event.pull_request.head.sha }}'
+      - name: Package tested backend for in-place Office dev deployment
+        if: always()
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        run: |
+          $ErrorActionPreference='Stop'
+          $head='${{ github.event.pull_request.head.sha }}'
+          $root=Join-Path $env:RUNNER_TEMP ('eh7-office-dev-'+[Guid]::NewGuid().ToString('N'))
+          $out='dist/office-dev-preflight'
+          $plugin=Join-Path $root 'excel-herbal-erp-v7'
+          New-Item -ItemType Directory -Force -Path $plugin|Out-Null
+          Copy-Item -Path 'backend/excel-herbal-erp-v7/*' -Destination $plugin -Recurse -Force
+          @(
+            '<?php'
+            "if(!defined('ABSPATH'))exit;"
+            "define('EH7_SOURCE_HEAD','$head');"
+            "define('EH7_DEPLOY_ENVIRONMENT','staging');"
+            "define('EH7_BUILD_UAT_ALLOW_OFFICE',true);"
+            "define('EH7_BUILD_UAT_HOST','office.excelherbal.in');"
+          )|Set-Content -LiteralPath (Join-Path $plugin 'build-meta.php') -Encoding Ascii
+          $entry=Join-Path $plugin 'excel-herbal-erp-v7.php'
+          if(-not(Test-Path -LiteralPath $entry)){throw 'Backend plugin entrypoint missing.'}
+          $zip=Join-Path $out 'Excel-Herbal-ERP-Office-Dev-Backend.zip'
+          Compress-Archive -LiteralPath $plugin -DestinationPath $zip -CompressionLevel Optimal
+          if(-not(Test-Path -LiteralPath $zip)){throw 'Development backend package missing.'}
+          $hash=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "candidate_head=$head"
+            "zip_sha256=$hash"
+            'environment=office-development-only'
+            'safe_in_place_deployment=false'
+            'production_approved=false'
+            'current_host_database_backup_verified=false'
+            'no_host_mutation=true'
+          ) | Set-Content -LiteralPath (Join-Path $out 'BACKEND-PACKAGE-MANIFEST.txt') -Encoding Ascii
+          Remove-Item -LiteralPath $root -Recurse -Force
+          Write-Host ('PASS office_dev_backend_package_sha256='+$hash)
+      - name: Upload read-only verification and exact-head backend package
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-Office-Development-Preflight-Backend-Package
+          path: dist/office-dev-preflight/
+          if-no-files-found: warn

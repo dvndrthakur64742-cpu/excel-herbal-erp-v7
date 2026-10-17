@@ -35,7 +35,8 @@ void main() {
     expect(find.text('2'), findsWidgets);
     expect(find.text('Estimated GPS distance'), findsOneWidget);
     expect(find.text('Route timeline'), findsOneWidget);
-    expect(find.text('Recorded GPS trace · not a road map'), findsOneWidget);
+    expect(find.text('Road map · recorded GPS route'), findsOneWidget);
+    expect(find.textContaining('© OpenStreetMap contributors'), findsOneWidget);
   });
 
   testWidgets('empty route explains that no GPS points were recorded', (tester) async {

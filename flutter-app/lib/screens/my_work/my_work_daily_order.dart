@@ -1002,12 +1002,12 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
-    final stockByLine = <int, Map<String, dynamic>>{
+    var stockByLine = <int, Map<String, dynamic>>{
       for (final row in stockRows)
         if (int.tryParse('${row['request_line_id']}') != null)
           int.parse('${row['request_line_id']}'): row,
     };
-    final allAvailable = preflight['all_available'] == true;
+    var allAvailable = DailyOrderWorkflow.stockIssueReady(preflight, lines);
 
     final allocations = <Map<String, dynamic>>[
       for (final line in lines)
@@ -1019,6 +1019,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
 
     String? issueError;
     var issuing = false;
+    var refreshingStock = false;
     final receipt = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isDismissible: false,
@@ -1027,7 +1028,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) => PopScope(
-          canPop: !issuing,
+          canPop: !issuing && !refreshingStock,
           child: FractionallySizedBox(
           heightFactor: .92,
           child: Column(
@@ -1067,10 +1068,69 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Close',
-                      onPressed: issuing
+                      tooltip: 'Refresh warehouse stock',
+                      onPressed: issuing || refreshingStock
                           ? null
-                          : () => Navigator.pop(sheetContext, false),
+                          : () async {
+                              setSheetState(() {
+                                refreshingStock = true;
+                                issueError = null;
+                              });
+                              try {
+                                final latest = Map<String, dynamic>.from(
+                                  await api.get(
+                                    ApiPaths.dailyIssuePreflight(requestId),
+                                  ) as Map,
+                                );
+                                if (!sheetContext.mounted) return;
+                                final rows = ((latest['lines'] as List?) ??
+                                        const [])
+                                    .whereType<Map>()
+                                    .map((row) =>
+                                        Map<String, dynamic>.from(row))
+                                    .toList();
+                                setSheetState(() {
+                                  stockByLine = <int, Map<String, dynamic>>{
+                                    for (final row in rows)
+                                      if (int.tryParse(
+                                            '${row['request_line_id']}',
+                                          ) !=
+                                          null)
+                                        int.parse(
+                                          '${row['request_line_id']}',
+                                        ): row,
+                                  };
+                                  allAvailable =
+                                      DailyOrderWorkflow.stockIssueReady(
+                                    latest,
+                                    lines,
+                                  );
+                                  refreshingStock = false;
+                                });
+                              } catch (e) {
+                                if (sheetContext.mounted) {
+                                  setSheetState(() {
+                                    refreshingStock = false;
+                                    allAvailable = false;
+                                    issueError =
+                                        'Stock refresh failed: ${UiError.message(e)}';
+                                  });
+                                }
+                              }
+                            },
+                      icon: refreshingStock
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.refresh_rounded),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: issuing || refreshingStock
+                          ? null
+                          : () => Navigator.pop(sheetContext),
                       icon: const Icon(Icons.close_rounded),
                     ),
                   ],
@@ -1146,7 +1206,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Required ${BusinessFormat.quantity(required)} PCS · Available ${BusinessFormat.quantity(available)} PCS',
+                                  'Required ${BusinessFormat.quantity(required)} PCS · Warehouse available ${BusinessFormat.quantity(available)} PCS',
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                         color: issueable
                                             ? Theme.of(context)
@@ -1213,9 +1273,9 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: issuing
+                          onPressed: issuing || refreshingStock
                               ? null
-                              : () => Navigator.pop(sheetContext, false),
+                              : () => Navigator.pop(sheetContext),
                           child: const Text('Cancel'),
                         ),
                       ),
@@ -1223,15 +1283,57 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                       Expanded(
                         flex: 2,
                         child: FilledButton.icon(
-                          onPressed: issuing || !allAvailable
+                          onPressed: issuing || refreshingStock || !allAvailable
                               ? null
                               : () async {
-                                  if (issuing) return;
+                                  if (issuing || refreshingStock) return;
                                   setSheetState(() {
                                     issuing = true;
                                     issueError = null;
                                   });
                                   try {
+                                    // The dialog can remain open while another
+                                    // actor changes warehouse stock. Recheck
+                                    // before posting; the server still owns
+                                    // transactional stock and permission guards.
+                                    final latest = Map<String, dynamic>.from(
+                                      await api.get(
+                                        ApiPaths.dailyIssuePreflight(requestId),
+                                      ) as Map,
+                                    );
+                                    if (!sheetContext.mounted) return;
+                                    final ready =
+                                        DailyOrderWorkflow.stockIssueReady(
+                                      latest,
+                                      lines,
+                                    );
+                                    final rows = ((latest['lines'] as List?) ??
+                                            const [])
+                                        .whereType<Map>()
+                                        .map((row) =>
+                                            Map<String, dynamic>.from(row))
+                                        .toList();
+                                    setSheetState(() {
+                                      stockByLine = <int, Map<String, dynamic>>{
+                                        for (final row in rows)
+                                          if (int.tryParse(
+                                                '${row['request_line_id']}',
+                                              ) !=
+                                              null)
+                                            int.parse(
+                                              '${row['request_line_id']}',
+                                            ): row,
+                                      };
+                                      allAvailable = ready;
+                                    });
+                                    if (!ready) {
+                                      setSheetState(() {
+                                        issuing = false;
+                                        issueError =
+                                            'Warehouse availability changed. Recheck shortage before issuing.';
+                                      });
+                                      return;
+                                    }
                                     final result =
                                         Map<String, dynamic>.from(
                                       await api.post(

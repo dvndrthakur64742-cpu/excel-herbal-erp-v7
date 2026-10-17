@@ -8,6 +8,7 @@ use ExcelHerbal\ERP7\Administration\LegacySetupAssistantGuard;
 use ExcelHerbal\ERP7\Administration\ControlCenterAdmin;
 use ExcelHerbal\ERP7\Administration\UatCleanupAdmin;
 use ExcelHerbal\ERP7\Administration\UatWebDeployAdmin;
+use ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService;
 final class Plugin{
     public static function activate():void{Schema::maybeUpgrade();}
     public static function boot():void{
@@ -20,9 +21,11 @@ final class Plugin{
         ControlCenterAdmin::boot();
         UatCleanupAdmin::boot();
         UatWebDeployAdmin::boot();
+        if ($schemaOk) ScheduledAttendanceService::boot();
         add_action('rest_api_init',[Api::class,'register']);
         if(!$schemaOk&&is_admin())add_action('admin_notices',[self::class,'schemaNotice']);
     }
+    public static function deactivate():void{ScheduledAttendanceService::deactivate();}
     public static function schemaNotice():void{
         if(!current_user_can('manage_options'))return;
         $msg=(string)get_option('eh7_schema_migration_error','Unknown database migration error.');

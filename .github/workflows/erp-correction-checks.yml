@@ -1,4 +1,5 @@
 name: ERP correction verification
+run-name: "ERP TESTS | PR #${{ github.event.pull_request.number || 'n/a' }} | CI #${{ github.run_number }}"
 on:
   push:
     branches: [codex/erp735-document-integration]

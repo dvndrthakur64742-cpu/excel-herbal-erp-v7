@@ -3,10 +3,13 @@ name: EH7 v7.4.0 Staging Backend Package
 on:
   workflow_dispatch:
   push:
-    branches: [codex/erp735-document-integration]
+    branches: [codex/erp735-document-integration, codex/reports-date-export-workflow]
     paths:
       - '.github/workflows/eh7-v740-staging-backend-package.yml'
+      - '.github/workflows/eh7-v740-isolated-backup-restore.yml'
       - '.github/scripts/verify-release-gates.ps1'
+      - '.github/scripts/isolated-backup-restore-uat.sh'
+      - '.github/scripts/isolated-backup-restore-uat.ps1'
       - 'release-gates/v7.4.0.json'
       - 'backend/excel-herbal-erp-v7/**'
 
@@ -19,7 +22,7 @@ defaults:
 
 jobs:
   staging-backend-package:
-    if: github.ref == 'refs/heads/codex/erp735-document-integration'
+    if: github.ref == 'refs/heads/codex/erp735-document-integration' || github.ref == 'refs/heads/codex/reports-date-export-workflow'
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     steps:
