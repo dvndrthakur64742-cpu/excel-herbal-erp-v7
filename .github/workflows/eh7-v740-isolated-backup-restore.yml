@@ -11,7 +11,7 @@ permissions:
 jobs:
   isolated-backup-restore:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-backup-restore-uat]')
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: windows-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -20,7 +20,7 @@ jobs:
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
         run: |
           $ErrorActionPreference = 'Stop'
-          $toolRoot = 'C:\actions-runner\eh7-toolcache'
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'eh7-toolcache'
           if (-not (Test-Path -LiteralPath $toolRoot -PathType Container)) {
             New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
           }
