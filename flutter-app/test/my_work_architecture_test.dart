@@ -48,7 +48,12 @@ void main() {
 
     expect(attendance, contains('extension _MyWorkAttendance'));
     expect(attendance, contains('Widget _attendance()'));
-    expect(attendance, contains('Future<void> _attendanceAction('));
+    expect(attendance, isNot(contains('Future<void> _attendanceAction(')));
+    expect(
+      attendance,
+      contains('Duty automatically starts at 10:30 AM; no manual check-in is required.'),
+    );
+    expect(attendance, contains('Duty is automatic · 10:30 AM–5:00 PM'));
 
     expect(leaveVisit, contains('extension _MyWorkLeaveVisit'));
     expect(leaveVisit, contains('Widget _leaveVisit()'));
