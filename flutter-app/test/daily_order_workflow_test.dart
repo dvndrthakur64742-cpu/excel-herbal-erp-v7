@@ -2,6 +2,69 @@ import 'package:excel_herbal_erp/core/daily_order_workflow.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('stock issue preflight requires every requested line', () {
+    final lines = <Map<String, dynamic>>[
+      {'id': 11, 'quantity': 3},
+      {'id': 12, 'quantity': 2},
+    ];
+    final available = <String, dynamic>{
+      'all_available': true,
+      'lines': [
+        {'request_line_id': 11, 'issueable': true},
+        {'request_line_id': 12, 'issueable': true},
+      ],
+    };
+    expect(DailyOrderWorkflow.stockIssueReady(available, lines), isTrue);
+    expect(
+      DailyOrderWorkflow.stockIssueReady({
+        'all_available': true,
+        'lines': [
+          {'request_line_id': 11, 'issueable': true},
+        ],
+      }, lines),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.stockIssueReady({
+        ...available,
+        'all_available': false,
+      }, lines),
+      isFalse,
+    );
+  });
+
+  test('stock issue preflight rejects shortage and duplicate line IDs', () {
+    final lines = <Map<String, dynamic>>[
+      {'id': 11, 'quantity': 3},
+    ];
+    expect(
+      DailyOrderWorkflow.stockIssueReady({
+        'all_available': true,
+        'lines': [
+          {'request_line_id': 11, 'issueable': false},
+        ],
+      }, lines),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.stockIssueReady({
+        'all_available': true,
+        'lines': [
+          {'request_line_id': 11, 'issueable': true},
+          {'request_line_id': 11, 'issueable': true},
+        ],
+      }, lines),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.stockIssueReady({
+        'all_available': true,
+        'lines': [],
+      }, <Map<String, dynamic>>[]),
+      isFalse,
+    );
+  });
+
   test('cycle statuses use one clear shared display label', () {
     expect(DailyOrderWorkflow.statusLabel('issued'), 'Issued · Evening Pending');
     expect(DailyOrderWorkflow.statusLabel('stock_requested'), 'Approval Pending');
