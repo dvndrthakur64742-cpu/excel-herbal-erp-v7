@@ -1,0 +1,49 @@
+name: EH7 Step1 Combined Isolated Restore
+
+on:
+  pull_request:
+    branches: [codex/erp735-document-integration]
+    paths:
+      - 'backend/excel-herbal-erp-v7/**'
+      - '.github/scripts/isolated-backup-restore-uat.ps1'
+      - '.github/scripts/isolated-backup-restore-uat.sh'
+      - '.github/workflows/eh7-step1-combined-isolated-uat.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  combined-isolated-restore:
+    # This job runs only on the integrated Step 1 candidate; it never touches
+    # Office WordPress, hosted MariaDB, Railway or production deployment.
+    if: github.event_name == 'pull_request' && github.head_ref == 'codex/erp-step1-integrated-uat-20261017'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact combined candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Assert exact pull request head checkout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $actual = (git rev-parse HEAD).Trim()
+          $expected = '${{ github.event.pull_request.head.sha }}'
+          if ($actual -ne $expected) {
+            throw "Checkout not exact PR head: actual=$actual expected=$expected"
+          }
+          Write-Host "PASS isolated_restore_exact_head=$actual"
+      - name: Isolated WordPress and MariaDB restore with document continuity
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        run: |
+          & '.github/scripts/isolated-backup-restore-uat.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload isolated restore evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EH7-Step1-Combined-Isolated-Restore-Evidence
+          path: |
+            dist/isolated-backup-restore/EVIDENCE.json
+            dist/isolated-backup-restore/bootstrap.json
+            dist/isolated-backup-restore/FAILURE.json
+          if-no-files-found: warn
