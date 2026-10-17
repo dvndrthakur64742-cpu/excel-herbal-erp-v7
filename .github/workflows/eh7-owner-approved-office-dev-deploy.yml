@@ -1,0 +1,153 @@
+name: EH7 Owner-Approved Office Development Deployment
+run-name: "OFFICE DEV DEPLOY | Approved UAT | Run #${{ github.run_number }}"
+
+on:
+  push:
+    branches: [codex/office-dev-approved-deploy-20261017]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eh7-office-dev-only-deployment
+  cancel-in-progress: false
+
+jobs:
+  controlled-office-dev-deploy:
+    if: contains(github.event.head_commit.message, '[owner-approved-office-dev-deploy]')
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 100
+    defaults:
+      run:
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+    env:
+      OFFICE_DEV_SITE: https://office.excelherbal.in
+      VERIFIED_APPLICATION_BASELINE: e2fdbf6cbddbfe3936f93c8df6eb55aae07ce56b
+      PREVIOUS_INSTALLED_BACKEND: d599c8d78127b566204e2a1b37f5e2790614d0a4
+    steps:
+      - name: Checkout approved candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Validate development-only owner authorization and code baseline
+        run: |
+          $ErrorActionPreference='Stop'
+          $head=(& git rev-parse HEAD).Trim()
+          if($head -ne $env:GITHUB_SHA){throw 'Approval checkout does not match exact GitHub commit.'}
+          if($env:GITHUB_REF -ne 'refs/heads/codex/office-dev-approved-deploy-20261017'){
+            throw 'Ref is not the single-use Office development release branch.'
+          }
+          & git merge-base --is-ancestor $env:VERIFIED_APPLICATION_BASELINE HEAD
+          if($LASTEXITCODE -ne 0){throw 'Previously certified source is not an ancestor.'}
+          & git diff --quiet $env:VERIFIED_APPLICATION_BASELINE HEAD -- flutter-app backend/excel-herbal-erp-v7
+          if($LASTEXITCODE -ne 0){
+            throw 'Application source differs from previously certified Flutter/PHP baseline; a new full certification is required.'
+          }
+          $policy=Get-Content 'release-gates/v7.4.0.json' -Raw | ConvertFrom-Json
+          if($policy.production_approved -eq $true){
+            throw 'Only the development release path may be used here, never a production-approved release.'
+          }
+          Write-Host ('PASS owner_approved_office_dev_code_baseline='+$env:VERIFIED_APPLICATION_BASELINE)
+          Write-Host 'INFO host_backup_confirmed_by_owner=true; independent_host_snapshot_reattestation=false'
+          Write-Host 'PASS production_release_not_attempted=true'
+
+      - name: Verify exact currently installed Office development target without mutation
+        run: |
+          $ErrorActionPreference='Stop'
+          $api=$env:OFFICE_DEV_SITE.TrimEnd('/')+'/wp-json/excel-herbal-erp/v7/health'
+          $raw=& curl.exe --fail --location --silent --show-error --connect-timeout 10 --max-time 25 $api
+          if($LASTEXITCODE -ne 0){throw 'Office development target not reachable from deployment runner; no deployment attempted.'}
+          $health=($raw -join [Environment]::NewLine)|ConvertFrom-Json
+          if($health.ok -ne $true -or [string]$health.data.environment -ne 'staging'){
+            throw 'Office target does not report an initialized staging development environment.'
+          }
+          if([string]$health.data.source_head -cne $env:PREVIOUS_INSTALLED_BACKEND){
+            throw ('Installed Office backend changed since approval; refusing unexpected replacement. actual='+[string]$health.data.source_head)
+          }
+          if([string]$health.data.host_hardening.status -ne 'passed'){
+            throw 'Office development host hardening is not passed.'
+          }
+          if($health.data.web_runtime.present -ne $true -or $health.data.schema_installed -ne $true){
+            throw 'Office Development backend schema/web runtime is unavailable.'
+          }
+          Write-Host ('PASS office_dev_target_original_head='+$health.data.source_head)
+          Write-Host 'PASS office_dev_traffic_and_user_data_preserved=true'
+
+      - name: Locate exact Flutter 3.44.9 SDK
+        run: |
+          $ErrorActionPreference='Stop'
+          if(-not ${env:ProgramFiles(x86)}){
+            $pf86='C:\Program Files (x86)'
+            if(-not(Test-Path -LiteralPath $pf86 -PathType Container)){throw 'Windows Program Files x86 missing.'}
+            "ProgramFiles(x86)=$pf86"|Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            ${env:ProgramFiles(x86)}=$pf86
+          }
+          $flutter='C:\actions-runner\eh7-toolcache\flutter-3.44.9\flutter\bin\flutter.bat'
+          if(-not(Test-Path -LiteralPath $flutter -PathType Leaf)){
+            $found=Get-Command flutter.bat -ErrorAction SilentlyContinue
+            if(-not $found){throw 'Pinned Flutter 3.44.9 not present; stop without deployment.'}
+            $flutter=$found.Source
+          }
+          $version=(& $flutter --version --machine | ConvertFrom-Json).frameworkVersion
+          if($LASTEXITCODE -ne 0 -or $version -ne '3.44.9'){
+            throw ('Pinned Flutter 3.44.9 required; got '+$version)
+          }
+          "EH7_FLUTTER_EXE=$flutter"|Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Test and compile exact development ERP frontend
+        working-directory: flutter-app
+        run: |
+          $ErrorActionPreference='Stop'
+          & $env:EH7_FLUTTER_EXE pub get
+          if($LASTEXITCODE -ne 0){throw 'Flutter dependencies failed.'}
+          & git diff --quiet -- pubspec.lock
+          if($LASTEXITCODE -ne 0){throw 'Pinned pubspec.lock was modified.'}
+          & $env:EH7_FLUTTER_EXE analyze
+          if($LASTEXITCODE -ne 0){throw 'Flutter analysis failed.'}
+          & $env:EH7_FLUTTER_EXE test
+          if($LASTEXITCODE -ne 0){throw 'Flutter tests failed.'}
+          & $env:EH7_FLUTTER_EXE build web --release --no-pub --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=production
+          if($LASTEXITCODE -ne 0){throw 'Flutter web compile failed.'}
+          $root=(Resolve-Path 'build/web').Path
+          foreach($name in @('index.html','main.dart.js','flutter_bootstrap.js')){
+            if(-not(Test-Path -LiteralPath (Join-Path $root $name) -PathType Leaf)){throw ('Required Flutter web output missing: '+$name)}
+          }
+          $lines=Get-ChildItem -LiteralPath $root -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $relative=$_.FullName.Substring($root.Length+1).Replace('\','/')
+            $hash=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $relative"
+          }
+          $lines|Set-Content -LiteralPath 'build/web/SHA256SUMS.txt' -Encoding ascii
+          Write-Host ('PASS exact_dev_web_compiled_head='+$env:GITHUB_SHA)
+
+      - name: Verify and stage immutable SHA-256 development web candidate
+        run: |
+          $ErrorActionPreference='Stop'
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:GITHUB_WORKSPACE 'flutter-app\build\web') -CandidateSlot 'deploy-uat-current-erp'
+          if($LASTEXITCODE -ne 0){throw 'Exact-head web artifact staging failed.'}
+
+      - name: Replace Office development plugin and certified web, with existing rollback path
+        run: |
+          $ErrorActionPreference='Stop'
+          Write-Host 'INFO authorized_target=office.excelherbal.in; environment=development; existing_sessions_preserved=true; no_cleanup=true'
+          Write-Host 'INFO owner_confirmed_backup_exists=true; backup_location_not_independently_verified=true'
+          & '.github/scripts/deploy-uat-current-erp-workflow.ps1' -SourceHead $env:GITHUB_SHA -UatSiteUrl $env:OFFICE_DEV_SITE
+          if($LASTEXITCODE -ne 0){throw 'Controlled Office Development deployment failed; investigate state before retry.'}
+
+      - name: Verify backend and web exact-head and hashes from real Office site
+        run: |
+          $ErrorActionPreference='Stop'
+          $raw=& curl.exe --fail --silent --show-error --location --connect-timeout 10 --max-time 25 ($env:OFFICE_DEV_SITE+'/wp-json/excel-herbal-erp/v7/health')
+          if($LASTEXITCODE -ne 0){throw 'Deployed Office health endpoint unreachable.'}
+          $health=($raw -join [Environment]::NewLine)|ConvertFrom-Json
+          if($health.ok -ne $true -or [string]$health.data.environment -ne 'staging'){
+            throw 'Deployed Office target does not report valid staging environment.'
+          }
+          if([string]$health.data.source_head -ne $env:GITHUB_SHA -or
+             [string]$health.data.web_runtime.source_head -ne $env:GITHUB_SHA){
+            throw 'Deployed backend or web runtime is not the exact development commit.'
+          }
+          if(-not $health.data.schema_installed){throw 'Installed schema is unavailable after deployment.'}
+          Write-Host ('PASS actual_office_dev_backend_and_web_deployed_head='+$env:GITHUB_SHA)
+          Write-Host ('PASS actual_office_dev_web_main_sha256='+$health.data.web_runtime.main_sha256)
