@@ -1,7 +1,7 @@
 <?php
-namespace ExcelHerbal\\ERP7\\Workforce;
+namespace ExcelHerbal\ERP7\Workforce;
 
-use ExcelHerbal\\ERP7\\Database\\Db;
+use ExcelHerbal\ERP7\Database\Db;
 
 /**
  * Best-effort WordPress-Cron materialization of the server-owned duty window.
@@ -49,8 +49,7 @@ final class ScheduledAttendanceService {
         $leave = Db::table('leave_requests');
         $holidays = Db::table('holidays');
 
-        // Do not create a present attendance record for employees on approved
-        // leave or on a branch/global holiday.
+        // Approved leave and branch/global holidays are excluded.
         $rows = $db->get_results($db->prepare(
             "SELECT e.company_id,e.id employee_id,e.assigned_branch_id branch_id
              FROM {$employees} e
