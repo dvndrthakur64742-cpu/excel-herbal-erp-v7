@@ -1,4 +1,5 @@
 name: EH7 Step1 Combined Isolated Restore
+run-name: "BACKUP & RESTORE UAT | PR #${{ github.event.pull_request.number || 'n/a' }} | Check #${{ github.run_number }}"
 
 on:
   pull_request:
