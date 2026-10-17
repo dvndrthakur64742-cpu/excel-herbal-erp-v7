@@ -3,6 +3,7 @@ FROM wordpress:php8.3-apache
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends mariadb-client; \
+    if ! command -v mysqlcheck >/dev/null 2>&1; then ln -s "$(command -v mariadb-check)" /usr/local/bin/mysqlcheck; fi; \
     command -v mysqlcheck; \
     rm -rf /var/lib/apt/lists/*
 
