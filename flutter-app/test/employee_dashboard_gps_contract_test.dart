@@ -63,6 +63,18 @@ void main() {
     final screen = File('lib/screens/my_work/my_work_attendance.dart').readAsStringSync();
 
     expect(backend, contains('private static function ensureScheduledAttendance'));
+    final scheduler = File(
+      '../backend/excel-herbal-erp-v7/src/Workforce/ScheduledAttendanceService.php',
+    ).readAsStringSync();
+    final plugin = File(
+      '../backend/excel-herbal-erp-v7/src/Core/Plugin.php',
+    ).readAsStringSync();
+    expect(scheduler, contains("public const HOOK = 'eh7_scheduled_attendance_tick'")); 
+    expect(scheduler, contains("'interval' => 300"));
+    expect(scheduler, contains("$leave"));
+    expect(scheduler, contains("'check_out_at' => $stopUtc"));
+    expect(plugin, contains('ScheduledAttendanceService::boot()'));
+
     expect(backend, contains("'attendance_manual_disabled',403"));
     expect(backend, contains("current_time('H:i:s')"));
     expect(backend, contains('get_gmt_from_date'));
