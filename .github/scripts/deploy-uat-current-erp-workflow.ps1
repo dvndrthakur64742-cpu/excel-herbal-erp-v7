@@ -925,54 +925,28 @@ function Deploy-WebRuntime {
   }
   Write-Host 'PASS web_deploy_confirmation_checked=true'
 
-  # Submit the same authenticated WordPress form with a same-origin multipart
-  # fetch. A same-origin browser request preserves the admin cookies, WordPress
-  # nonce, selected ZIP and real admin-post.php handler, but avoids UIA/keyboard
-  # submission failures that leave the file input attached without a POST.
-  $expectedZipName = [IO.Path]::GetFileName($webZip)
-  $submitScript = "script:(()=>{const b=document.querySelector('#eh7_submit');if(!b){document.title='EH7POST-NOBUTTON';return;}const f=b.closest('form');if(!f){document.title='EH7POST-NOFORM';return;}const z=f.querySelector('input[type=file][name=web_bundle]');const h=f.querySelector('[name=source_head]');const a=f.querySelector('[name=action]');const n=f.querySelector('[name=_wpnonce]');const r=f.querySelector('[name=reason]');const c=f.querySelector('[name=confirm]');if(!z||!z.files||z.files.length!==1){document.title='EH7POST-NOFILE';return;}if(z.files[0].name!=='$expectedZipName'){document.title='EH7POST-WRONGFILE';return;}if(!h||h.value!=='$SourceHead'||!r||r.value.trim().length<10||!c||!c.checked||!n||!n.value||!a||a.value!=='eh7_uat_web_deploy'){document.title='EH7POST-FIELDS-INVALID';return;}if(!f.action||!f.action.includes('/wp-admin/admin-post.php')){document.title='EH7POST-ACTION-INVALID';return;}const fd=new FormData(f,b);document.title='EH7POST-SENDING';fetch(f.action,{method:'POST',body:fd,credentials:'same-origin',redirect:'follow',cache:'no-store'}).then(async q=>{const html=await q.text();const d=new DOMParser().parseFromString(html,'text/html');const e=d.querySelector('.wrap .notice p')||d.querySelector('.notice p');const m=(e?e.textContent:'NO-RESULT-NOTICE').replace(/\s+/g,' ').trim().slice(0,140);document.title='EH7POST-'+q.status+'-'+(q.redirected?'REDIRECTED':'NOREDIRECT')+'-'+m;}).catch(e=>{document.title='EH7POST-ERROR-'+e.name+'-'+String(e.message).slice(0,100);});})()"
-  Activate-OwnedChromeWindow $chrome
-  [System.Windows.Forms.SendKeys]::SendWait('^l')
-  Start-Sleep -Milliseconds 150
-  # Chrome strips a pasted javascript: prefix, so type "java" and paste the
-  # remainder of the script URL.
-  [System.Windows.Forms.SendKeys]::SendWait('java')
-  [System.Windows.Forms.Clipboard]::SetText($submitScript)
-  [System.Windows.Forms.SendKeys]::SendWait('^v')
-  Start-Sleep -Milliseconds 150
-  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-  Write-Host 'INFO web_deploy_submit_method=same_origin_multipart_fetch'
-  $postSubmitTitle = ''
-    # A prior verified web upload took ~38 seconds from requestSubmit to the
-  # WordPress success result. Keep one POST in flight and wait for up to
-  # 120 seconds instead of falsely failing while the server extracts the ZIP.
-  for ($wait = 1; $wait -le 120; $wait++) {
-    Start-Sleep -Seconds 1
-    $postSubmitRoot = Root $chrome
-    $postSubmitTitle = [string]$postSubmitRoot.Current.Name
-    if ($postSubmitTitle -match 'EH7POST-(200|201|302|400|401|403|413|500|502|504|ERROR|NOBUTTON|NOFORM|NOFILE|WRONGFILE|FIELDS-INVALID|ACTION-INVALID)') { break }
+  # Invoke the existing, authenticated WordPress admin form through its
+  # real submit button. Chrome blocks some pasted javascript: URL scripts,
+  # which can falsely leave the form unchanged even after a valid ZIP was
+  # selected. Never retry an uncertain POST until the runtime is checked.
+  $beforeSubmit = Get-WebRuntimeHealth
+  if ($beforeSubmit -and [string]$beforeSubmit.source_head -eq $SourceHead -and
+      [string]$beforeSubmit.main_sha256 -eq $expectedMainHash -and
+      [string]$beforeSubmit.manifest_sha256 -eq $expectedManifestHash) {
+    Write-Host 'PASS certified_web_runtime_already_deployed=true'
+    return
   }
-  $postSubmitRoot = Root $chrome
-  $postSubmitTitle = [string]$postSubmitRoot.Current.Name
-  $postSubmitAddress = Normalize-WebAddress (Get-ChromeWindowAddress $postSubmitRoot)
-  Write-Host ('INFO web_deploy_post_submit_title=' + $postSubmitTitle)
-  Write-Host ('INFO web_deploy_post_submit_url=' + $postSubmitAddress)
-  try { Write-UiHints $postSubmitRoot 'web_deploy_after_multipart_fetch' } catch {}
-  if ($postSubmitTitle -match 'EH7POST-(NOBUTTON|NOFORM|NOFILE|WRONGFILE|FIELDS-INVALID|ACTION-INVALID|ERROR)') {
-    throw ('WordPress multipart fetch preflight/request failed: ' + $postSubmitTitle)
-  }
-  if ($postSubmitTitle -notmatch '^.*EH7POST-(200|201|302)-REDIRECTED-') {
-    throw ('WordPress multipart POST did not return an expected followed redirect. Browser title: ' + $postSubmitTitle)
-  }
-  if ($postSubmitTitle -match '(?i)NO-RESULT-NOTICE|did not complete|invalid|unsafe|could not|failed|error|unavailable|not match|does not match') {
-    throw ('WordPress web deployment handler returned an error/no-result notice: ' + $postSubmitTitle)
-  }
-  if ($postSubmitTitle -notmatch '(?i)Certified UAT web bundle deployed') {
-    throw ('WordPress web deployment response did not contain the success notice. Browser title: ' + $postSubmitTitle)
-  }
-  Write-Host 'PASS web_deploy_form_post_observed=true'
-  Write-Host 'PASS web_deploy_result_notice=Certified UAT web bundle deployed'
 
+  $submit = Find-ControlByIdOrNameLike (Root $chrome) 'eh7_submit' @('Deploy Certified Web Bundle') ([System.Windows.Automation.InvokePattern]::Pattern)
+  if (-not $submit -or -not $submit.Current.IsEnabled) {
+    throw 'Authenticated WordPress UAT upload submit button is missing or disabled.'
+  }
+  Activate-OwnedChromeWindow $chrome
+  Invoke-Element $submit
+  Write-Host 'INFO web_deploy_submit_method=verified_wordpress_form_invoke'
+  Write-Host 'INFO web_deploy_awaiting_verified_server_side_source_and_hashes=true'
+  # We do not trust browser title, redirect, or a success notice by itself.
+  # The bounded health loop below is the only deployment success authority.
   $marker = ''
   $serverHash = ''
   $serverManifest = ''
