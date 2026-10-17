@@ -1,4 +1,33 @@
 abstract final class DailyOrderWorkflow {
+  // One presentation contract for every Daily Order entry point. The underlying
+  // cycle and request statuses remain untouched; this is display-only.
+  static String statusLabel(String status) {
+    const labels = <String, String>{
+      'morning_draft': 'Draft',
+      'stock_requested': 'Approval Pending',
+      'approved': 'Issue Pending',
+      'issued': 'Issued · Evening Pending',
+      'evening_draft': 'Evening Draft',
+      'evening_submitted': 'Final Post Pending',
+      'completed': 'Completed',
+      'cancelled': 'Cancelled',
+      'rejected': 'Rejected',
+    };
+    return labels[status] ?? status;
+  }
+
+  static String orderStatusLabel(Map<String, dynamic> row) {
+    final cycleStatus = '${row['status'] ?? ''}';
+    final additionalStatus = '${row['additional_request_status'] ?? ''}';
+    if (cycleStatus == 'issued' && additionalStatus == 'submitted') {
+      return 'Issued · Additional Approval Pending';
+    }
+    if (cycleStatus == 'issued' && additionalStatus == 'approved') {
+      return 'Issued · Additional Issue Pending';
+    }
+    return statusLabel(cycleStatus);
+  }
+
   static const Set<String> _blockingAdditionalStatuses = {
     'draft',
     'submitted',
