@@ -98,9 +98,28 @@ function Test-HttpStatus {
 
 function Invoke-Login {
     param([string]$Mobile, [string]$Password, [string]$Device, [string]$DeviceId)
-    $body = @{ mobile=$Mobile; password=$Password; device=$Device; device_id=$DeviceId } | ConvertTo-Json -Compress
-    $json = Invoke-CurlText @('-fsS','-H','Content-Type: application/json','-d',$body,"$script:api/auth/login")
-    return ($json | ConvertFrom-Json)
+    # Windows PowerShell 5.1 can strip nested JSON quotes when invoking curl.exe
+    # with -d directly. Send exact UTF-8 bytes from an isolated temporary file.
+    $requestFile = Join-Path $script:tempRoot ('login-' + [Guid]::NewGuid().ToString('N') + '.json')
+    $responseFile = Join-Path $script:tempRoot ('login-response-' + [Guid]::NewGuid().ToString('N') + '.json')
+    try {
+        $body = @{ mobile=$Mobile; password=$Password; device=$Device; device_id=$DeviceId } | ConvertTo-Json -Compress
+        [System.IO.File]::WriteAllText($requestFile,$body,[System.Text.UTF8Encoding]::new($false))
+        $status = Invoke-CurlText @('-sS','-o',$responseFile,'-w','%{http_code}','-H','Content-Type: application/json','--data-binary',('@' + $requestFile),"$script:api/auth/login")
+        $json = [System.IO.File]::ReadAllText($responseFile,[System.Text.Encoding]::UTF8)
+        if ($status -ne '200') {
+            $code = 'unknown'
+            try {
+                $parsed = $json | ConvertFrom-Json
+                if ($parsed.error.code) { $code = [string]$parsed.error.code }
+                elseif ($parsed.code) { $code = [string]$parsed.code }
+            } catch { $code = 'invalid_json_response' }
+            throw "Synthetic login HTTP $status (error code: $code)."
+        }
+        return ($json | ConvertFrom-Json)
+    } finally {
+        Remove-Item -LiteralPath $requestFile,$responseFile -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Get-BearerToken {
