@@ -1,6 +1,12 @@
 FROM wordpress:php8.3-apache
 
 RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends mariadb-client; \
+    command -v mysqlcheck; \
+    rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
     for module in /etc/apache2/mods-enabled/mpm_*.load; do \
       [ -e "$module" ] || continue; \
       name="${module##*/}"; \
