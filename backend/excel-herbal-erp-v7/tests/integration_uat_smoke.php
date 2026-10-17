@@ -316,6 +316,30 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
     );
     if(abs($beforeIssueStock-100)>0.001)throw new RuntimeException('Preflight unexpectedly changed warehouse stock');
 
+    // Supplying a valid line plus an unrelated ID must fail, not silently
+    // discard the extra allocation and issue stock against a partial payload.
+    try {
+        uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[
+            ['request_line_id'=>(int)$requestLine['id'],'quantity'=>2],
+            ['request_line_id'=>99999991,'quantity'=>1],
+        ]]);
+        throw new RuntimeException('Foreign issue allocation line was accepted');
+    } catch(DomainException $error) {
+        if($error->codeKey!=='issue_allocation_unknown_line'||$error->httpStatus!==422)throw $error;
+    }
+    $afterInvalidAllocation=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+    );
+    if(abs($afterInvalidAllocation-$beforeIssueStock)>0.001)
+        throw new RuntimeException('Rejected foreign issue allocation changed warehouse stock');
+    $invalidAllocationLedger=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+        ' WHERE source_type=%s AND source_id=%d','daily_issue',$request
+    ));
+    if($invalidAllocationLedger!==0)
+        throw new RuntimeException('Rejected foreign allocation wrote stock ledger entries');
+
     if ((uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]])['status'] ?? '') !== 'issued') throw new RuntimeException('daily issue automatic allocation failed');
     // Transfer custody must be atomic: one warehouse OUT plus one employee IN,
     // and the request cannot issue twice on a stale/replayed action.
