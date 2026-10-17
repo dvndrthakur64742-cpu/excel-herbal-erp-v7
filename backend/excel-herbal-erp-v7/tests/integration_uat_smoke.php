@@ -272,6 +272,25 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
         fn()=>uat_dispatch('daily.approve',$self,['id'=>$request]),
         'self-service actor approved own daily request'
     );
+    // Submitted request must not be approved if its parent cycle has
+    // unexpectedly changed stage; preserve request status and restore fixture.
+    $wpdb->update(Db::table('daily_cycles'),['status'=>'cancelled'],['id'=>$cycle]);
+    try {
+        try {
+            uat_dispatch('daily.approve',$manager,['id'=>$request]);
+            throw new RuntimeException('Approval succeeded on a cancelled parent cycle');
+        } catch(DomainException $error) {
+            if($error->codeKey!=='daily_cycle_state_invalid'||$error->httpStatus!==409)
+                throw $error;
+        }
+        $unchanged=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('daily_requests').' WHERE id=%d',$request
+        ));
+        if($unchanged!=='submitted')
+            throw new RuntimeException('Denied approval unexpectedly changed request status');
+    } finally {
+        $wpdb->update(Db::table('daily_cycles'),['status'=>'stock_requested'],['id'=>$cycle]);
+    }
     if ((uat_dispatch('daily.approve',$manager,['id'=>$request])['status'] ?? '') !== 'approved') throw new RuntimeException('daily approve failed');
     // A corrupted approved request with no lines must never transition to
     // issued or post stock ledger entries. Restore the synthetic fixture.
