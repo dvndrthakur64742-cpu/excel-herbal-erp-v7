@@ -201,24 +201,34 @@ uat_case('uat_bootstrap_contract_metadata', function () use ($self) {
     }
 });
 
-uat_case('uat_branch_scope_fail_closed', function () use ($self) {
-    try { uat_dispatch('work.check_in', $self, ['branch_id'=>2,'lat'=>31.9579,'lng'=>77.1095]); }
-    catch (DomainException $e) { if ($e->codeKey === 'branch_forbidden' && $e->httpStatus === 403) return; throw $e; }
-    throw new RuntimeException('cross-branch attendance check-in was accepted');
+uat_case('uat_manual_attendance_disabled_cross_branch', function () use ($self, $wpdb) {
+    try {
+        uat_dispatch('work.check_in', $self, ['branch_id'=>2,'lat'=>31.9579,'lng'=>77.1095]);
+    } catch (DomainException $e) {
+        if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) throw $e;
+        $count = (int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+            1, 10, uat_date()
+        ));
+        if ($count !== 0) throw new RuntimeException('disabled cross-branch check-in created attendance');
+        return;
+    }
+    throw new RuntimeException('manual cross-branch check-in was not disabled');
 });
 
-uat_case('uat_attendance_checkin_requires_gps', function () use ($self) {
+uat_case('uat_attendance_manual_checkin_disabled', function () use ($self, $wpdb) {
     try {
         uat_dispatch('work.check_in', $self, ['branch_id'=>1]);
     } catch (DomainException $e) {
-        if ($e->codeKey !== 'gps_location_required' || $e->httpStatus !== 422) throw $e;
-        $today = uat_dispatch('work.attendance_today', $self);
-        if ($today && !empty($today['check_in_at'])) {
-            throw new RuntimeException('check-in without GPS created attendance');
-        }
+        if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) throw $e;
+        $count = (int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+            1, 10, uat_date()
+        ));
+        if ($count !== 0) throw new RuntimeException('manual check-in created attendance');
         return;
     }
-    throw new RuntimeException('check-in without GPS was accepted');
+    throw new RuntimeException('manual check-in was accepted');
 });
 
 uat_case('uat_sales_capability_fail_closed', function () use ($self) {
@@ -238,14 +248,23 @@ uat_case('uat_sales_capability_fail_closed', function () use ($self) {
     throw new RuntimeException('actor without SALES_CREATE capability posted a sale');
 });
 
-uat_case('uat_attendance_checkin_today_checkout', function () use ($self) {
-    $in = uat_dispatch('work.check_in', $self, ['branch_id'=>1,'lat'=>31.9579,'lng'=>77.1095]);
-    if (($in['status'] ?? '') !== 'present') throw new RuntimeException('check-in status mismatch');
-    $today = uat_dispatch('work.attendance_today', $self);
-    if (!$today || empty($today['check_in_at']) || (int)$today['branch_id'] !== 1) throw new RuntimeException('attendance today did not reflect check-in');
-    $out = uat_dispatch('work.check_out', $self);
-    if (($out['status'] ?? '') !== 'present') throw new RuntimeException('check-out status mismatch');
-    if (empty(uat_dispatch('work.attendance_today', $self)['check_out_at'])) throw new RuntimeException('check-out was not persisted');
+uat_case('uat_attendance_manual_start_stop_disabled', function () use ($self, $wpdb) {
+    foreach (['work.check_in', 'work.check_out'] as $handler) {
+        try {
+            uat_dispatch($handler, $self, ['branch_id'=>1,'lat'=>31.9579,'lng'=>77.1095]);
+        } catch (DomainException $e) {
+            if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) {
+                throw $e;
+            }
+            continue;
+        }
+        throw new RuntimeException('manual attendance action was accepted: '.$handler);
+    }
+    $count = (int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+        1, 10, uat_date()
+    ));
+    if ($count !== 0) throw new RuntimeException('manual attendance action created an attendance record');
 });
 
 uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) {
