@@ -273,7 +273,44 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
         'self-service actor approved own daily request'
     );
     if ((uat_dispatch('daily.approve',$manager,['id'=>$request])['status'] ?? '') !== 'approved') throw new RuntimeException('daily approve failed');
+    $preflight=uat_dispatch('daily.issue_preflight',$manager,['id'=>$request]);
+    if (empty($preflight['all_available']) || abs((float)($preflight['requested_quantity']??0)-2)>0.001 ||
+        count($preflight['lines']??[])!==1 || empty($preflight['lines'][0]['issueable']))
+        throw new RuntimeException('Daily issue preflight did not cover approved request quantity');
+    $beforeIssueStock=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+    );
+    if(abs($beforeIssueStock-100)>0.001)throw new RuntimeException('Preflight unexpectedly changed warehouse stock');
+
     if ((uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]])['status'] ?? '') !== 'issued') throw new RuntimeException('daily issue automatic allocation failed');
+    // Transfer custody must be atomic: one warehouse OUT plus one employee IN,
+    // and the request cannot issue twice on a stale/replayed action.
+    $warehouseAfterIssue=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+    );
+    $employeeAfterIssue=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=10'
+    );
+    $issueLedger=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+        ' WHERE source_type=%s AND source_id=%d', 'daily_issue', $request
+    ));
+    if(abs($warehouseAfterIssue-98)>0.001||abs($employeeAfterIssue-2)>0.001||$issueLedger!==2)
+        throw new RuntimeException('Daily issue did not move warehouse stock into employee custody exactly once');
+    $repeatWasRejected=false;
+    try { uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]]); }
+    catch (DomainException $error) { $repeatWasRejected=true; }
+    if(!$repeatWasRejected)throw new RuntimeException('Repeat stock issue succeeded unexpectedly');
+    $replayedLedger=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+        ' WHERE source_type=%s AND source_id=%d', 'daily_issue', $request
+    ));
+    if($replayedLedger!==$issueLedger)
+        throw new RuntimeException('Repeat stock issue modified the stock ledger');
+
     $evening=uat_dispatch('daily.evening_start',$self,['id'=>$cycle]); $eveningId=(int)$evening['evening_id'];
     $issueLineId=(int)$wpdb->get_var($wpdb->prepare('SELECT issue_line_id FROM '.Db::table('evening_lines').' WHERE evening_settlement_id=%d LIMIT 1',$eveningId));
     // EveningStart pre-fills sales, but the header is not yet verified.
