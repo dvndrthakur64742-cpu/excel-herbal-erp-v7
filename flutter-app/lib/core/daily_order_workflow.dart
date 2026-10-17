@@ -34,6 +34,36 @@ abstract final class DailyOrderWorkflow {
     'approved',
   };
 
+  // The preflight must account for every requested line, never just report a
+  // top-level success. Reject empty, duplicate, or partial stock snapshots.
+  static bool stockIssueReady(
+    Map<String, dynamic> preflight,
+    Iterable<Map<String, dynamic>> requestedLines,
+  ) {
+    if (preflight['all_available'] != true) return false;
+    final ids = <int>{};
+    for (final line in requestedLines) {
+      final id = int.tryParse('${line['id'] ?? ''}');
+      if (id == null || id <= 0 || !ids.add(id)) return false;
+    }
+    if (ids.isEmpty) return false;
+
+    final snapshot = preflight['lines'];
+    if (snapshot is! List) return false;
+    final covered = <int>{};
+    for (final row in snapshot) {
+      if (row is! Map) return false;
+      final id = int.tryParse('${row['request_line_id'] ?? ''}');
+      if (id == null ||
+          !ids.contains(id) ||
+          !covered.add(id) ||
+          row['issueable'] != true) {
+        return false;
+      }
+    }
+    return covered.length == ids.length;
+  }
+
   static bool canOperateOwnOrder(Iterable<String> capabilities) =>
       capabilities.contains('daily_order.self') ||
       capabilities.contains('daily_order.others');
