@@ -116,6 +116,25 @@ $tests['same idempotency request returns prior sale'] = function () { $g=new Fak
 $tests['reused key with different request fails'] = function () { $g=new FakeGateway; $svc=new RetailerCashSale($g);$svc->post(request());expectFailure('different request',fn()=> $svc->post(request(['payment_reference'=>'CASH-ACK-DIFFERENT'])));assert(count($g->sales)===1); };
 $tests['transaction failure rolls back stock'] = function () { $g=new FakeGateway;$g->failSave=true;try { (new RetailerCashSale($g))->post(request());throw new RuntimeException('Expected DB failure'); } catch (RuntimeException $e) { if($e->getMessage()==='Expected DB failure')throw $e; } assert($g->stock['1:0:0']===10 && !$g->sales && !$g->stockMoves); };
 $tests['money precision including 4-decimal cost'] = function () { assert(Paise::parse('0.01')===1 && Paise::parse('10')===1000 && Paise::format(1001)==='10.01');assert(Paise::costTotal('40.1250',3)===12038);expectFailure('Invalid money',fn()=>Paise::parse('10.001')); };
+$tests['cost multiplication overflow fails closed'] = function () {
+    expectFailure('safe integer precision', fn() => Paise::costTotal('9999999999.9999',1000000));
+};
+$tests['sale multiplication overflow fails closed'] = function () {
+    $g = new FakeGateway;
+    $g->stock['1:0:0'] = 1000000;
+    $g->productRow = array_replace($g->productRow, [
+        'mrp' => '999999999999.00',
+        'sale_price' => '999999999999.00',
+        'ho_amount' => '999999999999.00',
+        'bm_profit' => '0.00',
+        'salary_fund' => '0.00',
+        'office_expense' => '0.00',
+    ]);
+    expectFailure('safe integer precision', fn() => (new RetailerCashSale($g))->post(request([
+        'lines'=>[['product_id'=>1,'batch_id'=>0,'qty'=>1000000]],
+    ])));
+    assert($g->stock['1:0:0'] === 1000000);
+};
 $tests['require field employee and forbid counter custodian'] = function () { expectFailure('require an employee',fn()=>(new RetailerCashSale(new FakeGateway))->post(request(['channel'=>'field'])));expectFailure('must use branch stock',fn()=>(new RetailerCashSale(new FakeGateway))->post(request(['employee_id'=>6]))); };
 $tests['reject client price override via exact request schema'] = function () { $g=new FakeGateway;$s=(new RetailerCashSale($g))->post(request(['unit_price'=>'0.01']));assert($s['invoice_total_paise']===30000); };
 $ok=0;
