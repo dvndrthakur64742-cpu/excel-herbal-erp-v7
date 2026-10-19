@@ -32,6 +32,8 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
       - name: Employee cash custody regression checks
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/cash_remittance.php
+      - name: Canonical V7 read-only mapping checks
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_readiness.php
 
   b2b-mariadb-integration:
     runs-on: ubuntu-latest
