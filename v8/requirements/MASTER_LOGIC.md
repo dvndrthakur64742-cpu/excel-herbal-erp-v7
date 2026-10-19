@@ -1,6 +1,6 @@
 # Excel Herbal ERP V8 — Canonical Business Logic / Module Register
 
-**Version:** v8 foundation, 2026-10-17. This is a source-derived roadmap, NOT a statement of implementation completion.
+**Version:** v8 development phase 2, 2026-10-19. This is a source-derived roadmap, NOT a statement of implementation completion.
 
 ## Authoritative rules
 
@@ -28,11 +28,11 @@
 | 08 Transfers | Draft -> packed -> transit -> received; discrepancy audit | Planned |
 | 09 Field Morning | Request -> independent approval -> issue -> custody | Planned; preserve V7 and v14 role insights |
 | 10 Field Evening | Sold retail + sold wholesale + returned = issued; cash/UPI reconcile | Planned |
-| 11 B2B Retailer | Retailer -> order -> full verified cash/UPI -> invoice -> dispatch -> history | **Domain prototype built**; production gateway/UI pending |
+| 11 B2B Retailer | Retailer -> order -> full verified cash/UPI -> invoice -> dispatch -> history | Domain + isolated MariaDB UAT gateway + retailer registry + API facade source built; live integration pending |
 | 12 Counter Sales | Branch stock -> invoice -> payment & ledger | Planned; V7 reference |
-| 13 Customer/Retailer Ledger | Party history vs general ledger; retailer zero outstanding; refunds separate | Prototype sale/receipt and journal design |
-| 14 Accounting | Chart of accounts, journal, trial balance, P&L, balance sheet | Balanced posting specification built; adapter pending |
-| 15 Cash/Bank/UPI | Branch cash, UPI clearing, employee cash-in-transit, bank reconciliation | Abstract journal accounts built; settlement pending |
+| 13 Customer/Retailer Ledger | Party history vs general ledger; retailer zero outstanding; refunds separate | Isolated paid retailer statement posting built; refunds and canonical GL mapping pending |
+| 14 Accounting | Chart of accounts, journal, trial balance, P&L, balance sheet | Isolated balanced B2B journal adapter built, but chart mapping and reconciliation pending |
+| 15 Cash/Bank/UPI | Branch cash, UPI clearing, employee cash-in-transit, bank reconciliation | Trusted tender-evidence read and employee cash liability posting built, real provider/cashier feed and remittance clearing pending |
 | 16 Attendance/Leave | Attendance policy separate from GPS; salary grade decisions | **Business policy conflict: pending** |
 | 17 GPS/Field Visits | Auto duty 10:30–17, location points, road route, access restriction | Planned; V7 reference |
 | 18 Payroll | Proration, Salary Fund, bonuses/deductions, approver & payment | Planned |
@@ -66,3 +66,11 @@
 ## Acceptance before any UAT deployment
 
 PHP unit tests; MariaDB rollback/retry/concurrency; API RBAC and IDOR; batch expiry & FEFO; complete sale -> customer-paid receipt -> stock OUT -> balanced journal -> points policy decision -> employee cash remittance; counterfeit UPI receipt rejection; customer/refund/reversal flows; finance and stock reconciliation; Flutter analyze/test; role-by-role mobile/browser UAT; backups/restores; owner signoff. Production deployment requires a separate explicit approval.
+
+## 2026-10-19 code milestone, verification distinction
+
+- Retailer master, isolated schema and PDO database adapter are new source on dedicated V8 development branch.
+- Framework-neutral API facade safely supplies company, branch and actor from a trusted authenticated context; no HTTP routes registered.
+- 25/25 domain and 11/11 retailer flow local tests passed. MariaDB test requires independent CI runner / disposable test DB.
+- CI on an observed commit returned failed workflow jobs with **zero steps/log blobs**; not sufficient to conclude code or database test failure.
+- Absolutely no merge, deployment, live database schema change or production use authorized by this update.
