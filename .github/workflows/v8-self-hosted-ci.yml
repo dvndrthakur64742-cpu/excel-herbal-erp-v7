@@ -59,3 +59,5 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_quote_revalidation.php
       - name: V7 canonical StockService AccountingService same-connection UAT writer isolated regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/v7_canonical_writer_uat.php
+      - name: Same-database V7 row-locked payment evidence and fresh stock regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/v7_locked_reader_uat.php

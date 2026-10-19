@@ -199,3 +199,11 @@ See `requirements/EMPLOYEE_360_DETAILED_REGISTERS.md`.
 - 34 new PHP fake-DB/rollback tests, previous 407 local regression checks => **441/441 local checks** in the combined development tree. **No real WordPress or MariaDB write UAT has run.**
 - The WordPress trusted same-DB lock/read service, verified PSP/cash source, GST/HSN/discount policy and reversal/remittance rules **remain missing**. The guard will not run on production, and no live DB migration is performed.
 - See `requirements/V7_CANONICAL_ATOMIC_WRITER_DRAFT.md`. No deployment or PR merge.
+
+## 2026-10-19 same-database locked V7 sale/payment evidence bridge (v0.18)
+
+- `v8/backend/src/B2B/V7UatLockedCheckoutReader.php` is a concrete **development-only** callback for the v0.17 guarded canonical writer. It reads issued immutable sale lines, business timestamp, linked payment intent, reserved confirmed tender, independent attestation, canonical proof and **fresh V7 price/stock/accounts** under `SELECT ... FOR UPDATE` on the same wpdb connection.
+- Supports Field Cash (employee custody), Counter Cash (cashier), and bank-confirmed UPI; exact amount, unique intent, employee/branch, quote digest and approval-source checks. It performs **no writes** itself.
+- Draft schema `009_v7_canonical_retailer_posting_DRAFT.sql` now includes the missing immutable proof linkage and currency/status/attestor fields; **do not apply on production**. Independently authenticated PSP/cashier source that populates the canonical tender bridge is still missing, as are statutory GST/HSN/tax, reversal and real concurrent MariaDB/UAT signoff.
+- **46 new fake-wpdb regressions PASS** (previous 441 +46 = **487 local isolated checks**). No success claim for GitHub-hosted MariaDB, Windows runner PHP or Flutter. Writer release gates stay closed and there is no REST registration.
+- See `v8/requirements/V7_SAME_DB_LOCKED_PAYMENT_READER_UAT.md`.

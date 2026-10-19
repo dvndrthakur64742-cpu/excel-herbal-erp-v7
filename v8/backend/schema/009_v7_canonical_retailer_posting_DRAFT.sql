@@ -33,20 +33,28 @@ CREATE TABLE IF NOT EXISTS wp_eh7_b2b_checkout_keys (
  request_fingerprint CHAR(64) NULL,
  PRIMARY KEY(company_id,request_key),UNIQUE KEY one_source(sale_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- NOTE: This table is NOT auto-filled by preview, tender screenshots or a checkout request.
+-- Every row must be independently verified and written by a server-owned provider/cashier bridge.
 -- This table must ONLY be populated by a FUTURE independently authenticated
 -- server-side cash collector / PSP reconciliation adapter, never an HTTP body.
 -- Until that adapter exists, the canonical writer has no trusted input source.
 CREATE TABLE IF NOT EXISTS wp_eh7_b2b_verified_tenders (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
  company_id BIGINT UNSIGNED NOT NULL,branch_id BIGINT UNSIGNED NOT NULL,
- sale_intent_id BIGINT UNSIGNED NOT NULL,quote_digest CHAR(64) NOT NULL,
- payment_mode VARCHAR(10) NOT NULL,verified_source VARCHAR(40) NOT NULL,
+ sale_intent_id BIGINT UNSIGNED NOT NULL,payment_intent_id BIGINT UNSIGNED NOT NULL,
+ tender_id BIGINT UNSIGNED NOT NULL,quote_digest CHAR(64) NOT NULL,
+ channel VARCHAR(10) NOT NULL,employee_id BIGINT UNSIGNED NULL,
+ payment_mode VARCHAR(10) NOT NULL,currency CHAR(3) NOT NULL DEFAULT 'INR',
+ status VARCHAR(20) NOT NULL DEFAULT 'confirmed',verified_by BIGINT UNSIGNED NOT NULL,
+ verified_source VARCHAR(40) NOT NULL,
  amount_paise BIGINT NOT NULL,provider_transaction_id VARCHAR(128) NULL,
  consumed_sale_id BIGINT UNSIGNED NULL,confirmed_at DATETIME NOT NULL,
  UNIQUE KEY once_per_intent (company_id,sale_intent_id),
+ UNIQUE KEY once_per_uat_intent (company_id,payment_intent_id),
+ UNIQUE KEY once_per_uat_tender (company_id,tender_id),
  UNIQUE KEY provider_replay (company_id,provider_transaction_id),
  UNIQUE KEY consumed_one_sale (consumed_sale_id),
- CHECK (amount_paise>0)
+ CHECK (amount_paise>0),CHECK(currency='INR'),CHECK(status='confirmed')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 -- Release-blockers: tax/HSN/discount+reversal approval; authenticated payment
 -- ingestion on THIS database+connection; row-locked V7 price/stock assessment;
