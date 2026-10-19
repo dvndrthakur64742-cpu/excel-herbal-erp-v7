@@ -69,3 +69,23 @@ Current local verification (re-run required after each code change): **25/25 dom
 - `backend/tests/canonical_readiness.php` adds **28 isolated regressions**; these are not live WordPress/database integration tests.
 - Critical live-posting dependencies are still blocked: canonical retailer-party identity, Cash/UPI verification, approved account IDs and tax pricing, supported AccountingService source, atomic stock+GL writer, reversal path, access checks and live MariaDB UAT.
 - **`posting_allowed=false` is hardcoded by design.** See `requirements/CANONICAL_V7_MAPPING.md`; DO NOT treat the preflight as a deployed feature.
+
+
+## 2026-10-19 incremental development: canonical paid-sale atomic posting contract
+
+- `backend/src/B2B/CanonicalPostingContract.php` introduces `CanonicalPostingGateway` (interface),
+  `CanonicalPostingPlan` (strict integer-paise/whole-PCS canonical journal mapper) and
+  `CanonicalRetailerAtomicPosting` (transaction choreography). A true gateway MUST use ONE
+  database transaction and the canonical V7 StockService/AccountingService writer, never the
+  preview `v8_b2b_*` stock/GL tables. **No real canonical posting gateway is shipped.**
+- `backend/tests/canonical_atomic_posting.php` adds **32 isolated contract tests** using an
+  in-memory rollback simulator, including debit/credit balancing, actor/branch scope, unique
+  idempotency, tender single-use, locked stock, retry behavior, rollback after stock/GL failures,
+  and immutable retailer paid-state. NOT a MariaDB or WordPress integration proof.
+- `CanonicalV7Readiness::assess` still always reports `posting_allowed=false`; the new posting
+  contract rejects that value. A future locked source gateway may return true only after
+  independently approved live release gates, a canonical retailer mapping, a trusted payment
+  verifier, a registered canonical GL source, invoices/taxes, reversals and verified transaction
+  locks exist. Do not flip a boolean or use an HTTP client flag to bypass those requirements.
+- The source code is added to the `v8/` development area only; no runtime registration,
+  plugin activation, database migration, merged PR or production deployment.
