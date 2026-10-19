@@ -1,0 +1,43 @@
+name: Excel Herbal V8 Self-Hosted Runner Check (No Deploy)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'v8/**'
+      - '.github/workflows/v8-self-hosted-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  b2b-unit-self-hosted:
+    name: V8 PHP regression on connected runner
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - name: Checkout development code
+        uses: actions/checkout@v4
+      - name: Configure PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: PHP runtime version
+        run: php -v
+      - name: Retailer sale policy tests
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
+      - name: Retailer master and API boundary tests
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
+      - name: Employee cash responsibility tests
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/cash_remittance.php
+      - name: Canonical V7 mapping preflight tests
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_readiness.php
+      - name: Atomic posting contract tests (simulated gateway)
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_atomic_posting.php
+      - name: Canonical retailer identity tests
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_retailer_identity.php
+      - name: Trusted Cash/UPI evidence tests
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/trusted_tender_intake.php
+      - name: Sale to verified-tender reservation tests
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/sale_tender_binding.php
