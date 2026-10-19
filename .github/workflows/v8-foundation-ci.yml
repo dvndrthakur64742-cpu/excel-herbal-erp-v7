@@ -85,6 +85,12 @@ jobs:
           php-version: '8.3'
           extensions: pdo_mysql
           coverage: none
+      - name: Real V7 canonical StockService and AccountingService disposable MariaDB transaction UAT
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/v7_canonical_real_mariadb.php
       - name: Isolated MariaDB sale + ledger integration
         env:
           V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'

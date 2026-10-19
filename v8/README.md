@@ -210,3 +210,7 @@ See `requirements/EMPLOYEE_360_DETAILED_REGISTERS.md`.
 
 ## v0.19 — Cross-ledger atomic finalization (UAT-only; no production deployment)
 The V7 same-DB B2B writer now consumes **both** canonical `eh7_b2b_verified_tenders` and original `v8_b2b_verified_tenders`, transitions the reservation + payment intent to `consumed`, and marks the sale intent `posted` in the same V7 stock/GL transaction. All row updates must affect exactly one matching original row; otherwise the sale, stock and journal roll back. The locked reader rejects already-consumed payment intents. 43 canonical-writer and 47 locked-reader isolated regressions pass; **497 combined local checks** including existing Employee360 V7 suites, but MariaDB/WordPress UAT and Flutter tests remain unverified. Details: `requirements/V7_CROSS_LEDGER_FINALIZATION_UAT.md`. External trusted PSP/cash ingestion and owner tax/reversal approvals remain blocking.
+
+## 2026-10-19 real canonical V7 same-DB MariaDB UAT (Step 2)
+
+Adds `backend/tests/v7_canonical_real_mariadb.php` (relative to `v8/`) to the disposable MariaDB CI job. Exercises **actual V7 services**, not a fake stock/GL adapter, including success/replay and forced journal-failure rollback. Full evidence/status transitions on the same connection. Tests run only in `v8_test`; no live migration or REST writer. Details: `requirements/V7_REAL_MARIADB_UAT.md`. CI result must be checked and recorded independently; no runtime PASS claimed by this commit alone.
