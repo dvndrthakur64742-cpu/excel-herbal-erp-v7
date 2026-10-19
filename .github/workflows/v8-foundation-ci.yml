@@ -45,9 +45,11 @@ jobs:
 
       - name: Canonical retailer checkout read-only identity and price/stock composition
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_checkout_preview.php
-
       - name: Immutable B2B sale/payment intent issuance regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_issuance.php
+
+      - name: Canonical immutable quote versus stock and verified tender regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_quote_revalidation.php
 
   b2b-mariadb-integration:
     runs-on: ubuntu-latest

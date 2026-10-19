@@ -16,10 +16,10 @@ jobs:
   b2b-unit-self-hosted:
     name: V8 PHP regression on connected runner
     runs-on: [self-hosted, Windows]
-    timeout-minutes: 15
     defaults:
       run:
         shell: cmd
+    timeout-minutes: 15
     steps:
       - name: Checkout development code
         uses: actions/checkout@v4
@@ -53,3 +53,5 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_checkout_preview.php
       - name: Immutable B2B sale/payment intent issuance regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_issuance.php
+      - name: Canonical immutable quote and tender revalidation tests
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_quote_revalidation.php

@@ -139,11 +139,15 @@ See `requirements/SALE_TENDER_BINDING.md` for release gates and accounting separ
 
 ## 2026-10-19 incremental development: canonical retailer checkout preview (v0.9)
 
-- `backend/src/B2B/CanonicalRetailerCheckoutPreview.php`: composes the existing authoritative V7 retailer/customer identity reader and canonical stock/pricing/period validation into one **read-only, fail-closed** retailer checkout preview.
-- Verifies company, branch, actor, linked canonical party, stock custody, whole PCS, product/batch, effective commercial revision, no outstanding/credit, Cash/UPI full total and business date. Returns a preview digest for change detection, not as payment proof.
-- Omits purchase cost, COGS, GL IDs and Salary Fund figures from the public-facing preview. Always returns `posting_allowed=false`, `stock_reserved=false`; this is not a GST invoice, credit authorization, receipt or real stock/GL posting.
-- `backend/tests/canonical_checkout_preview.php`: **17** new isolated tests; total **209/209 local PHP regressions** (prior 192 +17). No MariaDB runtime UAT or successful hosted/self-hosted runner execution is implied.
-- See `requirements/CANONICAL_CHECKOUT_PREVIEW.md`. Canonical writer, statutory tax/rate policy, trusted payment and atomic stock+GL posting remain blocked. **ERP overall engineering estimate remains ~15%.**
+- `backend/src/B2B/CanonicalRetailerCheckoutPreview.php` combines approved V7 retailer/customer identity and canonical stock/pricing read-only assessments.
+- Checks business context, branch authority, active linked retailer party, outstanding=0, whole PCS, effective price revision, correct branch/employee stock custody, full Cash/UPI total, and business date.
+- SHA256 `preview_digest` is for stale-quote detection, NOT payment proof. No COGS, GL IDs or Salary Fund are surfaced in the UI-facing result.
+- Always `posting_allowed=false`, `stock_reserved=false`, `requires_locked_revalidation=true`. No executable WordPress REST route, financial journal or invoice has been enabled.
+- 17 new isolated regression tests; total local PHP regression count: **209/209**. Statutory invoice/tax/HSN policy, trusted payment, locked stock+GL writer, MariaDB UAT and successful CI still remain release blockers.
+- Overall V8 completion is approximately **15% (engineering estimate)**, not certified.
+
+See `requirements/CANONICAL_CHECKOUT_PREVIEW.md` for the complete scope and trust constraints.
+
 ## 2026-10-19 increment: server-issued immutable B2B sale/payment intents (v0.10)
 
 - `backend/src/B2B/ImmutableRetailerIntentIssuer.php`: issues a **single priced UAT-only sale/payment-intent pair** from a fresh server-produced canonical checkout preview. Recomputes quote digest; rejects incorrect company/branch, quantity/price, credit, field custody, unapproved states, actor roles and repeat request changes. Result always `posting_allowed=false`.
@@ -151,3 +155,13 @@ See `requirements/SALE_TENDER_BINDING.md` for release gates and accounting separ
 - `backend/tests/immutable_intent_issuance.php`: **26 new isolated unit/security tests**; local total **235/235** (209 previous +26). Optional `backend/tests/immutable_intent_mariadb.php` covers paired issuance → cash collection → tender evidence binding, but requires a real disposable MariaDB and **has not been run here**.
 - Self-hosted Windows GitHub runner is connected but still cannot execute PHP tests until `php.exe` is installed and on runner service PATH. `ubuntu-latest` jobs also remain blocked. Never represent this increment as successful GitHub CI, invoicing, trusted provider integration, or live canonical stock/GL posting.
 - See `requirements/IMMUTABLE_INTENT_ISSUANCE.md`. Overall ERP readiness remains ~15%, because no new operational module has yet passed real WordPress+DB+Flutter UAT.
+
+## 2026-10-19 incremental development: immutable quote lines + fresh V7 revalidation (v0.11)
+
+- Fixed a critical v0.10 deficiency: Sale Intent's individual product/batch/quantity/commercial-revision/price rows and business-local datetime now persist alongside the intent/payment pair **inside the same disposable MariaDB transaction** (`schema/007_immutable_sale_line_snapshots_UAT.sql`). An idempotent replay must match actual saved rows; digest alone is insufficient.
+- `backend/src/B2B/CanonicalQuoteSnapshotRevalidation.php` compares saved quote and reserved tender against fresh canonical retailer identity and V7 stock/pricing read model, refusing price changes, expired/changed stock context, cross-branch or employee mistakes and tender reuse. This is pure integrity logic, not production posting.
+- `backend/tests/immutable_intent_issuance.php`: now **40** cases. New `backend/tests/canonical_quote_revalidation.php`: **28** cases. **277/277 local isolated PHP tests PASS** across 11 suites, **35/35 PHP syntax PASS**.
+- Optional MariaDB UAT now checks saved product line persistence, but could not be executed in the present environment; GitHub-hosted runner and Windows self-hosted runner are not PASS.
+- Real WordPress API, approved tax invoice, actual V7 StockService and AccountingService atomic writer, trusted PSP settlement and whole-system UAT **remain blocked**. No live deployment, no PR merge, no production DB changes. Overall V8 engineering completion estimate remains ~15%.
+
+Details: `requirements/IMMUTABLE_QUOTE_REVALIDATION.md`.

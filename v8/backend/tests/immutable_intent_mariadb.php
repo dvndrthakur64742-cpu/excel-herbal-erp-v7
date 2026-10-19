@@ -16,11 +16,14 @@ try{
         PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
     if($db->query('SELECT DATABASE()')->fetchColumn()!=='v8_test')throw new RuntimeException('Refusing non-v8_test database');
     foreach(['001_b2b_preview_mysql.sql','004_trusted_tender_intake_UAT.sql',
-        '005_sale_intent_tender_binding_UAT.sql','006_immutable_checkout_intents_UAT.sql'] as $file){
+        '005_sale_intent_tender_binding_UAT.sql','006_immutable_checkout_intents_UAT.sql',
+        '007_immutable_sale_line_snapshots_UAT.sql'] as $file){
         $sql=preg_replace('/^\s*--[^\r\n]*$/m','',file_get_contents(__DIR__.'/../schema/'.$file));
         foreach(preg_split('/;\s*(?:\r?\n|$)/',$sql) as $query)if(trim($query)!=='')$db->exec(trim($query));
     }
     $company=987654491;$branch=58;$key=str_repeat('d',32);
+    $db->exec('DELETE FROM v8_b2b_sale_intent_lines_uat WHERE company_id=987654491');
+    $db->exec('DELETE FROM v8_b2b_issued_sale_context_uat WHERE company_id=987654491');
     foreach(['v8_b2b_sale_tender_reservations_uat','v8_b2b_intent_issuance_requests_uat',
        'v8_b2b_payment_intent_to_sale_uat','v8_b2b_tender_intake_evidence_uat','v8_b2b_verified_tenders',
        'v8_b2b_payment_intents_uat','v8_b2b_sale_intents_uat'] as $table){
@@ -40,6 +43,21 @@ try{
     $issuer=new ImmutableRetailerIntentIssuer(new PdoImmutableRetailerIntentGateway($db,
         static fn($c,$b,$actor,$emp,$channel)=>$c===987654491&&$b===58&&$actor===12&&$emp===47&&$channel==='field'));
     $first=$issuer->issue($context,$preview);$retry=$issuer->issue($context,$preview);
+    $lines=$db->prepare('SELECT product_id,batch_id,quantity_pcs,commercial_revision_id,unit_price_paise,line_total_paise FROM v8_b2b_sale_intent_lines_uat WHERE sale_intent_id=? ORDER BY line_no');
+    $lines->execute([$first['sale_intent_id']]);
+    $persisted=$lines->fetchAll(PDO::FETCH_ASSOC);
+    if(count($persisted)!==1 || (int)$persisted[0]['quantity_pcs']!==2 || (int)$persisted[0]['unit_price_paise']!==10000)throw new RuntimeException('Immutable priced quote lines not persisted');
+    // Simulated DB tamper: a replay must read the actual stored row, not accept
+    // the unchanged original header quote_digest as proof that lines are intact.
+    $db->prepare('UPDATE v8_b2b_sale_intent_lines_uat SET unit_price_paise=9999 WHERE sale_intent_id=?')->execute([$first['sale_intent_id']]);
+    try{$issuer->issue($context,$preview);throw new RuntimeException('Tampered persisted line was accepted');}
+    catch(RetailerSaleError $e){if(!str_contains($e->getMessage(),'Persisted immutable quote lines'))throw $e;}
+    $db->prepare('UPDATE v8_b2b_sale_intent_lines_uat SET unit_price_paise=10000 WHERE sale_intent_id=?')->execute([$first['sale_intent_id']]);
+    $db->prepare('UPDATE v8_b2b_issued_sale_context_uat SET business_at=? WHERE sale_intent_id=?')->execute(['2026-10-20 10:30:00',$first['sale_intent_id']]);
+    try{$issuer->issue($context,$preview);throw new RuntimeException('Tampered persisted date was accepted');}
+    catch(RetailerSaleError $e){if(!str_contains($e->getMessage(),'Persisted immutable business datetime'))throw $e;}
+    $db->prepare('UPDATE v8_b2b_issued_sale_context_uat SET business_at=? WHERE sale_intent_id=?')->execute([$snapshot['business_at'],$first['sale_intent_id']]);
+    if($issuer->issue($context,$preview)!==$first)throw new RuntimeException('Restored immutable pair does not replay');
     if($first!==$retry||$first['posting_allowed']!==false)throw new RuntimeException('Idempotency failed');
     $count=(int)$db->query('SELECT COUNT(*) FROM v8_b2b_intent_issuance_requests_uat WHERE company_id=987654491')->fetchColumn();
     if($count!==1)throw new RuntimeException('Duplicate issuance created');

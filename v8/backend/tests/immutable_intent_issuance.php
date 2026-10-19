@@ -29,6 +29,7 @@ final class ImmutableIssuerFake implements ImmutableRetailerIntentGateway
             'invoice_total_paise'=>$snapshot['gross_paise'],'quote_digest'=>hash('sha256',json_encode($snapshot,JSON_THROW_ON_ERROR)),
             'merchant_order_id'=>$merchantOrderId,'status'=>'awaiting_payment','currency'=>'INR','pricing_locked'=>true];
         foreach(['company_id','branch_id','retailer_id','canonical_party_id','channel','employee_id','payment_mode'] as $k)$r[$k]=$snapshot[$k];
+        $r['saved_lines']=$snapshot['lines'];$r['saved_business_at']=$snapshot['business_at'];
         $this->stored[$snapshot['company_id'].':'.$requestKey]=$r;return $r;
     }
 }
@@ -139,6 +140,41 @@ $cases['stale/invalid existing pair rejected']=function(){
 $cases['overflow money amount denied']=function(){
     $l=['product_id'=>3,'batch_id'=>0,'quantity_pcs'=>PHP_INT_MAX,'commercial_revision_id'=>88,'unit_price_paise'=>10000,'line_total_paise'=>10000];
     failIssue(new ImmutableIssuerFake,[],['lines'=>[$l]],'overflow');
+};
+// New persisted-line integrity regressions: matching the header digest alone is NOT enough.
+function corruptSavedIntentLines(callable $mutation):void{
+    $f=new ImmutableIssuerFake();$service=new ImmutableRetailerIntentIssuer($f);
+    $service->issue(issueRequest(),serverPreview());
+    $key='1:'.str_repeat('a',32);
+    $mutation($f->stored[$key]);
+    failIssue($f,[],[], 'Persisted immutable');
+    assert($f->creates===1);
+}
+$cases['original canonical product lines preserved exactly']=function(){
+    $f=new ImmutableIssuerFake();$i=new ImmutableRetailerIntentIssuer($f);$p=serverPreview();
+    $r=$i->issue(issueRequest(),$p);
+    assert($r['status']==='awaiting_payment' && $f->stored['1:'.str_repeat('a',32)]['saved_lines']===$p['lines']);
+};
+$cases['missing persisted business date rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{unset($r['saved_business_at']);});
+$cases['changed persisted business date rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_business_at']='2026-10-20 11:35:00';});
+$cases['missing persisted quote lines rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{unset($r['saved_lines']);});
+$cases['empty persisted quote lines rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_lines']=[];});
+$cases['changed persisted product rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_lines'][0]['product_id']=54;});
+$cases['changed persisted batch rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_lines'][0]['batch_id']=2;});
+$cases['changed persisted quantity rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_lines'][0]['quantity_pcs']=3;});
+$cases['changed persisted commercial revision rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_lines'][0]['commercial_revision_id']=89;});
+$cases['changed persisted unit price rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_lines'][0]['unit_price_paise']=12000;});
+$cases['changed persisted line total rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_lines'][0]['line_total_paise']=25000;});
+$cases['injected extra persisted line rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_lines'][]=$r['saved_lines'][0];});
+$cases['database string amount instead of integer rejects retry']=fn()=>corruptSavedIntentLines(static function(array &$r):void{$r['saved_lines'][0]['unit_price_paise']='10000';});
+$cases['snapshot row order is material and immutable']=function(){
+    $line1=['product_id'=>3,'batch_id'=>0,'quantity_pcs'=>1,'commercial_revision_id'=>88,'unit_price_paise'=>10000,'line_total_paise'=>10000];
+    $line2=['product_id'=>4,'batch_id'=>0,'quantity_pcs'=>1,'commercial_revision_id'=>89,'unit_price_paise'=>10000,'line_total_paise'=>10000];
+    $f=new ImmutableIssuerFake();$p=serverPreview(['lines'=>[$line1,$line2]]);$i=new ImmutableRetailerIntentIssuer($f);
+    $i->issue(issueRequest(),$p);
+    $key='1:'.str_repeat('a',32);
+    $f->stored[$key]['saved_lines']=[$line2,$line1];
+    failIssue($f,[],['lines'=>[$line1,$line2]],'Persisted immutable quote lines');
 };
 $done=0;
 foreach($cases as $label=>$test){try{$test();$done++;echo "PASS $label\n";}catch(Throwable $e){fwrite(STDERR,"FAIL $label: ".$e->getMessage()."\n");exit(1);}}

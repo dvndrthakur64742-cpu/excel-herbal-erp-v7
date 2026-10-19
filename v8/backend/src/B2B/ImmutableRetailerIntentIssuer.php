@@ -119,6 +119,16 @@ final class ImmutableRetailerIntentIssuer
             'payment_mode'=>'payment_mode','invoice_total_paise'=>'gross_paise'];
         foreach($map as $left=>$right)if(!array_key_exists($left,$row)||$row[$left]!==$snapshot[$right])
             throw new RetailerSaleError('Previously issued intent differs from canonical quote.');
+        if(($row['saved_business_at']??null)!==$snapshot['business_at']) {
+            throw new RetailerSaleError('Persisted immutable business datetime differs from checkout.');
+        }
+        // Verify line-by-line ACTUAL persisted snapshot, not only a header hash.
+        // The trusted gateway must read these rows FOR UPDATE in the same transaction.
+        if(!is_array($row['saved_lines']??null)
+            ||count($row['saved_lines'])!==count($snapshot['lines'])
+            ||$row['saved_lines']!==$snapshot['lines']) {
+            throw new RetailerSaleError('Persisted immutable quote lines differ from server priced checkout.');
+        }
         if(($row['quote_digest']??null)!==$digest||($row['status']??null)!=='awaiting_payment'
             ||($row['currency']??null)!=='INR'||($row['pricing_locked']??null)!==true)
             throw new RetailerSaleError('Immutable intent is not locked to the original priced quote.');
