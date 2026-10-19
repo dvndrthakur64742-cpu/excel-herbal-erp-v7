@@ -36,6 +36,8 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_readiness.php
       - name: Canonical atomic posting choreography checks (fake transaction only)
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_atomic_posting.php
+      - name: Retailer to V7 customer identity and credit-policy checks
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_retailer_identity.php
 
   b2b-mariadb-integration:
     runs-on: ubuntu-latest
