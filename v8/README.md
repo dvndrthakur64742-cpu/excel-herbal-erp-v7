@@ -125,3 +125,14 @@ Current local verification (re-run required after each code change): **25/25 dom
 - Local regression total after this change: **163/163** (25+11+18+28+34+17+30), without any actual MariaDB run. GitHub hosted runners previously failed before job steps began; new CI runs must be inspected before claiming CI success.
 
 Detailed trust and missing release gates: `requirements/TRUSTED_TENDER_INTAKE.md`.
+
+## 2026-10-19 incremental development: verified tender linked to immutable retailer sale (v0.8)
+
+- `backend/src/B2B/SaleIntentTenderBinding.php`: server-trusted UAT contract binds **one immutable priced sale intent to exactly one confirmed tender**, checking canonical retailer/party, branch, employee custody, Cash/UPI source, quote digest, amount, merchant order, and replay protection. This is **reservation, not posting**. Response always sets `posting_allowed=false`.
+- `backend/src/B2B/PdoSaleIntentTenderBindingGateway.php` and `backend/schema/005_sale_intent_tender_binding_UAT.sql`: disposable `v8_test`-only InnoDB tables and transactional locking. Canonical V7 database is untouched; this adapter refuses any database not named `v8_test`.
+- `backend/tests/sale_tender_binding.php`: 29 local fake-gateway regression tests; `backend/tests/sale_tender_mariadb.php`: extra optional disposable MariaDB UAT, which must not be claimed as executed unless an actual database is available.
+- Previous 163 local regressions remain; total after this milestone: **192 local tests** (163+29). No hosted CI PASS can be claimed while runners fail to provision.
+- **Critical integration caveat:** No server-created canonical checkout route, approved tax/discount/HSN pricing engine, real WordPress gateway, verified bank provider adapter or stock/journal transaction writer exists in this slice. Existing `CanonicalV7Readiness` gate stays `posting_allowed=false`.
+- The sale and its immutable payment association must be **created only by a trusted backend**. UAT fixture creates them directly; never derive IDs, totals, merchant order, quote digest or roles from a browser request.
+
+See `requirements/SALE_TENDER_BINDING.md` for release gates and accounting separation.
