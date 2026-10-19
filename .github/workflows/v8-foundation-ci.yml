@@ -30,6 +30,8 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
       - name: Retailer master and boundary regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
+      - name: Employee cash custody regression checks
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/cash_remittance.php
 
   b2b-mariadb-integration:
     runs-on: ubuntu-latest
