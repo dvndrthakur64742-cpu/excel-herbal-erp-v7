@@ -15,19 +15,20 @@ jobs:
     name: V8 PHP regression on connected runner
     runs-on: [self-hosted, Windows]
     timeout-minutes: 15
+    defaults:
+      run:
+        shell: cmd
     steps:
       - name: Checkout development code
         uses: actions/checkout@v4
       - name: Verify installed PHP on Windows runner (no machine changes)
-        shell: powershell
         run: |
-          $php = Get-Command php -ErrorAction SilentlyContinue
-          if (-not $php) {
-            Write-Error "PHP CLI was not found on PATH. Install PHP 8.3+ separately or configure PHP path, then rerun; no installation is performed by this workflow."
-            exit 1
-          }
+          where php
+          if errorlevel 1 (
+            echo PHP CLI not on PATH. Install/configure PHP 8.3+ and rerun. No machine changes performed by this workflow.
+            exit /b 1
+          )
           php -v
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Retailer sale policy tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
       - name: Retailer master and API boundary tests
