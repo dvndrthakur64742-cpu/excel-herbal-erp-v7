@@ -233,5 +233,58 @@ try{
     checkUat((float)first($pdo,'SELECT debit FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$upiSale['journal_id'],$upiId])===200.0,'UPI payment debits UPI clearing not physical cash');
     checkUat(first($pdo,'SELECT status FROM v8_b2b_sale_intents_uat WHERE id=?',[$upi['sale_intent_id']])==='posted'
          && first($pdo,'SELECT status FROM v8_b2b_payment_intents_uat WHERE id=?',[$upi['payment_intent_id']])==='consumed','UPI posting finalizes original payment evidence');
-    echo "CANONICAL V7 REAL MARIADB UAT: 20/20 PASS; v8_test only; no WordPress deployment\n";
+    // Deterministic concurrency test: two INDEPENDENT MariaDB sessions contend
+    // for the same immutable source row. Do not turn off unique constraints.
+    $pdo->exec('SET SESSION innodb_lock_wait_timeout=1');
+    $peer=new PDO($dsn,getenv('V8_TEST_USER')?:'v8',getenv('V8_TEST_PASSWORD')?:'v8',[
+        PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+    if($peer->query('SELECT DATABASE()')->fetchColumn()!=='v8_test')
+        throw new RuntimeException('Refusing concurrency test outside v8_test');
+    $held=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-ROW-LOCK-CONC-001');
+    $heldContext=postContext($held['sale_intent_id']);
+    $branchBefore=(int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND branch_id=? AND product_id=? AND custodian_key=0',[$company,$branch,$product]);
+    $peer->beginTransaction();
+    try{
+        $q=$peer->prepare('SELECT id FROM v8_b2b_sale_intents_uat WHERE company_id=? AND id=? FOR UPDATE');
+        $q->execute([$company,$held['sale_intent_id']]);
+        if((int)$q->fetchColumn()!==$held['sale_intent_id'])throw new RuntimeException('Second session could not lock source intent');
+        $conflict=false;
+        try{$writer->post($heldContext);}catch(Throwable $e){$conflict=true;}
+        checkUat($conflict,'second connection cannot post while source intent is row-locked');
+        checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_retailer_sales WHERE sale_intent_id=?',[$held['sale_intent_id']])===0
+            && first($pdo,'SELECT status FROM v8_b2b_sale_intents_uat WHERE id=?',[$held['sale_intent_id']])==='awaiting_payment',
+            'lock timeout rolls back sale and preserves open intent');
+        checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND branch_id=? AND product_id=? AND custodian_key=0',[$company,$branch,$product])===$branchBefore,
+            'blocked transaction does not reduce V7 stock');
+    }finally{if($peer->inTransaction())$peer->rollBack();}
+    $released=$writer->post($heldContext);
+    checkUat($released['status']==='posted' && $released['replayed']===false,'posting succeeds after competing source-row lock releases');
+    checkUat((int)first($pdo,"SELECT COUNT(*) FROM wp_eh7_stock_ledger WHERE source_type='b2b_retailer_sale' AND source_id=?",[$released['sale_id']])===1
+        && (int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_journal_entries WHERE company_id=? AND source_type=? AND source_id=?',[$company,'b2b_retailer_sale',$released['sale_id']])===1,
+        'lock retry produces exactly one stock movement and one journal');
+    $differentKey=$heldContext;$differentKey['idempotency_key'].='-DIFFERENT';
+    $rejected=false;
+    try{$writer->post($differentKey);}catch(Throwable $e){$rejected=true;}
+    checkUat($rejected,'same issued payment cannot post again under a different idempotency key');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_checkout_keys WHERE company_id=? AND request_key=?',[$company,$differentKey['idempotency_key']])===0,
+        'rejected alternate idempotency key leaves no persistent lock row');
+    // A UNIQUE key held by a different transaction must stop a competing writer;
+    // rolling back the losing/competing writer must not leave sale or evidence.
+    $heldKey=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-UNIQUE-LOCK-CONC-002');
+    $keyContext=postContext($heldKey['sale_intent_id']);
+    $peer->beginTransaction();
+    try{
+        $q=$peer->prepare('INSERT INTO wp_eh7_b2b_checkout_keys(company_id,request_key) VALUES(?,?)');
+        $q->execute([$company,$keyContext['idempotency_key']]);
+        $blocked=false;
+        try{$writer->post($keyContext);}catch(Throwable $e){$blocked=true;}
+        checkUat($blocked,'in-flight identical idempotency key serializes competing posting');
+        checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_retailer_sales WHERE sale_intent_id=?',[$heldKey['sale_intent_id']])===0
+            && first($pdo,'SELECT status FROM v8_b2b_sale_intents_uat WHERE id=?',[$heldKey['sale_intent_id']])==='awaiting_payment',
+            'concurrent idempotency conflict leaves no partial canonical posting');
+    }finally{if($peer->inTransaction())$peer->rollBack();}
+    $final=$writer->post($keyContext);
+    checkUat($final['status']==='posted' && $writer->post($keyContext)['replayed']===true,
+        'released unique key posts once and subsequent request replays safely');
+    echo "CANONICAL V7 REAL MARIADB UAT: 30/30 PASS; v8_test only; no WordPress deployment\n";
 }catch(Throwable $e){fwrite(STDERR,'CANONICAL V7 MARIADB UAT FAILED: '.$e::class.' '.$e->getMessage().' at '.$e->getFile().':'.$e->getLine()."\n");exit(1);}
