@@ -51,3 +51,5 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/sale_tender_binding.php
       - name: Canonical retailer checkout read-only preview tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_checkout_preview.php
+      - name: Immutable B2B sale/payment intent issuance regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_issuance.php

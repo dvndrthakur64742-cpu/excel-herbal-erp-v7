@@ -46,6 +46,9 @@ jobs:
       - name: Canonical retailer checkout read-only identity and price/stock composition
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_checkout_preview.php
 
+      - name: Immutable B2B sale/payment intent issuance regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_issuance.php
+
   b2b-mariadb-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -77,6 +80,12 @@ jobs:
           V8_TEST_USER: v8
           V8_TEST_PASSWORD: v8
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/mariadb_integration.php
+      - name: Issued intent to Cash tender binding UAT
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_mariadb.php
       - name: Disposable MariaDB trusted tender intake evidence checks
         env:
           V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
