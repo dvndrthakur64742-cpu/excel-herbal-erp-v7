@@ -17,7 +17,7 @@
 | Finance accounts | `eh7_accounts`, `AccountingService::accountByCode` | Resolve company-owned actual account IDs and validated types, never placeholder journal strings |
 | GL | `eh7_journal_entries`, `eh7_journal_lines`, `AccountingService::post` | **Canonical writer only**; requires newly supported journal source and existing company/period locks |
 | Period and business-day close | `eh7_accounting_periods`, `eh7_branch_closings` | Read-only preflight; must re-check **under transaction lock** before posting |
-| Customer | `eh7_parties`, `eh7_counter_sales` | **Not yet mapped**: V7 party `customer` is not yet a typed B2B retailer; do not silently merge customers |
+| Customer | `eh7_parties`, `eh7_counter_sales` | **v0.6 read-only mapping drafted:** retailer classification sidecar links to existing V7 party, validates company/branch/status and blocks legacy credit; sidecar migration NOT executed |
 | Field Cash responsibility | V8 preview `v8_b2b_employee_remittance` | **Not yet mapped**: need canonical cash-in-transit Chart of Accounts and settlement source |
 
 ## Deliverable in this step
@@ -69,3 +69,29 @@ The 32 tests use a fake transactional gateway to prove control flow, **not real 
 Do not attempt to wire the preview `MariaDbRetailerGateway` as the concrete V7 writer: it
 would create a duplicate stock/finance source. These release blockers cannot be waived by a
 request flag or by passing the fake gateway to production.
+
+
+## Canonical retailer customer identity, read-only design (v0.6)
+
+- **Source of truth:** `eh7_parties` is the existing customer record. `type='customer'`
+  is still required. We deliberately do not create a second name/address/contact master.
+- **Proposed classification:** `eh8_retailer_party_links(id,company_id,branch_id,party_id,
+  status,created_by,created_at)`. Unique key `(company_id,party_id)` prevents duplicating
+  a canonical party as multiple retailers. The SQL is `schema/003_*_DRAFT.sql` and is NOT
+  applied by this release.
+- **Read rule:** WordPress reader requires trusted actor+branch permission and an exact
+  scoped join on V7 party and classification. Both rows must be active. It fails closed on
+  missing table, corrupted mapping, unknown shop and SQL errors.
+- **Existing credit:** `SUM(eh7_counter_sales.outstanding_amount)` for the same company,
+  branch and party, on posted sales with positive outstanding, MUST be zero. The check
+  preserves the original customer's valid historical records without permitting a new
+  B2B credit sale. The actual posting writer must also lock and revalidate this state.
+- **Ledger relationship:** `retailer_id` is the V8 classification ID and
+  `canonical_party_id` is `eh7_parties.id`; source header carries both IDs. Retailer
+  does NOT own a separate financial ledger or shadow receivable.
+- **Limit:** This covers current V7 counter-sale receivables only. If other current or
+  future modules create customer receivables, the final writer must check the canonical
+  receivable reconciliation including those sources.
+- **Not yet done:** no write-side registration, automatic classification migration,
+  verified Cash/UPI receipt creation, invoicing policy, tax, approved pricing, REST endpoint,
+  V7 AccountingService B2B source or MariaDB production lock proof. These remain release gates.
