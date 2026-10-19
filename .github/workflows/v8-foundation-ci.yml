@@ -38,6 +38,8 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_atomic_posting.php
       - name: Retailer to V7 customer identity and credit-policy checks
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_retailer_identity.php
+      - name: Trusted Cash custody and bank-verified UPI evidence regressions (fake gateway)
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/trusted_tender_intake.php
 
   b2b-mariadb-integration:
     runs-on: ubuntu-latest
@@ -70,3 +72,9 @@ jobs:
           V8_TEST_USER: v8
           V8_TEST_PASSWORD: v8
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/mariadb_integration.php
+      - name: Disposable MariaDB trusted tender intake evidence checks
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/trusted_tender_mariadb.php
