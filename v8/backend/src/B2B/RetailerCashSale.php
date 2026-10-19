@@ -53,6 +53,9 @@ final class Paise
             throw new RetailerSaleError('Product cost must have 0–4 decimals.');
         }
         $tenThousandths = (int)$m[1] * 10000 + (int)str_pad($m[2] ?? '', 4, '0');
+        if ($tenThousandths > intdiv(PHP_INT_MAX - 50, $quantity)) {
+            throw new RetailerSaleError('Product cost exceeds safe integer precision.');
+        }
         return intdiv($tenThousandths * $quantity + 50, 100);
     }
 
@@ -181,8 +184,14 @@ final class RetailerCashSale
                 if ($available < $line['qty']) {
                     throw new RetailerSaleError('Insufficient authorized stock in the correct custody bucket.');
                 }
+                if ($price > intdiv(PHP_INT_MAX, $line['qty'])) {
+                    throw new RetailerSaleError('Sale amount exceeds safe integer precision.');
+                }
                 $amount = $price * $line['qty'];
                 $cost = Paise::costTotal($product['purchase_cost'] ?? null, $line['qty']);
+                if ($total > PHP_INT_MAX - $amount || $totalCost > PHP_INT_MAX - $cost) {
+                    throw new RetailerSaleError('Sale totals exceed safe integer precision.');
+                }
                 $total += $amount;
                 $totalCost += $cost;
                 $details[] = $line + [
