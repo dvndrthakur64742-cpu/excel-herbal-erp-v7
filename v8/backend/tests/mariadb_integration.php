@@ -4,7 +4,10 @@ require dirname(__DIR__) . '/src/B2B/RetailerCashSale.php';
 require dirname(__DIR__) . '/src/B2B/RetailerMaster.php';
 require dirname(__DIR__) . '/src/B2B/RetailerApi.php';
 require dirname(__DIR__) . '/src/B2B/MariaDbRetailerGateway.php';
-use ExcelHerbal\ERP8\B2B\{MariaDbRetailerGateway,RetailerCashSale,RetailerMaster,RetailerApi,RetailerSaleError};
+require dirname(__DIR__) . '/src/B2B/EmployeeCashRemittance.php';
+require dirname(__DIR__) . '/src/B2B/MariaDbEmployeeRemittanceGateway.php';
+require dirname(__DIR__) . '/src/B2B/EmployeeRemittanceApi.php';
+use ExcelHerbal\ERP8\B2B\{MariaDbRetailerGateway,RetailerCashSale,RetailerMaster,RetailerApi,RetailerSaleError,MariaDbEmployeeRemittanceGateway,EmployeeCashRemittance,EmployeeRemittanceApi};
 $dsn = getenv('V8_TEST_DSN');
 if (!$dsn) { echo "SKIP: V8_TEST_DSN not set, no MariaDB installed in this environment.\n"; exit(0); }
 $db = new PDO($dsn, getenv('V8_TEST_USER') ?: 'v8', getenv('V8_TEST_PASSWORD') ?: 'v8', [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
@@ -13,7 +16,10 @@ if (strpos($dsn, 'dbname=v8_test') === false) throw new RuntimeException('Integr
 $sql = file_get_contents(dirname(__DIR__) . '/schema/001_b2b_preview_mysql.sql');
 $sql = preg_replace('/^--[^\n]*$/m', '', $sql);
 foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) $db->exec($statement);
-$tables = ['v8_b2b_employee_remittance','v8_b2b_retailer_statement','v8_b2b_journal_lines','v8_b2b_stock_movements','v8_b2b_sale_lines','v8_b2b_sales','v8_b2b_sale_keys','v8_b2b_verified_tenders','v8_b2b_stock_bins_preview','v8_b2b_batches_preview','v8_b2b_catalog_preview','v8_b2b_retailers'];
+$remitSql=file_get_contents(dirname(__DIR__) . '/schema/002_cash_remittance_uat.sql');
+$remitSql=preg_replace('/^--[^\n]*$/m','',$remitSql);
+foreach (array_filter(array_map('trim',explode(';',$remitSql))) as $statement) $db->exec($statement);
+$tables = ['v8_b2b_remittance_journal_lines','v8_b2b_remittance_events','v8_b2b_remittance_keys','v8_b2b_verified_branch_receipts','v8_b2b_employee_remittance','v8_b2b_retailer_statement','v8_b2b_journal_lines','v8_b2b_stock_movements','v8_b2b_sale_lines','v8_b2b_sales','v8_b2b_sale_keys','v8_b2b_verified_tenders','v8_b2b_stock_bins_preview','v8_b2b_batches_preview','v8_b2b_catalog_preview','v8_b2b_retailers'];
 foreach ($tables as $table) $db->exec("DELETE FROM {$table}");
 $db->exec("INSERT INTO v8_b2b_catalog_preview (company_id,branch_id,product_id,status,mrp,sale_price,ho_amount,bm_profit,salary_fund,office_expense,purchase_cost,points,batch_required) VALUES (1,1,1,'active','150.00','100.00','50.00','20.00','20.00','10.00','40.1250','5',0)");
 $db->exec('INSERT INTO v8_b2b_stock_bins_preview (company_id,branch_id,product_id,batch_id,custodian_key,quantity_pcs) VALUES (1,1,1,0,0,10),(1,1,1,0,6,5)');
@@ -45,6 +51,24 @@ $db->exec("INSERT INTO v8_b2b_verified_tenders (company_id,branch_id,payment_mod
 $field=$api->postPaidSale(1,1,2,array_replace($req,['idempotency_key'=>'mysql-field-002','channel'=>'field','employee_id'=>6,'payment_reference'=>'CASH-FIELD-002','paid_amount'=>'200.00','lines'=>[['product_id'=>1,'batch_id'=>0,'qty'=>2]]]));
 ok($field['employee_cash_remittance_paise']===20000 && (int)$db->query('SELECT amount_due_paise FROM v8_b2b_employee_remittance WHERE sale_id='.$field['id'])->fetchColumn()===20000,'employee remittance separate from retailer');
 ok((int)$db->query('SELECT quantity_pcs FROM v8_b2b_stock_bins_preview WHERE custodian_key=6')->fetchColumn()===3,'employee custody deducted only');
+// A field cash sale is ALREADY fully paid by the retailer, but is NOT yet branch-remitted.
+$cashierGateway=new MariaDbEmployeeRemittanceGateway($db,static fn($action,$actor,$company,$branch,$employee) => $action==='b2b.remittance.confirm' && $actor===2 && $company===1 && $branch===1);
+$cashierApi=new EmployeeRemittanceApi(new EmployeeCashRemittance($cashierGateway));
+$db->exec("INSERT INTO v8_b2b_verified_branch_receipts (company_id,branch_id,sale_id,employee_id,cash_receipt_reference,amount_paise,verified_source,verified_at) VALUES (1,1,".$field['id'].",6,'RECEIPT-BR-01',20000,'cashier',NOW())");
+$remitRequest=['sale_id'=>(int)$field['id'],'employee_id'=>6,'amount'=>'200.00','cash_receipt_reference'=>'RECEIPT-BR-01','idempotency_key'=>'mysql-remittance-001'];
+$remit=$cashierApi->confirmBranchCash(1,1,2,$remitRequest);
+ok($remit['amount_paise']===20000 && $remit['status']==='posted','employee cash transferred to branch control');
+$state=$db->query('SELECT status,amount_remitted_paise FROM v8_b2b_employee_remittance WHERE sale_id='.$field['id'])->fetch(PDO::FETCH_ASSOC);
+ok($state['status']==='settled' && (int)$state['amount_remitted_paise']===20000,'employee pending cash settled without customer credit');
+$partyAfter=(int)$db->query('SELECT SUM(amount_paise) FROM v8_b2b_retailer_statement WHERE sale_id='.$field['id'])->fetchColumn();
+ok($partyAfter===0,'retailer outstanding unchanged after branch cash remittance');
+$drRemit=(int)$db->query('SELECT SUM(debit_paise) FROM v8_b2b_remittance_journal_lines WHERE event_id='.$remit['id'])->fetchColumn();
+$crRemit=(int)$db->query('SELECT SUM(credit_paise) FROM v8_b2b_remittance_journal_lines WHERE event_id='.$remit['id'])->fetchColumn();
+ok($drRemit===$crRemit && $drRemit===20000,'branch cash vs employee transit balanced');
+$retry=$cashierApi->confirmBranchCash(1,1,2,$remitRequest);
+ok($retry['id']===$remit['id'] && (int)$db->query('SELECT COUNT(*) FROM v8_b2b_remittance_events')->fetchColumn()===1,'cashier remittance is idempotent');
+failure(fn()=>$cashierApi->confirmBranchCash(1,1,2,array_replace($remitRequest,['idempotency_key'=>'mysql-remittance-002'])),'second remittance against same sale denied');
+failure(fn()=>$cashierApi->confirmBranchCash(1,2,2,$remitRequest),'cross branch cash receipt denied');
 $db->exec("INSERT INTO v8_b2b_verified_tenders (company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at) VALUES (1,1,'upi','FAKE-UPI-003',10000,'cashier',NOW())");
 failure(fn()=>$api->postPaidSale(1,1,2,array_replace($req,['idempotency_key'=>'mysql-upi-003','payment_mode'=>'upi','payment_reference'=>'FAKE-UPI-003','paid_amount'=>'100.00','lines'=>[['product_id'=>1,'batch_id'=>0,'qty'=>1]]])),'UPI cash acknowledgment cannot fake provider proof');
 $db->exec("INSERT INTO v8_b2b_verified_tenders (company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at) VALUES (1,1,'upi','UPI-VER-004',10000,'provider',NOW())");
