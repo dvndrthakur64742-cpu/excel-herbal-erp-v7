@@ -35,6 +35,7 @@ final class TransactionalCanonicalFake implements CanonicalPostingGateway
 {
     public bool $release = true;
     public bool $allow = true;
+    public int $partyId = 55;
     public bool $verified = true;
     public bool $failJournal = false;
     public bool $failFinalization = false;
@@ -60,9 +61,10 @@ final class TransactionalCanonicalFake implements CanonicalPostingGateway
         $this->events[]='release';
         if(!$this->release)throw new RetailerSaleError('Production release gates remain disabled.');
     }
-    public function assertAuthorizedRetailer(int $c,int $b,int $r,int $a):void{
+    public function assertAuthorizedRetailer(int $c,int $b,int $r,int $a):int{
         $this->events[]='retailer';
         if(!$this->allow || $c!==1 || $b!==4 || $r!==12 || $a!==8)throw new RetailerSaleError('Retailer scope denied.');
+        return $this->partyId;
     }
     public function lockedAssessment(array $trustedRequest):array{$this->events[]='assess-under-lock';return $this->locked;}
     public function consumeVerifiedTender(int $c,int $b,string $mode,string $ref,int $amount):void{
@@ -175,6 +177,19 @@ $tests['atomic posting commits source, stock, tender and GL once']=function(){
     assert($r['status']==='posted' && $r['sale_id']===73 && $r['journal_id']===901);
     assert($g->stock[11]===7 && $g->tenders['CASH-TRUSTED-001']===false);
     assert($g->events===['lock-key','find-key','release','retailer','assess-under-lock','consume-tender','create-canonical-sale','canonical-stock','canonical-journal','finalize']);
+};
+$tests['sale source binds to canonical V7 customer party, never a shadow customer']=function(){
+    $g=new TransactionalCanonicalFake;
+    (new CanonicalRetailerAtomicPosting($g))->post(trustedRequest());
+    assert($g->source[73]['header']['canonical_party_id']===55);
+    assert($g->source[73]['header']['retailer_id']===12);
+    assert($g->source[73]['header']['outstanding_paise']===0);
+    assert(!in_array('AR',array_column($g->journals[901],'account_id'),true));
+};
+$tests['retailer link without canonical customer party blocks posting']=function(){
+    $g=new TransactionalCanonicalFake;$g->partyId=0;
+    fails('valid customer party',fn()=>(new CanonicalRetailerAtomicPosting($g))->post(trustedRequest()));
+    assert($g->stock[11]===10 && $g->tenders['CASH-TRUSTED-001']===true && !$g->source);
 };
 $tests['idempotency returns exact receipt with no second deduction']=function(){
     $g=new TransactionalCanonicalFake;$s=new CanonicalRetailerAtomicPosting($g);
