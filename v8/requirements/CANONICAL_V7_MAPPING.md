@@ -39,3 +39,33 @@
 ## Explicit release gate
 
 `CanonicalV7Readiness::assess()` always returns **`posting_allowed=false`**, even after all read-only checks succeed. The caller has no operation capable of posting. The result is a **mapping assessment**, never authorization or proof of an operational integration. V8 preview schemas must never be applied to `office.excelherbal.in`.
+
+
+## Atomic canonical posting: new contract, not an enabled writer (2026-10-19)
+
+`CanonicalRetailerAtomicPosting` specifies the required transaction order, for a future
+trusted V7 adapter **once authorized by the owner**:
+
+1. `BEGIN`, lock unique request/idempotency key; exact replay returns the original receipt.
+2. Enforce deployment release gates; verify actor, company, branch and canonical Retailer party.
+3. Lock/re-read accounting period, branch day, product/batch, effective pricing and the EXACT
+   stock custody buckets. Do not reuse read-only preflight counts for debit/credit posting.
+4. Build deterministic whole-PCS sales/COGS and balanced GL lines using canonical account IDs.
+   The field Cash debit belongs to Employee Cash-in-Transit, never Retailer Receivable.
+5. Consume **one-use, server-confirmed** Cash/UPI receipt (no employee reference/screenshot only).
+6. Insert one canonical Sales source, move stock once with canonical StockService, post one
+   registered source journal with AccountingService, and finalize the source/idempotency receipt.
+7. Commit. Any exception must roll back ALL above writes including consumed tender evidence;
+   on retry, a different payload for the same key MUST be rejected.
+
+### Deployment blockers
+
+There is currently **no concrete `CanonicalPostingGateway` for WordPress**, and there is no
+registered B2B `AccountingService::sourceTable` type, no canonical retailer-party migration,
+no finalized statutory invoice/GST or B2B price policy, no production trusted tender verifier,
+and no approved reversal/refund workflow. The read-only `posting_allowed=false` preflight stays.
+The 32 tests use a fake transactional gateway to prove control flow, **not real InnoDB locks**.
+
+Do not attempt to wire the preview `MariaDbRetailerGateway` as the concrete V7 writer: it
+would create a duplicate stock/finance source. These release blockers cannot be waived by a
+request flag or by passing the fake gateway to production.
