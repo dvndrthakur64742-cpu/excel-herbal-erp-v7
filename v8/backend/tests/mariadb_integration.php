@@ -7,6 +7,8 @@ require dirname(__DIR__) . '/src/B2B/MariaDbRetailerGateway.php';
 require dirname(__DIR__) . '/src/B2B/EmployeeCashRemittance.php';
 require dirname(__DIR__) . '/src/B2B/MariaDbEmployeeRemittanceGateway.php';
 require dirname(__DIR__) . '/src/B2B/EmployeeRemittanceApi.php';
+require dirname(__DIR__) . '/src/B2B/IndependentCashierReceipt.php';
+require dirname(__DIR__) . '/src/B2B/PdoIndependentCashierReceiptGateway.php';
 use ExcelHerbal\ERP8\B2B\{MariaDbRetailerGateway,RetailerCashSale,RetailerMaster,RetailerApi,RetailerSaleError,MariaDbEmployeeRemittanceGateway,EmployeeCashRemittance,EmployeeRemittanceApi,IndependentCashierReceipt,PdoIndependentCashierReceiptGateway};
 $dsn = getenv('V8_TEST_DSN');
 if (!$dsn) { echo "SKIP: V8_TEST_DSN not set, no MariaDB installed in this environment.\n"; exit(0); }
