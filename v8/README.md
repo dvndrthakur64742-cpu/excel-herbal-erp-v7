@@ -165,3 +165,7 @@ See `requirements/CANONICAL_CHECKOUT_PREVIEW.md` for the complete scope and trus
 - Real WordPress API, approved tax invoice, actual V7 StockService and AccountingService atomic writer, trusted PSP settlement and whole-system UAT **remain blocked**. No live deployment, no PR merge, no production DB changes. Overall V8 engineering completion estimate remains ~15%.
 
 Details: `requirements/IMMUTABLE_QUOTE_REVALIDATION.md`.
+
+## 2026-10-19 accelerated integration: Employee 360 REST profile (dev branch)
+
+New V7 development GET `/wp-json/excel-herbal-erp/v7/organization/employees/{id}/360` composes existing *posted* daily sales, independent incentive points, attendance history, employee-custodied stock and tagged financial person journal entries. Self / employee-view permission, reporting hierarchy and branch constraints are enforced; journal access additionally requires finance-accounting capability. Dashboard is untouched (no new prices there), GPS remains in the existing authorized route endpoint. This is an actual read-only WordPress route in the V7 source, NOT a deployed UI. Ledger coverage is only entries already tagged to employee; cash transit is not falsely reported. 37 new isolated regression checks, no database mutation and no production deploy. See `requirements/EMPLOYEE_360_READ_ONLY_INTEGRATION.md`.

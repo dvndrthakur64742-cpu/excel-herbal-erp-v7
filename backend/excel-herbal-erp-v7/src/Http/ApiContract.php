@@ -23,6 +23,7 @@ final class ApiContract
             'gps_team_map'=>true,
             'holidays'=>true,
             'employee_documents'=>true,
+            'employee_360_profile'=>true,
             'employee_offboarding'=>true,
             'employee_reactivation'=>true,
             'reporting_hierarchy_manage'=>true,
