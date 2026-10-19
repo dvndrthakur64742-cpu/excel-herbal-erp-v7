@@ -113,3 +113,15 @@ Current local verification (re-run required after each code change): **25/25 dom
   rate/GST/invoice policy, trusted tender verification, canonical WordPress atomic writer,
   runtime REST/Flutter connection, real MySQL integration and successful GitHub CI.
   Never interpret this component as an enabled B2B sale.
+
+## 2026-10-19 incremental development: Cash custody and bank-settled UPI intake (v0.7)
+
+- `backend/src/B2B/TrustedTenderIntake.php` implements server-side, fail-closed payment intake from a **server-created locked payment intent**, not from client-supplied amounts, screenshots or verification flags.
+- Cash is accepted only by an authenticated, branch-authorized collector: **assigned employee custodian** for Field Cash, or authorized cashier for Counter Cash. WP actor/user ID != employee ID; the trusted authority callback must resolve the mapping. This DOES NOT settle field cash to branch.
+- UPI requires a trusted, pre-reconciled bank/PSP result with **settled INR amount, correct destination merchant bank account, matching merchant order and unique bank transaction ID**; a UTR typed by an employee is not verification.
+- `backend/src/B2B/PdoTrustedTenderIntakeGateway.php` + `backend/schema/004_trusted_tender_intake_UAT.sql` provide **disposable** PDO/InnoDB persistence of one-time evidence, with cross-branch replay uniqueness. They register no routes, cannot authorize roles by themselves and are not production migrations.
+- `backend/tests/trusted_tender_intake.php` adds **30 local isolated fake-gateway tests**. `backend/tests/trusted_tender_mariadb.php` adds separate optional `v8_test` UAT tests; no MariaDB PASS may be claimed without an actual database run.
+- **Critical:** the pre-existing isolated sale gateway **does not yet consume these new evidence classifications** because there is no approved canonical sale-intent binding. This is a safety gate, not a completed end-to-end API. `posting_allowed=false` remains intact.
+- Local regression total after this change: **163/163** (25+11+18+28+34+17+30), without any actual MariaDB run. GitHub hosted runners previously failed before job steps began; new CI runs must be inspected before claiming CI success.
+
+Detailed trust and missing release gates: `requirements/TRUSTED_TENDER_INTAKE.md`.
