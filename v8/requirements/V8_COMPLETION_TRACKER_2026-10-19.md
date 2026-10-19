@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-19  | **Branch:** `codex/erp-v8-foundation-20261017` | **Production deployment:** NO
 
-## Estimated whole-system progress: ~15% (±5 percentage points)
+## Estimated whole-system progress: ~21% (±5 percentage points)
 
 **This is a conservative weighted engineering estimate, not production readiness, not a percentage inferred from passing isolated tests, and not an audited sprint-velocity forecast.** Re-evaluate when a real vertical slice passes deployment-free UAT and its exact-head CI.
 
@@ -10,20 +10,22 @@
 |---|---:|---:|---|
 | BRD consolidation, legacy rule extraction and conflict register | 10 | 6 | Owner signoff on contested attendance, custody, pricing and tax policies |
 | Retailer B2B pure-domain rules, custody and verified-tender contracts | 15 | 8 | Server checkout/payment/retailer pricing/reversal authorization |
-| Canonical customer, stock and GL integration | 20 | 1 | One trusted canonical writer with real DB locks and end-to-end transaction |
+| Canonical customer, stock and GL integration | 20 | 5 | Actual V7 StockService/AccountingService verified on disposable MariaDB; production trust bridge, statutory policy, WordPress runtime and concurrency still missing |
 | Purchase, stock, daily employee operations, branch close | 15 | 0 | Fully integrated and tested workflows under V8 UI/API |
 | Employee 360°, HR, payroll and GPS | 15 | 0 | Required operational functions and real-device UAT |
 | Secure role-based UI / Flutter and backend APIs | 10 | 0 | Backend-authorized actual API integration and usable screens |
 | Ledgers, reports, finance reconciliation | 5 | 0 | Accurate posting, reversal and reconciliation across branches |
-| Real CI, integration, concurrency, UAT and deployment rehearsal | 10 | 0 | GitHub Actions runners, disposable MariaDB tests and UAT pass |
-| **TOTAL** | **100** | **15** | **~85 points remaining** |
+| Real CI, integration, concurrency, UAT and deployment rehearsal | 10 | 2 | Hosted PHP 8.3/8.4 and disposable MariaDB PASS; Windows self-hosted PHP, production-like WordPress, Flutter and concurrent DB UAT remain |
+| **TOTAL** | **100** | **21** | **~79 points remaining** |
 
-## Verified versus unverified
+## Verified versus unverified (latest exact-head evidence)
 
-- **192/192 local isolated domain/regression assertions passing**, split as 25+11+18+28+34+17+30+29 across eight suites; **27/27 PHP syntax checks passing**. No MariaDB/PDO MySQL driver installed in the current local container; optional MySQL integration tests are **not verified**.
-- Code only under isolated `v8/` on a draft PR, not merged or deployed. Exact GitHub CI status must be rechecked after every commit; previous runs failed without runner execution steps.
-- New v0.8 binding is a **reservation only**. It never claims stock posting, invoice creation, paid GL entry or actual employee remittance. `posting_allowed` remains **false**.
-- This percentage explicitly does **not** count older V7/v14 modules as completed V8 features until integrated, revalidated and regression-tested.
+- **GitHub Actions run [39251143974](https://github.com/dvndrthakur64742-cpu/excel-herbal-erp-v7/actions/runs/39251143974): SUCCESS** for PHP 8.3, PHP 8.4 and MariaDB jobs, exact commit `7f48a571131ecbe3c088a53782b01f6a6271a543`.
+- The new disposable `v8_test` real-service integration checks report **20/20 PASS**: actual V7 `StockService::move`, `AccountingService::post`, number series, and same-database stock/journal/evidence transaction; Counter Cash, Field Cash-in-Transit/person journal, and UPI Clearing; idempotent replay; injected journal failure rolling back the sale, stock and evidence status.
+- Existing PHP unit suites also succeeded on both PHP versions, but the 20 real-service checks are **not** a real WordPress bootstrap, independently authenticated payment provider, production-ready GST invoice, concurrent-writer test, Flutter app/device UAT, or live operation. The new test manually constructs tender proof **only as a synthetic UAT fixture**.
+- Windows self-hosted PHP check still fails; its optional runner is separate from the successful hosted PHP+MariaDB run.
+- These weights are **engineering estimates** reflecting one verified canonical vertical slice and restored CI, not a measured percentage of all application screens or business transactions. The older historical figures **192/192** and **15%** described early foundation only; neither is a latest test tally.
+- Current work stays on unmerged development PR #25; no production database, WordPress plugin or live deployment changes.
 
 ## Next acceptance milestone
 
