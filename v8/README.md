@@ -61,3 +61,11 @@ Current local verification (re-run required after each code change): **25/25 dom
 - Settling posts DR `BRANCH_CASH` and CR `EMPLOYEE_CASH_IN_TRANSIT` once, with a locked, one-use receipt; journal account strings remain placeholders for future canonical V7/ERP8 Chart of Accounts mapping.
 - Until an explicit owner policy approves shortages/partial deposits, full deposit is the only allowed closing; a shortage requires an exception workflow that is **not implemented**.
 - No real WordPress REST registration, production DB installation, working POS, canonical stock integration, statutory tax invoice, or deployment has been performed.
+
+## 2026-10-19 incremental development: canonical V7 read-only integration gate
+
+- `backend/src/B2B/CanonicalV7Readiness.php` and `WpV7CanonicalReader.php` read existing **canonical eh7_ product, effective commercial revisions, batch, branch, employee, stock balances and Chart of Accounts**. They **never write** to V7 and register **no REST endpoint**.
+- The V7 `StockService::cost()` uses **current stock bucket average unit cost**; the original V8 isolated prototype instead uses commercial `purchase_cost`. This gate explicitly maps and checks the canonical cost before estimating COGS.
+- `backend/tests/canonical_readiness.php` adds **28 isolated regressions**; these are not live WordPress/database integration tests.
+- Critical live-posting dependencies are still blocked: canonical retailer-party identity, Cash/UPI verification, approved account IDs and tax pricing, supported AccountingService source, atomic stock+GL writer, reversal path, access checks and live MariaDB UAT.
+- **`posting_allowed=false` is hardcoded by design.** See `requirements/CANONICAL_V7_MAPPING.md`; DO NOT treat the preflight as a deployed feature.
