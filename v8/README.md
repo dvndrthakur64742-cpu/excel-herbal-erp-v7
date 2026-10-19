@@ -136,3 +136,11 @@ Detailed trust and missing release gates: `requirements/TRUSTED_TENDER_INTAKE.md
 - The sale and its immutable payment association must be **created only by a trusted backend**. UAT fixture creates them directly; never derive IDs, totals, merchant order, quote digest or roles from a browser request.
 
 See `requirements/SALE_TENDER_BINDING.md` for release gates and accounting separation.
+
+## 2026-10-19 incremental development: canonical retailer checkout preview (v0.9)
+
+- `backend/src/B2B/CanonicalRetailerCheckoutPreview.php`: composes the existing authoritative V7 retailer/customer identity reader and canonical stock/pricing/period validation into one **read-only, fail-closed** retailer checkout preview.
+- Verifies company, branch, actor, linked canonical party, stock custody, whole PCS, product/batch, effective commercial revision, no outstanding/credit, Cash/UPI full total and business date. Returns a preview digest for change detection, not as payment proof.
+- Omits purchase cost, COGS, GL IDs and Salary Fund figures from the public-facing preview. Always returns `posting_allowed=false`, `stock_reserved=false`; this is not a GST invoice, credit authorization, receipt or real stock/GL posting.
+- `backend/tests/canonical_checkout_preview.php`: **17** new isolated tests; total **209/209 local PHP regressions** (prior 192 +17). No MariaDB runtime UAT or successful hosted/self-hosted runner execution is implied.
+- See `requirements/CANONICAL_CHECKOUT_PREVIEW.md`. Canonical writer, statutory tax/rate policy, trusted payment and atomic stock+GL posting remain blocked. **ERP overall engineering estimate remains ~15%.**

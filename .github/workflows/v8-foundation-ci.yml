@@ -43,6 +43,9 @@ jobs:
       - name: Trusted Cash custody and bank-verified UPI evidence regressions (fake gateway)
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/trusted_tender_intake.php
 
+      - name: Canonical retailer checkout read-only identity and price/stock composition
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_checkout_preview.php
+
   b2b-mariadb-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 15
