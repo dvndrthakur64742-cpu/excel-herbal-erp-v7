@@ -223,6 +223,7 @@ final class RetailerCashSale
 
             return $this->gateway->record([
                 'company_id' => $company,
+                'actor_id' => $actor,
                 'branch_id' => $branch,
                 'retailer_id' => $retailerId,
                 'channel' => $channel,
