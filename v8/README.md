@@ -89,3 +89,27 @@ Current local verification (re-run required after each code change): **25/25 dom
   locks exist. Do not flip a boolean or use an HTTP client flag to bypass those requirements.
 - The source code is added to the `v8/` development area only; no runtime registration,
   plugin activation, database migration, merged PR or production deployment.
+
+## 2026-10-19 incremental development: canonical B2B retailer identity (v0.6)
+
+- `backend/src/B2B/CanonicalRetailerIdentity.php` defines a read-only, fail-closed
+  **retailer classification → canonical V7 customer party** mapping. Shopkeepers are
+  `eh7_parties.type=customer` plus the proposed `eh8_retailer_party_links` classification;
+  field/counter remains the sales channel. No duplicate party name/contact/GL master.
+- `backend/src/B2B/WpV7RetailerIdentityReader.php` reads the V7 party through the
+  exact company/branch constrained join and separately checks existing posted V7 customer
+  receivables. Requires server-trusted authorization callback, refuses SQL read failures;
+  registers NO WordPress HTTP route and mutates NO database rows.
+- `backend/schema/003_canonical_retailer_identity_DRAFT.sql` is an **unapplied migration
+  design**, not production SQL. It requires owner-approved and DBA-reviewed activation
+  before its table would exist. Until then, real WordPress requests correctly fail closed.
+- Canonical atomic posting now requires a positive actual **party ID** from the
+  gateway's retailer authorization step, stores it on the sale source alongside retailer
+  classification ID, and still refuses real posting via release gates.
+- `backend/tests/canonical_retailer_identity.php` adds 17 read-only identity regressions;
+  `canonical_atomic_posting.php` now covers party linking and missing-party denial (34
+  tests). Total local isolated tests: **133/133** (25+11+18+28+34+17).
+- **Still missing**: write-side retailer onboarding/sidecar migration, approved retailer
+  rate/GST/invoice policy, trusted tender verification, canonical WordPress atomic writer,
+  runtime REST/Flutter connection, real MySQL integration and successful GitHub CI.
+  Never interpret this component as an enabled B2B sale.
