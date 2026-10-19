@@ -34,6 +34,8 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/cash_remittance.php
       - name: Canonical V7 read-only mapping checks
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_readiness.php
+      - name: Canonical atomic posting choreography checks (fake transaction only)
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_atomic_posting.php
 
   b2b-mariadb-integration:
     runs-on: ubuntu-latest
