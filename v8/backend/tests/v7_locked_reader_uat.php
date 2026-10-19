@@ -118,6 +118,7 @@ namespace ExcelHerbal\ERP8\B2B {
     });
     assert($out['assessment']['employee_id']===null&&isset($out['assessment']['canonical_account_ids']['BRANCH_CASH']));
  };
+ $tests['issued payment status must be open before canonical posting']=static fn()=>deny(static fn($d)=>$d->rows['v8_b2b_payment_intents_uat']['status']='consumed','payment intent');
  $tests['draft schema contains all independent canonical proof fields']=static function(){
     $schema=file_get_contents(__DIR__.'/../schema/009_v7_canonical_retailer_posting_DRAFT.sql');
     assert(is_string($schema));

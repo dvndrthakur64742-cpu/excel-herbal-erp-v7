@@ -62,6 +62,7 @@ namespace ExcelHerbal\ERP8\B2B {
         public string $prefix='wp_',$database='v8_test';public int $insert_id=0;
         public array $rows=[],$counts=[],$stock=['4-11-0'=>10,'4-11-42'=>10],$journals=[],$stock_moves=[];
         public bool $closedDay=false,$openCredit=false,$badParty=false,$failFinalize=false;
+        public ?string $failBridgeStage=null;
         public function prepare(string $query,...$args):string{foreach($args as $a){$pos=strpos($query,'%');if($pos===false)break;$q=$query[$pos+1];$formatted=$q==='d'?(string)(int)$a:"'".str_replace("'","''",(string)$a)."'";$query=substr_replace($query,$formatted,$pos,2);}return $query;}
         public function get_var(string $sql):mixed{
             if(str_contains($sql,'DATABASE()'))return $this->database;
@@ -74,7 +75,18 @@ namespace ExcelHerbal\ERP8\B2B {
                 if(!isset($matches[1]))throw new \RuntimeException('Bad key insert SQL');
                 $key=$matches[1].':'.$matches[2];$this->rows['keys'][$key]??=['company_id'=>(int)$matches[1],'request_key'=>$matches[2],'sale_id'=>null,'sale_intent_id'=>null,'request_fingerprint'=>null];return 1;
             }
-            if(str_contains($sql,'UPDATE')&&str_contains($sql,'b2b_verified_tenders')){
+            foreach([
+                'v8_b2b_verified_tenders'=>'uat_tender_consumed',
+                'v8_b2b_sale_tender_reservations_uat'=>'uat_reservation_consumed',
+                'v8_b2b_payment_intents_uat'=>'uat_payment_consumed',
+                'v8_b2b_sale_intents_uat'=>'uat_sale_posted',
+            ] as $table=>$state){
+                if(str_contains($sql,'UPDATE '.$table.' SET ')){
+                    if($this->failBridgeStage===$state||($this->rows[$state]??false))return 0;
+                    $this->rows[$state]=true;return 1;
+                }
+            }
+            if(str_contains($sql,'UPDATE')&&str_contains($sql,'eh7_b2b_verified_tenders')){
                 if(($this->rows['proof_consumed']??false)===true)return 0;
                 $this->rows['proof_consumed']=true;return 1;
             }
@@ -132,7 +144,7 @@ namespace ExcelHerbal\ERP8\B2B {
                 'quantity_pcs'=>$l['qty_pcs'],'commercial_revision_id'=>$l['commercial_revision_id'],
                 'unit_price_paise'=>$l['unit_price_paise'],'line_total_paise'=>$l['line_total_paise']],$assessment['lines']);
             $quote=array_replace(['sale_intent_id'=>333,'company_id'=>1,'branch_id'=>4,'retailer_id'=>12,
-                'canonical_party_id'=>55,'invoice_total_paise'=>30000,'channel'=>$assessment['channel'],
+                'canonical_party_id'=>55,'payment_intent_id'=>888,'invoice_total_paise'=>30000,'channel'=>$assessment['channel'],
                 'employee_id'=>$assessment['employee_id'],'payment_mode'=>$assessment['payment_mode'],
                 'saved_business_at'=>'2026-10-19 10:30:00','saved_lines'=>$saved,
                 'currency'=>'INR','pricing_locked'=>true,'status'=>'awaiting_payment'],$changeQ);
@@ -142,7 +154,7 @@ namespace ExcelHerbal\ERP8\B2B {
                 'employee_id'=>$quote['employee_id'],'business_at'=>$quote['saved_business_at'],
                 'payment_mode'=>$quote['payment_mode'],'gross_paise'=>$quote['invoice_total_paise'],
                 'lines'=>$quote['saved_lines']],JSON_THROW_ON_ERROR));
-            $proof=array_replace(['id'=>77,'company_id'=>1,'branch_id'=>4,'sale_intent_id'=>333,
+            $proof=array_replace(['id'=>77,'uat_tender_id'=>999,'company_id'=>1,'branch_id'=>4,'sale_intent_id'=>333,
                 'quote_digest'=>$quote['quote_digest'],'payment_mode'=>$assessment['payment_mode'],
                 'verified_source'=>$assessment['payment_mode']==='upi'?'bank_settlement':($assessment['channel']==='field'?'employee_cash_custody':'branch_cashier_cash'),
                 'amount_paise'=>30000,'consumed_sale_id'=>null,'currency'=>'INR','status'=>'confirmed'],$changeProof);
@@ -155,7 +167,23 @@ namespace ExcelHerbal\ERP8\B2B {
     }
     function denied(string $needle,callable $fn):void{try{$fn();}catch(RetailerSaleError $e){if(!str_contains($e->getMessage(),$needle))throw new \RuntimeException('Expected '.$needle.' got '.$e->getMessage());return;}throw new \RuntimeException('Expected rejection '.$needle);}
     $tests=[];
-    $tests['atomic success writes one canonical sale V7 stock and GL, one tender']=function(){[$writer,$d]=fresh();$x=$writer->post(context());assert($x['status']==='posted'&&$x['journal_id']===900);assert($d->stock['4-11-0']==7&&($d->rows['proof_consumed']??false)===true);assert(count($d->journals)===1&&$d->journals[900]['source']==='b2b_retailer_sale'&&$d->counts['sales']===1);};
+    $tests['atomic success writes one canonical sale V7 stock and GL, one tender']=function(){[$writer,$d]=fresh();$x=$writer->post(context());assert($x['status']==='posted'&&$x['journal_id']===900);assert($d->stock['4-11-0']==7&&($d->rows['proof_consumed']??false)===true);foreach(['uat_tender_consumed','uat_reservation_consumed','uat_payment_consumed','uat_sale_posted'] as $stage)assert(($d->rows[$stage]??false)===true);assert(count($d->journals)===1&&$d->journals[900]['source']==='b2b_retailer_sale'&&$d->counts['sales']===1);};
+    $tests['source original tender id missing denies posting']=function(){[$writer,$d]=fresh(fixtures([],[],['uat_tender_id'=>null]));denied('Original issued payment',fn()=>$writer->post(context()));assert(!isset($d->rows['sales']));};
+    $tests['source original payment id missing denies posting']=function(){[$writer,$d]=fresh(fixtures([],['payment_intent_id'=>null]));denied('Original issued payment',fn()=>$writer->post(context()));assert(!isset($d->rows['sales']));};
+    $tests['duplicate original tender consumption rolls back V7 sale stock and journal']=function(){[$writer,$d]=fresh();$d->rows['uat_tender_consumed']=true;denied('Original verified tender consumption',fn()=>$writer->post(context()));assert($d->stock['4-11-0']===10&&!isset($d->rows['sales'])&&!isset($d->rows['proof_consumed']));};
+    foreach(['uat_tender_consumed'=>'Original verified tender consumption','uat_reservation_consumed'=>'reservation finalization','uat_payment_consumed'=>'payment intent finalization','uat_sale_posted'=>'sale intent finalization'] as $stage=>$message){
+        $tests['atomic all-book rollback if '.$stage.' update fails']=function()use($stage,$message){[$writer,$d]=fresh();$d->failBridgeStage=$stage;denied($message,fn()=>$writer->post(context()));assert($d->stock['4-11-0']===10&&!isset($d->rows['sales'])&&!isset($d->rows['proof_consumed']));foreach(['uat_tender_consumed','uat_reservation_consumed','uat_payment_consumed','uat_sale_posted'] as $field)assert(!isset($d->rows[$field]));assert($d->journals===[]);};
+    }
+    $tests['a successful exact retry does not consume payment intent twice']=function(){[$writer,$d]=fresh();$writer->post(context());$prior=$d->rows;assert($writer->post(context())['replayed']===true);assert($d->rows===$prior);};
+    $tests['all four cross-ledger UPDATE queries are scoped and compare-and-swap']=function(){
+        $source=file_get_contents(__DIR__.'/../src/B2B/V7CanonicalPostingSinkUat.php');
+        foreach(['v8_b2b_verified_tenders','v8_b2b_sale_tender_reservations_uat','v8_b2b_payment_intents_uat','v8_b2b_sale_intents_uat'] as $table){
+            assert(str_contains($source,'UPDATE '.$table.' SET '));
+        }
+        assert(substr_count($source,'IF_UNSAFE_INVALID')===0);
+        assert(str_contains($source,"quote_digest=%s AND status='reserved'"));
+        assert(str_contains($source,"consumed_sale_id IS NULL AND status='confirmed'"));
+    };
     $tests['exact retry returns single receipt and does not move stock again']=function(){[$writer,$d]=fresh();$writer->post(context());$r=$writer->post(context());assert($r['replayed']===true&&$d->stock['4-11-0']==7&&$d->counts['sales']===1);};
     $tests['reuse key with different sale intent fails']=function(){[$writer,$d]=fresh();$writer->post(context());denied('reused',fn()=>$writer->post(context(['sale_intent_id'=>334])));assert($d->counts['sales']===1);};
     $tests['wrong actor replay cannot read paid receipt']=function(){[$writer,$d]=fresh();$writer->post(context());$other=new V7CanonicalPostingSinkUat(new Actor(10),fixtures());denied('reused',fn()=>$other->post(context(['actor_id'=>10])));};

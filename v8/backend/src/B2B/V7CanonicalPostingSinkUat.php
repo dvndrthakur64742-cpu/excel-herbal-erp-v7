@@ -159,6 +159,13 @@ final class V7CanonicalPostingSinkUat
                 ||($proof['consumed_sale_id']??null)!==null
                 ||!is_int($proof['id']??null)||$proof['id']<1)
                 throw new RetailerSaleError('Missing independent exact-amount unconsumed Cash/UPI evidence.');
+            // The source evidence IDs are trusted only when supplied by the locked
+            // same-DB reader, never as request/body parameters. All four UAT rows
+            // must be finalized atomically with the V7 stock + journal posting.
+            $paymentIntentId=$q['payment_intent_id']??null;
+            $uatTenderId=$proof['uat_tender_id']??null;
+            if(!is_int($paymentIntentId)||$paymentIntentId<1||!is_int($uatTenderId)||$uatTenderId<1)
+                throw new RetailerSaleError('Original issued payment and tender IDs required for atomic finalization.');
             self::assertImmutableSnapshot($q,$a);
             $plan=CanonicalPostingPlan::fromLockedAssessment($a);
             $businessDate=$plan['business_date'];
@@ -224,6 +231,25 @@ final class V7CanonicalPostingSinkUat
             $proofs=Db::table('b2b_verified_tenders');
             $updated=$db->query($db->prepare("UPDATE {$proofs} SET consumed_sale_id=%d WHERE id=%d AND company_id=%d AND branch_id=%d AND consumed_sale_id IS NULL AND sale_intent_id=%d",$sourceId,$proof['id'],$company,$branch,$saleIntent));
             if($updated!==1)throw new RetailerSaleError('Trusted tender already consumed; rollback canonical sale.');
+            // Canonical tender consumption alone is insufficient: otherwise the
+            // independent v8 intent/reservation/tender books incorrectly remain
+            // ready for a second sale, making reconciliation ambiguous.
+            $uatConsumed=$db->query($db->prepare(
+                "UPDATE v8_b2b_verified_tenders SET consumed_sale_id=%d WHERE id=%d AND company_id=%d AND branch_id=%d AND consumed_sale_id IS NULL AND status='confirmed'",
+                $sourceId,$uatTenderId,$company,$branch));
+            if($uatConsumed!==1)throw new RetailerSaleError('Original verified tender consumption failed; rollback all ledgers.');
+            $reservedConsumed=$db->query($db->prepare(
+                "UPDATE v8_b2b_sale_tender_reservations_uat SET status='consumed' WHERE company_id=%d AND branch_id=%d AND sale_intent_id=%d AND payment_intent_id=%d AND tender_id=%d AND quote_digest=%s AND status='reserved'",
+                $company,$branch,$saleIntent,$paymentIntentId,$uatTenderId,$q['quote_digest']));
+            if($reservedConsumed!==1)throw new RetailerSaleError('Original tender reservation finalization failed; rollback all ledgers.');
+            $paymentConsumed=$db->query($db->prepare(
+                "UPDATE v8_b2b_payment_intents_uat SET status='consumed' WHERE company_id=%d AND branch_id=%d AND id=%d AND amount_paise=%d AND status='awaiting_payment'",
+                $company,$branch,$paymentIntentId,$plan['gross_paise']));
+            if($paymentConsumed!==1)throw new RetailerSaleError('Issued payment intent finalization failed; rollback all ledgers.');
+            $saleConsumed=$db->query($db->prepare(
+                "UPDATE v8_b2b_sale_intents_uat SET status='posted' WHERE company_id=%d AND branch_id=%d AND id=%d AND quote_digest=%s AND status='awaiting_payment'",
+                $company,$branch,$saleIntent,$q['quote_digest']));
+            if($saleConsumed!==1)throw new RetailerSaleError('Issued sale intent finalization failed; rollback all ledgers.');
             $finished=Db::mustUpdate($db,$sales,['status'=>'posted','journal_entry_id'=>$journalId],['id'=>$sourceId,'status'=>'pending']);
             if($finished!==1)throw new RetailerSaleError('Canonical B2B sale finalization failed.');
             $saved=Db::mustUpdate($db,$keys,['sale_id'=>$sourceId,'sale_intent_id'=>$saleIntent,'request_fingerprint'=>$fingerprint],['company_id'=>$company,'request_key'=>$requestKey,'sale_id'=>null]);

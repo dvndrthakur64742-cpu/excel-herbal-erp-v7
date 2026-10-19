@@ -77,7 +77,7 @@ final class V7UatLockedCheckoutReader
         $link=$this->row($db,'SELECT * FROM v8_b2b_payment_intent_to_sale_uat WHERE company_id=%d AND branch_id=%d AND payment_intent_id=%d FOR UPDATE',[$company,$branch,$payId]);
         $payment=$this->row($db,'SELECT * FROM v8_b2b_payment_intents_uat WHERE company_id=%d AND branch_id=%d AND id=%d FOR UPDATE',[$company,$branch,$payId]);
         if(!$link||!$payment||!$this->eq($link,'sale_intent_id',$id)
-            ||($link['quote_digest']??null)!==$digest||$payment['currency']!=='INR'
+            ||($link['quote_digest']??null)!==$digest||($payment['status']??null)!=='awaiting_payment'||$payment['currency']!=='INR'
             ||($payment['payment_mode']??null)!==$mode||($payment['channel']??null)!==$channel
             ||!$this->eq($payment,'amount_paise',$invoice)
             ||$this->nullableId($payment['employee_id']??null)!==$employee
@@ -135,12 +135,12 @@ final class V7UatLockedCheckoutReader
         $assessment['posting_allowed']=true;
         return ['assessment'=>$assessment,
             'quote'=>['sale_intent_id'=>$id,'company_id'=>$company,'branch_id'=>$branch,
-                'retailer_id'=>(int)$sale['retailer_id'],'canonical_party_id'=>(int)$sale['canonical_party_id'],
+                'retailer_id'=>(int)$sale['retailer_id'],'canonical_party_id'=>(int)$sale['canonical_party_id'],'payment_intent_id'=>$payId,
                 'invoice_total_paise'=>$invoice,'quote_digest'=>$digest,'currency'=>'INR',
                 'pricing_locked'=>true,'status'=>'awaiting_payment','payment_mode'=>$mode,
                 'channel'=>$channel,'employee_id'=>$employee,'saved_business_at'=>$businessAt,
                 'saved_lines'=>$lines],
-            'tender'=>['id'=>(int)$canonical['id'],'company_id'=>$company,'branch_id'=>$branch,
+            'tender'=>['id'=>(int)$canonical['id'],'uat_tender_id'=>$tenderId,'company_id'=>$company,'branch_id'=>$branch,
                 'sale_intent_id'=>$id,'quote_digest'=>$digest,'verified_source'=>$proofSource,
                 'payment_mode'=>$mode,'amount_paise'=>$invoice,'currency'=>'INR',
                 'status'=>'confirmed','consumed_sale_id'=>null],
