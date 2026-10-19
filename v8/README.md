@@ -1,54 +1,49 @@
 # Excel Herbal ERP V8 — Isolated Development Foundation
 
-**Created:** 2026-10-17  
-**Repository base:** `codex/office-dev-approved-deploy-20261017`  
-**Development branch:** `codex/erp-v8-foundation-20261017`  
-**Stage:** first vertical slice (PHP domain/persistence-port + isolated tests), **NOT a deployable ERP**.
+**Updated:** 2026-10-19  |  **Branch:** `codex/erp-v8-foundation-20261017`  |  **No deployment permitted**
 
-## Sources and precedence
+## Confirmed owner-approved business rules
+- B2B buyers are **shopkeepers/retailers**; field and counter are sales **channels**.
+- **B2B-PAY-001:** Full immediate Cash **or** UPI payment; **no credit, partial payments, or retailer outstanding**. Mixed tender has **not** been approved and is blocked in this prototype.
+- Retailer settled at ₹0 does NOT erase money held by a field employee: cash remittance to branch is a separate liability.
+- Stock issues are not sales; stock cannot go negative; warehouse and employee custody are separate.
+- GPS route duty auto 10:30–17:00 with no manual start/stop. Employee dashboard must show own sales/points only and hide prices.
+- Product commercial split: Sale Price = HO Amount + BM Profit + Salary Fund + Office Expense. Purchase Cost and Points remain separate.
 
-1. Explicit owner decisions: retailer B2B = shopkeepers, **immediate complete Cash OR UPI payment, NO credit**; GPS duty 10:30–17:00 automatic and employees cannot manually start/stop; employee home shows only own sale/performance points, no monetary prices.
-2. Owner's BRD: `Pasted text.txt`, dated 17 October 2026, is a requirements proposal, **not fully approved**; its 09:00/18:00 manual attendance contradicts #1.
-3. Clean V7 repository services: business/accounting precedent (commercial split, double-entry journals, stock custody, maker-checker).
-4. Uploaded Enterprise v14 ZIP: legacy *reference*, not an approved runtime or migration source.
+## What is in this build
+- `backend/src/B2B/RetailerCashSale.php` — stable sale domain service (validated full tender, custody/stock, money in paise, balanced abstract journal, dedup key, price snapshots).
+- `backend/src/B2B/RetailerMaster.php` — registration and read model with branch-scoped gateway, optional mobile/GSTIN and registration idempotency.
+- `backend/src/B2B/RetailerApi.php` — framework-independent controller. It binds company/branch/actor from **trusted authenticated caller arguments**, drops client claims and never exposes internal fingerprints. **It does NOT register HTTP endpoints.**
+- `backend/src/B2B/MariaDbRetailerGateway.php` — real transactional PDO/InnoDB adapter for isolated V8 preview tables. Unique idempotency, SELECT FOR UPDATE and guarded stock decrement, single-use trusted tender, sale/line/stock/journal/retailer statement/employee cash remittance all committed together. Backend AUTHZ callback is required and must deny unauthorized actor/branch/employee.
+- `backend/schema/001_b2b_preview_mysql.sql` — BUILD/UAT schema for development fixture only, **NOT production migration**. Preview product and stock tables intentionally stand alone; integration with canonical V7 data requires separately approved mapping/migration.
+- `backend/tests/run.php` — inherited 23 isolated unit tests.
+- `backend/tests/retailer_flow.php` — new registry/API tests.
+- `backend/tests/mariadb_integration.php` — integration checks requiring a disposable database exactly `v8_test`.
+- `.github/workflows/v8-foundation-ci.yml` — lint, isolated tests and disposable MariaDB 11.4 job; **NO deploy action**.
 
-## What has actually been built in V8 first slice
+## Run isolated tests
 
-- `backend/src/B2B/RetailerCashSale.php`: typed business service, gateway contract and integer-paise money controls.
-- Only `retailer` parties; one full Cash **or** UPI payment; no credit, partial, split, cheque or unverified tender.
-- Server-owned price lookup and four-way price allocation integrity; independent `purchase_cost` (4-decimal total valuation).
-- Branch vs employee custody, whole pieces, duplicate line rejection, no negative stock, original price/cost snapshots.
-- **Retailer outstanding = 0** and separate **employee cash-in-transit liability** for field cash.
-- Balanced abstract journals, idempotency request fingerprint, atomic persistence boundary, guard against unauthorized branch/employee actions.
-- No points/salary incentive posting until the owner approves B2B points rules.
-- `backend/tests/run.php`: isolated fake-gateway regression tests (no external database, no live API).
-
-## Tests
-
-```bash
-php -l v8/backend/src/B2B/RetailerCashSale.php
-php -l v8/backend/tests/run.php
+```sh
+find v8/backend -name '*.php' -print0 | xargs -0 -n1 php -l
 php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
+php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
 ```
 
-## What is **not** complete
+The integration script SKIPs without `V8_TEST_DSN`. The GitHub CI job is configured with an ephemeral MariaDB 11.4 container. Local PHP environment might not include `pdo_mysql`; do not call MariaDB tests PASS until the CI runner proves them.
 
-**This is NOT ready for use by real customers/employees.** Not yet wired to WordPress/Flutter, MariaDB transactions, REST APIs, retailer registration UI, invoice tax/GST, receipt verification providers, authenticated backend role resolver, branch closing, physical stock locks, print/export or production cash drawer. The `RetailerSaleGateway` is an interface; a durable DB adapter must enforce UNIQUE idempotency and `SELECT ... FOR UPDATE` in an ACID transaction. The included fake gateway is for tests only, and does not establish concurrency safety. Journal account codes are design placeholders until approved chart of accounts / tax policy. Do not register routes or enable automatic deployment.
+## Important safety boundaries
+- This does not create a runnable website or deployable WordPress plugin. API class is not wired to `register_rest_route`, authentication, or Flutter.
+- **Do not point the preview schema/migration at `office.excelherbal.in`.** Do not copy legacy v14 tables into this V8 schema without a deliberate mapping.
+- `v8_b2b_verified_tenders` is intentionally writable only through a separate **trusted** cashier acknowledgment / payment-provider verification process, **not** via B2B endpoints. Such integration has not been implemented. Merely receiving a UPI screenshot/reference must never allow a sale.
+- Account codes are placeholders and must map to an approved Chart of Accounts. Tax/GST, HSN, billing, discount/retailer price list and returns/refunds require owner/accounts decisions. Current amounts are basic tax-exclusive preview amounts and must NOT be used to issue statutory invoices.
+- `v8_b2b_catalog_preview` and `v8_b2b_stock_bins_preview` are isolated test fixtures: replacing them with the canonical master, branch data, batch FEFO rules and existing employee-custody stock is a release gate.
+- Attendance manual policy conflicts with old BRD; do not merge it with confirmed GPS duty rules without a separate owner decision.
 
-## Owner decisions to finalize before production integration
+## Next steps
+1. Run CI MariaDB integration and audit any failures; enforce real concurrency locks with two sessions.
+2. Map V8 preview records onto canonical product/branch/warehouse and account masters without duplicate source of truth.
+3. Implement signed payment-verification source and refund/reversal flows after relevant policy approvals.
+4. Register secured WordPress REST endpoints and Flutter retailer registration/invoice/read-only ledger screens in an isolated UAT instance.
+5. Staff role UAT, trial balance and stock reconciliation, backups/restore, physically tested GPS, explicit deployment sign-off.
 
-- GST/tax-inclusive vs exclusive price, invoices, HSN, applicable compliance and returns/refunds;
-- Retailer rates, bulk discounts, relation to V7 50:50 wholesale allocation;
-- B2B performance points and salary fund attribution;
-- Whether Cash + UPI may be mixed on the same invoice (currently **blocked**);
-- Employee unsold stock: same-day return vs carry-forward;
-- Attendance manual policy (BRD conflict) distinct from GPS duty.
-
-## Next source implementation gates
-
-1. Real business/customer/retailer schema and WordPress secured gateway with atomic postings; exact account and tax decision.
-2. Branch/custody stock/batch locked posting; correction/returns/refund; reconciliation plus MariaDB integration tests.
-3. Employee 360°, Retailer Ledger, Management/Sales Register and safe read-only reports.
-4. Flutter UI with authority-based screens, physical-device GPS tests and complete UAT.
-
-**No database migration, existing V7 modification or deployment is part of this foundation.**
+**Current status: backend development implementation only. No deployment, no production DB migrations, no live transaction access.**
