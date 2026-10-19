@@ -17,7 +17,8 @@ interface CanonicalPostingGateway
     public function lockIdempotency(int $companyId, string $key): void;
     public function findPostedByKey(int $companyId, string $key): ?array;
     public function assertReleaseGates(int $companyId, int $branchId): void;
-    public function assertAuthorizedRetailer(int $companyId, int $branchId, int $retailerId, int $actorId): void;
+    /** Return canonical eh7_parties.id after checking the active eh8 retailer classification. */
+    public function assertAuthorizedRetailer(int $companyId, int $branchId, int $retailerId, int $actorId): int;
     /**
      * Lock affected canonical source rows and re-read inside SAME transaction.
      * Must NOT reuse an earlier preview snapshot. Field stock must be employee-custodied.
@@ -173,7 +174,8 @@ final class CanonicalRetailerAtomicPosting
                 return $prior;
             }
             $this->gateway->assertReleaseGates($company,$branch);
-            $this->gateway->assertAuthorizedRetailer($company,$branch,$trusted['retailer_id'],$trusted['actor_id']);
+            $partyId=$this->gateway->assertAuthorizedRetailer($company,$branch,$trusted['retailer_id'],$trusted['actor_id']);
+            if($partyId<1)throw new RetailerSaleError('Canonical retailer must resolve to a valid customer party.');
             $locked=$this->gateway->lockedAssessment($trusted);
             $plan=CanonicalPostingPlan::fromLockedAssessment($locked);
             if($plan['company_id']!==$company||$plan['branch_id']!==$branch
@@ -188,6 +190,7 @@ final class CanonicalRetailerAtomicPosting
             // The trusted gateway consumes the verified one-use tender under the transaction.
             $this->gateway->consumeVerifiedTender($company,$branch,$mode,$ref,$plan['gross_paise']);
             $header=['company_id'=>$company,'branch_id'=>$branch,'retailer_id'=>$trusted['retailer_id'],
+                'canonical_party_id'=>$partyId,
                 'actor_id'=>$trusted['actor_id'],'channel'=>$plan['channel'],'employee_id'=>$plan['employee_id'],
                 'payment_mode'=>$mode,'payment_reference'=>$ref,'business_date'=>$plan['business_date'],
                 'gross_paise'=>$plan['gross_paise'],'cogs_paise'=>$plan['cogs_paise'],'outstanding_paise'=>0];
