@@ -25,6 +25,7 @@ final class ApiContract
             'employee_documents'=>true,
             'employee_360_profile'=>true,
             'employee_360_registers'=>true,
+            'employee_cash_control'=>true,
             'employee_offboarding'=>true,
             'employee_reactivation'=>true,
             'reporting_hierarchy_manage'=>true,

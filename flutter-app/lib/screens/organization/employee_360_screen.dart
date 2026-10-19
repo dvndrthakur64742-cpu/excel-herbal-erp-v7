@@ -140,6 +140,7 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
             const Tab(text: 'Stock'),
             const Tab(text: 'Attendance'),
             if (financeVisible) const Tab(text: 'Ledger'),
+            if (financeVisible) const Tab(text: 'Cash Control'),
             if (showGps) const Tab(text: 'GPS Route'),
           ];
           return DefaultTabController(
@@ -182,6 +183,12 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
                         _Employee360List(
                           title: 'Employee-tagged journal lines (not a full cash ledger)',
                           rows: ledgerData['entries'],
+                        ),
+                      if (financeVisible)
+                        _Employee360CashControl(
+                          employeeId: widget.employeeId,
+                          from: _from,
+                          to: _to,
                         ),
                       if (showGps)
                         _Employee360Gps(
@@ -513,4 +520,169 @@ class _Employee360GpsState extends ConsumerState<_Employee360Gps> {
           );
         },
       );
+}
+
+
+/// Finance-only canonical accounting reconciliation. A matching ledger debit
+/// is never evidence of physical employee cash remittance to the cashier.
+class _Employee360CashControl extends ConsumerStatefulWidget {
+  const _Employee360CashControl({
+    required this.employeeId,
+    required this.from,
+    required this.to,
+  });
+
+  final int employeeId;
+  final String from;
+  final String to;
+
+  @override
+  ConsumerState<_Employee360CashControl> createState() =>
+      _Employee360CashControlState();
+}
+
+class _Employee360CashControlState
+    extends ConsumerState<_Employee360CashControl> {
+  int _page = 1;
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _Employee360CashControl oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.employeeId != widget.employeeId ||
+        oldWidget.from != widget.from || oldWidget.to != widget.to) {
+      _page = 1;
+      _future = _load();
+    }
+  }
+
+  Future<Map<String, dynamic>> _load() async {
+    final raw = await ref.read(apiClientProvider).get(
+      ApiPaths.employee360CashControl(widget.employeeId),
+      query: {'from': widget.from, 'to': widget.to, 'page': _page, 'page_size': 25},
+    );
+    if (raw is! Map) {
+      throw const FormatException('Cash control response is invalid.');
+    }
+    final data = Map<String, dynamic>.from(raw);
+    if (data['read_only'] != true ||
+        data['cash_remittance_status'] != 'not_available_in_legacy_v7' ||
+        int.tryParse('${data['employee_id']}') != widget.employeeId) {
+      throw const FormatException('Cash control safety contract is missing.');
+    }
+    return data;
+  }
+
+  void _pageTo(int value) => setState(() {
+        _page = value;
+        _future = _load();
+      });
+
+  static String _rupees(dynamic paise) {
+    final v = int.tryParse('$paise') ?? 0;
+    return '₹${v ~/ 100}.${(v % 100).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Client-side hiding is only presentational. The API rechecks finance RBAC.
+    if (!ref.watch(appStateProvider).can('finance.accounting.view')) {
+      return const Center(child: Text('Finance permission required.'));
+    }
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return _Employee360Failure(
+            message: UiError.message(snapshot.error!),
+            retry: () => _pageTo(_page),
+          );
+        }
+        final data = snapshot.data!;
+        final rows = _recordRows(data['rows']);
+        final totals = Map<String, dynamic>.from(
+          (data['page_totals'] as Map?) ?? const {},
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text(
+                'Legacy V7 accounting check only. Matching journal amounts do NOT prove employee cash was handed to cashier or UPI reached the bank.',
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                'Page $_page · Cash posted: ${_rupees(totals['cash_reported_paise'])} · '
+                'UPI posted: ${_rupees(totals['upi_reported_paise'])}',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            Expanded(
+              child: rows.isEmpty
+                  ? const Center(child: Text('No posted daily closing records.'))
+                  : ListView.builder(
+                      itemCount: rows.length,
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        final status = '${row['journal_check'] ?? 'unknown'}';
+                        final matched = status == 'journal_amounts_match';
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 5,
+                          ),
+                          child: ListTile(
+                            leading: Icon(
+                              matched ? Icons.fact_check_outlined : Icons.warning_amber_rounded,
+                              color: matched ? null : Theme.of(context).colorScheme.error,
+                            ),
+                            title: Text(
+                              '${row['business_date'] ?? ''} · Daily #${row['daily_cycle_id'] ?? ''}',
+                            ),
+                            subtitle: Text(
+                              'Cash: ${_rupees(row['reported_cash_paise'])} · '
+                              'UPI: ${_rupees(row['reported_upi_paise'])}\n'
+                              'Journal: $status · Cash handover: '
+                              '${row['cash_remittance_proof'] ?? 'unknown'}',
+                            ),
+                            isThreeLine: true,
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  OutlinedButton(
+                    onPressed: _page <= 1 ? null : () => _pageTo(_page - 1),
+                    child: const Text('Previous'),
+                  ),
+                  OutlinedButton(
+                    onPressed: data['has_more'] == true
+                        ? () => _pageTo(_page + 1)
+                        : null,
+                    child: const Text('Next'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }

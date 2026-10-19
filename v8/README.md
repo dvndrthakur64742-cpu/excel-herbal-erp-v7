@@ -177,3 +177,11 @@ New V7 development GET `/wp-json/excel-herbal-erp/v7/organization/employees/{id}
 - Reuses self/manager hierarchy and branch authorization. Neither Cash/UPI summary nor stock movement proves cashier remittance; financial posting not invented.
 - 33 additional tests (previous V8 277 + prior Employee360 37 + 33 = 347 isolated checks in current source bundle). Real database and runner CI still unverified.
 - See \`v8/requirements/EMPLOYEE_360_DETAILED_REGISTERS.md\`. No production deploy or merge.
+
+## 2026-10-19 canonical employee cash-control accounting audit (v0.15)
+
+- New read-only finance-only ERP7 REST GET `/organization/employees/{id}/360/cash-control` compares completed posted Daily Order Cash/UPI receipts against actual posted journal Cash/UPI asset debits. Missing, duplicate and amount-mismatched journals are explicitly flagged; dates and branch/hierarchy/RBAC enforced server side.
+- Flutter Employee360 `Cash Control` tab uses the same endpoint only when accounting-view authorization is granted. No employee dashboard price exposure.
+- **This does not mean employee cash handover was confirmed.** Legacy V7 posted cash directly to a branch ledger; it has no verified employee-to-cashier receipt. API reports `cash_remittance_status=not_available_in_legacy_v7`, never `settled`.
+- 40 new fake-DB/permission regressions; prior isolated PHP check count 347, new total 387 on local PHP 8.4. Windows runner still lacks PHP CLI; MariaDB and Flutter/device UAT not run. No production deploy/merge or live database changes.
+- Details: `requirements/EMPLOYEE_CASH_CONTROL_V7_AUDIT.md`.

@@ -56,6 +56,9 @@ jobs:
       - name: Employee 360 posted sales and stock movement detailed register checks
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
 
+      - name: V7 posted Cash UPI journal vs employee custody reconciliation audit
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee_cash_control_regression.php
+
   b2b-mariadb-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 15

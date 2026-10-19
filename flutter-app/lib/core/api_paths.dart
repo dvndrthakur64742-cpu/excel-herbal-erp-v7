@@ -136,6 +136,8 @@ abstract final class ApiPaths {
       '/organization/employees/$id/designations/$assignmentId/deactivate';
   static String employee360(int id) =>
       '/organization/employees/$id/360';
+  static String employee360CashControl(int id) =>
+      '/organization/employees/$id/360/cash-control';
   static String employee360Register(int id) =>
       '/organization/employees/$id/360/register';
   static String employeeHistory(int id) =>
