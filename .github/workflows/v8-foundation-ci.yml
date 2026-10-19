@@ -1,4 +1,4 @@
-name: ERP V8 Foundation Checks (No Deploy)
+name: Excel Herbal V8 B2B Development Checks (No Deploy)
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  php-domain-tests:
+  b2b-php-unit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -20,14 +20,45 @@ jobs:
         php: ['8.3', '8.4']
     steps:
       - uses: actions/checkout@v4
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           coverage: none
-      - name: Check V8 PHP syntax
-        run: |
-          php -l v8/backend/src/B2B/RetailerCashSale.php
-          php -l v8/backend/tests/run.php
-      - name: Run V8 paid-only retailer domain regression
+      - name: Lint all isolated V8 PHP sources
+        run: find v8/backend -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Domain regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
+      - name: Retailer master and boundary regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
+
+  b2b-mariadb-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: dev-only-root
+          MARIADB_DATABASE: v8_test
+          MARIADB_USER: v8
+          MARIADB_PASSWORD: v8
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Isolated MariaDB sale + ledger integration
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/mariadb_integration.php
