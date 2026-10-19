@@ -169,3 +169,11 @@ Details: `requirements/IMMUTABLE_QUOTE_REVALIDATION.md`.
 ## 2026-10-19 accelerated integration: Employee 360 REST profile (dev branch)
 
 New V7 development GET `/wp-json/excel-herbal-erp/v7/organization/employees/{id}/360` composes existing *posted* daily sales, independent incentive points, attendance history, employee-custodied stock and tagged financial person journal entries. Self / employee-view permission, reporting hierarchy and branch constraints are enforced; journal access additionally requires finance-accounting capability. Dashboard is untouched (no new prices there), GPS remains in the existing authorized route endpoint. This is an actual read-only WordPress route in the V7 source, NOT a deployed UI. Ledger coverage is only entries already tagged to employee; cash transit is not falsely reported. 37 new isolated regression checks, no database mutation and no production deploy. See `requirements/EMPLOYEE_360_READ_ONLY_INTEGRATION.md`.
+
+## 2026-10-19 accelerated Employee 360 detailed canonical registers (v0.13)
+
+- Added a read-only V7 GET \`organization/employees/{id}/360/register\` for \`type=sales\` and \`type=stock\`, including bounded business-date and pagination filters.
+- Posted completed Daily Order Sales aggregated once per cycle, with Cash/UPI split and incentive points; stock movements read from employee custody register, **never** cost or finance-only price distribution.
+- Reuses self/manager hierarchy and branch authorization. Neither Cash/UPI summary nor stock movement proves cashier remittance; financial posting not invented.
+- 33 additional tests (previous V8 277 + prior Employee360 37 + 33 = 347 isolated checks in current source bundle). Real database and runner CI still unverified.
+- See \`v8/requirements/EMPLOYEE_360_DETAILED_REGISTERS.md\`. No production deploy or merge.

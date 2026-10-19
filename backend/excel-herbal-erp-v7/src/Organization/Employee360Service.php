@@ -22,26 +22,39 @@ interface Employee360Reader {
 }
 
 final class Employee360Service {
-    public static function view(Actor $a, int $employeeId, string $from, string $to, ?Employee360Reader $reader=null): array {
-        if ($employeeId < 1) throw new DomainException('Valid employee ID required.', 'employee_id_invalid', 422);
-        foreach (['from'=>$from,'to'=>$to] as $name=>$date) {
-            $d=\DateTimeImmutable::createFromFormat('!Y-m-d',$date);
-            if (!$d || $d->format('Y-m-d')!==$date) throw new DomainException('Invalid '.$name.' date.', 'date_invalid', 422);
-        }
-        $start=new \DateTimeImmutable($from);$end=new \DateTimeImmutable($to);
-        if ($end<$start || $start->diff($end)->days>366) throw new DomainException('Invalid period (maximum 366 days).','period_invalid',422);
+    /** Shared access gate for the profile and its detailed registers. */
+    public static function authorizeTarget(Actor $a,int $employeeId,?Employee360Reader $reader=null):array {
+        if ($employeeId<1)throw new DomainException('Valid employee ID required.','employee_id_invalid',422);
         $reader=$reader??new Employee360WpReader();
         $employee=$reader->employee($a->companyId,$employeeId);
-        if (!$employee || (int)($employee['company_id']??0)!==$a->companyId) throw new DomainException('Employee not found.','employee_not_found',404);
+        if (!$employee || (int)($employee['id']??0)!==$employeeId || (int)($employee['company_id']??0)!==$a->companyId)
+            throw new DomainException('Employee not found.','employee_not_found',404);
         $self=$a->employeeId===$employeeId;
-        if (!$self) {
-            if (!$a->can(Capabilities::EMP_VIEW)) throw new DomainException('Permission denied.','permission_denied',403);
+        if(!$self){
+            if(!$a->can(Capabilities::EMP_VIEW))throw new DomainException('Permission denied.','permission_denied',403);
             HierarchyScope::assertCanViewEmployee($a,$employeeId);
-            if (!$a->hasBranch((int)$employee['assigned_branch_id'])) throw new DomainException('Branch is outside effective authority.','branch_forbidden',403);
+            if(!$a->hasBranch((int)$employee['assigned_branch_id']))throw new DomainException('Branch is outside effective authority.','branch_forbidden',403);
         }
-        // Self sees their own historical data across transfers; managers see ONLY authorized branches.
         $branches=$self?[]:array_values(array_unique(array_filter(array_map('intval',$a->branchIds),fn($id)=>$id>0)));
-        if (!$self && !$branches) throw new DomainException('No authorized branch.','branch_forbidden',403);
+        if(!$self && !$branches)throw new DomainException('No authorized branch.','branch_forbidden',403);
+        return ['employee'=>$employee,'branches'=>$branches,'self'=>$self];
+    }
+
+    public static function validatePeriod(string $from,string $to):void {
+        foreach(['from'=>$from,'to'=>$to] as $name=>$date){
+            $d=\DateTimeImmutable::createFromFormat('!Y-m-d',$date);
+            if(!$d||$d->format('Y-m-d')!==$date)throw new DomainException('Invalid '.$name.' date.','date_invalid',422);
+        }
+        $start=new \DateTimeImmutable($from);$end=new \DateTimeImmutable($to);
+        if($end<$start||$start->diff($end)->days>366)throw new DomainException('Invalid period (maximum 366 days).','period_invalid',422);
+    }
+
+    public static function view(Actor $a, int $employeeId, string $from, string $to, ?Employee360Reader $reader=null): array {
+        self::validatePeriod($from,$to);
+        $scope=self::authorizeTarget($a,$employeeId,$reader);
+        $reader=$reader??new Employee360WpReader();
+        $employee=$scope['employee'];
+        $branches=$scope['branches'];
         $sales=$reader->sales($a->companyId,$employeeId,$from,$to,$branches);
         $points=$reader->performance($a->companyId,$employeeId,$from,$to,$branches);
         $attendance=$reader->attendance($a->companyId,$employeeId,$from,$to,$branches);
@@ -78,6 +91,7 @@ final class Employee360Service {
             'attendance_history'=>$attendance,
             'employee_stock'=>$stock,
             'person_ledger'=>['visible'=>$canFinance,'scope'=>'tagged_employee_journal_lines_only','entries'=>$ledger],
+            'detailed_register_endpoint'=>'/organization/employees/'.$employeeId.'/360/register',
             'cash_reconciliation'=>'not_available_in_canonical_v7_employee_ledger',
             'gps_route'=>'use_existing_authorized_workforce_gps_route_endpoint',
             'dashboard_unchanged'=>true,

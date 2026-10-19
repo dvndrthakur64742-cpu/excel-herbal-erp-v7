@@ -57,3 +57,5 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_quote_revalidation.php
       - name: Employee 360 V7 API projection, scope and redaction regression
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_regression.php
+      - name: Employee 360 posted sales and stock movement detailed register checks
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
