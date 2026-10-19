@@ -32,6 +32,7 @@ void main() {
     final profile = File('lib/screens/organization/employee_360_screen.dart')
         .readAsStringSync();
     final dashboard = File('lib/screens/home/home_screen.dart');
+    final selfProfile = File('lib/screens/home/profile_screen.dart').readAsStringSync();
     expect(profile, contains("app.can('finance.accounting.view')"));
     expect(profile, contains("app.can('workforce.gps.team.view')"));
     expect(profile, contains("data['read_only'] != true"));
@@ -40,5 +41,7 @@ void main() {
     expect(profile, contains('cash was deposited'));
     expect(profile, isNot(contains('paymentAccountId')));
     expect(dashboard.existsSync(), isTrue);
+    expect(selfProfile, contains("import '../organization/employee_360_screen.dart';"));
+    expect(selfProfile, contains("label: const Text('My Sales, Points & Stock')"));
   });
 }

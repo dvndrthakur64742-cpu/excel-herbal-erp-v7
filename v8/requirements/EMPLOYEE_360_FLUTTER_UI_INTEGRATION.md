@@ -22,3 +22,5 @@
 The source is reviewable in the **development** branch; **not deployed**. The Flutter/Dart SDK is absent from the local build container, so no successful Flutter analyzer, build or widget-test execution is claimed. The Windows self-hosted GitHub runner previously failed before any PHP regression because `php` was missing from PATH. Browser/device UAT remains required.
 
 The weighted ERP estimate is unchanged at about **15% operational readiness** until the page is Flutter-compiled, API-endpoint-backed and tested in an actual development environment. This is a larger user-visible integration step, but not yet a production-delivered screen.
+
+Self-service addition: `flutter-app/lib/screens/home/profile_screen.dart` now includes an **My Sales, Points & Stock** action for the authenticated employee's own id, without granting organization-wide access. The Employee Dashboard itself remains unchanged. Runtime verification still pending Flutter SDK/device UAT.
