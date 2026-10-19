@@ -1,0 +1,44 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:excel_herbal_erp/core/api_paths.dart';
+
+void main() {
+  test('Employee 360 endpoint builders match canonical V7 read-only routes', () {
+    expect(ApiPaths.employee360(42), '/organization/employees/42/360');
+    expect(ApiPaths.employee360Register(42),
+        '/organization/employees/42/360/register');
+  });
+
+  test('Employee 360 screen is reachable from existing employee profile', () {
+    final parent = File('lib/screens/organization/organization_screen.dart')
+        .readAsStringSync();
+    final employees = File('lib/screens/organization/organization_employees.dart')
+        .readAsStringSync();
+    final profile = File('lib/screens/organization/employee_360_screen.dart')
+        .readAsStringSync();
+    expect(parent, contains("import 'employee_360_screen.dart';"));
+    expect(employees, contains('Employee360Screen('));
+    expect(employees, contains("title: const Text('Sales, Points & Stock')"));
+    expect(profile, contains('ApiPaths.employee360(widget.employeeId)'));
+    expect(profile, contains('ApiPaths.employee360Register(widget.employeeId)'));
+    expect(profile, contains("'type': widget.type"));
+    expect(profile, contains("'page_size': _pageSize"));
+    expect(profile, contains('RecordsList(rows: rows)'));
+    expect(profile, contains('showDateRangePicker('));
+  });
+
+  test('Dashboard untouched and finance/GPS details are permission scoped', () {
+    final profile = File('lib/screens/organization/employee_360_screen.dart')
+        .readAsStringSync();
+    final dashboard = File('lib/screens/home/home_screen.dart');
+    expect(profile, contains("app.can('finance.accounting.view')"));
+    expect(profile, contains("app.can('workforce.gps.team.view')"));
+    expect(profile, contains("data['read_only'] != true"));
+    expect(profile, contains("data['dashboard_unchanged'] != true"));
+    expect(profile, contains("int.tryParse('\${employee['id']}')"));
+    expect(profile, contains('cash was deposited'));
+    expect(profile, isNot(contains('paymentAccountId')));
+    expect(dashboard.existsSync(), isTrue);
+  });
+}

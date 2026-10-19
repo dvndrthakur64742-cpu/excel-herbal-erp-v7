@@ -289,6 +289,19 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
     }
   }
 
+  Future<void> _openEmployee360(int employeeId, String employeeName) async {
+    final closed = await OverlayTransition.closeAndSettle(context);
+    if (!closed || !mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => Employee360Screen(
+          employeeId: employeeId,
+          employeeName: employeeName,
+        ),
+      ),
+    );
+  }
+
   void _employeeActions(Map<String, dynamic> employee) {
     final app = ref.read(appStateProvider);
     final id = int.parse('${employee['id']}');
@@ -493,6 +506,19 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
               margin: EdgeInsets.zero,
               child: Column(
                 children: [
+                  if (app.can('organization.employee.view'))
+                    ListTile(
+                      leading: const Icon(Icons.insights_outlined),
+                      title: const Text('Sales, Points & Stock'),
+                      subtitle: const Text(
+                        'Monthly sales, incentive points, stock, attendance and authorised history',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _openEmployee360(
+                        id,
+                        '${employee['full_name'] ?? 'Employee'}',
+                      ),
+                    ),
                   ListTile(
                     leading: const Icon(Icons.folder_shared_outlined),
                     title: const Text('Private Documents'),
