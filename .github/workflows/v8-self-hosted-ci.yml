@@ -13,18 +13,21 @@ permissions:
 jobs:
   b2b-unit-self-hosted:
     name: V8 PHP regression on connected runner
-    runs-on: self-hosted
+    runs-on: [self-hosted, Windows]
     timeout-minutes: 15
     steps:
       - name: Checkout development code
         uses: actions/checkout@v4
-      - name: Configure PHP 8.3
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          coverage: none
-      - name: PHP runtime version
-        run: php -v
+      - name: Verify installed PHP on Windows runner (no machine changes)
+        shell: powershell
+        run: |
+          $php = Get-Command php -ErrorAction SilentlyContinue
+          if (-not $php) {
+            Write-Error "PHP CLI was not found on PATH. Install PHP 8.3+ separately or configure PHP path, then rerun; no installation is performed by this workflow."
+            exit 1
+          }
+          php -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Retailer sale policy tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
       - name: Retailer master and API boundary tests
