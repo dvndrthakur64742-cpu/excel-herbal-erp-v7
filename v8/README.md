@@ -16,8 +16,8 @@
 - `backend/src/B2B/RetailerApi.php` — framework-independent controller. It binds company/branch/actor from **trusted authenticated caller arguments**, drops client claims and never exposes internal fingerprints. **It does NOT register HTTP endpoints.**
 - `backend/src/B2B/MariaDbRetailerGateway.php` — real transactional PDO/InnoDB adapter for isolated V8 preview tables. Unique idempotency, SELECT FOR UPDATE and guarded stock decrement, single-use trusted tender, sale/line/stock/journal/retailer statement/employee cash remittance all committed together. Backend AUTHZ callback is required and must deny unauthorized actor/branch/employee.
 - `backend/schema/001_b2b_preview_mysql.sql` — BUILD/UAT schema for development fixture only, **NOT production migration**. Preview product and stock tables intentionally stand alone; integration with canonical V7 data requires separately approved mapping/migration.
-- `backend/tests/run.php` — inherited 23 isolated unit tests.
-- `backend/tests/retailer_flow.php` — new registry/API tests.
+- `backend/tests/run.php` — 25 isolated domain/unit tests including overflow protection.
+- `backend/tests/retailer_flow.php` — 11 retailer registry/API flow tests.
 - `backend/tests/mariadb_integration.php` — integration checks requiring a disposable database exactly `v8_test`.
 - `.github/workflows/v8-foundation-ci.yml` — lint, isolated tests and disposable MariaDB 11.4 job; **NO deploy action**.
 
@@ -29,7 +29,7 @@ php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
 php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
 ```
 
-The integration script SKIPs without `V8_TEST_DSN`. The GitHub CI job is configured with an ephemeral MariaDB 11.4 container. Local PHP environment might not include `pdo_mysql`; do not call MariaDB tests PASS until the CI runner proves them.
+Current local verification: **25/25 domain + 11/11 retailer tests PASS; MariaDB integration SKIPPED** because local PHP lacks `pdo_mysql` and no disposable DB is configured. GitHub Actions jobs have not yet produced executed steps in the observed attempt, so a green CI result is not established. The integration script SKIPs without `V8_TEST_DSN`. The GitHub CI job is configured with an ephemeral MariaDB 11.4 container. Local PHP environment might not include `pdo_mysql`; do not call MariaDB tests PASS until the CI runner proves them.
 
 ## Important safety boundaries
 - This does not create a runnable website or deployable WordPress plugin. API class is not wired to `register_rest_route`, authentication, or Flutter.
