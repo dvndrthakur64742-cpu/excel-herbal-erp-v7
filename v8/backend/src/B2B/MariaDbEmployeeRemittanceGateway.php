@@ -88,10 +88,19 @@ final class MariaDbEmployeeRemittanceGateway implements EmployeeRemittanceGatewa
     public function confirmedBranchReceipt(int $companyId, int $branchId, int $saleId, int $employeeId, string $reference, int $amountPaise): bool
     {
         $this->requireAtomic();
-        $r = $this->sql('SELECT id FROM v8_b2b_verified_branch_receipts
-             WHERE company_id=? AND branch_id=? AND sale_id=? AND employee_id=?
-             AND cash_receipt_reference=? AND amount_paise=? AND verified_source=\'cashier\'
-             AND status=\'confirmed\' AND consumed_event_id IS NULL FOR UPDATE',
+        // A bare 'cashier' string is NOT payment proof: require a separate,
+        // independently-authorized signed attestation for this exact receipt.
+        $r = $this->sql('SELECT r.id FROM v8_b2b_verified_branch_receipts r
+             JOIN v8_b2b_cashier_receipt_attestations a
+               ON a.receipt_id=r.id AND a.company_id=r.company_id AND a.branch_id=r.branch_id
+               AND a.sale_id=r.sale_id AND a.employee_id=r.employee_id
+               AND a.amount_paise=r.amount_paise AND a.cash_receipt_reference=r.cash_receipt_reference
+             JOIN v8_b2b_sales s ON s.id=r.sale_id AND s.company_id=r.company_id
+               AND s.branch_id=r.branch_id AND s.employee_id=r.employee_id
+             WHERE r.company_id=? AND r.branch_id=? AND r.sale_id=? AND r.employee_id=?
+             AND r.cash_receipt_reference=? AND r.amount_paise=? AND r.verified_source=\'cashier\'
+             AND r.status=\'confirmed\' AND r.consumed_event_id IS NULL
+             AND a.cashier_actor_id<>s.actor_id FOR UPDATE',
              [$companyId,$branchId,$saleId,$employeeId,$reference,$amountPaise])->fetch(PDO::FETCH_ASSOC);
         $this->lockedReceipt = $r ? (int)$r['id'] : null;
         return $this->lockedReceipt !== null;

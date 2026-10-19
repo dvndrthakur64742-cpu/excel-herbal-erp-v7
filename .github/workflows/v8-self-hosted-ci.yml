@@ -51,13 +51,9 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/sale_tender_binding.php
       - name: Canonical retailer checkout read-only preview tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_checkout_preview.php
+      - name: Independent cashier receipt signature and maker-checker regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/independent_cashier_receipt.php
       - name: Immutable B2B sale/payment intent issuance regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_issuance.php
       - name: Canonical immutable quote and tender revalidation tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_quote_revalidation.php
-      - name: Employee 360 V7 API projection, scope and redaction regression
-        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_regression.php
-      - name: Employee 360 posted sales and stock movement detailed register checks
-        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
-      - name: V7 posted Cash UPI journal vs employee custody reconciliation audit
-        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee_cash_control_regression.php

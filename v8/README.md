@@ -166,22 +166,27 @@ See `requirements/CANONICAL_CHECKOUT_PREVIEW.md` for the complete scope and trus
 
 Details: `requirements/IMMUTABLE_QUOTE_REVALIDATION.md`.
 
-## 2026-10-19 accelerated integration: Employee 360 REST profile (dev branch)
+## 2026-10-19 accelerated integration: employee 360 linked to actual V7 REST service
 
-New V7 development GET `/wp-json/excel-herbal-erp/v7/organization/employees/{id}/360` composes existing *posted* daily sales, independent incentive points, attendance history, employee-custodied stock and tagged financial person journal entries. Self / employee-view permission, reporting hierarchy and branch constraints are enforced; journal access additionally requires finance-accounting capability. Dashboard is untouched (no new prices there), GPS remains in the existing authorized route endpoint. This is an actual read-only WordPress route in the V7 source, NOT a deployed UI. Ledger coverage is only entries already tagged to employee; cash transit is not falsely reported. 37 new isolated regression checks, no database mutation and no production deploy. See `requirements/EMPLOYEE_360_READ_ONLY_INTEGRATION.md`.
+A **read-only** V7 development REST handler `org.employee_360` was added to the existing V7 route registry/dispatcher, using a real `Employee360Service` backed by canonical V7 daily cycles, posted settlements, performance points, attendance, employee stock and journal party tagging. Employee self/supervisor hierarchy and finance permission gates are server-side. This does **not** modify the employee dashboard and does not imply that all tagged V7 journal entries form a complete Tally-style employee ledger. Regression: 37 tests in `backend/excel-herbal-erp-v7/tests/employee360_regression.php` (separate from V8 B2B tests). Actual WordPress/MariaDB UAT and UI integration remain pending; no deployment. See `requirements/EMPLOYEE_360_READ_ONLY_INTEGRATION.md`.
 
-## 2026-10-19 accelerated Employee 360 detailed canonical registers (v0.13)
+## 2026-10-19 accelerated V7 Employee 360 detailed registers (v0.13)
 
-- Added a read-only V7 GET \`organization/employees/{id}/360/register\` for \`type=sales\` and \`type=stock\`, including bounded business-date and pagination filters.
-- Posted completed Daily Order Sales aggregated once per cycle, with Cash/UPI split and incentive points; stock movements read from employee custody register, **never** cost or finance-only price distribution.
-- Reuses self/manager hierarchy and branch authorization. Neither Cash/UPI summary nor stock movement proves cashier remittance; financial posting not invented.
-- 33 additional tests (previous V8 277 + prior Employee360 37 + 33 = 347 isolated checks in current source bundle). Real database and runner CI still unverified.
-- See \`v8/requirements/EMPLOYEE_360_DETAILED_REGISTERS.md\`. No production deploy or merge.
+- Added a real development-only V7 GET route `organization/employees/{id}/360/register` for `type=sales` or `type=stock` with bounded page/date parameters.
+- Sales are assembled per completed Daily Order and **posted** Evening Settlement using group-per-cycle accounting; split cash and UPI are history, NOT proof the employee remitted cash to branch.
+- Stock is read from employee-custodied `eh7_stock_ledger` with UTC business-date bounds, no price/cost leakage or inventory mutation.
+- Reuses Employee360 company, active session, reporting hierarchy and branch authorization; no new privileges.
+- 33 new PHP regression assertions; total prior V8 277 plus previous employee 360 37 plus 33 = **347 isolated tests**. Live WordPress and MariaDB UAT remains unverified.
+- The employee dashboard is untouched; employee profile links to these read-only registers, not independent stock/ledger books. No merge or deployment.
 
-## 2026-10-19 canonical employee cash-control accounting audit (v0.15)
+See `requirements/EMPLOYEE_360_DETAILED_REGISTERS.md`.
 
-- New read-only finance-only ERP7 REST GET `/organization/employees/{id}/360/cash-control` compares completed posted Daily Order Cash/UPI receipts against actual posted journal Cash/UPI asset debits. Missing, duplicate and amount-mismatched journals are explicitly flagged; dates and branch/hierarchy/RBAC enforced server side.
-- Flutter Employee360 `Cash Control` tab uses the same endpoint only when accounting-view authorization is granted. No employee dashboard price exposure.
-- **This does not mean employee cash handover was confirmed.** Legacy V7 posted cash directly to a branch ledger; it has no verified employee-to-cashier receipt. API reports `cash_remittance_status=not_available_in_legacy_v7`, never `settled`.
-- 40 new fake-DB/permission regressions; prior isolated PHP check count 347, new total 387 on local PHP 8.4. Windows runner still lacks PHP CLI; MariaDB and Flutter/device UAT not run. No production deploy/merge or live database changes.
-- Details: `requirements/EMPLOYEE_CASH_CONTROL_V7_AUDIT.md`.
+
+## 2026-10-19 v0.16 — independent physical-cash cashier attestation (disposable UAT)
+
+- New `backend/src/B2B/IndependentCashierReceipt.php` requires server-authorized branch cashier distinct from the field-sale actor, full pending employee Cash, no credit/partial amount, company/branch custody matching and a unique cashier receipt reference. Exact retries return the same receipt; mismatched retries and re-use fail closed.
+- `PdoIndependentCashierReceiptGateway.php` writes signed receipt + immutable attestation in **one `v8_test` transaction only**, using schema `008_cashier_attestation_UAT.sql`.
+- `MariaDbEmployeeRemittanceGateway::confirmedBranchReceipt()` now checks **signed independent attestation**, not merely the untrusted `verified_source='cashier'` field. Missing signature prevents remittance even if a receipt row was manually forged.
+- `backend/tests/mariadb_integration.php` now uses the actual independent signer rather than inserting privileged receipt evidence with raw SQL; also verifies unsigned receipt rejection. An actual MariaDB UAT run is still required; the local environment does not have `pdo_mysql` or a disposable database.
+- `backend/tests/independent_cashier_receipt.php`: 20 new isolated security and lifecycle tests. Old local regressions 387, new total **407 isolated checks**, no actual MariaDB PASS claimed. No WordPress REST endpoints, migrations, production writes or merging.
+- This **only closes the cashier receipt attestation gap for the isolated V8 UAT**. Canonical V7 accounting integration, sale/source registration, tax decision, branch Cash/Employee Cash in Transit postings and reversals remain owner-approved release gates. V7 currently books evening Cash directly to cash; do not double-count it as new cash on remittance.
