@@ -148,34 +148,40 @@ $pdo->prepare("INSERT INTO wp_eh7_parties(id,company_id,branch_id,type,name,stat
  VALUES(?,?,?,'customer','CI Retailer','active',?) ON DUPLICATE KEY UPDATE status='active'")->execute([$party,$company,$branch,$mainDay]);
 $pdo->prepare("INSERT INTO wp_eh8_retailer_party_links(id,company_id,branch_id,party_id,status)
  VALUES(77,?,?,?,'active') ON DUPLICATE KEY UPDATE status='active'")->execute([$company,$branch,$party]);
-$coa=['SALES'=>['income',null],'COGS'=>['expense',null],'INVENTORY'=>['asset',null],'BRANCH_CASH'=>['asset','cash']];
+$coa=['SALES'=>['income',null],'COGS'=>['expense',null],'INVENTORY'=>['asset',null],
+ 'BRANCH_CASH'=>['asset','cash'],'EMPLOYEE_CASH_IN_TRANSIT'=>['asset','cash'],'UPI_CLEARING'=>['asset','upi']];
 foreach($coa as $code=>[$type,$subtype]){$stmt=$pdo->prepare("INSERT INTO wp_eh7_accounts(company_id,code,name,type,subtype,active)
  VALUES(?,?,?,?,?,1) ON DUPLICATE KEY UPDATE active=1");$stmt->execute([$company,$code,'CI '.$code,$type,$subtype]);}
 
-function createIntent(PDO $db,int $company,int $branch,int $product,int $party,string $at,string $ref):array{
+function createIntent(PDO $db,int $company,int $branch,int $product,int $party,string $at,string $ref,
+ string $channel='counter',?int $employee=null,string $mode='cash'):array{
+    if(!in_array($channel,['counter','field'],true)||!in_array($mode,['cash','upi'],true)
+        ||($channel==='field')!==($employee!==null))throw new RuntimeException('Invalid test source custody');
+    $source=$mode==='upi'?'bank_settlement':($channel==='field'?'employee_cash_custody':'branch_cashier_cash');
+    $merchantOrder=$mode==='upi'?'CI-ORDER-'.$ref:null;
     $lines=[['product_id'=>$product,'batch_id'=>0,'quantity_pcs'=>2,'commercial_revision_id'=>90001,'unit_price_paise'=>10000,'line_total_paise'=>20000]];
     $base=['company_id'=>$company,'branch_id'=>$branch,'retailer_id'=>77,'canonical_party_id'=>$party,
-      'channel'=>'counter','employee_id'=>null,'business_at'=>$at,'payment_mode'=>'cash','gross_paise'=>20000,'lines'=>$lines];
+      'channel'=>$channel,'employee_id'=>$employee,'business_at'=>$at,'payment_mode'=>$mode,'gross_paise'=>20000,'lines'=>$lines];
     $digest=hash('sha256',json_encode($base,JSON_THROW_ON_ERROR));
-    $p=$db->prepare('INSERT INTO v8_b2b_sale_intents_uat(company_id,branch_id,retailer_id,canonical_party_id,channel,employee_id,payment_mode,currency,invoice_total_paise,quote_digest,pricing_locked) VALUES(?,?,77,?,\'counter\',NULL,\'cash\',\'INR\',20000,?,1)');
-    $p->execute([$company,$branch,$party,$digest]);$saleId=(int)$db->lastInsertId();
-    $p=$db->prepare("INSERT INTO v8_b2b_payment_intents_uat(company_id,branch_id,channel,payment_mode,amount_paise,currency)
- VALUES(?,?,'counter','cash',20000,'INR')");$p->execute([$company,$branch]);$paymentId=(int)$db->lastInsertId();
+    $p=$db->prepare("INSERT INTO v8_b2b_sale_intents_uat(company_id,branch_id,retailer_id,canonical_party_id,channel,employee_id,payment_mode,merchant_order_id,currency,invoice_total_paise,quote_digest,pricing_locked) VALUES(?,?,77,?,?,?,?,?,'INR',20000,?,1)");
+    $p->execute([$company,$branch,$party,$channel,$employee,$mode,$merchantOrder,$digest]);$saleId=(int)$db->lastInsertId();
+    $p=$db->prepare("INSERT INTO v8_b2b_payment_intents_uat(company_id,branch_id,channel,employee_id,payment_mode,amount_paise,merchant_order_id,currency) VALUES(?,?,?,?,?,20000,?,'INR')");
+    $p->execute([$company,$branch,$channel,$employee,$mode,$merchantOrder]);$paymentId=(int)$db->lastInsertId();
     $p=$db->prepare('INSERT INTO v8_b2b_issued_sale_context_uat(sale_intent_id,company_id,branch_id,business_at,quote_digest) VALUES(?,?,?,?,?)');
     $p->execute([$saleId,$company,$branch,$at,$digest]);
     $p=$db->prepare('INSERT INTO v8_b2b_sale_intent_lines_uat(sale_intent_id,company_id,branch_id,line_no,product_id,batch_id,quantity_pcs,commercial_revision_id,unit_price_paise,line_total_paise) VALUES(?,?,?,1,?,0,2,90001,10000,20000)');
     $p->execute([$saleId,$company,$branch,$product]);
     $p=$db->prepare('INSERT INTO v8_b2b_payment_intent_to_sale_uat(payment_intent_id,sale_intent_id,company_id,branch_id,quote_digest) VALUES(?,?,?,?,?)');
     $p->execute([$paymentId,$saleId,$company,$branch,$digest]);
-    $p=$db->prepare("INSERT INTO v8_b2b_verified_tenders(company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at,status) VALUES(?,?,'cash',?,20000,'branch_cashier_cash',UTC_TIMESTAMP(),'confirmed')");
-    $p->execute([$company,$branch,$ref]);$tenderId=(int)$db->lastInsertId();
-    $p=$db->prepare("INSERT INTO v8_b2b_tender_intake_evidence_uat(intent_id,confirmed_tender_id,company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_by,channel) VALUES(?,?,?,?,'cash',?,20000,'branch_cashier_cash',?,'counter')");
-    $p->execute([$paymentId,$tenderId,$company,$branch,$ref,8001]);
-    $p=$db->prepare("INSERT INTO v8_b2b_sale_tender_reservations_uat(company_id,branch_id,sale_intent_id,payment_intent_id,tender_id,retailer_id,canonical_party_id,channel,payment_mode,payment_reference,verified_source,amount_paise,quote_digest) VALUES(?,?,?,?,?,77,?,'counter','cash',?,'branch_cashier_cash',20000,?)");
-    $p->execute([$company,$branch,$saleId,$paymentId,$tenderId,$party,$ref,$digest]);
+    $p=$db->prepare("INSERT INTO v8_b2b_verified_tenders(company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at,status) VALUES(?,?,?,?,20000,?,UTC_TIMESTAMP(),'confirmed')");
+    $p->execute([$company,$branch,$mode,$ref,$source]);$tenderId=(int)$db->lastInsertId();
+    $p=$db->prepare('INSERT INTO v8_b2b_tender_intake_evidence_uat(intent_id,confirmed_tender_id,company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_by,channel,employee_id) VALUES(?,?,?,?,?,?,20000,?,?,?,?)');
+    $p->execute([$paymentId,$tenderId,$company,$branch,$mode,$ref,$source,8001,$channel,$employee]);
+    $p=$db->prepare('INSERT INTO v8_b2b_sale_tender_reservations_uat(company_id,branch_id,sale_intent_id,payment_intent_id,tender_id,retailer_id,canonical_party_id,channel,employee_id,payment_mode,payment_reference,verified_source,amount_paise,quote_digest) VALUES(?,?,?,?,?,77,?,?,?,?,?,?,20000,?)');
+    $p->execute([$company,$branch,$saleId,$paymentId,$tenderId,$party,$channel,$employee,$mode,$ref,$source,$digest]);
     // Disposable test's pre-verified bridge row: NOT a production trust adapter.
-    $p=$db->prepare("INSERT INTO wp_eh7_b2b_verified_tenders(company_id,branch_id,sale_intent_id,payment_intent_id,tender_id,quote_digest,channel,payment_mode,currency,status,verified_by,verified_source,amount_paise,provider_transaction_id,confirmed_at) VALUES(?,?,?,?,?,?,'counter','cash','INR','confirmed',8001,'branch_cashier_cash',20000,?,UTC_TIMESTAMP())");
-    $p->execute([$company,$branch,$saleId,$paymentId,$tenderId,$digest,$ref]);
+    $p=$db->prepare("INSERT INTO wp_eh7_b2b_verified_tenders(company_id,branch_id,sale_intent_id,payment_intent_id,tender_id,quote_digest,channel,employee_id,payment_mode,currency,status,verified_by,verified_source,amount_paise,provider_transaction_id,confirmed_at) VALUES(?,?,?,?,?,?,?,?,?,'INR','confirmed',8001,?,20000,?,UTC_TIMESTAMP())");
+    $p->execute([$company,$branch,$saleId,$paymentId,$tenderId,$digest,$channel,$employee,$mode,$source,$ref]);
     return ['sale_intent_id'=>$saleId,'payment_intent_id'=>$paymentId,'tender_id'=>$tenderId,'digest'=>$digest];
 }
 function checkUat(bool $valid,string $message):void {if(!$valid)throw new RuntimeException('FAIL '.$message);echo 'PASS '.$message."\n";}
@@ -206,5 +212,26 @@ try{
     checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND product_id=?',[$company,$product])===8000,'journal failure rolls back canonical stock');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_retailer_sales WHERE sale_intent_id=?',[$bad['sale_intent_id']])===0 && first($pdo,'SELECT status FROM v8_b2b_sale_intents_uat WHERE id=?',[$bad['sale_intent_id']])==='awaiting_payment','journal failure rolls back sale header and evidence state');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_checkout_keys WHERE company_id=? AND request_key=?',[$company,postContext($bad['sale_intent_id'])['idempotency_key']])===0,'failed idempotency lock rolled back');
-    echo "CANONICAL V7 REAL MARIADB UAT: 12/12 PASS; v8_test only; no WordPress deployment\n";
+    // End-to-end FIELD Cash: the collection is employee custody, not cashier remittance.
+    $pdo->prepare("INSERT INTO wp_eh7_stock_balances(company_id,branch_id,product_id,batch_key,custodian_key,quantity,average_unit_cost,updated_at)
+      VALUES(?,?,?,0,?,5.000,40.0000,?) ON DUPLICATE KEY UPDATE quantity=5.000,average_unit_cost=40.0000")
+        ->execute([$company,$branch,$product,$employee,$mainDay]);
+    $field=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-FIELD-CASH-1','field',$employee);
+    $fieldSale=$writer->post(postContext($field['sale_intent_id']));
+    checkUat($fieldSale['status']==='posted' && $fieldSale['employee_cash_to_remit_paise']===20000,'field cash posts as employee liability pending physical deposit');
+    checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND product_id=? AND custodian_key=?',[$company,$product,$employee])===3000,'field cash only reduces employee stock custody');
+    checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND product_id=? AND custodian_key=0',[$company,$product])===8000,'field cash does not take stock from branch warehouse');
+    $transitId=(int)first($pdo,"SELECT id FROM wp_eh7_accounts WHERE company_id=? AND code='EMPLOYEE_CASH_IN_TRANSIT'",[$company]);
+    checkUat((float)first($pdo,'SELECT debit FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$fieldSale['journal_id'],$transitId])===200.0,'field cash debits Employee Cash in Transit, not Branch Cash');
+    checkUat(first($pdo,'SELECT party_type FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$fieldSale['journal_id'],$transitId])==='employee'
+        && (int)first($pdo,'SELECT party_id FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$fieldSale['journal_id'],$transitId])===$employee,'field Cash journal is tagged to the correct employee ledger');
+    // UPI: bank settlement is distinct from both employee cash and branch cash.
+    $upi=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-UPI-TXN-001','counter',null,'upi');
+    $upiSale=$writer->post(postContext($upi['sale_intent_id']));
+    $upiId=(int)first($pdo,"SELECT id FROM wp_eh7_accounts WHERE company_id=? AND code='UPI_CLEARING'",[$company]);
+    checkUat($upiSale['status']==='posted' && $upiSale['employee_cash_to_remit_paise']===0,'UPI posts without employee cash remittance');
+    checkUat((float)first($pdo,'SELECT debit FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$upiSale['journal_id'],$upiId])===200.0,'UPI payment debits UPI clearing not physical cash');
+    checkUat(first($pdo,'SELECT status FROM v8_b2b_sale_intents_uat WHERE id=?',[$upi['sale_intent_id']])==='posted'
+         && first($pdo,'SELECT status FROM v8_b2b_payment_intents_uat WHERE id=?',[$upi['payment_intent_id']])==='consumed','UPI posting finalizes original payment evidence');
+    echo "CANONICAL V7 REAL MARIADB UAT: 20/20 PASS; v8_test only; no WordPress deployment\n";
 }catch(Throwable $e){fwrite(STDERR,'CANONICAL V7 MARIADB UAT FAILED: '.$e::class.' '.$e->getMessage().' at '.$e->getFile().':'.$e->getLine()."\n");exit(1);}

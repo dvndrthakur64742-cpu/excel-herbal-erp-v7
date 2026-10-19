@@ -9,3 +9,7 @@ This test is deliberately isolated to the exact database **v8_test** and WordPre
 **Limitations:** synthetic test fixtures manually construct the independently confirmed cashier/payment proof; this does not constitute an authenticated PSP/cashier production bridge. Not a real WordPress bootstrap, Flutter device test or multi-connection concurrency test. All financial and statutory release gates remain CLOSED outside UAT. Real MariaDB PASS must be verified by the latest GitHub workflow before claiming success.
 
 **CI file:** `.github/workflows/v8-foundation-ci.yml`, isolated MariaDB job.
+
+## Expanded Cash/UPI journal custody scenarios
+
+The same real MariaDB test now also checks Field Cash taken from employee-custodied stock, tagged to the employee and debited into `EMPLOYEE_CASH_IN_TRANSIT` without implying cashier remittance; and separately verifies a provider-evidence fixture for UPI is booked to `UPI_CLEARING` rather than cash. These are **manually constructed disposable test fixtures**, not a real bank or cashier webhook. Local PHP syntax check passed; MariaDB runtime evidence must be taken from the exact commit's GitHub Actions job. Test count: 20 assertions in the real canonical V7 service transaction scenario.

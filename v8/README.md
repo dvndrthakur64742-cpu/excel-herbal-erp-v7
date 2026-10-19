@@ -214,3 +214,7 @@ The V7 same-DB B2B writer now consumes **both** canonical `eh7_b2b_verified_tend
 ## 2026-10-19 real canonical V7 same-DB MariaDB UAT (Step 2)
 
 Adds `backend/tests/v7_canonical_real_mariadb.php` (relative to `v8/`) to the disposable MariaDB CI job. Exercises **actual V7 services**, not a fake stock/GL adapter, including success/replay and forced journal-failure rollback. Full evidence/status transitions on the same connection. Tests run only in `v8_test`; no live migration or REST writer. Details: `requirements/V7_REAL_MARIADB_UAT.md`. CI result must be checked and recorded independently; no runtime PASS claimed by this commit alone.
+
+### Real MariaDB V7 stock/accounting UAT — channel coverage
+
+Real V7 service test extended to Field Cash (employee stock + Cash in Transit) and Counter UPI (UPI clearing). UAT-only verified evidence fixtures, no production payment bridge. See `requirements/V7_REAL_MARIADB_UAT.md`.
