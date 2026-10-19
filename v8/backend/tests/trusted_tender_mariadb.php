@@ -57,10 +57,16 @@ try{
     if($d['payment_reference']!=='bank-UAT-UTR-88000')throw new RuntimeException('UPI bank proof incorrect');$checks++;
     try{$intake->upiSettled($company,$branch,999,$upiDuplicateId,'lookup-bank-88');
         throw new RuntimeException('Expected replay denial');
+    }catch(RetailerSaleError $e){
+        // The trusted gateway can reject a duplicate transaction before the DB
+        // unique constraint fires; both paths must deny replay.
+        if(!str_contains($e->getMessage(),'already allocated'))throw $e;
+        $checks++;
     }catch(PDOException $e){
+        // In a concurrent collision the unique index remains the final guard.
         if($e->getCode()!=='23000')throw $e;
         $checks++;
-    } // DB unique constraint is the final safeguard, not a pre-check.
+    }
     $count=(int)$pdo->query('SELECT COUNT(*) FROM v8_b2b_tender_intake_evidence_uat WHERE company_id=987654321')->fetchColumn();
     $tenders=(int)$pdo->query('SELECT COUNT(*) FROM v8_b2b_verified_tenders WHERE company_id=987654321')->fetchColumn();
     if($count!==3||$tenders!==3)throw new RuntimeException('Replay or rollback created phantom evidence');$checks++;
