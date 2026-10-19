@@ -18,7 +18,12 @@
 - `backend/schema/001_b2b_preview_mysql.sql` — BUILD/UAT schema for development fixture only, **NOT production migration**. Preview product and stock tables intentionally stand alone; integration with canonical V7 data requires separately approved mapping/migration.
 - `backend/tests/run.php` — 25 isolated domain/unit tests including overflow protection.
 - `backend/tests/retailer_flow.php` — 11 retailer registry/API flow tests.
-- `backend/tests/mariadb_integration.php` — integration checks requiring a disposable database exactly `v8_test`.
+- `backend/tests/mariadb_integration.php` — sale AND cashier remittance integration checks requiring a disposable database exactly `v8_test`.
+- `backend/src/B2B/EmployeeCashRemittance.php` — full cashier-confirmed field Cash deposit: Retailer remains paid; Employee Cash-In-Transit is cleared into Branch Cash. No partial-remittance policy assumed.
+- `backend/src/B2B/EmployeeRemittanceApi.php` — trusted-context cashier adapter, not an HTTP route, cannot mint its own payment evidence.
+- `backend/src/B2B/MariaDbEmployeeRemittanceGateway.php` — isolated UAT InnoDB persistence with locked receipt, unique settlement per sale, balanced reclassification entries and idempotent posting.
+- `backend/schema/002_cash_remittance_uat.sql` — preview remittance tables, NOT a production migration.
+- `backend/tests/cash_remittance.php` — 18 remittance and API boundary regressions.
 - `.github/workflows/v8-foundation-ci.yml` — lint, isolated tests and disposable MariaDB 11.4 job; **NO deploy action**.
 
 ## Run isolated tests
@@ -27,9 +32,10 @@
 find v8/backend -name '*.php' -print0 | xargs -0 -n1 php -l
 php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
 php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
+php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/cash_remittance.php
 ```
 
-Current local verification: **25/25 domain + 11/11 retailer tests PASS; MariaDB integration SKIPPED** because local PHP lacks `pdo_mysql` and no disposable DB is configured. GitHub Actions jobs have not yet produced executed steps in the observed attempt, so a green CI result is not established. The integration script SKIPs without `V8_TEST_DSN`. The GitHub CI job is configured with an ephemeral MariaDB 11.4 container. Local PHP environment might not include `pdo_mysql`; do not call MariaDB tests PASS until the CI runner proves them.
+Current local verification (re-run required after each code change): **25/25 domain + 11/11 retailer + 18/18 remittance tests PASS; MariaDB integration SKIPPED** because local PHP lacks `pdo_mysql` and no disposable DB is configured. GitHub Actions jobs have not yet produced executed steps in the observed attempt, so a green CI result is not established. The integration script SKIPs without `V8_TEST_DSN`. The GitHub CI job is configured with an ephemeral MariaDB 11.4 container. Local PHP environment might not include `pdo_mysql`; do not call MariaDB tests PASS until the CI runner proves them.
 
 ## Important safety boundaries
 - This does not create a runnable website or deployable WordPress plugin. API class is not wired to `register_rest_route`, authentication, or Flutter.
@@ -47,3 +53,11 @@ Current local verification: **25/25 domain + 11/11 retailer tests PASS; MariaDB 
 5. Staff role UAT, trial balance and stock reconciliation, backups/restore, physically tested GPS, explicit deployment sign-off.
 
 **Current status: backend development implementation only. No deployment, no production DB migrations, no live transaction access.**
+
+## 2026-10-19 incremental development: field Cash custody closing
+
+- Only field **cash** receipts create an employee remittance obligation. Counter cash and UPI do not. Customer/retailer stays fully paid, never becomes debtor because an employee is holding funds.
+- Branch cashier must independently confirm exact amount + sale + employee, bound to company/branch; no screenshot, employee acknowledgement or client-request role is accepted as proof. A separate trusted back-office mechanism to CREATE this confirmation is **not yet implemented**.
+- Settling posts DR `BRANCH_CASH` and CR `EMPLOYEE_CASH_IN_TRANSIT` once, with a locked, one-use receipt; journal account strings remain placeholders for future canonical V7/ERP8 Chart of Accounts mapping.
+- Until an explicit owner policy approves shortages/partial deposits, full deposit is the only allowed closing; a shortage requires an exception workflow that is **not implemented**.
+- No real WordPress REST registration, production DB installation, working POS, canonical stock integration, statutory tax invoice, or deployment has been performed.
