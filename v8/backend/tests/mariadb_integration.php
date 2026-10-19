@@ -1,0 +1,53 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__) . '/src/B2B/RetailerCashSale.php';
+require dirname(__DIR__) . '/src/B2B/RetailerMaster.php';
+require dirname(__DIR__) . '/src/B2B/RetailerApi.php';
+require dirname(__DIR__) . '/src/B2B/MariaDbRetailerGateway.php';
+use ExcelHerbal\ERP8\B2B\{MariaDbRetailerGateway,RetailerCashSale,RetailerMaster,RetailerApi,RetailerSaleError};
+$dsn = getenv('V8_TEST_DSN');
+if (!$dsn) { echo "SKIP: V8_TEST_DSN not set, no MariaDB installed in this environment.\n"; exit(0); }
+$db = new PDO($dsn, getenv('V8_TEST_USER') ?: 'v8', getenv('V8_TEST_PASSWORD') ?: 'v8', [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+// USE ONLY an isolated disposable UAT database with an empty schema.
+if (strpos($dsn, 'dbname=v8_test') === false) throw new RuntimeException('Integration test refuses to run outside dbname=v8_test.');
+$sql = file_get_contents(dirname(__DIR__) . '/schema/001_b2b_preview_mysql.sql');
+$sql = preg_replace('/^--[^\n]*$/m', '', $sql);
+foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) $db->exec($statement);
+$tables = ['v8_b2b_employee_remittance','v8_b2b_retailer_statement','v8_b2b_journal_lines','v8_b2b_stock_movements','v8_b2b_sale_lines','v8_b2b_sales','v8_b2b_sale_keys','v8_b2b_verified_tenders','v8_b2b_stock_bins_preview','v8_b2b_batches_preview','v8_b2b_catalog_preview','v8_b2b_retailers'];
+foreach ($tables as $table) $db->exec("DELETE FROM {$table}");
+$db->exec("INSERT INTO v8_b2b_catalog_preview (company_id,branch_id,product_id,status,mrp,sale_price,ho_amount,bm_profit,salary_fund,office_expense,purchase_cost,points,batch_required) VALUES (1,1,1,'active','150.00','100.00','50.00','20.00','20.00','10.00','40.1250','5',0)");
+$db->exec('INSERT INTO v8_b2b_stock_bins_preview (company_id,branch_id,product_id,batch_id,custodian_key,quantity_pcs) VALUES (1,1,1,0,0,10),(1,1,1,0,6,5)');
+$gateway = new MariaDbRetailerGateway($db, static fn($action,$actor,$company,$branch,$employee) => $actor===2 && $company===1 && $branch===1 && ($employee===null || $employee===6));
+$api = new RetailerApi(new RetailerMaster($gateway), new RetailerCashSale($gateway));
+function ok(bool $test, string $message):void {if(!$test)throw new RuntimeException('FAIL: '.$message);echo 'PASS '.$message."\n";}
+function failure(callable $fn,string $message):void {try{$fn();}catch(RetailerSaleError){echo 'PASS '.$message."\n";return;}throw new RuntimeException('Expected failure '.$message);}
+$shop=$api->create(1,1,2,['shop_name'=>'Himalayan Herbs','mobile'=>'9876543210','idempotency_key'=>'mysql-shop-001']);
+ok((int)$shop['id']>0 && $shop['type']==='retailer','retailer saved to MariaDB');
+$repeat=$api->create(1,1,2,['shop_name'=>'Himalayan Herbs','mobile'=>'9876543210','idempotency_key'=>'mysql-shop-001']);
+ok((int)$repeat['id']===(int)$shop['id'],'idempotent retailer registration');
+failure(fn()=>$api->detail(1,2,2,(int)$shop['id']),'cross-branch retailer IDOR rejected');
+$db->exec("INSERT INTO v8_b2b_verified_tenders (company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at) VALUES (1,1,'cash','CASH-VER-001',30000,'cashier',NOW())");
+$req=['retailer_id'=>(int)$shop['id'],'channel'=>'counter','employee_id'=>null,'idempotency_key'=>'mysql-sale-001','payment_mode'=>'cash','payment_reference'=>'CASH-VER-001','paid_amount'=>'300.00','lines'=>[['product_id'=>1,'batch_id'=>0,'qty'=>3]]];
+$sale=$api->postPaidSale(1,1,2,$req);
+ok($sale['retailer_outstanding_paise']===0 && $sale['invoice_total_paise']===30000,'paid retailer sale posted');
+$stock=(int)$db->query('SELECT quantity_pcs FROM v8_b2b_stock_bins_preview WHERE custodian_key=0')->fetchColumn();
+ok($stock===7,'branch stock decreased exactly once');
+$again=$api->postPaidSale(1,1,2,$req);
+ok($again['id']===$sale['id'] && (int)$db->query('SELECT quantity_pcs FROM v8_b2b_stock_bins_preview WHERE custodian_key=0')->fetchColumn()===7,'idempotency prevents double deduction');
+$debit=(int)$db->query('SELECT SUM(debit_paise) FROM v8_b2b_journal_lines WHERE sale_id='.$sale['id'])->fetchColumn();
+$credit=(int)$db->query('SELECT SUM(credit_paise) FROM v8_b2b_journal_lines WHERE sale_id='.$sale['id'])->fetchColumn();
+ok($debit===$credit && $debit>30000,'journal balances');
+$party=(int)$db->query('SELECT SUM(amount_paise) FROM v8_b2b_retailer_statement WHERE sale_id='.$sale['id'])->fetchColumn();
+ok($party===0,'retailer statement outstanding zero');
+failure(fn()=>$api->postPaidSale(1,1,2,array_replace($req,['idempotency_key'=>'mysql-sale-002','payment_reference'=>'CASH-VER-001'])),'reused tender rejected');
+ok((int)$db->query('SELECT COUNT(*) FROM v8_b2b_sales')->fetchColumn()===1,'reused tender creates no duplicate sale');
+$db->exec("INSERT INTO v8_b2b_verified_tenders (company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at) VALUES (1,1,'cash','CASH-FIELD-002',20000,'cashier',NOW())");
+$field=$api->postPaidSale(1,1,2,array_replace($req,['idempotency_key'=>'mysql-field-002','channel'=>'field','employee_id'=>6,'payment_reference'=>'CASH-FIELD-002','paid_amount'=>'200.00','lines'=>[['product_id'=>1,'batch_id'=>0,'qty'=>2]]]));
+ok($field['employee_cash_remittance_paise']===20000 && (int)$db->query('SELECT amount_due_paise FROM v8_b2b_employee_remittance WHERE sale_id='.$field['id'])->fetchColumn()===20000,'employee remittance separate from retailer');
+ok((int)$db->query('SELECT quantity_pcs FROM v8_b2b_stock_bins_preview WHERE custodian_key=6')->fetchColumn()===3,'employee custody deducted only');
+$db->exec("INSERT INTO v8_b2b_verified_tenders (company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at) VALUES (1,1,'upi','FAKE-UPI-003',10000,'cashier',NOW())");
+failure(fn()=>$api->postPaidSale(1,1,2,array_replace($req,['idempotency_key'=>'mysql-upi-003','payment_mode'=>'upi','payment_reference'=>'FAKE-UPI-003','paid_amount'=>'100.00','lines'=>[['product_id'=>1,'batch_id'=>0,'qty'=>1]]])),'UPI cash acknowledgment cannot fake provider proof');
+$db->exec("INSERT INTO v8_b2b_verified_tenders (company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at) VALUES (1,1,'upi','UPI-VER-004',10000,'provider',NOW())");
+$upi=$api->postPaidSale(1,1,2,array_replace($req,['idempotency_key'=>'mysql-upi-004','payment_mode'=>'upi','payment_reference'=>'UPI-VER-004','paid_amount'=>'100.00','lines'=>[['product_id'=>1,'batch_id'=>0,'qty'=>1]]]));
+ok($upi['payment_mode']==='upi' && $upi['retailer_outstanding_paise']===0,'verified UPI posted');
+echo "PASS MariaDB paid-only B2B integration suite\n";
