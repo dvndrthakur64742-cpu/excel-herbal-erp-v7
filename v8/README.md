@@ -190,3 +190,12 @@ See `requirements/EMPLOYEE_360_DETAILED_REGISTERS.md`.
 - `backend/tests/mariadb_integration.php` now uses the actual independent signer rather than inserting privileged receipt evidence with raw SQL; also verifies unsigned receipt rejection. An actual MariaDB UAT run is still required; the local environment does not have `pdo_mysql` or a disposable database.
 - `backend/tests/independent_cashier_receipt.php`: 20 new isolated security and lifecycle tests. Old local regressions 387, new total **407 isolated checks**, no actual MariaDB PASS claimed. No WordPress REST endpoints, migrations, production writes or merging.
 - This **only closes the cashier receipt attestation gap for the isolated V8 UAT**. Canonical V7 accounting integration, sale/source registration, tax decision, branch Cash/Employee Cash in Transit postings and reversals remain owner-approved release gates. V7 currently books evening Cash directly to cash; do not double-count it as new cash on remittance.
+
+## 2026-10-19 same-connection canonical V7 stock/journal writer (v0.17)
+
+- New `backend/src/B2B/V7CanonicalPostingSinkUat.php` is a strict **UAT-only, non-production** adapter to the actual V7 `Transaction::run`, `StockService::move`, `AccountingService::post` APIs and a *single canonical* B2B sale source. No parallel stock/GL.
+- Development V7 AccountingService source whitelist now recognizes `b2b_retailer_sale` (target `eh7_b2b_retailer_sales`); new source table is defined in an **unapplied** disposable `v8_test` DRAFT schema. No WordPress routes or schema installer.
+- Checks immutable line-level quote digest, original price revisions, authorized retailer/canonical customer, legacy credit, actual DB `v8_test`, accounting period, branch close, exact trusted tender, company+actor-bound idempotency, effective V7 stock cost and balanced GL. Field Cash tags employee-to-remit journal line, without falsely treating cash as cashier-deposited.
+- 34 new PHP fake-DB/rollback tests, previous 407 local regression checks => **441/441 local checks** in the combined development tree. **No real WordPress or MariaDB write UAT has run.**
+- The WordPress trusted same-DB lock/read service, verified PSP/cash source, GST/HSN/discount policy and reversal/remittance rules **remain missing**. The guard will not run on production, and no live DB migration is performed.
+- See `requirements/V7_CANONICAL_ATOMIC_WRITER_DRAFT.md`. No deployment or PR merge.
