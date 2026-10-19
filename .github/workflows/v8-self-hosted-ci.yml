@@ -2,7 +2,9 @@ name: Excel Herbal V8 Self-Hosted Runner Check (No Deploy)
 
 on:
   workflow_dispatch:
-  pull_request:
+  push:
+    branches:
+      - codex/erp-v8-foundation-20261017
     paths:
       - 'v8/**'
       - '.github/workflows/v8-self-hosted-ci.yml'
@@ -21,6 +23,8 @@ jobs:
     steps:
       - name: Checkout development code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Verify installed PHP on Windows runner (no machine changes)
         run: |
           where php
