@@ -32,6 +32,9 @@ on:
       - 'flutter-app/test/branch_comparison_csv_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/tests/branch_period_control_regression.php'
       - 'flutter-app/test/branch_period_control_ui_contract_test.dart'
+      - 'v8/backend/tests/b2b_wordpress_http_smoke.py'
+      - 'v8/backend/tests/b2b_wordpress_http_router.php'
+      - '.github/scripts/b2b-dev-http-role-uat.ps1'
       - 'backend/excel-herbal-erp-v7/src/Reporting/B2BStagingRestProbe.php'
       - 'backend/excel-herbal-erp-v7/tests/b2b_staging_rest_probe_regression.php'
       - 'backend/excel-herbal-erp-v7/src/Http/Api.php'
@@ -124,6 +127,18 @@ jobs:
           php -l backend/excel-herbal-erp-v7/src/Reporting/B2BStagingRestProbe.php
           php -l backend/excel-herbal-erp-v7/src/Http/Api.php
           php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/b2b_staging_rest_probe_regression.php
+      - name: Syntax-check manually run B2B dev HTTPS role smoke script (never contact any host)
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path (Get-Location) '.github/scripts/b2b-dev-http-role-uat.ps1'),
+            [ref]$tokens,
+            [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
+          Write-Host 'PASS manual staging HTTPS script syntax (not executed)'
       - name: UAT B2B branch-day preflight fail-closed accounting role, incomplete batch and custody checks
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/b2b_branch_preflight_unit.php
       - name: V7 canonical StockService AccountingService same-connection UAT writer isolated regressions
