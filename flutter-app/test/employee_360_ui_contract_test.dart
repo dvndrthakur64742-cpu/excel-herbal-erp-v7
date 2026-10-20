@@ -24,6 +24,8 @@ void main() {
     expect(profile, contains('ApiPaths.employee360Register(widget.employeeId)'));
     expect(profile, contains("'type': widget.type"));
     expect(profile, contains("'page_size': _pageSize"));
+    expect(profile, contains("const Tab(text: 'Stock Requests')"));
+    expect(profile, contains("type: 'requests'"));
     expect(profile, contains('RecordsList(rows: rows)'));
     expect(profile, contains('showDateRangePicker('));
   });

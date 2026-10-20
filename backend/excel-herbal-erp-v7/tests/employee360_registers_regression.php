@@ -59,6 +59,9 @@ namespace {
         public function stock(int $c,int $e,string $f,string $t,array $branches,int $limit,int $offset):array {
             $this->calls[]=['stock',$c,$e,$f,$t,$branches,$limit,$offset];return $this->fakeRows;
         }
+        public function requests(int $c,int $e,string $f,string $t,array $branches,int $limit,int $offset):array {
+            $this->calls[]=['requests',$c,$e,$f,$t,$branches,$limit,$offset];return $this->fakeRows;
+        }
     }
     $self=new Actor(17,7,1,2,[2],[],'FSE');
     $profile=new ProfileReaderFake();$reg=new RegisterFake();
@@ -74,9 +77,18 @@ namespace {
     $next=Employee360Registers::view($self,7,'stock','2026-10-01','2026-10-19',2,2,$reg,$profile);
     okay($next['register']==='stock'&&$reg->calls[1][0]==='stock','stock only custodian movement');
     okay($reg->calls[1][7]===2,'page 2 offset');
+    $reg->fakeRows=[['request_id'=>7,'request_status'=>'approved','requested_quantity'=>'3.000','issued_quantity'=>'0']];
+    $requested=Employee360Registers::view($self,7,'requests','2026-10-01','2026-10-19',1,25,$reg,$profile);
+    okay($requested['register']==='requests'&&$requested['source']==='canonical_v7_daily_requests_and_issue_lines','requests map to canonical V7 registers');
+    okay($reg->calls[2][0]==='requests'&&$reg->calls[2][5]===[],'request reader uses authorized self scope');
+    okay($requested['rows'][0]['issued_quantity']==='0'&&str_contains($requested['note'],'does not mean stock was issued'),'approval is not mistaken for physical issue');
+    $reg->fakeRows=[];
+
     $manager=new Actor(50,22,1,2,[2,4],[Capabilities::EMP_VIEW],'BM');
     Employee360Registers::view($manager,7,'stock','2026-10-01','2026-10-19',1,50,$reg,$profile);
-    okay($reg->calls[2][5]===[2,4],'manager limited to authorized branches');
+    okay($reg->calls[3][5]===[2,4],'manager limited to authorized branches');
+    Employee360Registers::view($manager,7,'requests','2026-10-01','2026-10-19',1,50,$reg,$profile);
+    okay($reg->calls[4][0]==='requests'&&$reg->calls[4][5]===[2,4],'manager request history limited to authorized branches');
     denied(fn()=>Employee360Registers::view(new Actor(50,22,1,2,[2],[],'FSE'),7,'sales','2026-10-01','2026-10-19',1,50,$reg,$profile),'permission_denied');
     denied(fn()=>Employee360Registers::view(new Actor(50,22,1,4,[4],[Capabilities::EMP_VIEW],'BM'),7,'sales','2026-10-01','2026-10-19',1,50,$reg,$profile),'branch_forbidden');
     HierarchyScope::$allow=false;
@@ -87,6 +99,7 @@ namespace {
     $wrong=new ProfileReaderFake();$wrong->profile['id']=8;
     denied(fn()=>Employee360Registers::view($self,7,'stock','2026-10-01','2026-10-19',1,50,$reg,$wrong),'employee_not_found');
     denied(fn()=>Employee360Registers::view($self,7,'unknown','2026-10-01','2026-10-19',1,50,$reg,$profile),'register_type_invalid');
+    denied(fn()=>Employee360Registers::view(new Actor(50,22,1,2,[2],[],'FSE'),7,'requests','2026-10-01','2026-10-19',1,50,$reg,$profile),'permission_denied');
     denied(fn()=>Employee360Registers::view($self,7,'sales','2026-13-01','2026-10-19',1,50,$reg,$profile),'date_invalid');
     denied(fn()=>Employee360Registers::view($self,7,'sales','2026-10-19','2026-10-01',1,50,$reg,$profile),'period_invalid');
     denied(fn()=>Employee360Registers::view($self,7,'sales','2026-10-01','2026-10-19',0,50,$reg,$profile),'register_pagination_invalid');
@@ -101,7 +114,8 @@ namespace {
     $db=new Employee360WpRegisterReader();
     $db->sales(1,7,'2026-10-01','2026-10-19',[2,4],51,100);
     $db->stock(1,7,'2026-10-01','2026-10-19',[2],20,0);
-    okay(count($stub->q)===2,'two parameterized source queries');
+    $db->requests(1,7,'2026-10-01','2026-10-19',[2,4],31,50);
+    okay(count($stub->q)===3,'three parameterized source queries');
     $salesSql=$stub->q[0][0];
     okay(str_contains($salesSql,"c.status='completed'")&&str_contains($salesSql,"es.status='posted'"),'only posted daily cycles');
     okay(str_contains($salesSql,'LEFT JOIN wp_eh7_evening_lines'),'cycle level aggregation no duplicated settlement totals');
@@ -115,7 +129,15 @@ namespace {
     okay(str_contains($stockSql,'sl.branch_id IN (%d)'),'stock manager branch scoped');
     okay(!str_contains($stockSql,'unit_cost')&&!str_contains($stockSql,'average_unit_cost'),'no cost price leak');
     okay($stub->q[1][1]===[1,7,'2026-10-01 00:00:00','2026-10-20 00:00:00',2,20,0],'stock UTC bound args');
-    $testText=file_get_contents(__DIR__.'/../src/Organization/Employee360Registers.php');
+    $requestSql=$stub->q[2][0];
+    okay(str_contains($requestSql,'wp_eh7_daily_requests')&&str_contains($requestSql,'wp_eh7_daily_issue_lines'),'original V7 requests and issue lines read without shadow stock');
+    okay(str_contains($requestSql,'c.company_id=%d AND c.employee_id=%d'),'request owner scoped by company and employee');
+    okay(str_contains($requestSql,'c.branch_id IN (%d,%d)'),'request history obeys manager branch permissions');
+    okay(str_contains($requestSql,'GROUP BY daily_request_id) rl')&&str_contains($requestSql,'GROUP BY daily_request_id) il'),'aggregate requested and issued rows independently before joining');
+    okay(str_contains($requestSql,'ORDER BY c.business_date DESC,r.id DESC'),'request history ordered deterministically for pagination');
+    okay(!str_contains($requestSql,'unit_cost')&&!str_contains($requestSql,'sale_price')&&!str_contains($requestSql,'purchase_cost'),'no commercial price or cost exposed to employee');
+    okay($stub->q[2][1]===[1,7,'2026-10-01','2026-10-19',2,4,31,50],'request pagination and scope parameters bound');
+        $testText=file_get_contents(__DIR__.'/../src/Organization/Employee360Registers.php');
     okay(str_contains($testText,'financial_custody_reconciliation')&&!str_contains($testText,'cash_remittance_completed'),'no fictitious cash settlement');
-    echo 'PASS '.$GLOBALS['pass'].'/'.$GLOBALS['pass']." Employee360 detailed sales and stock registers\n";
+    echo 'PASS '.$GLOBALS['pass'].'/'.$GLOBALS['pass']." Employee360 detailed sales, stock and request registers\n";
 }

@@ -5,6 +5,10 @@ on:
   pull_request:
     paths:
       - 'v8/**'
+      - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Registers.php'
+      - 'backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php'
+      - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
+      - 'flutter-app/test/employee_360_ui_contract_test.dart'
       - '.github/workflows/v8-foundation-ci.yml'
 
 permissions:
@@ -28,6 +32,8 @@ jobs:
         run: find v8/backend -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Domain regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
+      - name: Canonical V7 Employee 360 Stock Request History regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
       - name: Retailer master and boundary regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
       - name: Employee cash custody regression checks

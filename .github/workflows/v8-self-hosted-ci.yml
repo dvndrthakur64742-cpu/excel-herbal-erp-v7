@@ -7,6 +7,10 @@ on:
       - codex/erp-v8-foundation-20261017
     paths:
       - 'v8/**'
+      - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Registers.php'
+      - 'backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php'
+      - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
+      - 'flutter-app/test/employee_360_ui_contract_test.dart'
       - '.github/workflows/v8-self-hosted-ci.yml'
 
 permissions:
@@ -38,6 +42,8 @@ jobs:
           php -m
       - name: Retailer sale policy tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
+      - name: Canonical V7 Employee 360 Stock Request History regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
       - name: Retailer master and API boundary tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
       - name: Employee cash responsibility tests
