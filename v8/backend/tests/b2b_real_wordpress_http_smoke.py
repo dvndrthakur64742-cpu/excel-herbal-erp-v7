@@ -98,7 +98,21 @@ def guarded_mutation(action):
     )
     if done.returncode != 0:
         # Never echo secrets, bearer tokens or arbitrary generated WP-CLI logs.
-        raise RuntimeError("Guarded disposable wp-cli mutation failed: " + action)
+        # The command receives no bearer token or password argument.
+        # Report only an allowlisted diagnostic, never raw WP-CLI output
+        # (which might include paths, credentials or request headers).
+        hints = ("Refused:", "Synthetic", "fixture", "schema", "payment table",
+                 "WP-CLI", "WordPress", "Fatal error", "RuntimeException")
+        lines = [line.strip() for line in (done.stderr + "\n" + done.stdout).splitlines()]
+        reason = next((line for line in lines if any(h in line for h in hints)), "")
+        reason = reason.replace(PASSWORD, "[redacted]")[:180]
+        if " in /" in reason:
+            reason = reason.split(" in /", 1)[0]
+        raise RuntimeError(
+            "Guarded disposable wp-cli mutation failed: " + action
+            + " exit=" + str(done.returncode)
+            + (" reason=" + reason if reason else " reason=unclassified")
+        )
 
 
 def run(url):
