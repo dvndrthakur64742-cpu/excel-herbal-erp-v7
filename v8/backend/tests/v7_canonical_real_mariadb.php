@@ -101,7 +101,7 @@ spl_autoload_register(static function(string $name)use($legacy):void{
     if(is_file($p))require_once $p;
 });
 $src=dirname(__DIR__).'/src/B2B/';
-foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php'] as $name)require_once $src.$name;
+foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php','V7B2BBranchDayPreflightUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
@@ -229,6 +229,8 @@ try{
         [\ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW],'RM');
     $crossAudit=static fn(int $saleId):array=>
         \ExcelHerbal\ERP8\B2B\V7B2BCrossLedgerAuditUat::inspect($auditActor,$branch,$saleId);
+    $dayPreflight=static fn(string $day):array=>
+        \ExcelHerbal\ERP8\B2B\V7B2BBranchDayPreflightUat::inspect($auditActor,$branch,$day);
 
     $pair=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-CASH-INT-A');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$pair['sale_intent_id']])===0,'canonical tender is not manually pre-seeded');
@@ -236,6 +238,24 @@ try{
         'trusted V8 intake gateway created one original payment evidence record');
     $sale=$writer->post(postContext($pair['sale_intent_id']));
     checkUat($sale['status']==='posted' && $sale['replayed']===false,'real V7 B2B sale and journal posted');
+    $initialPreflight=$dayPreflight(substr($mainDay,0,10));
+    checkUat($initialPreflight['uat_reconciliation_complete']===true
+       &&$initialPreflight['counts']['sales_checked']===1
+       &&$initialPreflight['counts']['counter_cash']===1
+       &&$initialPreflight['production_release_authorized']===false
+       &&count($initialPreflight['production_release_blockers'])===5,
+       'branch-day preflight counts the original canonical Cash sale but cannot sign off production');
+    $noSaleDate=$dayPreflight('2026-10-18');
+    checkUat($noSaleDate['state']==='no_sales_to_assess'
+       &&$noSaleDate['uat_reconciliation_complete']===false
+       &&$noSaleDate['uat_missing_sales_evidence']===true,
+       'empty branch-day is not falsely declared financially UAT-reconciled');
+    $preflightDenied=false;
+    try{\ExcelHerbal\ERP8\B2B\V7B2BBranchDayPreflightUat::inspect(
+        $actor,$branch,substr($mainDay,0,10));}
+    catch(Throwable $e){$preflightDenied=true;}
+    checkUat($preflightDenied,'branch-day financial preflight requires independent accounting authority');
+
     $counterAudit=$crossAudit($sale['sale_id']);
     checkUat($counterAudit['cross_ledger_consistent']===true
         &&$counterAudit['cash_custody_state']==='not_employee_cash_custody'
@@ -291,6 +311,13 @@ try{
     $field=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-FIELD-CASH-1','field',$employee);
     $fieldSale=$writer->post(postContext($field['sale_intent_id']));
     checkUat($fieldSale['status']==='posted' && $fieldSale['employee_cash_to_remit_paise']===20000,'field cash posts as employee liability pending physical deposit');
+    $beforeCashPreflight=$dayPreflight(substr($mainDay,0,10));
+    checkUat($beforeCashPreflight['state']==='blocked_unremitted_field_cash'
+       &&$beforeCashPreflight['counts']['sales_checked']===2
+       &&$beforeCashPreflight['counts']['field_cash']===1
+       &&$beforeCashPreflight['counts']['cashier_handover_pending']===1
+       &&$beforeCashPreflight['counts']['ledger_mismatches']===0,
+       'one otherwise-balanced field sale prevents branch-day UAT readiness before independent cashier handover');
     $pendingAudit=$crossAudit($fieldSale['sale_id']);
     checkUat($pendingAudit['cross_ledger_consistent']===true
         &&$pendingAudit['cash_custody_state']==='pending_cashier_handover'
@@ -385,6 +412,13 @@ try{
       && first($pdo,'SELECT consumed_remittance_id FROM wp_eh7_b2b_cashier_receipts_uat WHERE id=?',[$receipt['receipt_id']])===null,
       'journal failure rolls back Cash source and preserves unconsumed cashier proof');
     $remit=$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');
+    $clearedPreflight=$dayPreflight(substr($mainDay,0,10));
+    checkUat($clearedPreflight['state']==='uat_books_consistent_not_production_certified'
+       &&$clearedPreflight['counts']['sales_checked']===2
+       &&$clearedPreflight['counts']['cashier_handover_reconciled_uat']===1
+       &&$clearedPreflight['counts']['cashier_handover_pending']===0
+       &&$clearedPreflight['uat_reconciliation_complete']===true,
+       'cashier handover removes branch pending exception without granting production approval');
     $completeAudit=$crossAudit($fieldSale['sale_id']);
     checkUat($completeAudit['cross_ledger_consistent']===true
         &&$completeAudit['cash_custody_state']==='cashier_handover_reconciled_uat',
@@ -436,6 +470,15 @@ try{
     $upiSale=$writer->post(postContext($upi['sale_intent_id']));
     $upiId=(int)first($pdo,"SELECT id FROM wp_eh7_accounts WHERE company_id=? AND code='UPI_CLEARING'",[$company]);
     checkUat($upiSale['status']==='posted' && $upiSale['employee_cash_to_remit_paise']===0,'UPI posts without employee cash remittance');
+    $multiTenderPreflight=$dayPreflight(substr($mainDay,0,10));
+    checkUat($multiTenderPreflight['uat_reconciliation_complete']===true
+       &&$multiTenderPreflight['counts']['sales_checked']===3
+       &&$multiTenderPreflight['counts']['counter_cash']===1
+       &&$multiTenderPreflight['counts']['field_cash']===1
+       &&$multiTenderPreflight['counts']['upi']===1
+       &&$multiTenderPreflight['upi_bank_provider_verified_in_live_erp']===false
+       &&$multiTenderPreflight['snapshot_isolation_guaranteed']===false,
+       'branch-day preflight independently aggregates Cash, field Cash and UPI without bank/provider or snapshot claims');
     $upiAudit=$crossAudit($upiSale['sale_id']);
     checkUat($upiAudit['cross_ledger_consistent']===true
         &&$upiAudit['cash_custody_state']==='not_employee_cash_custody'
@@ -451,6 +494,12 @@ try{
         checkUat(!$broken['cross_ledger_consistent']
             &&in_array('invoice_or_cogs_line_total_mismatch',$broken['mismatch_codes'],true),
             'tampered canonical invoice line fails cross-ledger reconciliation');
+        $branchBroken=$dayPreflight(substr($mainDay,0,10));
+        checkUat($branchBroken['state']==='blocked_ledger_mismatch'
+            &&$branchBroken['counts']['sales_checked']===3
+            &&$branchBroken['counts']['ledger_mismatches']===1
+            &&$branchBroken['uat_reconciliation_complete']===false,
+            'one corrupted invoice stops branch-day preflight even when other posted sales remain valid');
     }finally{if($pdo->inTransaction())$pdo->rollBack();}
     $pdo->beginTransaction();
     try{

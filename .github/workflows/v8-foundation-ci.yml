@@ -126,6 +126,8 @@ jobs:
       - name: Independent signed cashier receipts and Cash-in-Transit authority regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/independent_cashier_receipt.php
 
+      - name: UAT B2B branch-day preflight fail-closed accounting role, incomplete batch and custody checks
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/b2b_branch_preflight_unit.php
       - name: V7 canonical StockService AccountingService same-connection UAT writer isolated regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/v7_canonical_writer_uat.php
 
