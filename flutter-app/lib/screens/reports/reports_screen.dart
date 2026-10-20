@@ -54,6 +54,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       'finance',
       'stock_reconciliation',
       'branch_daily',
+      'branch_weekly',
+      'branch_monthly',
     }.contains(activeType);
 
     const periodReports = {
@@ -65,7 +67,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       'account_ledger',
     };
     const asOfReports = {'trial', 'balance_sheet'};
-    const dayReports = {'branch_daily'};
+    const dayReports = {'branch_daily', 'branch_weekly', 'branch_monthly'};
     final defaultFrom = DateTime.tryParse(app.businessMonthStart) ??
         DateTime(DateTime.now().year, DateTime.now().month, 1);
     final defaultTo = DateTime.tryParse(app.businessDate) ?? DateTime.now();
@@ -79,6 +81,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       if (periodReports.contains(activeType)) 'to': toValue,
       if (asOfReports.contains(activeType)) 'to': app.businessDate,
       if (dayReports.contains(activeType)) 'date': toValue,
+      if (activeType == 'branch_weekly' || activeType == 'branch_monthly')
+        'mode': activeType == 'branch_weekly' ? 'week' : 'month',
       if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };
@@ -114,6 +118,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 future: api.get(config.path, query: query),
                 emptyMessage: config.emptyMessage,
                 builder: (context, data) {
+                  if (activeType == 'branch_weekly' || activeType == 'branch_monthly') {
+                    return _BranchPeriodControlPanel(data: data);
+                  }
                   if (activeType == 'branch_daily') {
                     return _BranchDailyControlPanel(data: data);
                   }
@@ -324,6 +331,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       out.addAll(const [
         _ReportOption('sales', 'Sales Summary', Icons.point_of_sale_outlined),
         _ReportOption('branch_daily', 'Branch Daily Control', Icons.assignment_turned_in_outlined),
+        _ReportOption('branch_weekly', 'Branch Weekly Performance', Icons.date_range_outlined),
+        _ReportOption('branch_monthly', 'Branch Monthly Performance', Icons.calendar_month_outlined),
         _ReportOption(
           'price_distribution',
           'Price Distribution',
@@ -426,6 +435,20 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   _ReportConfig _config(String value) => switch (value) {
+        'branch_weekly' => const _ReportConfig(
+            title: 'Branch Weekly Performance',
+            path: ApiPaths.branchPeriodControl,
+            recordType: 'branch_period',
+            subtitle: 'ISO Monday–Sunday, previous week comparison; posted sales, points, stock and pending closing.',
+            emptyMessage: 'No weekly business activity for this branch.',
+          ),
+        'branch_monthly' => const _ReportConfig(
+            title: 'Branch Monthly Performance',
+            path: ApiPaths.branchPeriodControl,
+            recordType: 'branch_period',
+            subtitle: 'Calendar month, previous month comparison; employee activity and finance-only tagged Cash-in-Transit.',
+            emptyMessage: 'No monthly business activity for this branch.',
+          ),
         'branch_daily' => const _ReportConfig(
             title: 'Branch Daily Control',
             path: ApiPaths.branchDailyControl,
@@ -541,6 +564,111 @@ class _ReportOption {
   final IconData icon;
 }
 
+
+
+class _BranchPeriodControlPanel extends StatelessWidget {
+  const _BranchPeriodControlPanel({required this.data});
+  final dynamic data;
+
+  @override
+  Widget build(BuildContext context) {
+    if (data is! Map) {
+      return const Center(child: Text('Branch performance response invalid.'));
+    }
+    final report = Map<String, dynamic>.from(data as Map);
+    final coverage = report['coverage'];
+    if (report['read_only'] != true ||
+        report['scope'] != 'single_authorized_branch_canonical_v7' ||
+        coverage is! Map ||
+        coverage['cashier_handover_verified'] != false ||
+        coverage['upi_bank_verified'] != false ||
+        coverage['counter_sales_separate_from_daily_orders'] != true ||
+        !const {'week', 'month'}.contains(report['mode'])) {
+      return const Center(child: Text('Branch performance authority/verification contract mismatch.'));
+    }
+    final totals = Map<String, dynamic>.from((report['totals'] as Map?) ?? const {});
+    final prior = (report['previous_period'] as Map?) ?? const {};
+    final previous = Map<String, dynamic>.from((prior['totals'] as Map?) ?? const {});
+    final period = Map<String, dynamic>.from((report['period'] as Map?) ?? const {});
+    final employees = ((report['employees'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((r) => Map<String, dynamic>.from(r))
+        .toList();
+    final financeVisible = report['financial_visibility'] == 'accounting_role_only';
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 26),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              'Period: ${period['from']} – ${period['to']}. '
+              'Previous full period shown for comparison. '
+              'Cash/UPI are allocations, NOT bank/cashier verified. '
+              'Cash-in-Transit is employee-tagged GL, not physical cash count.',
+            ),
+          ),
+        ),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          _MetricCard(label: 'Posted Daily Sales', value: BusinessFormat.money(totals['posted_daily_order_sales'])),
+          _MetricCard(label: 'Previous Period Sales', value: BusinessFormat.money(previous['posted_daily_order_sales'])),
+          _MetricCard(label: 'Sales Change (INR)', value: '${report['posted_daily_order_sales_delta']}'),
+          _MetricCard(label: 'Cash Allocations', value: BusinessFormat.money(totals['daily_cash_allocations'])),
+          _MetricCard(label: 'UPI Allocations', value: BusinessFormat.money(totals['daily_upi_allocations'])),
+          _MetricCard(label: 'Counter Sales (separate)', value: BusinessFormat.money(totals['counter_sales_gross'])),
+          _MetricCard(label: 'Issued PCS', value: BusinessFormat.quantity(totals['issued_quantity'])),
+          _MetricCard(label: 'Sold PCS', value: BusinessFormat.quantity(totals['sold_quantity'])),
+          _MetricCard(label: 'Returned PCS', value: BusinessFormat.quantity(totals['returned_quantity'])),
+          _MetricCard(label: 'Points', value: BusinessFormat.quantity(totals['performance_points'])),
+          _MetricCard(label: 'Pending Closings', value: '${totals['pending_daily_orders'] ?? 0}'),
+          _MetricCard(label: 'Pending Requests', value: '${totals['pending_stock_requests'] ?? 0}'),
+          _MetricCard(label: 'Needs Attention', value: '${totals['employees_needing_attention'] ?? 0}'),
+        ]),
+        const SizedBox(height: 12),
+        Text('Employee-wise Weekly / Monthly Performance',
+            style: Theme.of(context).textTheme.titleMedium),
+        if (employees.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No posted or pending employee activity in this period.'),
+          ),
+        for (final employee in employees)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${employee['employee_name']} · #${employee['employee_id']}',
+                      style: Theme.of(context).textTheme.titleSmall),
+                  Text('Posted sales ${BusinessFormat.money(employee['posted_daily_order_sales'])} '
+                      '· Points ${employee['performance_points']}'),
+                  Text('Cash ${BusinessFormat.money(employee['daily_cash_allocations'])} '
+                      '· UPI ${BusinessFormat.money(employee['daily_upi_allocations'])}'),
+                  Text('Issue ${employee['issued_quantity']} / Sold ${employee['sold_quantity']} '
+                      '/ Return ${employee['returned_quantity']} PCS'),
+                  Text('Custody IN ${employee['custody_in_quantity']} / '
+                      'OUT ${employee['custody_out_quantity']} PCS'),
+                  Text('Posted days ${employee['posted_days']} · '
+                      'Pending closing ${employee['pending_days']} · '
+                      'Pending stock requests ${employee['pending_requests']}'),
+                  if (employee['needs_attention'] == true)
+                    Text('Attention: unresolved stock/sale/closing exception',
+                        style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  if (financeVisible && employee['tagged_cash_in_transit'] is Map)
+                    Text(
+                      'Finance-only tagged Cash-in-Transit INR '
+                      '${(employee['tagged_cash_in_transit'] as Map)['closing_debit_minus_credit']} '
+                      '(unverified physical receipt)',
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
 
 class _BranchDailyControlPanel extends StatelessWidget {
   const _BranchDailyControlPanel({required this.data});

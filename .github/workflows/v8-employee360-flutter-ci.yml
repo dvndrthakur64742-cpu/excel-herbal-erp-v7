@@ -8,6 +8,7 @@ on:
       - 'flutter-app/lib/screens/reports/reports_screen.dart'
       - 'flutter-app/lib/core/api_paths.dart'
       - 'flutter-app/test/branch_daily_control_ui_contract_test.dart'
+      - 'flutter-app/test/branch_period_control_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
       - 'flutter-app/test/employee_360_ui_contract_test.dart'
       - 'flutter-app/pubspec.yaml'
@@ -35,6 +36,9 @@ jobs:
       - name: Branch Daily Control report Flutter UI contract and compile
         working-directory: flutter-app
         run: flutter test test/branch_daily_control_ui_contract_test.dart
+      - name: Branch Weekly Monthly Control Flutter UI contract and compile
+        working-directory: flutter-app
+        run: flutter test test/branch_period_control_ui_contract_test.dart
       - name: Stock allocation regression
         working-directory: flutter-app
         run: flutter test test/stock_allocation_test.dart

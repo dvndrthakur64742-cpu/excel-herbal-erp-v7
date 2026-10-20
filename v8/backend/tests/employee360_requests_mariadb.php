@@ -34,6 +34,7 @@ try {
     require_once $src.'Organization/Employee360PersonLedger.php';
     require_once $src.'Security/Guard.php';
     require_once $src.'Reporting/BranchDailyControlReport.php';
+    require_once $src.'Reporting/BranchPeriodControlReport.php';
     if (!defined('ARRAY_A')) define('ARRAY_A','ARRAY_A');
     $defs=\ExcelHerbal\ERP7\Database\Schema::definitions();
     foreach (['daily_cycles','daily_requests','daily_request_lines','daily_issue_lines','evening_settlements','evening_lines','stock_ledger','accounts','journal_entries','journal_lines','performance_entries','employees','counter_sales'] as $table) {
@@ -294,6 +295,79 @@ try {
         $assert($foreign['totals']['posted_daily_order_sales']==='0.00'
             &&$foreign['totals']['posted_counter_sales']===0,
             'same branch id in different company cannot reveal foreign sales or Cash allocations');
+
+        // Multi-source WEEK/MONTH branch report, exact source aggregates on
+        // real disposable V7 tables. No additional mock selling/stock ledger.
+        $periodReader=new \ExcelHerbal\ERP7\Reporting\BranchPeriodControlWpReader();
+        $weekly=\ExcelHerbal\ERP7\Reporting\BranchPeriodControlReport::view(
+            $branchActor,$branch,'week','2026-10-20',$periodReader);
+        $assert($weekly['period']===['from'=>'2026-10-19','to'=>'2026-10-25']
+            &&$weekly['previous_period']['period']===['from'=>'2026-10-12','to'=>'2026-10-18'],
+            'weekly real SQL reports ISO week with an independent previous week');
+        $assert($weekly['totals']['posted_daily_order_sales']==='300.00'
+            &&$weekly['totals']['daily_cash_allocations']==='100.00'
+            &&$weekly['totals']['daily_upi_allocations']==='200.00'
+            &&$weekly['previous_period']['totals']['posted_daily_order_sales']==='0.00',
+            'real weekly posted Daily Order sale/splits match originals; prior week empty');
+        $assert($weekly['totals']['counter_sales_gross']==='25.00'
+            &&$weekly['totals']['posted_counter_sales']===1,
+            'real weekly counter sale separately sourced, no second Daily Order');
+        $assert($weekly['totals']['issued_quantity']==='5.000'
+            &&$weekly['totals']['sold_quantity']==='3.000'
+            &&$weekly['totals']['returned_quantity']==='2.000'
+            &&$weekly['totals']['custody_in_quantity']==='5.000'
+            &&$weekly['totals']['custody_out_quantity']==='5.000',
+            'real weekly multi-batch issued/sold/return and stock movements not multiplied');
+        $assert($weekly['totals']['performance_points']==='7.00'
+            &&$weekly['totals']['pending_daily_orders']===1
+            &&$weekly['totals']['pending_stock_requests']===2,
+            'real weekly performance and pending approval/closing exceptions scoped');
+        $assert($weekly['financial_visibility']==='hidden'
+            &&!array_key_exists('tagged_cash_in_transit',$weekly['employees'][0])
+            &&$weekly['coverage']['upi_bank_verified']===false,
+            'non-finance branch reporter never receives Cash GL or external bank proof');
+        $financeBranchActor=new \ExcelHerbal\ERP7\Security\Actor(
+            4098,$employee+1,$company,$branch,[$branch],
+            [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW,
+             \ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW],'BM');
+        $financeWeek=\ExcelHerbal\ERP7\Reporting\BranchPeriodControlReport::view(
+            $financeBranchActor,$branch,'week','2026-10-20',$periodReader);
+        $match=array_values(array_filter($financeWeek['employees'],
+            fn($r)=>$r['employee_id']===$employee));
+        $assert(count($match)===1
+            &&$match[0]['tagged_cash_in_transit']['closing_debit_minus_credit']==='50.00'
+            &&$match[0]['tagged_cash_in_transit']['period_debit']==='250.00'
+            &&$match[0]['tagged_cash_in_transit']['period_credit']==='200.00',
+            'real finance-only employee-tagged Cash Dr/Cr source not conflated with Daily Order Cash');
+        $assert($match[0]['tagged_cash_in_transit']['cashier_verified']===false
+            &&$financeWeek['coverage']['cashier_handover_verified']===false,
+            'real GL cannot be used as evidence of independent physical Cash handover');
+        $month=\ExcelHerbal\ERP7\Reporting\BranchPeriodControlReport::view(
+            $branchActor,$branch,'month','2026-10-20',$periodReader);
+        $assert($month['period']===['from'=>'2026-10-01','to'=>'2026-10-31']
+            &&$month['previous_period']['period']===['from'=>'2026-09-01','to'=>'2026-09-30']
+            &&$month['totals']['posted_daily_order_sales']==='300.00',
+            'monthly real V7 aggregate uses calendar month and does not duplicate weekly sales');
+        $foreignMonth=\ExcelHerbal\ERP7\Reporting\BranchPeriodControlReport::view(
+            new \ExcelHerbal\ERP7\Security\Actor(
+                4102,$employee,$otherCompany,$branch,[$branch],
+                [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW],'BM'),
+            $branch,'month','2026-10-20',$periodReader);
+        $assert($foreignMonth['totals']['posted_daily_order_sales']==='0.00'
+            &&$foreignMonth['totals']['posted_counter_sales']===0
+            &&$foreignMonth['totals']['performance_points']==='0.00',
+            'cross-company same branch identifier cannot leak weekly/monthly business data');
+        $branchDenied=false;
+        try {
+            \ExcelHerbal\ERP7\Reporting\BranchPeriodControlReport::view(
+                new \ExcelHerbal\ERP7\Security\Actor(
+                    4103,$employee,$company,$branch+1,[$branch+1],
+                    [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW],'BM'),
+                $branch,'week','2026-10-20',$periodReader);
+        }catch(\ExcelHerbal\ERP7\Domain\DomainException $err){
+            $branchDenied=$err->codeKey==='branch_forbidden';
+        }
+        $assert($branchDenied,'unauthorized real weekly/monthly branch scope rejected before querying');
         // A deliberately missing ledger sale row must never be masked by a
         // healthy evening settlement; the source totals visibly diverge.
         $db->prepare("DELETE FROM wp_eh7_stock_ledger WHERE company_id=? AND source_type='daily_sale' AND source_id=? AND batch_id=?")
