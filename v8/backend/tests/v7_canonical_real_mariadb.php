@@ -101,7 +101,7 @@ spl_autoload_register(static function(string $name)use($legacy):void{
     if(is_file($p))require_once $p;
 });
 $src=dirname(__DIR__).'/src/B2B/';
-foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php'] as $name)require_once $src.$name;
+foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
@@ -224,12 +224,33 @@ function postContext(int $sale):array{return ['company_id'=>987665531,'branch_id
 try{
     $actor=new \ExcelHerbal\ERP7\Security\Actor($user,$employee,$company,$branch,[$branch],['sales.create'],'BM');
     $writer=new \ExcelHerbal\ERP8\B2B\V7CanonicalPostingSinkUat($actor,new \ExcelHerbal\ERP8\B2B\V7UatLockedCheckoutReader());
+    $auditActor=new \ExcelHerbal\ERP7\Security\Actor(
+        8010,9010,$company,$branch,[$branch],
+        [\ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW],'RM');
+    $crossAudit=static fn(int $saleId):array=>
+        \ExcelHerbal\ERP8\B2B\V7B2BCrossLedgerAuditUat::inspect($auditActor,$branch,$saleId);
+
     $pair=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-CASH-INT-A');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$pair['sale_intent_id']])===0,'canonical tender is not manually pre-seeded');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM v8_b2b_tender_intake_evidence_uat WHERE intent_id=? AND confirmed_tender_id=?',[$pair['payment_intent_id'],$pair['tender_id']])===1,
         'trusted V8 intake gateway created one original payment evidence record');
     $sale=$writer->post(postContext($pair['sale_intent_id']));
     checkUat($sale['status']==='posted' && $sale['replayed']===false,'real V7 B2B sale and journal posted');
+    $counterAudit=$crossAudit($sale['sale_id']);
+    checkUat($counterAudit['cross_ledger_consistent']===true
+        &&$counterAudit['cash_custody_state']==='not_employee_cash_custody'
+        &&$counterAudit['physical_cash_verified_in_live_erp']===false,
+        'independent read-only counter Cash audit matches V7 invoice, stock OUT, tender and balanced GL without live proof claim');
+    $unauthorizedAudit=false;
+    try{\ExcelHerbal\ERP8\B2B\V7B2BCrossLedgerAuditUat::inspect($actor,$branch,$sale['sale_id']);}
+    catch(Throwable $e){$unauthorizedAudit=true;}
+    checkUat($unauthorizedAudit,'sales maker lacks accounting report authorization');
+    $crossCompanyAudit=false;
+    try{\ExcelHerbal\ERP8\B2B\V7B2BCrossLedgerAuditUat::inspect(
+        new \ExcelHerbal\ERP7\Security\Actor(8999,9999,$company+1,$branch,[$branch],
+        [\ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW],'RM'),$branch,$sale['sale_id']);}
+    catch(Throwable $e){$crossCompanyAudit=true;}
+    checkUat($crossCompanyAudit,'canonical cross-ledger audit cannot access another company sale');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=? AND consumed_sale_id=?',[$pair['sale_intent_id'],$sale['sale_id']])===1,
         'trusted locked V8 evidence promoted and consumed once in canonical tender table');
     checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND product_id=?',[$company,$product])===8000,'real canonical V7 stock decreased by 2 PCS');
@@ -270,6 +291,11 @@ try{
     $field=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-FIELD-CASH-1','field',$employee);
     $fieldSale=$writer->post(postContext($field['sale_intent_id']));
     checkUat($fieldSale['status']==='posted' && $fieldSale['employee_cash_to_remit_paise']===20000,'field cash posts as employee liability pending physical deposit');
+    $pendingAudit=$crossAudit($fieldSale['sale_id']);
+    checkUat($pendingAudit['cross_ledger_consistent']===true
+        &&$pendingAudit['cash_custody_state']==='pending_cashier_handover'
+        &&$pendingAudit['production_posting_allowed']===false,
+        'canonical field Cash is correctly posted but handover remains explicitly pending');
     checkUat(first($pdo,'SELECT verified_source FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$field['sale_intent_id']])==='employee_cash_custody',
         'field cash canonical bridge preserves employee-custody source');
     checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND product_id=? AND custodian_key=?',[$company,$product,$employee])===3000,'field cash only reduces employee stock custody');
@@ -359,6 +385,10 @@ try{
       && first($pdo,'SELECT consumed_remittance_id FROM wp_eh7_b2b_cashier_receipts_uat WHERE id=?',[$receipt['receipt_id']])===null,
       'journal failure rolls back Cash source and preserves unconsumed cashier proof');
     $remit=$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');
+    $completeAudit=$crossAudit($fieldSale['sale_id']);
+    checkUat($completeAudit['cross_ledger_consistent']===true
+        &&$completeAudit['cash_custody_state']==='cashier_handover_reconciled_uat',
+        'field Cash ledger reclass reconciles independent cashier receipt and canonical two-line V7 journal');
     checkUat($remit['status']==='posted' && !$remit['replayed'] && $remit['amount_paise']===20000,
         'full Cash handover created one posted V7 canonical reclassification');
     checkUat((int)first($pdo,"SELECT COUNT(*) FROM wp_eh7_journal_entries WHERE company_id=? AND source_type='b2b_cash_remittance' AND source_id=?",[$company,$remit['remittance_id']])===1,
@@ -406,6 +436,62 @@ try{
     $upiSale=$writer->post(postContext($upi['sale_intent_id']));
     $upiId=(int)first($pdo,"SELECT id FROM wp_eh7_accounts WHERE company_id=? AND code='UPI_CLEARING'",[$company]);
     checkUat($upiSale['status']==='posted' && $upiSale['employee_cash_to_remit_paise']===0,'UPI posts without employee cash remittance');
+    $upiAudit=$crossAudit($upiSale['sale_id']);
+    checkUat($upiAudit['cross_ledger_consistent']===true
+        &&$upiAudit['cash_custody_state']==='not_employee_cash_custody'
+        &&$upiAudit['bank_provider_verified_in_live_erp']===false,
+        'canonical UPI clearing reconciles isolated UAT tender without claiming a live bank provider');
+    // Read-only reconciliation must catch separately tampered books without
+    // mutating financial records. Roll back each poisoned fixture immediately.
+    $pdo->beginTransaction();
+    try{
+        $pdo->prepare('UPDATE wp_eh7_b2b_retailer_sale_lines SET line_total_paise=line_total_paise+1 WHERE sale_id=?')
+            ->execute([$sale['sale_id']]);
+        $broken=$crossAudit($sale['sale_id']);
+        checkUat(!$broken['cross_ledger_consistent']
+            &&in_array('invoice_or_cogs_line_total_mismatch',$broken['mismatch_codes'],true),
+            'tampered canonical invoice line fails cross-ledger reconciliation');
+    }finally{if($pdo->inTransaction())$pdo->rollBack();}
+    $pdo->beginTransaction();
+    try{
+        $pdo->prepare("UPDATE wp_eh7_stock_ledger SET quantity=quantity+1 WHERE source_type='b2b_retailer_sale' AND source_id=?")
+            ->execute([$sale['sale_id']]);
+        $broken=$crossAudit($sale['sale_id']);
+        checkUat(!$broken['cross_ledger_consistent']
+            &&in_array('canonical_stock_ledger_mismatch',$broken['mismatch_codes'],true),
+            'stock OUT quantity manipulation is detected independently of book balance');
+    }finally{if($pdo->inTransaction())$pdo->rollBack();}
+    $pdo->beginTransaction();
+    try{
+        $pdo->prepare("UPDATE wp_eh7_journal_lines SET credit=credit+1 WHERE journal_entry_id=? AND credit>0")
+            ->execute([$sale['journal_id']]);
+        $broken=$crossAudit($sale['sale_id']);
+        checkUat(!$broken['cross_ledger_consistent']
+            &&in_array('canonical_sale_journal_balance_or_mapping_mismatch',$broken['mismatch_codes'],true),
+            'tampered posted V7 GL fails exact debit-credit mapping');
+    }finally{if($pdo->inTransaction())$pdo->rollBack();}
+    $pdo->beginTransaction();
+    try{
+        $pdo->prepare("UPDATE wp_eh7_b2b_cashier_receipts_uat SET amount_paise=amount_paise-1 WHERE id=?")
+            ->execute([$receipt['receipt_id']]);
+        $broken=$crossAudit($fieldSale['sale_id']);
+        checkUat(!$broken['cross_ledger_consistent']
+            &&in_array('cashier_receipt_or_remittance_mismatch',$broken['mismatch_codes'],true),
+            'cashier amount mismatch fails canonical Cash-in-Transit audit');
+    }finally{if($pdo->inTransaction())$pdo->rollBack();}
+    $pdo->beginTransaction();
+    try{
+        $pdo->prepare("UPDATE wp_eh7_b2b_verified_tenders SET verified_source='employee_cash_custody' WHERE sale_intent_id=?")
+            ->execute([$upi['sale_intent_id']]);
+        $broken=$crossAudit($upiSale['sale_id']);
+        checkUat(!$broken['cross_ledger_consistent']
+            &&in_array('canonical_verified_tender_mismatch',$broken['mismatch_codes'],true),
+            'UPI bank-settlement source substitution rejected by independent reconciliation');
+    }finally{if($pdo->inTransaction())$pdo->rollBack();}
+    checkUat($crossAudit($sale['sale_id'])['cross_ledger_consistent']
+        &&$crossAudit($fieldSale['sale_id'])['cross_ledger_consistent']
+        &&$crossAudit($upiSale['sale_id'])['cross_ledger_consistent'],
+        'read-only audits leave the canonical V7 sale, stock, tender and GL unchanged');
     checkUat(first($pdo,'SELECT verified_source FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$upi['sale_intent_id']])==='bank_settlement',
         'UPI canonical bridge preserves bank-settlement source');
     checkUat((float)first($pdo,'SELECT debit FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$upiSale['journal_id'],$upiId])===200.0,'UPI payment debits UPI clearing not physical cash');
