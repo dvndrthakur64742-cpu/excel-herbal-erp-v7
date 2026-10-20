@@ -121,6 +121,44 @@ try{
  try{$make('REPLAY-ALT-MERCHANT',['merchant_account'=>'OTHER-CI-MERCHANT','company_id'=>(string)($company+1),'transaction_id'=>'CI-TXN-ACCEPT-01']);}
  catch(PDOException $e){$crossMerchantBlocked=$e->getCode()==='23000';}
  $assert($crossMerchantBlocked,'same bank transaction cannot be inserted for another merchant or company');
+
+ // Real two-session InnoDB race. A second company/merchant must not be
+ // able to insert an identical bank UTR while the first transaction is open.
+ // The losing connection must block and fail without committing a phantom row.
+ $peer=new PDO($dsn,getenv('V8_TEST_USER')?:'v8',getenv('V8_TEST_PASSWORD')?:'v8',[
+   PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+ if($peer->query('SELECT DATABASE()')->fetchColumn()!=='v8_test')
+     throw new RuntimeException('Refusing UPI race test on non-UAT database');
+ $peer->exec('SET SESSION innodb_lock_wait_timeout=1');
+ $db->beginTransaction();
+ try {
+   [$heldIntent,$held]=$make('RACE-HELD-14');
+   $other=$held;
+   $other['lookup_key']='CI-LOOKUP-RACE-PEER';
+   $other['company_id']=(string)($company+1);
+   $other['merchant_account']='CI-OTHER-MERCHANT';
+   $other['merchant_order_id']='CI-ORD-RACE-PEER';
+   $other['signature']=SignedBankReconciliationLookupUat::digest($other,$secret);
+   $columns=array_keys($other);
+   $stmt=$peer->prepare('INSERT INTO v8_b2b_signed_bank_reconciliation_uat('.implode(',',$columns).') VALUES('.implode(',',array_fill(0,count($columns),'?')).')');
+   $peer->beginTransaction();
+   $lockedOut=false;
+   try{$stmt->execute(array_values($other));}
+   catch(PDOException $e){
+      if((int)($e->errorInfo[1]??0)!==1205)throw $e;
+      $lockedOut=true;
+   } finally {if($peer->inTransaction())$peer->rollBack();}
+   $assert($lockedOut,'second MariaDB session cannot race-write an in-flight UTR for another merchant');
+   $db->commit();
+ } finally {if($db->inTransaction())$db->rollBack();}
+ $replayedAfterCommit=false;
+ try{$stmt->execute(array_values($other));}
+ catch(PDOException $e){if($e->getCode()!=='23000')throw $e;$replayedAfterCommit=true;}
+ $assert($replayedAfterCommit,'same cross-company UTR is permanently rejected after first settlement commits');
+ $cnt=$db->prepare('SELECT COUNT(*) FROM v8_b2b_signed_bank_reconciliation_uat WHERE transaction_id=?');
+ $cnt->execute([$held['transaction_id']]);
+ $assert((int)$cnt->fetchColumn()===1,'concurrent replay race leaves exactly one signed bank settlement');
+
  [$id,$r]=$make('VALID-BAD-AMOUNT',['amount_paise'=>'249999']);
  $assert($reject($id,$r['lookup_key'],'exact invoice'),'valid HMAC for a short settlement still cannot pay full original intent');
  [$id,$r]=$make('VALID-PENDING',['status'=>'pending']);
