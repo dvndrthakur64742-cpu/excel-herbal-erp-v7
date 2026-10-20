@@ -101,7 +101,7 @@ spl_autoload_register(static function(string $name)use($legacy):void{
     if(is_file($p))require_once $p;
 });
 $src=dirname(__DIR__).'/src/B2B/';
-foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php','V7B2BBranchDayPreflightUat.php'] as $name)require_once $src.$name;
+foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php','V7B2BBranchDayPreflightUat.php','V7B2BConsistentSnapshotUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
@@ -479,6 +479,114 @@ try{
        &&$multiTenderPreflight['upi_bank_provider_verified_in_live_erp']===false
        &&$multiTenderPreflight['snapshot_isolation_guaranteed']===false,
        'branch-day preflight independently aggregates Cash, field Cash and UPI without bank/provider or snapshot claims');
+
+    // MariaDB consistent-snapshot staging gate wraps ALL independent audits
+    // on exactly the PDO connection backing V7's wpdb adapter.
+    $consistentSnapshot=\ExcelHerbal\ERP8\B2B\V7B2BConsistentSnapshotUat::inspect(
+        $auditActor,$branch,substr($mainDay,0,10),$pdo);
+    checkUat($consistentSnapshot['uat_reconciliation_complete']===true
+        &&$consistentSnapshot['snapshot_isolation_guaranteed']===true
+        &&$consistentSnapshot['snapshot_boundary']==='mariadb_innodb_repeatable_read_consistent_snapshot'
+        &&$consistentSnapshot['read_only_transaction_verified']===true
+        &&$consistentSnapshot['verified_innodb_source_tables']===14
+        &&$consistentSnapshot['production_release_authorized']===false
+        &&!$pdo->inTransaction(),
+        'consistent snapshot audits all fourteen V7/V8 InnoDB source tables and closes its read-only transaction');
+    $wrongPdo=new PDO($dsn,getenv('V8_TEST_USER')?:'v8',getenv('V8_TEST_PASSWORD')?:'v8',
+        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+    $refusedDifferentConnection=false;
+    try{\ExcelHerbal\ERP8\B2B\V7B2BConsistentSnapshotUat::inspect(
+        $auditActor,$branch,substr($mainDay,0,10),$wrongPdo);}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){
+        $refusedDifferentConnection=str_contains($e->getMessage(),'same proven PDO');
+    }
+    checkUat($refusedDifferentConnection
+        &&!$pdo->inTransaction()&&!$wrongPdo->inTransaction(),
+        'preflight refuses unrelated PDO connections rather than mixing transaction snapshots');
+    $wrongPdo=null;
+
+    $pdo->beginTransaction();
+    try {
+        $refusedNested=false;
+        try{\ExcelHerbal\ERP8\B2B\V7B2BConsistentSnapshotUat::inspect(
+            $auditActor,$branch,substr($mainDay,0,10),$pdo);}
+        catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){
+            $refusedNested=str_contains($e->getMessage(),'existing transaction');
+        }
+        checkUat($refusedNested && $pdo->inTransaction(),
+            'nested transaction is rejected and original caller transaction remains under caller control');
+    }finally{if($pdo->inTransaction())$pdo->rollBack();}
+
+    $writeRefused=false;
+    try{
+        \ExcelHerbal\ERP8\B2B\V7B2BConsistentSnapshotUat::inspect(
+            $auditActor,$branch,substr($mainDay,0,10),$pdo,
+            static function()use($pdo,$sale):void{
+                $unsafe=$pdo->prepare(
+                    'UPDATE wp_eh7_b2b_retailer_sale_lines SET line_total_paise=line_total_paise+1 WHERE sale_id=?');
+                $unsafe->execute([$sale['sale_id']]);
+            });
+    }catch(\PDOException $e){$writeRefused=true;}
+    checkUat($writeRefused&&!$pdo->inTransaction(),
+        'MariaDB READ ONLY snapshot rejects direct financial row UPDATE and rolls back safely');
+    $callbackRefused=false;
+    try{
+        \ExcelHerbal\ERP8\B2B\V7B2BConsistentSnapshotUat::inspect(
+            $auditActor,$branch,substr($mainDay,0,10),$pdo,
+            static function():void{throw new \RuntimeException('intentional callback failure');});
+    }catch(\RuntimeException $e){
+        $callbackRefused=$e->getMessage()==='intentional callback failure';
+    }
+    checkUat($callbackRefused&&!$pdo->inTransaction(),
+        'failure inside a consistent snapshot always exits with no open transaction');
+
+    // Concurrent actor COMMITs a corrupt invoice line after a consistent
+    // snapshot begins. The snapshot MUST see original rows even though
+    // a fresh transaction immediately sees the corrupted books.
+    $peerSnapshot=new PDO($dsn,getenv('V8_TEST_USER')?:'v8',getenv('V8_TEST_PASSWORD')?:'v8',
+        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+         PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+    $peerChanged=false;
+    try{
+        $before=$peerSnapshot->prepare('SELECT line_total_paise FROM wp_eh7_b2b_retailer_sale_lines WHERE sale_id=? LIMIT 1');
+        $before->execute([$sale['sale_id']]);$originalLine=$before->fetchColumn();
+        if($originalLine===false)throw new RuntimeException('Concurrent fixture line missing');
+        $snap=\ExcelHerbal\ERP8\B2B\V7B2BConsistentSnapshotUat::inspect(
+            $auditActor,$branch,substr($mainDay,0,10),$pdo,
+            static function()use($peerSnapshot,$sale,&$peerChanged):void{
+                $changed=$peerSnapshot->prepare(
+                    'UPDATE wp_eh7_b2b_retailer_sale_lines SET line_total_paise=line_total_paise+1 WHERE sale_id=?');
+                $changed->execute([$sale['sale_id']]);
+                if($changed->rowCount()!==1)throw new RuntimeException('Competing committed corruption did not execute');
+                $peerChanged=true;
+            });
+        checkUat($snap['uat_reconciliation_complete']===true
+            &&$snap['counts']['ledger_mismatches']===0
+            &&$snap['snapshot_isolation_guaranteed']===true
+            &&!$pdo->inTransaction(),
+            'read-only consistent snapshot sees original invoice even after peer commits tampering');
+        $fresh=$dayPreflight(substr($mainDay,0,10));
+        checkUat($fresh['state']==='blocked_ledger_mismatch'
+            &&$fresh['counts']['ledger_mismatches']===1,
+            'fresh unsnapshotted read detects concurrently committed corrupted invoice');
+        $freshSnapshot=\ExcelHerbal\ERP8\B2B\V7B2BConsistentSnapshotUat::inspect(
+            $auditActor,$branch,substr($mainDay,0,10),$pdo);
+        checkUat($freshSnapshot['state']==='blocked_ledger_mismatch'
+            &&$freshSnapshot['snapshot_isolation_guaranteed']===true
+            &&!$pdo->inTransaction(),
+            'next MVCC snapshot observes new committed source and blocks branch-day financial acceptance');
+    }finally{
+        if($peerChanged){
+            $restored=$peerSnapshot->prepare(
+                'UPDATE wp_eh7_b2b_retailer_sale_lines SET line_total_paise=? WHERE sale_id=?');
+            $restored->execute([$originalLine,$sale['sale_id']]);
+        }
+        $peerSnapshot=null;
+    }
+    checkUat($dayPreflight(substr($mainDay,0,10))['uat_reconciliation_complete']===true
+        &&!$pdo->inTransaction(),
+        'competing-connection test repairs its fixture and leaves no open snapshot transaction');
+
     $upiAudit=$crossAudit($upiSale['sale_id']);
     checkUat($upiAudit['cross_ledger_consistent']===true
         &&$upiAudit['cash_custody_state']==='not_employee_cash_custody'
