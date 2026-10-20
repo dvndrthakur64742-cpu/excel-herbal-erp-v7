@@ -176,7 +176,7 @@ function createIntent(PDO $db,int $company,int $branch,int $product,int $party,s
     // Confirm the ORIGINAL tender via the real V8 guarded intake gateway,
     // never by manually inserting verified_tenders or evidence rows.
     // Cashier and UPI-bank callbacks below are synthetic UAT authorities ONLY.
-    $gateway=new \\ExcelHerbal\\ERP8\\B2B\\PdoTrustedTenderIntakeGateway(
+    $gateway=new \ExcelHerbal\ERP8\B2B\PdoTrustedTenderIntakeGateway(
         $db,
         static fn($c,$b,$actor,$ch,$emp)=>$c===$company&&$b===$branch&&
             (($ch==='field'&&$actor===8001&&$emp===$employee&&$emp!==null)
@@ -188,7 +188,7 @@ function createIntent(PDO $db,int $company,int $branch,int $product,int $party,s
             'transaction_id'=>$ref]:null,
         static fn($c,$b)=>$c===$company&&$b===$branch?'CI-UAT-MERCHANT':''
     );
-    $intake=new \\ExcelHerbal\\ERP8\\B2B\\TrustedTenderIntake($gateway);
+    $intake=new \ExcelHerbal\ERP8\B2B\TrustedTenderIntake($gateway);
     $confirmed=$mode==='upi'
         ?$intake->upiSettled($company,$branch,8002,$paymentId,'CI-LOOKUP-'.$ref)
         :$intake->cashCollected($company,$branch,$channel==='field'?8001:8002,$paymentId);
