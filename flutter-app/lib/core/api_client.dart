@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import 'api_paths.dart';
 import 'app_config.dart';
+import 'preview_read_only_policy.dart';
 import 'document_download.dart';
 import 'mutation_fingerprint.dart';
 import 'secure_session.dart';
@@ -48,7 +49,23 @@ class ApiClient {
             receiveTimeout: const Duration(seconds: 45),
             headers: const {'Accept': 'application/json'},
           ),
-        );
+        ) {
+    // Enforce the read-only preview at the transport boundary, including
+    // direct Dio calls and multipart uploads, not merely button visibility.
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (!PreviewReadOnlyPolicy.permits(options.method, options.path)) {
+          handler.reject(DioException(
+            requestOptions: options,
+            type: DioExceptionType.cancel,
+            error: 'Office V8 preview is read-only; this action is disabled.',
+          ));
+          return;
+        }
+        handler.next(options);
+      },
+    ));
+  }
 
   final SecureSession session;
   final Dio dio;

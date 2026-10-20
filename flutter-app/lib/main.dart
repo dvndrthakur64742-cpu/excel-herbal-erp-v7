@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/app_version_gate.dart';
+import 'core/preview_read_only_policy.dart';
 import 'core/gps_tracking_coordinator.dart';
 import 'core/providers.dart';
 import 'screens/auth/login_screen.dart';
@@ -66,6 +67,8 @@ class ExcelHerbalApp extends ConsumerWidget {
               ? const _BootstrapRecoveryScreen()
               : app.businessAccessBlocked
               ? const _BranchAccessBlockedScreen()
+              : PreviewReadOnlyPolicy.enabled
+              ? const AppShell()
               : const GpsTrackingCoordinator(child: AppShell()))
         : const LoginScreen();
 
@@ -74,6 +77,34 @@ class ExcelHerbalApp extends ConsumerWidget {
       title: 'Excel Herbal ERP',
       theme: ExcelBrand.lightTheme(),
       home: AppVersionGate(api: ref.watch(apiClientProvider), child: home),
+      builder: (context, child) {
+        if (!PreviewReadOnlyPolicy.enabled) return child ?? const SizedBox.shrink();
+        return Column(
+          children: [
+            Material(
+              color: const Color(0xFF7A3B10),
+              child: SafeArea(
+                bottom: false,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+                    child: Text(
+                      'EXCEL HERBAL V8 PREVIEW • READ ONLY • NO FINANCIAL POSTING',
+                      style: const TextStyle(
+                        color: Colors.white, fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(child: child ?? const SizedBox.shrink()),
+          ],
+        );
+      },
     );
   }
 }

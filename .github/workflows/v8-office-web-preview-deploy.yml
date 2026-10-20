@@ -1,0 +1,152 @@
+name: V8 Office Owner-Approved WEB-ONLY Preview (Never Backend or DB)
+run-name: "V8 OFFICE WEB READ-ONLY PREVIEW | ${{ github.sha }}"
+
+on:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/v8-office-web-preview-deploy.yml'
+      - '.github/scripts/deploy-v8-office-web-preview.ps1'
+      - 'flutter-app/**'
+      - 'v8/requirements/OFFICE_V8_WEB_PREVIEW_DEPLOYMENT.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: excel-herbal-office-v8-web-only
+  cancel-in-progress: false
+
+jobs:
+  build-certified-preview:
+    if: contains(github.event.head_commit.message, '[owner-approved-office-v8-web-preview]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact Git head and read-only preview code
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          grep -q 'EH7_PREVIEW_READ_ONLY' flutter-app/lib/core/preview_read_only_policy.dart
+          grep -q 'PreviewReadOnlyPolicy.permits' flutter-app/lib/core/api_client.dart
+          grep -q 'PreviewReadOnlyPolicy.enabled' flutter-app/lib/main.dart
+          test -f flutter-app/test/preview_read_only_policy_test.dart
+      - name: Flutter SDK 3.44.9
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+      - name: Flutter dependency, analysis and no-mutation tests
+        working-directory: flutter-app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+      - name: Compile Office V8 READ ONLY web preview (same canonical V7 API)
+        working-directory: flutter-app
+        run: |
+          flutter build web --release --no-pub --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=staging --dart-define=EH7_PREVIEW_READ_ONLY=true
+      - name: Create immutable source-head + SHA-256 file manifest
+        env:
+          CANDIDATE_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          root=Path("flutter-app/build/web")
+          (root/".last_build_id").write_text(os.environ["CANDIDATE_SHA"]+"\n",encoding="ascii")
+          for name in ("index.html","main.dart.js","flutter_bootstrap.js",".last_build_id"):
+              assert (root/name).is_file() and (root/name).stat().st_size>0,name
+          paths=sorted(p for p in root.rglob("*") if p.is_file() and p.name!="SHA256SUMS.txt")
+          rows=[]
+          for p in paths:
+              rel=p.relative_to(root).as_posix()
+              assert ".." not in Path(rel).parts and "\\" not in rel
+              rows.append(hashlib.sha256(p.read_bytes()).hexdigest()+"  "+rel)
+          (root/"SHA256SUMS.txt").write_text("\n".join(rows)+"\n",encoding="ascii")
+          print("PASS Flutter V8 preview web files certified",len(rows))
+          PY
+      - name: Upload certified web-only candidate (no WordPress mutation)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExcelHerbal-V8-Office-ReadOnly-Web-${{ github.sha }}
+          path: flutter-app/build/web/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-web-only-office:
+    needs: [build-certified-preview]
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 80
+    defaults:
+      run:
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+    env:
+      OFFICE_UAT_SITE: https://office.excelherbal.in
+      CURRENT_BACKEND_SHA: a9d03f384096b54464ffbe9ba79da88252f9dd28
+      OLD_WEB_SHA256: 370475e9f998a6bde87128db48d11f6ed7db2d806e4b4b5a7fefea25a1f98531
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require owner-approved web-only branch and immutable published baseline
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:GITHUB_REF -ne 'refs/heads/codex/erp-v8-foundation-20261017'){throw 'Not the approved development branch'}
+          if($env:GITHUB_SHA -ne (& git rev-parse HEAD).Trim()){throw 'Branch HEAD changed during checkout'}
+          $url=$env:OFFICE_UAT_SITE+'/wp-json/excel-herbal-erp/v7/health'
+          $raw=& curl.exe --fail --silent --show-error --max-time 25 $url
+          if($LASTEXITCODE -ne 0){throw 'Cannot attest actual Office WordPress staging health'}
+          $h=($raw -join [Environment]::NewLine)|ConvertFrom-Json
+          if($h.ok -ne $true -or $h.data.environment -ne 'staging'
+              -or $h.data.source_head -ne $env:CURRENT_BACKEND_SHA
+              -or $h.data.web_runtime.main_sha256 -ne $env:OLD_WEB_SHA256
+              -or $h.data.schema_installed -ne $true
+              -or $h.data.host_hardening.status -ne 'passed'){
+            throw 'Existing installed Office backend/web or staging host differs from preapproved baseline. No deploy.'
+          }
+          Write-Host 'PASS no-change preflight: current WordPress backend and web match exact authorized hashes'
+      - name: Download SHA-pinned V8 web candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: ExcelHerbal-V8-Office-ReadOnly-Web-${{ github.sha }}
+          path: dist/v8-office-web-preview/
+      - name: Hash-verify and stage web ZIP (no backend packaging)
+        run: |
+          $ErrorActionPreference='Stop'
+          & '.github/scripts/stage-uat-web-artifact.ps1' -SourceHead $env:GITHUB_SHA -ArtifactDir (Join-Path $env:GITHUB_WORKSPACE 'dist/v8-office-web-preview') -CandidateSlot 'v8-office-preview'
+          $attempt=if($env:GITHUB_RUN_ATTEMPT){$env:GITHUB_RUN_ATTEMPT}else{'1'}
+          $key=$env:GITHUB_SHA+'-run'+$env:GITHUB_RUN_ID+'-attempt'+$attempt+'-slot-v8-office-preview'
+          $root=Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\'+$key)
+          foreach($file in @('Excel-Herbal-ERP-v7.4.0-Web-Candidate.zip','web\main.dart.js','web\SHA256SUMS.txt','web\.last_build_id')){
+            if(-not(Test-Path -LiteralPath (Join-Path $root $file) -PathType Leaf)){throw 'Signed web-only release asset missing'}
+          }
+          Write-Host 'PASS no financial PHP code or schema migrations packaged'
+      - name: Upload only Flutter web bundle through existing authenticated WordPress Setup Assistant
+        run: |
+          $ErrorActionPreference='Stop'
+          & '.github/scripts/deploy-v8-office-web-preview.ps1' -SourceHead $env:GITHUB_SHA -UatSiteUrl $env:OFFICE_UAT_SITE
+      - name: Verify actual Office web hash and unchanged canonical backend
+        run: |
+          $ErrorActionPreference='Stop'
+          $attempt=if($env:GITHUB_RUN_ATTEMPT){$env:GITHUB_RUN_ATTEMPT}else{'1'}
+          $key=$env:GITHUB_SHA+'-run'+$env:GITHUB_RUN_ID+'-attempt'+$attempt+'-slot-v8-office-preview'
+          $dir=Join-Path $env:USERPROFILE ('ERP7-Releases\uat-candidates\'+$key)
+          $expected=(Get-FileHash -LiteralPath (Join-Path $dir 'web\main.dart.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $tmp=Join-Path $env:RUNNER_TEMP ('v8-web-live-'+[Guid]::NewGuid().ToString('N')+'.js')
+          try {
+            $url=$env:OFFICE_UAT_SITE+'/wp-content/uploads/eh7-flutter-web/main.dart.js?nonce='+[Guid]::NewGuid().ToString('N')
+            & curl.exe --fail --silent --show-error --location --connect-timeout 10 --max-time 120 --output $tmp $url
+            if($LASTEXITCODE -ne 0 -or -not(Test-Path -LiteralPath $tmp)){throw 'New preview web JS not available'}
+            $actual=(Get-FileHash $tmp -Algorithm SHA256).Hash.ToLowerInvariant()
+            if($actual -ne $expected){throw 'Live browser JavaScript differs from certified immutable V8 preview'}
+            $healthRaw=& curl.exe --fail --silent --show-error --max-time 25 ($env:OFFICE_UAT_SITE+'/wp-json/excel-herbal-erp/v7/health')
+            if($LASTEXITCODE -ne 0){throw 'Post-preview ERP backend health unavailable'}
+            $h=($healthRaw -join [Environment]::NewLine)|ConvertFrom-Json
+            if($h.ok -ne $true -or $h.data.source_head -ne $env:CURRENT_BACKEND_SHA -or $h.data.environment -ne 'staging'){
+              throw 'Canonical backend changed unexpectedly'
+            }
+            Write-Host ('PASS V8 readonly preview deployed at '+$env:OFFICE_UAT_SITE+'/')
+            Write-Host ('PASS exact_live_preview_sha256='+$actual)
+            Write-Host ('PASS preexisting_canonical_backend_still='+$h.data.source_head)
+          }finally{Remove-Item $tmp -Force -ErrorAction SilentlyContinue}
