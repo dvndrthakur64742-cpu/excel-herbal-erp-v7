@@ -188,7 +188,7 @@ function createIntent(PDO $db,int $company,int $branch,int $product,int $party,s
         $p=$db->prepare('INSERT INTO v8_b2b_signed_bank_reconciliation_uat('.implode(',',$cols).') VALUES('.implode(',',array_fill(0,count($cols),'?')).')');
         $p->execute(array_values($proof));
     }
-    $source=new \ExcelHerbal\ERP8\B2B\SignedBankReconciliationLookupUat(
+    $bankVerifier=new \ExcelHerbal\ERP8\B2B\SignedBankReconciliationLookupUat(
         $db,static fn(string $keyId)=>$keyId==='canonical-ci-key'?$secret:null);
     $gateway=new \ExcelHerbal\ERP8\B2B\PdoTrustedTenderIntakeGateway(
         $db,
@@ -196,7 +196,7 @@ function createIntent(PDO $db,int $company,int $branch,int $product,int $party,s
             (($ch==='field'&&$actor===8001&&$emp===$employee&&$emp!==null)
               ||($ch==='counter'&&$actor===8002&&$emp===null)),
         static fn($c,$b,$actor)=>$c===$company&&$b===$branch&&$actor===8002,
-        $source,
+        $bankVerifier,
         static fn($c,$b)=>$c===$company&&$b===$branch?'CI-UAT-MERCHANT':''
     );
     $intake=new \ExcelHerbal\ERP8\B2B\TrustedTenderIntake($gateway);
