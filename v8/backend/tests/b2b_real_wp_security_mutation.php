@@ -25,6 +25,7 @@ $allowed=[
     'disable_employee','restore_employee',
     'hide_payment_table','restore_payment_table',
     'assert_restored',
+    'reactivate_employee_service',
 ];
 if(!in_array($action,$allowed,true))
     throw new RuntimeException('Unknown or unauthorized synthetic mutation action.');
@@ -54,6 +55,41 @@ if((int)$wpdb->get_var("SELECT COUNT(*) FROM {$companyTable}")!==1
    ||(int)$wpdb->get_var("SELECT COUNT(*) FROM {$employeeTable}")!==4
    ||(int)$wpdb->get_var("SELECT COUNT(*) FROM {$branchTable}")!==2)
     throw new RuntimeException('Refused: disposable CI master record counts mismatch.');
+if($action==='reactivate_employee_service'){
+    // This is a WP-CLI *test actor* for the isolated synthetic identity.
+    // It checks the real canonical OrganizationEmployeeService transaction,
+    // not a fake direct SQL reactivation. This authority must NEVER be
+    // constructed or exposed by a real HTTP request.
+    if($employee['status']!=='inactive'||$branch['status']!=='active')
+        throw new RuntimeException('Only inactive synthetic CI employee can be reactivated.');
+    $currentSessionCount=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM wp_eh7_mobile_sessions WHERE employee_id=%d AND wp_user_id=%d AND revoked_at IS NULL',
+        (int)$employee['id'],(int)$employee['wp_user_id']
+    ));
+    if($currentSessionCount<1)
+        throw new RuntimeException('Security UAT requires an existing unrevoked bearer to prove invalidation.');
+    $actor=new \ExcelHerbal\ERP7\Security\Actor(
+        (int)$employee['wp_user_id'],(int)$employee['id'],11,31,[31,32],
+        \ExcelHerbal\ERP7\Security\DesignationDefaults::forCode('SYSTEM_ADMIN'),
+        'SYSTEM_ADMIN'
+    );
+    $result=\ExcelHerbal\ERP7\Organization\OrganizationEmployeeService::reactivateEmployee(
+        $actor,(int)$employee['id'],31,\ExcelHerbal\ERP7\Database\Db::today(),
+        'CI employee session lifecycle reactivation'
+    );
+    if(($result['status']??'')!=='active'
+        ||($result['fresh_login_required']??false)!==true
+        ||(int)($result['sessions_revoked']??0)<1)
+        throw new RuntimeException('Canonical reactivation did not revoke old sessions.');
+    $stale=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM wp_eh7_mobile_sessions WHERE employee_id=%d AND wp_user_id=%d AND revoked_at IS NULL',
+        (int)$employee['id'],(int)$employee['wp_user_id']
+    ));
+    if($stale!==0)
+        throw new RuntimeException('Canonical reactivation left an old employee bearer active.');
+    WP_CLI::success('Canonical employee reactivation revoked old synthetic sessions transactionally.');
+    return;
+}
 if($action==='assert_restored'){
     $overrideCount=(int)$wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM {$overrideTable} WHERE company_id=%d AND employee_id=%d AND capability=%s AND active=1",

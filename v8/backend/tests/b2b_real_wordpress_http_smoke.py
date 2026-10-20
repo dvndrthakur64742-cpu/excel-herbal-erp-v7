@@ -20,6 +20,7 @@ PASSWORD=os.environ["B2B_REAL_WP_UAT_PASSWORD"]
 assert ROOT.is_dir() and (ROOT/"wp-load.php").exists()
 assert len(PASSWORD)>=16
 CHECKS=0
+ISSUED_REFRESH={}
 
 def ok(condition,label):
     global CHECKS
@@ -68,8 +69,11 @@ def login(url,mobile):
         "device_id":"synthetic-ci-"+mobile
     },method="POST")
     token=reply.get("data",{}).get("access_token")
-    ok(isinstance(token,str) and len(token)>30,
-       "real WordPress password verification and canonical MobileAuth token for "+mobile[-2:])
+    refresh=reply.get("data",{}).get("refresh_token")
+    ok(isinstance(token,str) and len(token)>30
+       and isinstance(refresh,str) and len(refresh)>30,
+       "real WordPress password verification and canonical MobileAuth tokens for "+mobile[-2:])
+    ISSUED_REFRESH[mobile]=refresh
     return token
 
 def guarded_mutation(action):
@@ -83,6 +87,7 @@ def guarded_mutation(action):
         "disable_branch", "restore_branch",
         "disable_employee", "restore_employee",
         "hide_payment_table", "restore_payment_table",
+        "reactivate_employee_service",
     }
     if action not in allowed:
         raise ValueError("Unknown guarded CI mutation")
@@ -227,6 +232,39 @@ def run(url):
         restored,_=expect(url,p,200,token=finance)
         ok(restored.get("data",{}).get("read_only") is True,
            "synthetic employee fixture restored for the normal logout test")
+
+        # A real protected service operation now moves a synthetic employee
+        # from inactive -> active, and must revoke all older issued tokens.
+        # The earlier direct SQL restoration test proves only temporary
+        # inactivation; THIS test proves canonical reactivation rotation.
+        old_finance=finance
+        old_refresh=ISSUED_REFRESH["9876500101"]
+        guarded_mutation("disable_employee")
+        try:
+            expect(url,p,401,"not_authenticated",token=old_finance)
+            guarded_mutation("reactivate_employee_service")
+        except Exception:
+            # Only use this direct restoration on a failed fixture setup.
+            # Never leave a synthetic employee disabled after CI failures.
+            try:
+                guarded_mutation("restore_employee")
+            except Exception:
+                pass
+            raise
+        expect(url,p,401,"not_authenticated",token=old_finance)
+        ok(True,"canonical employee reactivation permanently denies old access token")
+        expect(url,"/auth/refresh",401,"refresh_invalid",body={
+            "refresh_token":old_refresh,
+            "device":"real-wordpress-disposable-ci",
+            "device_id":"synthetic-ci-9876500101"
+        },method="POST")
+        ok(True,"canonical reactivation invalidates the actual previously issued refresh token")
+        # New authentication is mandatory; no old access token is reused.
+        finance=login(url,"9876500101")
+        tokens.append(finance)
+        result,_=expect(url,p,200,token=finance)
+        ok(result.get("data",{}).get("read_only") is True,
+           "fresh login after reactivation restores only authorized read access")
 
         expect(url,"/auth/logout",200,token=finance,method="POST")
         ok(True,"canonical logout revokes real WordPress bearer session")

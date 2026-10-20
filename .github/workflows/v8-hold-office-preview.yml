@@ -1,0 +1,36 @@
+name: Pause previously queued Office V8 preview upload
+on:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/v8-hold-office-preview.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel-old-preview-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify exact historical preview run and cancel only that run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id=39425651918
+          expected_head=f6cbe87f55dae1a5c8747ca8065afd0e02b264e7
+          info="$(gh api "repos/$GH_REPO/actions/runs/$run_id")"
+          [[ "$(jq -r '.head_sha' <<< "$info")" == "$expected_head" ]] || { echo "::error::Unexpected release SHA"; exit 1; }
+          [[ "$(jq -r '.name' <<< "$info")" == "V8 OFFICE WEB READ-ONLY PREVIEW | $expected_head" ]] || { echo "::error::Unexpected workflow identity"; exit 1; }
+          status="$(jq -r '.status' <<< "$info")"
+          if [[ "$status" == completed ]]; then
+            conclusion="$(jq -r '.conclusion' <<< "$info")"
+            if [[ "$conclusion" == cancelled ]]; then echo 'PASS old web upload was already cancelled'; exit 0; fi
+            echo "::error::Old run already completed as $conclusion, inspect Office site"; exit 1
+          fi
+          gh api -X POST "repos/$GH_REPO/actions/runs/$run_id/cancel" >/dev/null
+          echo 'Requested GitHub cancellation of the one named queued Office web preview; no new deployment launched.'

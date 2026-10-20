@@ -85,10 +85,19 @@ final class OrganizationEmployeeService{
    if(!empty($e['separation_date'])&&$date<=(string)$e['separation_date'])throw new DomainException('Reactivation date must be after separation date.','reactivation_date_invalid',422);
    $mobile=self::normaliseMobile((string)($e['mobile']??''));if($mobile!=='')self::assertMobileAvailable($mobile,$employeeId);
    $open=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('employee_branch_history')." WHERE company_id=%d AND employee_id=%d AND effective_to IS NULL",$a->companyId,$employeeId));if($open)throw new DomainException('Employee has an open branch-history assignment.','branch_history_conflict',409);
-   Db::mustUpdate($db,$t,['status'=>'active','assigned_branch_id'=>$branch,'separation_date'=>null,'updated_at'=>Db::now()],['id'=>$employeeId,'company_id'=>$a->companyId]);
+   // Never resurrect old access/refresh tokens on reactivation, even when
+   // an earlier manual status edit failed to revoke the mobile sessions.
+   // Keep the revocation in the SAME locked transaction as activation so a
+   // failed revoke rolls back the employee status and branch-history writes.
+   $now=Db::now();
+   $oldSessionRevocations=Db::mustQuery($db,$db->prepare(
+    "UPDATE ".Db::table('mobile_sessions')." SET revoked_at=%s WHERE employee_id=%d AND wp_user_id=%d AND revoked_at IS NULL",
+    $now,$employeeId,(int)($e['wp_user_id']??0)
+   ));
+   Db::mustUpdate($db,$t,['status'=>'active','assigned_branch_id'=>$branch,'separation_date'=>null,'updated_at'=>$now],['id'=>$employeeId,'company_id'=>$a->companyId]);
    Db::mustInsert($db,Db::table('employee_branch_history'),['company_id'=>$a->companyId,'employee_id'=>$employeeId,'branch_id'=>$branch,'effective_from'=>$date,'effective_to'=>null,'reason'=>'Employee reactivation: '.$reason,'changed_by'=>$a->employeeId,'created_at'=>Db::now()]);
-   Audit::add($a,'employee.reactivate','employee',$employeeId,['branch_id'=>$branch,'reactivation_date'=>$date,'reason'=>$reason,'roles_restored'=>false,'extra_branch_authorities_restored'=>false]);
-   return['id'=>$employeeId,'employee_code'=>(string)$e['employee_code'],'status'=>'active','assigned_branch_id'=>$branch,'reactivation_date'=>$date,'login_enabled'=>(int)($e['wp_user_id']??0)>0,'roles_restored'=>false,'extra_branch_authorities_restored'=>false];
+   Audit::add($a,'employee.reactivate','employee',$employeeId,['branch_id'=>$branch,'reactivation_date'=>$date,'reason'=>$reason,'roles_restored'=>false,'extra_branch_authorities_restored'=>false,'stale_sessions_revoked'=>$oldSessionRevocations]);
+   return['id'=>$employeeId,'employee_code'=>(string)$e['employee_code'],'status'=>'active','assigned_branch_id'=>$branch,'reactivation_date'=>$date,'login_enabled'=>(int)($e['wp_user_id']??0)>0,'roles_restored'=>false,'extra_branch_authorities_restored'=>false,'sessions_revoked'=>$oldSessionRevocations,'fresh_login_required'=>true];
   });
  }
  public static function setReportingManager(Actor $a,int $employeeId,?int $managerId,string $reason):array{
