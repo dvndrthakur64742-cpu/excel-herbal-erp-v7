@@ -101,7 +101,7 @@ spl_autoload_register(static function(string $name)use($legacy):void{
     if(is_file($p))require_once $p;
 });
 $src=dirname(__DIR__).'/src/B2B/';
-foreach(['RetailerCashSale.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php'] as $name)require_once $src.$name;
+foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
@@ -173,12 +173,31 @@ function createIntent(PDO $db,int $company,int $branch,int $product,int $party,s
     $p->execute([$saleId,$company,$branch,$product]);
     $p=$db->prepare('INSERT INTO v8_b2b_payment_intent_to_sale_uat(payment_intent_id,sale_intent_id,company_id,branch_id,quote_digest) VALUES(?,?,?,?,?)');
     $p->execute([$paymentId,$saleId,$company,$branch,$digest]);
-    $p=$db->prepare("INSERT INTO v8_b2b_verified_tenders(company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at,status) VALUES(?,?,?,?,20000,?,UTC_TIMESTAMP(),'confirmed')");
-    $p->execute([$company,$branch,$mode,$ref,$source]);$tenderId=(int)$db->lastInsertId();
-    $p=$db->prepare('INSERT INTO v8_b2b_tender_intake_evidence_uat(intent_id,confirmed_tender_id,company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_by,channel,employee_id) VALUES(?,?,?,?,?,?,20000,?,?,?,?)');
-    $p->execute([$paymentId,$tenderId,$company,$branch,$mode,$ref,$source,8001,$channel,$employee]);
+    // Confirm the ORIGINAL tender via the real V8 guarded intake gateway,
+    // never by manually inserting verified_tenders or evidence rows.
+    // Cashier and UPI-bank callbacks below are synthetic UAT authorities ONLY.
+    $gateway=new \\ExcelHerbal\\ERP8\\B2B\\PdoTrustedTenderIntakeGateway(
+        $db,
+        static fn($c,$b,$actor,$ch,$emp)=>$c===$company&&$b===$branch&&
+            (($ch==='field'&&$actor===8001&&$emp===$employee&&$emp!==null)
+              ||($ch==='counter'&&$actor===8002&&$emp===null)),
+        static fn($c,$b,$actor)=>$c===$company&&$b===$branch&&$actor===8002,
+        static fn($lookup)=>$lookup==='CI-LOOKUP-'.$ref?[
+            'status'=>'settled','currency'=>'INR','amount_paise'=>20000,
+            'merchant_account'=>'CI-UAT-MERCHANT','merchant_order_id'=>$merchantOrder,
+            'transaction_id'=>$ref]:null,
+        static fn($c,$b)=>$c===$company&&$b===$branch?'CI-UAT-MERCHANT':''
+    );
+    $intake=new \\ExcelHerbal\\ERP8\\B2B\\TrustedTenderIntake($gateway);
+    $confirmed=$mode==='upi'
+        ?$intake->upiSettled($company,$branch,8002,$paymentId,'CI-LOOKUP-'.$ref)
+        :$intake->cashCollected($company,$branch,$channel==='field'?8001:8002,$paymentId);
+    if(($confirmed['verified_source']??null)!==$source)
+        throw new RuntimeException('Trusted intake did not produce correct custody source.');
+    $tenderId=(int)$confirmed['tender_id'];
+    $proofReference=(string)$confirmed['payment_reference'];
     $p=$db->prepare('INSERT INTO v8_b2b_sale_tender_reservations_uat(company_id,branch_id,sale_intent_id,payment_intent_id,tender_id,retailer_id,canonical_party_id,channel,employee_id,payment_mode,payment_reference,verified_source,amount_paise,quote_digest) VALUES(?,?,?,?,?,77,?,?,?,?,?,?,20000,?)');
-    $p->execute([$company,$branch,$saleId,$paymentId,$tenderId,$party,$channel,$employee,$mode,$ref,$source,$digest]);
+    $p->execute([$company,$branch,$saleId,$paymentId,$tenderId,$party,$channel,$employee,$mode,$proofReference,$source,$digest]);
     // No wp_eh7_b2b_verified_tenders fixture! The guarded reader must bridge
     // already-locked V8 evidence atomically into the authoritative V7 source.
     return ['sale_intent_id'=>$saleId,'payment_intent_id'=>$paymentId,'tender_id'=>$tenderId,'digest'=>$digest];
@@ -191,6 +210,8 @@ try{
     $writer=new \ExcelHerbal\ERP8\B2B\V7CanonicalPostingSinkUat($actor,new \ExcelHerbal\ERP8\B2B\V7UatLockedCheckoutReader());
     $pair=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-CASH-INT-A');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$pair['sale_intent_id']])===0,'canonical tender is not manually pre-seeded');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM v8_b2b_tender_intake_evidence_uat WHERE intent_id=? AND confirmed_tender_id=?',[$pair['payment_intent_id'],$pair['tender_id']])===1,
+        'trusted V8 intake gateway created one original payment evidence record');
     $sale=$writer->post(postContext($pair['sale_intent_id']));
     checkUat($sale['status']==='posted' && $sale['replayed']===false,'real V7 B2B sale and journal posted');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=? AND consumed_sale_id=?',[$pair['sale_intent_id'],$sale['sale_id']])===1,
@@ -243,6 +264,8 @@ try{
         && (int)first($pdo,'SELECT party_id FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$fieldSale['journal_id'],$transitId])===$employee,'field Cash journal is tagged to the correct employee ledger');
     // UPI: bank settlement is distinct from both employee cash and branch cash.
     $upi=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-UPI-TXN-001','counter',null,'upi');
+    checkUat(first($pdo,'SELECT verified_by FROM v8_b2b_tender_intake_evidence_uat WHERE intent_id=?',[$upi['payment_intent_id']])==8002,
+        'UPI evidence came from separate synthetic verifier actor through trusted intake');
     $upiSale=$writer->post(postContext($upi['sale_intent_id']));
     $upiId=(int)first($pdo,"SELECT id FROM wp_eh7_accounts WHERE company_id=? AND code='UPI_CLEARING'",[$company]);
     checkUat($upiSale['status']==='posted' && $upiSale['employee_cash_to_remit_paise']===0,'UPI posts without employee cash remittance');
@@ -304,5 +327,5 @@ try{
     $final=$writer->post($keyContext);
     checkUat($final['status']==='posted' && $writer->post($keyContext)['replayed']===true,
         'released unique key posts once and subsequent request replays safely');
-    echo "CANONICAL V7 REAL MARIADB UAT: 37/37 PASS; v8_test only; no WordPress deployment\n";
+    echo "CANONICAL V7 REAL MARIADB UAT: 39/39 PASS; v8_test only; no WordPress deployment\n";
 }catch(Throwable $e){fwrite(STDERR,'CANONICAL V7 MARIADB UAT FAILED: '.$e::class.' '.$e->getMessage().' at '.$e->getFile().':'.$e->getLine()."\n");exit(1);}
