@@ -18,7 +18,7 @@ final class TenderIntakeFake implements TrustedTenderIntakeGateway {
           3=>['id'=>3,'company_id'=>1,'branch_id'=>3,'channel'=>'field','employee_id'=>42,'payment_mode'=>'upi','amount_paise'=>500000,'currency'=>'INR','status'=>'awaiting_payment','merchant_order_id'=>'order-103'],
           4=>['id'=>4,'company_id'=>1,'branch_id'=>5,'channel'=>'counter','employee_id'=>null,'payment_mode'=>'upi','amount_paise'=>500000,'currency'=>'INR','status'=>'awaiting_payment','merchant_order_id'=>'order-104'],
         ];
-        $this->bank['lookup-001']=['status'=>'settled','currency'=>'INR','amount_paise'=>500000,'merchant_account'=>'excel-upi-1','merchant_order_id'=>'order-103','transaction_id'=>'BANK-UTR-001'];
+        $this->bank['lookup-001']=['company_id'=>1,'branch_id'=>3,'status'=>'settled','currency'=>'INR','amount_paise'=>500000,'merchant_account'=>'excel-upi-1','merchant_order_id'=>'order-103','transaction_id'=>'BANK-UTR-001'];
     }
     public function atomic(callable $operation):array{
         $snapshot=serialize([$this->evidence]);
@@ -87,6 +87,26 @@ $tests['counter cash cannot be verified by regular employee']=function(){
 $tests['UPI settled proof uses only bank source and matching intent order']=function(){
   $g=new TenderIntakeFake;$r=(new TrustedTenderIntake($g))->upiSettled(1,3,999,3,'lookup-001');
   assert($r['verified_source']==='bank_settlement'&&$r['payment_reference']==='BANK-UTR-001');
+};
+$tests['signed UPI other-company proof cannot pay a local invoice']=function(){
+  $g=new TenderIntakeFake;$g->bank['lookup-001']['company_id']=2;
+  rejectTender('company or branch',fn()=>(new TrustedTenderIntake($g))->upiSettled(1,3,999,3,'lookup-001'));
+  assert($g->evidence===[]);
+};
+$tests['signed UPI other-branch proof cannot pay a local invoice']=function(){
+  $g=new TenderIntakeFake;$g->bank['lookup-001']['branch_id']=4;
+  rejectTender('company or branch',fn()=>(new TrustedTenderIntake($g))->upiSettled(1,3,999,3,'lookup-001'));
+  assert($g->evidence===[]);
+};
+$tests['UPI reconciliation without both scope IDs must fail closed']=function(){
+  $g=new TenderIntakeFake;unset($g->bank['lookup-001']['company_id'],$g->bank['lookup-001']['branch_id']);
+  rejectTender('company or branch',fn()=>(new TrustedTenderIntake($g))->upiSettled(1,3,999,3,'lookup-001'));
+  assert($g->evidence===[]);
+};
+$tests['UPI settlement cannot coerce string branch ID']=function(){
+  $g=new TenderIntakeFake;$g->bank['lookup-001']['branch_id']='3';
+  rejectTender('company or branch',fn()=>(new TrustedTenderIntake($g))->upiSettled(1,3,999,3,'lookup-001'));
+  assert($g->evidence===[]);
 };
 $tests['untrusted staff cannot verify UPI']=function(){
   $g=new TenderIntakeFake;rejectTender('UPI verification authority',fn()=>(new TrustedTenderIntake($g))->upiSettled(1,3,501,3,'lookup-001'));

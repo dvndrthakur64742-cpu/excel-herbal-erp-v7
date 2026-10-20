@@ -37,7 +37,7 @@ try{
     $insert->execute([$company,$branch,'counter',null,'cash',100000,null]);$counterId=(int)$pdo->lastInsertId();
     $insert->execute([$company,$branch,'counter',null,'upi',123400,'order-test-88']);$upiId=(int)$pdo->lastInsertId();
     $insert->execute([$company,$branch,'counter',null,'upi',123400,'order-test-88']);$upiDuplicateId=(int)$pdo->lastInsertId();
-    $bank=['lookup-bank-88'=>['status'=>'settled','currency'=>'INR','amount_paise'=>123400,
+    $bank=['lookup-bank-88'=>['company_id'=>$company,'branch_id'=>$branch,'status'=>'settled','currency'=>'INR','amount_paise'=>123400,
       'merchant_account'=>'excel-uat-upi','merchant_order_id'=>'order-test-88','transaction_id'=>'bank-UAT-UTR-88000']];
     $gateway=new PdoTrustedTenderIntakeGateway($pdo,
       static fn($c,$b,$actor,$channel,$employee)=>$c===987654321&&$b===15&&

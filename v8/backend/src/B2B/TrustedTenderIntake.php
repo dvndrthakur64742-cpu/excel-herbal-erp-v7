@@ -16,7 +16,7 @@ interface TrustedTenderIntakeGateway
     /** Implement with server-resolved RBAC and current employee/branch authority. */
     public function canCollectCash(int $companyId, int $branchId, int $actorId, string $channel, ?int $employeeId): bool;
     public function canVerifyUpi(int $companyId, int $branchId, int $actorId): bool;
-    /** Trusted provider/bank SDK result. NEVER accept HTTP body or screenshot as this result. */
+    /** Trusted server-scoped settlement record: integer company_id and branch_id required. Never read from a browser body. */
     public function verifiedBankPayment(string $providerLookupKey): ?array;
     /** Approved company/branch destination bank/UPI account from server configuration. */
     public function merchantAccount(int $companyId, int $branchId): string;
@@ -66,14 +66,12 @@ final class TrustedTenderIntake
                 || $bank['amount_paise']!==$intent['amount_paise']) {
                 throw new RetailerSaleError('Provider-verified settled INR payment for exact invoice amount required.');
             }
-            // Verified bank-feed scope, when supplied by a signed reconciliation
-            // adapter, is bound to the same immutable company and branch.
-            // Legacy provider callbacks without these fields remain UAT-only.
-            if(array_key_exists('company_id',$bank)||array_key_exists('branch_id',$bank)){
-                if(!is_int($bank['company_id']??null)||!is_int($bank['branch_id']??null)
-                    ||$bank['company_id']!==$companyId||$bank['branch_id']!==$branchId){
-                    throw new RetailerSaleError('Signed settlement evidence company or branch mismatch.');
-                }
+            // A shared merchant account and order cannot establish company/branch
+            // ledger attribution. The authenticated server-side reconciler must
+            // supply BOTH integer IDs; never accept an unscoped legacy callback.
+            if(!is_int($bank['company_id']??null)||!is_int($bank['branch_id']??null)
+                ||$bank['company_id']!==$companyId||$bank['branch_id']!==$branchId){
+                throw new RetailerSaleError('Signed settlement evidence company or branch mismatch.');
             }
             $merchant=$this->gateway->merchantAccount($companyId,$branchId);
             if($merchant==='' || !is_string($bank['merchant_account']??null)

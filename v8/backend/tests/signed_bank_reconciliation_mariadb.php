@@ -94,6 +94,8 @@ try{
  $assert($duplicateBlocked,'MariaDB refuses repeated merchant and bank settlement reference');
  [$id,$r]=$make('BRANCH-12',['branch_id'=>(string)($branch+1)]);
  $assert($reject($id,$r['lookup_key'],'company or branch'),'signed record for different branch cannot confirm issued intent');
+ [$id,$r]=$make('COMPANY-13',['company_id'=>(string)($company+1)]);
+ $assert($reject($id,$r['lookup_key'],'company or branch'),'valid signed other-company UPI proof cannot settle a local invoice even with shared merchant account');
  $total=(int)$db->query('SELECT COUNT(*) FROM v8_b2b_tender_intake_evidence_uat WHERE company_id='.$company)->fetchColumn();
  $assert($total===1,'only genuine signed payment produced original V8 intake evidence');
  echo "SIGNED BANK RECONCILIATION MARIADB UAT: {$checks}/{$checks} PASS; synthetic signed feed only\n";

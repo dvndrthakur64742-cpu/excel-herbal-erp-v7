@@ -183,7 +183,7 @@ function createIntent(PDO $db,int $company,int $branch,int $product,int $party,s
               ||($ch==='counter'&&$actor===8002&&$emp===null)),
         static fn($c,$b,$actor)=>$c===$company&&$b===$branch&&$actor===8002,
         static fn($lookup)=>$lookup==='CI-LOOKUP-'.$ref?[
-            'status'=>'settled','currency'=>'INR','amount_paise'=>20000,
+            'company_id'=>$company,'branch_id'=>$branch,'status'=>'settled','currency'=>'INR','amount_paise'=>20000,
             'merchant_account'=>'CI-UAT-MERCHANT','merchant_order_id'=>$merchantOrder,
             'transaction_id'=>$ref]:null,
         static fn($c,$b)=>$c===$company&&$b===$branch?'CI-UAT-MERCHANT':''
