@@ -237,7 +237,7 @@ final class DailyFieldStockAuditWpReader implements DailyFieldStockAuditReader {
     public function movements(int $company,int $branch,int $cycle,array $requestIds):array {
         $in=implode(',',array_fill(0,count($requestIds),'%d'));
         $in=$in!==''?$in:'0';
-        return $this->rows('SELECT id,company_id,branch_id,source_type,source_id,product_id,batch_id,custodian_employee_id,direction,quantity FROM '.Db::table('stock_ledger').' WHERE company_id=%d AND branch_id=%d AND ((source_type=\'daily_issue\' AND source_id IN ('.$in.')) OR (source_type IN (\'daily_sale\',\'daily_return\') AND source_id=%d)) ORDER BY id LIMIT 3001',$company,$branch,...$requestIds,$cycle);
+        return $this->rows('SELECT id,company_id,branch_id,source_type,source_id,product_id,batch_id,custodian_employee_id,direction,quantity FROM '.Db::table('stock_ledger').' WHERE company_id=%d AND branch_id=%d AND ((source_type=\'daily_issue\' AND source_id IN ('.$in.')) OR (source_type IN (\'daily_sale\',\'daily_return\') AND source_id=%d)) ORDER BY id LIMIT 3001',...array_merge([$company,$branch],$requestIds,[$cycle]));
     }
     public function journalHeaders(int $company,int $id):array {
         return $this->rows('SELECT id,branch_id,status FROM '.Db::table('journal_entries')." WHERE company_id=%d AND source_type='daily_cycle' AND source_id=%d LIMIT 3",$company,$id);
