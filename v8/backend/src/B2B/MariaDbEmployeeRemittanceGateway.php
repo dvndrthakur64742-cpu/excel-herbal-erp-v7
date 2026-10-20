@@ -17,16 +17,27 @@ final class MariaDbEmployeeRemittanceGateway implements EmployeeRemittanceGatewa
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->db->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
         if (!is_callable($authorize)) throw new RetailerSaleError('Server cashier authority callback required.');
+        $this->requireDisposableDatabase();
+    }
+
+    private function requireDisposableDatabase(): void
+    {
+        if ($this->db->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql'
+            || $this->db->query('SELECT DATABASE()')->fetchColumn() !== 'v8_test') {
+            throw new RetailerSaleError('Cash remittance UAT must use disposable v8_test only.');
+        }
     }
 
     public function atomic(callable $work): array
     {
+        $this->requireDisposableDatabase();
         if ($this->active || $this->db->inTransaction()) throw new RetailerSaleError('Nested remittance transaction denied.');
         $this->active = true;
         $this->lockedReceipt = null;
         try {
             $this->db->beginTransaction();
             $result = $work();
+            $this->requireDisposableDatabase();
             $this->db->commit();
             return $result;
         } catch (Throwable $e) {
@@ -41,6 +52,7 @@ final class MariaDbEmployeeRemittanceGateway implements EmployeeRemittanceGatewa
     private function requireAtomic(): void
     {
         if (!$this->active || !$this->db->inTransaction()) throw new RetailerSaleError('Remittance writes require atomic transaction.');
+        $this->requireDisposableDatabase();
     }
 
     private function sql(string $query, array $args = []): \PDOStatement

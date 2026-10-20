@@ -23,6 +23,8 @@ final class PdoIndependentCashierReceiptGateway implements IndependentCashierRec
     {
         if (!$this->inAtomic || !$this->db->inTransaction())
             throw new RetailerSaleError('Cashier evidence must be written under its own transaction.');
+        if ($this->db->query('SELECT DATABASE()')->fetchColumn() !== 'v8_test')
+            throw new RetailerSaleError('Cashier evidence refused after database switch.');
     }
     private function query(string $sql,array $params=[]):PDOStatement
     {
@@ -32,11 +34,15 @@ final class PdoIndependentCashierReceiptGateway implements IndependentCashierRec
     }
     public function atomic(callable $work):array
     {
+        if ($this->db->query('SELECT DATABASE()')->fetchColumn() !== 'v8_test')
+            throw new RetailerSaleError('Cashier UAT refused outside disposable v8_test.');
         if ($this->inAtomic || $this->db->inTransaction()) throw new RetailerSaleError('Nested cashier evidence transaction forbidden.');
         $this->inAtomic=true;
         try {
             $this->db->beginTransaction();
             $result=$work();
+            if ($this->db->query('SELECT DATABASE()')->fetchColumn() !== 'v8_test')
+                throw new RetailerSaleError('Cashier UAT database switched during transaction.');
             $this->db->commit();
             return $result;
         } catch(Throwable $e) {

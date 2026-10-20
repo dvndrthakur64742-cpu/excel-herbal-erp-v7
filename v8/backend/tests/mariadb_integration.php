@@ -9,7 +9,8 @@ require dirname(__DIR__) . '/src/B2B/MariaDbEmployeeRemittanceGateway.php';
 require dirname(__DIR__) . '/src/B2B/EmployeeRemittanceApi.php';
 require dirname(__DIR__) . '/src/B2B/IndependentCashierReceipt.php';
 require dirname(__DIR__) . '/src/B2B/PdoIndependentCashierReceiptGateway.php';
-use ExcelHerbal\ERP8\B2B\{MariaDbRetailerGateway,RetailerCashSale,RetailerMaster,RetailerApi,RetailerSaleError,MariaDbEmployeeRemittanceGateway,EmployeeCashRemittance,EmployeeRemittanceApi,IndependentCashierReceipt,PdoIndependentCashierReceiptGateway};
+require dirname(__DIR__) . '/src/B2B/UatEmployeeCashCustodyHistory.php';
+use ExcelHerbal\ERP8\B2B\{MariaDbRetailerGateway,RetailerCashSale,RetailerMaster,RetailerApi,RetailerSaleError,MariaDbEmployeeRemittanceGateway,EmployeeCashRemittance,EmployeeRemittanceApi,IndependentCashierReceipt,PdoIndependentCashierReceiptGateway,UatEmployeeCashCustodyHistory};
 $dsn = getenv('V8_TEST_DSN');
 if (!$dsn) { echo "SKIP: V8_TEST_DSN not set, no MariaDB installed in this environment.\n"; exit(0); }
 $db = new PDO($dsn, getenv('V8_TEST_USER') ?: 'v8', getenv('V8_TEST_PASSWORD') ?: 'v8', [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
@@ -59,6 +60,18 @@ ok((int)$db->query('SELECT quantity_pcs FROM v8_b2b_stock_bins_preview WHERE cus
 // A field cash sale is ALREADY fully paid by the retailer, but is NOT yet branch-remitted.
 $cashierGateway=new MariaDbEmployeeRemittanceGateway($db,static fn($action,$actor,$company,$branch,$employee) => $action==='b2b.remittance.confirm' && $actor===3 && $company===1 && $branch===1);
 $cashierApi=new EmployeeRemittanceApi(new EmployeeCashRemittance($cashierGateway));
+$history=new UatEmployeeCashCustodyHistory($db,
+    static fn($action,$actor,$company,$branch,$employee)=>$action==='b2b.cash_custody.view'
+        && $actor===3 && $company===1 && $branch===1 && $employee===6);
+$pendingHistory=$history->view(1,1,3,6);
+ok(count($pendingHistory['rows'])===1
+    && $pendingHistory['rows'][0]['status']==='employee_cash_pending'
+    && $pendingHistory['rows'][0]['remitted_paise']===0,
+    'real Cash history shows employee liability before independent cashier handover');
+failure(fn()=>$history->view(1,1,2,6),'field employee cannot access cashier financial history');
+failure(fn()=>$history->view(1,2,3,6),'cash history denied across branch');
+failure(fn()=>$history->view(1,1,3,7),'cash history denied for another employee');
+
 // A forged string 'cashier' must NEVER count as independently signed evidence.
 $db->exec("INSERT INTO v8_b2b_verified_branch_receipts (company_id,branch_id,sale_id,employee_id,cash_receipt_reference,amount_paise,verified_source,verified_at) VALUES (1,1,".$field['id'].",6,'FAKE-UNSIGNED',20000,'cashier',NOW())");
 failure(fn()=>$cashierApi->confirmBranchCash(1,1,3,['sale_id'=>(int)$field['id'],'employee_id'=>6,'amount'=>'200.00','cash_receipt_reference'=>'FAKE-UNSIGNED','idempotency_key'=>'unsigned-rejected-001']),'unsigned cashier string is NOT proof');
@@ -74,6 +87,26 @@ ok($repeatAttest['id']===$attest['id'],'duplicate cashier attestation does not d
 $remitRequest=['sale_id'=>(int)$field['id'],'employee_id'=>6,'amount'=>'200.00','cash_receipt_reference'=>'RECEIPT-BR-01','idempotency_key'=>'mysql-remittance-001'];
 $remit=$cashierApi->confirmBranchCash(1,1,3,$remitRequest);
 ok($remit['amount_paise']===20000 && $remit['status']==='posted','employee cash transferred to branch control');
+$afterHandover=$history->view(1,1,3,6);
+ok(count($afterHandover['rows'])===1
+    && $afterHandover['rows'][0]['status']==='cashier_remittance_evidenced'
+    && $afterHandover['rows'][0]['independent_cashier_receipt_verified']===true
+    && $afterHandover['rows'][0]['remitted_paise']===20000
+    && $afterHandover['rows'][0]['customer_sale_count']===1,
+    'real receipt and balanced remittance produces ONE original retailer sale');
+ok($afterHandover['rows'][0]['canonical_v7_gl_verified']===false,
+    'UAT handover does not make a false canonical V7 GL verification claim');
+$db->beginTransaction();
+try {
+    $db->prepare("UPDATE v8_b2b_remittance_journal_lines SET debit_paise=19999
+         WHERE event_id=? AND account_code='BRANCH_CASH'")->execute([$remit['id']]);
+    $tampered=$history->view(1,1,3,6);
+    ok($tampered['rows'][0]['status']==='reconciliation_mismatch'
+        && $tampered['rows'][0]['remitted_paise']===0,
+        'unbalanced remittance journal fails closed even with a genuine receipt');
+} finally { if($db->inTransaction())$db->rollBack(); }
+ok($history->view(1,1,3,6)['rows'][0]['status']==='cashier_remittance_evidenced',
+    'rollback restores verified read-only Cash history');
 $state=$db->query('SELECT status,amount_remitted_paise FROM v8_b2b_employee_remittance WHERE sale_id='.$field['id'])->fetch(PDO::FETCH_ASSOC);
 ok($state['status']==='settled' && (int)$state['amount_remitted_paise']===20000,'employee pending cash settled without customer credit');
 $partyAfter=(int)$db->query('SELECT SUM(amount_paise) FROM v8_b2b_retailer_statement WHERE sale_id='.$field['id'])->fetchColumn();
@@ -81,6 +114,15 @@ ok($partyAfter===0,'retailer outstanding unchanged after branch cash remittance'
 $drRemit=(int)$db->query('SELECT SUM(debit_paise) FROM v8_b2b_remittance_journal_lines WHERE event_id='.$remit['id'])->fetchColumn();
 $crRemit=(int)$db->query('SELECT SUM(credit_paise) FROM v8_b2b_remittance_journal_lines WHERE event_id='.$remit['id'])->fetchColumn();
 ok($drRemit===$crRemit && $drRemit===20000,'branch cash vs employee transit balanced');
+// Guards against accidental or malicious USE schema switching on a shared PDO.
+$db->exec('USE information_schema');
+try {
+    failure(fn()=>$history->view(1,1,3,6),'history denies switched database');
+    failure(fn()=>$cashierApi->confirmBranchCash(1,1,3,$remitRequest),'remittance denies switched database');
+    failure(fn()=>$independent->attest(['company_id'=>1,'branch_id'=>1,'actor_id'=>3,
+        'sale_id'=>(int)$field['id'],'employee_id'=>6,'cash_receipt_reference'=>'RECEIPT-BR-01']),
+        'cashier attestation denies switched database');
+} finally { $db->exec('USE v8_test'); }
 $retry=$cashierApi->confirmBranchCash(1,1,3,$remitRequest);
 ok($retry['id']===$remit['id'] && (int)$db->query('SELECT COUNT(*) FROM v8_b2b_remittance_events')->fetchColumn()===1,'cashier remittance is idempotent');
 failure(fn()=>$cashierApi->confirmBranchCash(1,1,3,array_replace($remitRequest,['idempotency_key'=>'mysql-remittance-002'])),'second remittance against same sale denied');
