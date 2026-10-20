@@ -53,6 +53,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       'stock',
       'finance',
       'stock_reconciliation',
+      'branch_daily',
     }.contains(activeType);
 
     const periodReports = {
@@ -64,6 +65,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       'account_ledger',
     };
     const asOfReports = {'trial', 'balance_sheet'};
+    const dayReports = {'branch_daily'};
     final defaultFrom = DateTime.tryParse(app.businessMonthStart) ??
         DateTime(DateTime.now().year, DateTime.now().month, 1);
     final defaultTo = DateTime.tryParse(app.businessDate) ?? DateTime.now();
@@ -76,10 +78,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       if (periodReports.contains(activeType)) 'from': fromValue,
       if (periodReports.contains(activeType)) 'to': toValue,
       if (asOfReports.contains(activeType)) 'to': app.businessDate,
+      if (dayReports.contains(activeType)) 'date': toValue,
       if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };
-    final baseScopeLabel = activeType == 'stock'
+    final baseScopeLabel = dayReports.contains(activeType)
+        ? BusinessFormat.date(toValue)
+        : activeType == 'stock'
         ? 'Live stock'
         : activeType == 'stock_reconciliation'
             ? 'Live stock reconciliation'
@@ -109,6 +114,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 future: api.get(config.path, query: query),
                 emptyMessage: config.emptyMessage,
                 builder: (context, data) {
+                  if (activeType == 'branch_daily') {
+                    return _BranchDailyControlPanel(data: data);
+                  }
                   if (activeType == 'price_distribution') {
                     return _PriceDistributionPanel(
                       data: data,
@@ -188,6 +196,26 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                           ),
                         ),
                       ),
+                      if (dayReports.contains(activeType))
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.today_outlined),
+                            label: Text('Business date: ${BusinessFormat.date(toValue)}'),
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: toDate,
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                                helpText: 'Branch daily reporting date',
+                              );
+                              if (picked != null && mounted) {
+                                setState(() => _toDate = picked);
+                              }
+                            },
+                          ),
+                        ),
                       if (periodReports.contains(activeType))
                         Padding(
                           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -295,6 +323,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     if (app.can('reports.view')) {
       out.addAll(const [
         _ReportOption('sales', 'Sales Summary', Icons.point_of_sale_outlined),
+        _ReportOption('branch_daily', 'Branch Daily Control', Icons.assignment_turned_in_outlined),
         _ReportOption(
           'price_distribution',
           'Price Distribution',
@@ -397,6 +426,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   _ReportConfig _config(String value) => switch (value) {
+        'branch_daily' => const _ReportConfig(
+            title: 'Branch Daily Control',
+            path: ApiPaths.branchDailyControl,
+            recordType: 'branch_daily',
+            subtitle: 'Posted Daily Orders, stock custody, points and pending approvals; Counter Sales separate.',
+            emptyMessage: 'No branch activity on the selected business date.',
+          ),
         'price_distribution' => const _ReportConfig(
             title: 'Price Distribution',
             path: ApiPaths.priceDistribution,
@@ -503,6 +539,95 @@ class _ReportOption {
   final String id;
   final String label;
   final IconData icon;
+}
+
+
+class _BranchDailyControlPanel extends StatelessWidget {
+  const _BranchDailyControlPanel({required this.data});
+  final dynamic data;
+
+  @override
+  Widget build(BuildContext context) {
+    if (data is! Map) {
+      return const Center(child: Text('Branch daily report response is invalid.'));
+    }
+    final report = Map<String, dynamic>.from(data as Map);
+    if (report['read_only'] != true ||
+        report['scope'] != 'single_authorized_branch_canonical_v7' ||
+        report['coverage'] is! Map ||
+        (report['coverage'] as Map)['cashier_handover_verified'] != false ||
+        (report['coverage'] as Map)['upi_bank_verified'] != false) {
+      return const Center(child: Text('Branch daily reporting security contract mismatch.'));
+    }
+    final totals = Map<String, dynamic>.from((report['totals'] as Map?) ?? const {});
+    final employees = ((report['employees'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((r) => Map<String, dynamic>.from(r))
+        .toList();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+      children: [
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(12),
+            child: Text(
+              'Only posted Daily Orders are counted as employee sales. '
+              'Counter Sales are separate. Cash/UPI allocations are NOT '
+              'verified branch cash deposits or bank reconciliation.',
+            ),
+          ),
+        ),
+        Wrap(
+          spacing: 8, runSpacing: 8,
+          children: [
+            _MetricCard(label: 'Daily Order Sales', value: BusinessFormat.money(totals['posted_daily_order_sales'])),
+            _MetricCard(label: 'Cash Split', value: BusinessFormat.money(totals['daily_cash_split'])),
+            _MetricCard(label: 'UPI Split', value: BusinessFormat.money(totals['daily_upi_split'])),
+            _MetricCard(label: 'Counter Sales (separate)', value: BusinessFormat.money(totals['counter_sales_gross'])),
+            _MetricCard(label: 'Issued PCS', value: BusinessFormat.quantity(totals['issued_quantity'])),
+            _MetricCard(label: 'Sold PCS', value: BusinessFormat.quantity(totals['sold_quantity'])),
+            _MetricCard(label: 'Returned PCS', value: BusinessFormat.quantity(totals['returned_quantity'])),
+            _MetricCard(label: 'Points', value: BusinessFormat.quantity(totals['performance_points'])),
+            _MetricCard(label: 'Pending Requests', value: '${totals['pending_requests'] ?? 0}'),
+            _MetricCard(label: 'Needs Attention', value: '${totals['employees_needing_attention'] ?? 0}'),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text('Employee Daily Activity & Exceptions',
+            style: Theme.of(context).textTheme.titleMedium),
+        if (employees.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No Daily Order, custody or performance events for this branch/day.'),
+          ),
+        for (final employee in employees)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${employee['employee_name']} · #${employee['employee_id']}',
+                      style: Theme.of(context).textTheme.titleSmall),
+                  Text('Daily Order: ${employee['cycle_status']} · Evening: ${employee['settlement_status']}'),
+                  Text('Posted sale: ${BusinessFormat.money(employee['posted_sale_amount'])} '
+                      '· Cash ${BusinessFormat.money(employee['posted_cash_split'])} '
+                      '· UPI ${BusinessFormat.money(employee['posted_upi_split'])}'),
+                  Text('Issued ${employee['issued_quantity']} / Sold ${employee['sold_quantity']} '
+                      '/ Returned ${employee['returned_quantity']} PCS'),
+                  Text('Custody IN ${employee['custody_in_quantity']} / '
+                      'OUT ${employee['custody_out_quantity']} PCS '
+                      '· Points ${employee['performance_points']}'),
+                  if ((employee['exceptions'] as List?)?.isNotEmpty == true)
+                    Text('Attention: ${(employee['exceptions'] as List).join(', ')}',
+                        style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _PriceDistributionPanel extends StatelessWidget {

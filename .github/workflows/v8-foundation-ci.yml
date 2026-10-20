@@ -5,6 +5,14 @@ on:
   pull_request:
     paths:
       - 'v8/**'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/BranchDailyControlReport.php'
+      - 'backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php'
+      - 'backend/excel-herbal-erp-v7/src/Http/ApiDispatch.php'
+      - 'backend/excel-herbal-erp-v7/src/Http/ApiContract.php'
+      - 'backend/excel-herbal-erp-v7/tests/branch_daily_control_regression.php'
+      - 'flutter-app/lib/screens/reports/reports_screen.dart'
+      - 'flutter-app/lib/core/api_paths.dart'
+      - 'flutter-app/test/branch_daily_control_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Registers.php'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
       - 'backend/excel-herbal-erp-v7/tests/employee360_regression.php'
@@ -34,12 +42,16 @@ jobs:
         run: find v8/backend -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Lint canonical V7 Person Ledger projection
         run: php -l backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php
+      - name: Lint Branch Daily Control V7 source
+        run: php -l backend/excel-herbal-erp-v7/src/Reporting/BranchDailyControlReport.php
       - name: Domain regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
       - name: Canonical V7 Employee 360 Stock Request History regressions
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
       - name: Tally Employee 360 Person Ledger complete-history regression
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_regression.php
+      - name: Branch Daily Control read-only summaries, payment caveats and access regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_daily_control_regression.php
       - name: Retailer master and boundary regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
       - name: Employee cash custody regression checks

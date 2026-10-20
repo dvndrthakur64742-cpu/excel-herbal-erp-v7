@@ -32,9 +32,11 @@ try {
     require_once $src.'Security/Capabilities.php';
     require_once $src.'Organization/Employee360Service.php';
     require_once $src.'Organization/Employee360PersonLedger.php';
+    require_once $src.'Security/Guard.php';
+    require_once $src.'Reporting/BranchDailyControlReport.php';
     if (!defined('ARRAY_A')) define('ARRAY_A','ARRAY_A');
     $defs=\ExcelHerbal\ERP7\Database\Schema::definitions();
-    foreach (['daily_cycles','daily_requests','daily_request_lines','daily_issue_lines','evening_settlements','evening_lines','stock_ledger','accounts','journal_entries','journal_lines','performance_entries'] as $table) {
+    foreach (['daily_cycles','daily_requests','daily_request_lines','daily_issue_lines','evening_settlements','evening_lines','stock_ledger','accounts','journal_entries','journal_lines','performance_entries','employees','counter_sales'] as $table) {
         if (!isset($defs[$table])) throw new RuntimeException('Missing canonical V7 table '.$table);
         $db->exec('CREATE TABLE IF NOT EXISTS wp_eh7_'.$table.' ('.$defs[$table].') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
     }
@@ -228,6 +230,70 @@ try {
             $nonFinance,$employee,'2026-10-20','2026-10-20',1,3,$personReader,$fakeProfile);}
         catch(\ExcelHerbal\ERP7\Domain\DomainException $e){$denied=$e->codeKey==='permission_denied';}
         $assert($denied,'self employee cannot read finance person ledger without finance permission');
+
+        // Branch daily control uses ORIGINAL V7 Daily Orders, stock custody,
+        // points, and distinct Counter Sales (no extra sales or shadow GL).
+        $staff=$db->prepare("INSERT INTO wp_eh7_employees(id,company_id,employee_code,designation_code,assigned_branch_id,full_name,created_at)
+          VALUES(?,?,'CI-BRANCH-FIELD','FSE',?,'CI Field One','2026-10-20 04:00:00')");
+        $staff->execute([$employee,$company,$branch]);
+        $staff=$db->prepare("INSERT INTO wp_eh7_employees(id,company_id,employee_code,designation_code,assigned_branch_id,full_name,created_at)
+          VALUES(?,?,'CI-BRANCH-OTHER','FSE',?,'CI Field Two','2026-10-20 04:00:00')");
+        $staff->execute([$employee+1,$company,$branch]);
+        $db->prepare("INSERT INTO wp_eh7_counter_sales
+            (company_id,branch_id,sale_no,sale_date,status,gross_amount,paid_amount,outstanding_amount,created_by,created_at)
+            VALUES(?,?,'CI-BRANCH-COUNTER','2026-10-20 04:00:00','posted',25.00,20.00,5.00,?,'2026-10-20 04:00:00')")
+            ->execute([$company,$branch,$employee]);
+        $branchReader=new \ExcelHerbal\ERP7\Reporting\BranchDailyControlWpReader();
+        $branchActor=new \ExcelHerbal\ERP7\Security\Actor(
+            4099,$employee+1,$company,$branch,[$branch],
+            [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW],'BM');
+        $branchReport=\ExcelHerbal\ERP7\Reporting\BranchDailyControlReport::view(
+            $branchActor,$branch,'2026-10-20',$branchReader);
+        $dailyTotals=$branchReport['totals'];
+        $assert($dailyTotals['posted_daily_orders']===1
+            &&$dailyTotals['posted_daily_order_sales']==='300.00'
+            &&$dailyTotals['daily_cash_split']==='100.00'
+            &&$dailyTotals['daily_upi_split']==='200.00',
+            'real MariaDB branch report contains only posted Daily Order and correct Cash/UPI split');
+        $assert($dailyTotals['posted_counter_sales']===1
+            &&$dailyTotals['counter_sales_gross']==='25.00'
+            &&$dailyTotals['counter_sales_paid']==='20.00'
+            &&$dailyTotals['counter_sales_outstanding']==='5.00',
+            'real Counter Sale amount and outstanding separate, not double counted in Daily Order');
+        $assert($dailyTotals['issued_quantity']==='5.000'
+            &&$dailyTotals['sold_quantity']==='3.000'
+            &&$dailyTotals['returned_quantity']==='2.000',
+            'multi-batch Daily Order sums issued, sold and returned without row multiplication');
+        $assert($dailyTotals['custody_in_quantity']==='5.000'
+            &&$dailyTotals['custody_out_quantity']==='5.000',
+            'stock custody sums from six canonical IN/OUT records independently');
+        $assert($dailyTotals['performance_points']==='7.00'
+            &&count($branchReport['employees'])===2,
+            'points and separate draft employee cycle visible exactly once');
+        $assert($dailyTotals['pending_requests']===2
+            &&$dailyTotals['pending_cycles']===1
+            &&$dailyTotals['employees_needing_attention']===2,
+            'pending stock requests and unposted employee closing flagged by real SQL');
+        $assert($branchReport['coverage']['cashier_handover_verified']===false
+            &&$branchReport['coverage']['upi_bank_verified']===false,
+            'posted Cash allocation and UPI split never asserted externally verified');
+        $blocked=false;
+        try {
+            \ExcelHerbal\ERP7\Reporting\BranchDailyControlReport::view(
+                new \ExcelHerbal\ERP7\Security\Actor(
+                  4100,$employee,$company,$branch+1,[$branch+1],
+                  [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW],'BM'),
+                $branch,'2026-10-20',$branchReader);
+        }catch(\ExcelHerbal\ERP7\Domain\DomainException $e){$blocked=$e->codeKey==='branch_forbidden';}
+        $assert($blocked,'manager cannot read another branch daily report');
+        $foreign=\ExcelHerbal\ERP7\Reporting\BranchDailyControlReport::view(
+            new \ExcelHerbal\ERP7\Security\Actor(
+              4101,$employee,$otherCompany,$branch,[$branch],
+              [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW],'BM'),
+            $branch,'2026-10-20',$branchReader);
+        $assert($foreign['totals']['posted_daily_order_sales']==='0.00'
+            &&$foreign['totals']['posted_counter_sales']===0,
+            'same branch id in different company cannot reveal foreign sales or Cash allocations');
         // A deliberately missing ledger sale row must never be masked by a
         // healthy evening settlement; the source totals visibly diverge.
         $db->prepare("DELETE FROM wp_eh7_stock_ledger WHERE company_id=? AND source_type='daily_sale' AND source_id=? AND batch_id=?")
