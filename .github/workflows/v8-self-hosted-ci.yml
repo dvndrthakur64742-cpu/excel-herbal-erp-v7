@@ -12,6 +12,9 @@ on:
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchComparisonReport.php'
       - 'backend/excel-herbal-erp-v7/src/Reporting/ReportingWatchSubmissionProjection.php'
       - 'backend/excel-herbal-erp-v7/src/Reporting/ReportReminderDrafts.php'
+      - 'backend/excel-herbal-erp-v7/tests/manager_notification_center_regression.php'
+      - 'flutter-app/lib/screens/reports/manager_notification_center_panel.dart'
+      - 'flutter-app/test/manager_notification_center_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/tests/reporting_watch_submission_projection_regression.php'
       - 'flutter-app/test/watch_submission_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/src/Reporting/ReportingSubmissionService.php'
@@ -89,6 +92,8 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/reporting_submissions_regression.php
       - name: Branch watch live approval evidence, overdue discipline and finance privacy
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/reporting_watch_submission_projection_regression.php
+      - name: Manager Notification Center draft-only review, maker-checker and guarded state transition
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/manager_notification_center_regression.php
       - name: Retailer master and API boundary tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
       - name: Employee cash responsibility tests

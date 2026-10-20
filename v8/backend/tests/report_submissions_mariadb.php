@@ -188,6 +188,58 @@ try{
    $assert($nightDraft['eligible']===2&&$nightDraft['created']===1
        &&$nightDraft['duplicates_skipped']===1,
        'at 8:00 PM existing monthly draft deduped, daily 19:30 candidate added once');
+
+   $dismissId=(int)$drafts['drafts'][0]['id'];
+   $dismissed=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::dismiss(
+       $regional,$branch,$dismissId,'Daily closing followed up outside ERP and confirmed manually');
+   $assert($dismissed['state']==='dismissed'
+       &&$dismissed['dispatch_enabled']===false
+       &&$dismissed['notifications_sent']===0
+       &&$dismissed['dismissed_by']===$regional->employeeId,
+       'regional reviewer dismisses existing draft without claiming delivery');
+   $afterDismiss=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::list(
+       $regional,$branch,'2026-10-19');
+   $assert(count($afterDismiss['drafts'])===0,
+       'dismissed draft disappears from active branch worklist');
+   $dismissMeta=$pdo->prepare(
+       'SELECT state,dismissed_by,dismissal_reason FROM wp_eh7_report_reminder_drafts WHERE id=?');
+   $dismissMeta->execute([$dismissId]);$review=$dismissMeta->fetch();
+   $assert($review['state']==='dismissed'
+       &&(int)$review['dismissed_by']===$regional->employeeId
+       &&strlen($review['dismissal_reason'])>12,
+       'reviewer identity and audit reason persist in canonical draft table');
+   $notReopened=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::prepare(
+       $regional,$branch,'2026-10-19',$watchReader,null,$now);
+   $assert($notReopened['created']===0&&$notReopened['duplicates_skipped']===1
+       &&count(\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::list(
+           $regional,$branch,'2026-10-19')['drafts'])===0,
+       'unique dedup key keeps dismissed draft closed on repeated prepare');
+   $doubleDismiss=false;
+   try{\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::dismiss(
+       $regional,$branch,$dismissId,'Second time attempt to dismiss same draft');}
+   catch(\ExcelHerbal\ERP7\Domain\DomainException $e){
+       $doubleDismiss=$e->codeKey==='report_draft_already_dismissed';
+   }
+   $assert($doubleDismiss,'duplicate dismissal denied with explicit state conflict');
+   $crossBranchDenied=false;
+   try{\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::dismiss(
+       $regional,$other,$dismissId,'Try unauthorized cross branch draft edit');}
+   catch(\ExcelHerbal\ERP7\Domain\DomainException $e){
+       $crossBranchDenied=$e->codeKey==='report_draft_not_found';
+   }
+   $assert($crossBranchDenied,'same reviewer cannot update draft using different authorized branch');
+   $bmDismissDenied=false;
+   try{\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::dismiss(
+       $bm,$branch,$dismissId,'Maker must not be able to review draft');}
+   catch(\ExcelHerbal\ERP7\Domain\DomainException $e){
+       $bmDismissDenied=$e->codeKey==='permission_denied';
+   }
+   $assert($bmDismissDenied,'submitter lacks reviewer draft dismissal permission');
+   $auditRow=$pdo->prepare(
+       "SELECT COUNT(*) FROM wp_eh7_audit_log WHERE company_id=? AND action='report.reminder_draft.dismiss' AND entity_id=?");
+   $auditRow->execute([$company,$dismissId]);
+   $assert((int)$auditRow->fetchColumn()===1,
+       'real MariaDB immutable audit log contains one reviewer dismissal');
    $wrongCompanyDenied=false;
    try{
        \ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::list(

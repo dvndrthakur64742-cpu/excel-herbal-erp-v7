@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import 'branch_reporting_watch_panel.dart';
 import 'report_submissions_panel.dart';
+import 'manager_notification_center_panel.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
@@ -115,7 +116,16 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ? baseScopeLabel
         : '$baseScopeLabel · Branch ${app.currentBranchId}';
 
-    final reportView = activeType == 'report_submissions'
+    final reportView = activeType == 'manager_notification_center'
+        ? app.currentBranchId == null
+            ? const _BranchRequired()
+            : ManagerNotificationCenterPanel(
+                key: ValueKey('manager-notification-' + app.currentBranchId.toString()),
+                api: api,
+                branchId: app.currentBranchId!,
+                businessDate: app.businessDate,
+              )
+        : activeType == 'report_submissions'
         ? app.currentBranchId == null
             ? const _BranchRequired()
             : ReportSubmissionsPanel(
@@ -392,6 +402,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ),
       ]);
     }
+    if (app.can('reports.view') && app.can('reports.review')) {
+      out.add(const _ReportOption('manager_notification_center',
+          'Manager Notification Center', Icons.mark_email_unread_outlined));
+    }
     if (app.can('reports.submit') || app.can('reports.review')) {
       out.add(const _ReportOption('report_submissions',
           'Reporting Submissions & Approvals', Icons.assignment_turned_in_outlined));
@@ -475,6 +489,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   _ReportConfig _config(String value) => switch (value) {
+        'manager_notification_center' => const _ReportConfig(
+            title: 'Manager Notification Center — Internal Drafts',
+            path: ApiPaths.reportReminderDrafts,
+            recordType: 'report_reminder_drafts',
+            subtitle: 'Authorized reviewer prepares, inspects and dismisses audit-logged follow-up drafts. No WhatsApp, email, SMS or push delivery.',
+            emptyMessage: 'No internal follow-up drafts for this branch and date.',
+          ),
         'report_submissions' => const _ReportConfig(
             title: 'Reporting Submissions & Approvals',
             path: ApiPaths.reportSubmissions,

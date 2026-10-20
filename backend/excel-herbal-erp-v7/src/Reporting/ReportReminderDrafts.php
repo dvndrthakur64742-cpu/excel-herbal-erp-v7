@@ -33,6 +33,38 @@ final class ReportReminderDrafts {
             'drafts'=>$rows,'dispatch_enabled'=>false,
             'evidence'=>'internal_followup_draft_only_no_delivery'];
     }
+
+    /** Human reviewer discards a stale/internal draft. Does not send, queue or
+     * modify the original Daily Order / report attestation.
+     */
+    public static function dismiss(Actor $actor,int $branch,int $id,string $reason):array {
+        self::requireReviewer($actor,$branch);
+        $reason=trim($reason);
+        if($id<1||strlen($reason)<12||strlen($reason)>500
+            ||preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/',$reason))
+            throw new DomainException('Invalid dismissal reference or reason.','report_draft_dismiss_invalid',422);
+        return Transaction::run(static function()use($actor,$branch,$id,$reason){
+            $db=Db::wpdb();$t=Db::table('report_reminder_drafts');
+            $row=$db->get_row($db->prepare(
+                "SELECT id,state FROM {$t} WHERE id=%d AND company_id=%d AND branch_id=%d FOR UPDATE",
+                $id,$actor->companyId,$branch),ARRAY_A);
+            if(!is_array($row))
+                throw new DomainException('Draft not found in authorized branch.','report_draft_not_found',404);
+            if($row['state']!=='draft')
+                throw new DomainException('Draft already reviewed.','report_draft_already_dismissed',409);
+            $updated=$db->update($t,[
+                'state'=>'dismissed','dismissed_by'=>$actor->employeeId,
+                'dismissed_at'=>Db::now(),'dismissal_reason'=>$reason,
+            ],['id'=>$id,'company_id'=>$actor->companyId,'branch_id'=>$branch,'state'=>'draft']);
+            if($updated!==1)
+                throw new DomainException('Draft state changed during review.','report_draft_conflict',409);
+            Audit::add($actor,'report.reminder_draft.dismiss','report_reminder_draft',$id,
+                ['branch_id'=>$branch,'reason'=>$reason,'delivery'=>false]);
+            return ['id'=>$id,'branch_id'=>$branch,'state'=>'dismissed',
+                'dispatch_enabled'=>false,'notifications_sent'=>0,
+                'dismissed_by'=>$actor->employeeId];
+        });
+    }
     public static function prepare(Actor $actor,int $branch,string $date,
         ?BranchReportingWatchReader $watchReader=null,
         ?ReportingWatchSubmissionReader $submissionReader=null,

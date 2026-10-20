@@ -13,6 +13,8 @@ on:
       - 'flutter-app/lib/screens/reports/report_submissions_panel.dart'
       - 'flutter-app/test/report_submissions_ui_contract_test.dart'
       - 'flutter-app/test/watch_submission_ui_contract_test.dart'
+      - 'flutter-app/lib/screens/reports/manager_notification_center_panel.dart'
+      - 'flutter-app/test/manager_notification_center_contract_test.dart'
       - 'flutter-app/lib/screens/reports/branch_reporting_watch_panel.dart'
       - 'flutter-app/test/branch_reporting_watch_ui_test.dart'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
@@ -57,6 +59,9 @@ jobs:
       - name: Manager Watch live status and unsent outbox Flutter contract
         working-directory: flutter-app
         run: flutter test test/watch_submission_ui_contract_test.dart
+      - name: Manager Notification Center reviewer-only drafts Flutter contract and compile
+        working-directory: flutter-app
+        run: flutter test test/manager_notification_center_contract_test.dart
       - name: Stock allocation regression
         working-directory: flutter-app
         run: flutter test test/stock_allocation_test.dart
