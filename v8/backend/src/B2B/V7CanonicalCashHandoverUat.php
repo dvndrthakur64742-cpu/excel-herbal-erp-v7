@@ -63,16 +63,16 @@ final class V7CanonicalCashHandoverUat
         ),ARRAY_A);
         if(!is_array($header)) throw new RetailerSaleError('Original canonical Cash GL journal missing.');
         $transit=$db->get_row($db->prepare(
-            'SELECT COUNT(*) lines,COALESCE(SUM(jl.debit),0) debit,COALESCE(SUM(jl.credit),0) credit '.
+            'SELECT COUNT(*) AS matched_count,COALESCE(SUM(jl.debit),0) AS total_debit,COALESCE(SUM(jl.credit),0) AS total_credit '.
             'FROM '.Db::table('journal_lines').' jl JOIN '.Db::table('accounts').
             ' a ON a.id=jl.account_id AND a.company_id=%d '.
             "WHERE jl.journal_entry_id=%d AND a.code='EMPLOYEE_CASH_IN_TRANSIT' ".
             "AND jl.party_type='employee' AND jl.party_id=%d",
             $this->actor->companyId,$r['journal_entry_id'],$r['employee_id']
         ),ARRAY_A);
-        if(!is_array($transit)||(int)$transit['lines']!==1
-            ||Paise::parse((string)$transit['debit'])!==$r['amount_paise']
-            ||Paise::parse((string)$transit['credit'])!==0)
+        if(!is_array($transit)||(int)($transit['matched_count']??0)!==1
+            ||Paise::parse((string)($transit['total_debit']??''))!==$r['amount_paise']
+            ||Paise::parse((string)($transit['total_credit']??''))!==0)
             throw new RetailerSaleError('Original employee Cash-in-Transit GL debit not verified.');
         return $r;
     }
