@@ -315,9 +315,9 @@ try {
         $assert($weekly['totals']['issued_quantity']==='5.000'
             &&$weekly['totals']['sold_quantity']==='3.000'
             &&$weekly['totals']['returned_quantity']==='2.000'
-            &&$weekly['totals']['custody_in_quantity']==='5.000'
+            &&$weekly['totals']['custody_in_quantity']==='6.000'
             &&$weekly['totals']['custody_out_quantity']==='5.000',
-            'real weekly multi-batch issued/sold/return and stock movements not multiplied');
+            'real full-week custody includes the Oct 19 opening_transfer IN 1 PCS plus issue IN 5; no multi-batch duplication');
         $assert($weekly['totals']['performance_points']==='7.00'
             &&$weekly['totals']['pending_daily_orders']===1
             &&$weekly['totals']['pending_stock_requests']===2,
