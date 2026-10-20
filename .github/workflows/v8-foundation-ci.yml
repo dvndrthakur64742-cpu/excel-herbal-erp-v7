@@ -88,6 +88,10 @@ jobs:
           php -l backend/excel-herbal-erp-v7/src/Database/Schema.php
       - name: Domain regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
+      - name: Read-only Daily Field Stock Ledger and Evening Settlement integrity regression
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/DailyOrder/DailyFieldStockAudit.php
+          php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/daily_field_stock_audit_regression.php
       - name: Canonical V7 Employee 360 Stock Request History regressions
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
       - name: Tally Employee 360 Person Ledger complete-history regression
@@ -198,6 +202,8 @@ jobs:
           V8_TEST_USER: v8
           V8_TEST_PASSWORD: v8
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_mariadb.php
+      - name: Real MariaDB Daily Issue Custody OUT-IN, Evening Sale Return and GL presence audit (rollback-only)
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/daily_field_stock_audit_mariadb.php
       - name: Canonical V7 Employee Stock Request History on real disposable MariaDB
         env:
           V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'

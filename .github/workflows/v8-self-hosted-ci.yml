@@ -82,6 +82,10 @@ jobs:
           php -m
       - name: Retailer sale policy tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
+      - name: Read-only Daily Field Stock Ledger and Evening Settlement integrity regression
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/DailyOrder/DailyFieldStockAudit.php
+          php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/daily_field_stock_audit_regression.php
       - name: Canonical V7 Employee 360 Stock Request History regressions
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
       - name: Tally Employee 360 Person Ledger complete-history regression
