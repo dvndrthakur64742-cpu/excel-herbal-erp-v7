@@ -6,6 +6,9 @@ if(!function_exists('current_time')){
     return $format==='Y-m-d'?'2026-10-20':'2026-10-20 12:00:00';
  }
 }
+if(!function_exists('wp_timezone')){
+ function wp_timezone():DateTimeZone{return new DateTimeZone('Asia/Kolkata');}
+}
 if(!function_exists('wp_json_encode')){
  function wp_json_encode(mixed $v,int $flags=0):string{return json_encode($v,$flags|JSON_THROW_ON_ERROR);}
 }
@@ -24,9 +27,12 @@ try{
  foreach(['Domain/DomainException.php','Security/Actor.php','Security/Capabilities.php',
           'Security/Guard.php','Core/Input.php','Database/Db.php','Database/Schema.php',
           'Database/Transaction.php','Security/Audit.php',
-          'Reporting/ReportingSubmissionService.php'] as $file)require_once $src.$file;
+          'Reporting/ReportingSubmissionService.php',
+          'Reporting/BranchReportingWatch.php',
+          'Reporting/ReportingWatchSubmissionProjection.php',
+          'Reporting/ReportReminderDrafts.php'] as $file)require_once $src.$file;
  $schemas=\ExcelHerbal\ERP7\Database\Schema::definitions();
- foreach(['report_submissions','report_submission_events','audit_log'] as $table){
+ foreach(['report_submissions','report_submission_events','report_reminder_drafts','audit_log'] as $table){
     if(!isset($schemas[$table]))throw new RuntimeException('Missing V7 report definition: '.$table);
     $pdo->exec("CREATE TABLE IF NOT EXISTS wp_eh7_".$table." (".$schemas[$table].") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
  }
@@ -131,7 +137,71 @@ try{
    $audits->execute([$company,(string)$id]);
    $log=$audits->fetchAll();
    $assert(count($log)===4,'four transitions write matching canonical audit_log events');
+
+   $watchReader=new class implements \ExcelHerbal\ERP7\Reporting\BranchReportingWatchReader {
+       public function branches(int $co,array $ids):array {
+           return array_intersect_key([8201=>'Test Branch',8202=>'Other'],array_flip($ids));
+       }
+       public function dailyRoster(int $co,int $branch,string $date):array {
+           return [['employee_id'=>991,'employee_name'=>'Active Field FSE',
+               'branch_id'=>$branch,'cycle_id'=>null,
+               'cycle_status'=>null,'settlement_status'=>null]];
+       }
+       public function dailyReport(\ExcelHerbal\ERP7\Security\Actor $a,int $branch,string $date):array {
+           return ['read_only'=>true,'scope'=>'single_authorized_branch_canonical_v7',
+               'business_date'=>$date,'branch_id'=>$branch,
+               'coverage'=>['cashier_handover_verified'=>false,'upi_bank_verified'=>false],
+               'totals'=>['pending_requests'=>0,'posted_daily_order_sales'=>'0.00']];
+       }
+   };
+   $now=new DateTimeImmutable('2026-10-19 21:00:00',wp_timezone());
+   $liveWatch=\ExcelHerbal\ERP7\Reporting\ReportingWatchSubmissionProjection::view(
+       $regional,'2026-10-19',$branch,$watchReader,null,$now);
+   $assert($liveWatch['schedule'][1]['submission_state']==='approved_all_branches'
+       &&$liveWatch['branches'][0]['reporting_submissions'][0]['submission_state']==='approved'
+       &&$liveWatch['reminder_outbox_dispatch_enabled']===false,
+       'real SQL approved weekly report reflected on Manager Watch without delivery');
+   $draft=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::prepare(
+       $regional,$branch,'2026-10-19',$watchReader,null,$now);
+   $assert($draft['created']===1&&$draft['state']==='draft_only'
+       &&$draft['dispatch_enabled']===false&&$draft['notifications_sent']===0,
+       'manual draft preparation creates only one undispatched daily reminder');
+   $again=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::prepare(
+       $regional,$branch,'2026-10-19',$watchReader,null,$now);
+   $assert($again['created']===0&&$again['duplicates_skipped']===1,
+       'real SQL unique dedupe key prevents repeated refresh duplicate drafts');
+   $drafts=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::list(
+       $regional,$branch,'2026-10-19');
+   $assert(count($drafts['drafts'])===1
+       &&$drafts['drafts'][0]['state']==='draft'
+       &&$drafts['drafts'][0]['target_employee_id']==991
+       &&$drafts['dispatch_enabled']===false,
+       'report draft rows are branch-scoped and cannot imply sending');
+   $monthDraft=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::prepare(
+       $regional,$branch,'2026-10-01',$watchReader,null,
+       new DateTimeImmutable('2026-10-01 11:00:00',wp_timezone()));
+   $assert($monthDraft['created']===2&&$monthDraft['eligible']===2,
+       'first-day 10:30 known deadline allows monthly and daily drafts only');
+   $wrongCompanyDenied=false;
+   try{
+       \ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::list(
+           $foreign,$branch,'2026-10-19');
+       $foreignRows=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::list(
+           $foreign,$branch,'2026-10-19');
+       $wrongCompanyDenied=count($foreignRows['drafts'])===0;
+   }catch(\ExcelHerbal\ERP7\Domain\DomainException $ignored){
+       $wrongCompanyDenied=true;
+   }
+   $assert($wrongCompanyDenied,'foreign company sees no real draft despite same branch identifier');
+   $bmDenied=false;
+   try{\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::prepare(
+       $bm,$branch,'2026-10-19',$watchReader,null,$now);}
+   catch(\ExcelHerbal\ERP7\Domain\DomainException $ex){
+       $bmDenied=$ex->codeKey==='permission_denied';
+   }
+   $assert($bmDenied,'BM submitter cannot prepare reviewer-only reminder drafts');
  }finally{
+    $pdo->prepare('DELETE FROM wp_eh7_report_reminder_drafts WHERE company_id=?')->execute([$company]);
     $pdo->prepare('DELETE FROM wp_eh7_audit_log WHERE company_id=? AND entity_type=?')
        ->execute([$company,'report_submission']);
     $pdo->prepare('DELETE FROM wp_eh7_report_submission_events WHERE company_id=?')

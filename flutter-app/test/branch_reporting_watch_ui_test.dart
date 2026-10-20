@@ -14,9 +14,15 @@ void main() {
     'automatic_notifications_sent': 0,
     'coverage': {
       'daily_status_from_original_v7_posted_evening': true,
-      'weekly_monthly_product_salary_submission_evidence_integrated': false,
+      'weekly_monthly_product_salary_submission_evidence_integrated': true,
       'cashier_handover_verified': false,
       'upi_bank_verified': false,
+    },
+    'submission_registry_read_only': true,
+    'reminder_outbox_dispatch_enabled': false,
+    'submission_evidence_summary': {
+      'submitted': 0, 'approved': 0, 'rejected': 0,
+      'not_submitted': 1, 'hidden_salary_slots': 0,
     },
     'summary': {
       'branches': 1,
@@ -40,7 +46,7 @@ void main() {
         'label': 'Tuesday Product Order',
         'time': null,
         'due_state': 'due_today',
-        'submission_state': 'verification_unavailable',
+        'submission_state': 'not_submitted_all_branches',
       },
     ],
     'branches': [
@@ -51,6 +57,10 @@ void main() {
         'posted_evening_closings': 1,
         'past_due_unposted_or_missing': 1,
         'pending_stock_requests': 1,
+        'reporting_submissions': [
+          {'branch_id': 2, 'report_type': 'product_order_tue',
+           'submission_state': 'not_submitted', 'revision': null},
+        ],
         'employees': [
           {
             'employee_id': 11,
@@ -105,6 +115,6 @@ void main() {
     expect(screen, contains("if (dayReports.contains(activeType)) 'date': toValue"));
     expect(view, contains("report['delivery_enabled'] != false"));
     expect(view, contains('automatic_notifications_sent'));
-    expect(view, contains('submission evidence is NOT integrated')); // contract copy must stay explicit
+    expect(view, contains('receipt states come from manager attestations')); // approval is not external verification
   });
 }

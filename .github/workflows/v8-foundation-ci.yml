@@ -8,6 +8,10 @@ on:
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchDailyControlReport.php'
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchPeriodControlReport.php'
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchComparisonReport.php'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/ReportingWatchSubmissionProjection.php'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/ReportReminderDrafts.php'
+      - 'backend/excel-herbal-erp-v7/tests/reporting_watch_submission_projection_regression.php'
+      - 'flutter-app/test/watch_submission_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/src/Reporting/ReportingSubmissionService.php'
       - 'backend/excel-herbal-erp-v7/tests/reporting_submissions_regression.php'
       - 'backend/excel-herbal-erp-v7/src/Database/Schema.php'
@@ -70,6 +74,8 @@ jobs:
       - name: Lint durable manager report attestation service and canonical migration
         run: |
           php -l backend/excel-herbal-erp-v7/src/Reporting/ReportingSubmissionService.php
+          php -l backend/excel-herbal-erp-v7/src/Reporting/ReportingWatchSubmissionProjection.php
+          php -l backend/excel-herbal-erp-v7/src/Reporting/ReportReminderDrafts.php
           php -l backend/excel-herbal-erp-v7/src/Database/Schema.php
       - name: Domain regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
@@ -87,6 +93,8 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_reporting_watch_regression.php
       - name: Manager maker checker reports submission revision history and permission regression
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/reporting_submissions_regression.php
+      - name: Branch watch live approval evidence, overdue discipline and finance privacy
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/reporting_watch_submission_projection_regression.php
       - name: Retailer master and boundary regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
       - name: Employee cash custody regression checks

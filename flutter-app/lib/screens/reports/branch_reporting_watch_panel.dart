@@ -26,9 +26,12 @@ class BranchReportingWatchPanel extends StatelessWidget {
         report['automatic_notifications_sent'] != 0 ||
         coverage is! Map ||
         coverage['daily_status_from_original_v7_posted_evening'] != true ||
-        coverage['weekly_monthly_product_salary_submission_evidence_integrated'] != false ||
+        coverage['weekly_monthly_product_salary_submission_evidence_integrated'] != true ||
         coverage['cashier_handover_verified'] != false ||
         coverage['upi_bank_verified'] != false ||
+        report['submission_registry_read_only'] != true ||
+        report['reminder_outbox_dispatch_enabled'] != false ||
+        report['submission_evidence_summary'] is! Map ||
         report['summary'] is! Map ||
         report['branches'] is! List ||
         report['schedule'] is! List ||
@@ -39,6 +42,7 @@ class BranchReportingWatchPanel extends StatelessWidget {
     final branches = _records(report['branches']);
     final slots = _records(report['schedule']);
     final pending = _records(report['reminder_candidates']);
+    final submissions = Map<String, dynamic>.from(report['submission_evidence_summary'] as Map);
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       children: [
@@ -49,7 +53,7 @@ class BranchReportingWatchPanel extends StatelessWidget {
               'Business day ${report['business_date']} · ${report['timezone']}\n'
               'Read-only live-status on refresh. Reminders below are candidates ONLY: '
               'no notifications have been sent. Weekly, product, monthly and salary '
-              'receipt submission evidence is NOT integrated.',
+              'receipt states come from manager attestations, NOT verified payment proof.',
             ),
           ),
         ),
@@ -64,6 +68,10 @@ class BranchReportingWatchPanel extends StatelessWidget {
             _WatchMetric(label: 'Unposted Evening', value: '${summary['unposted_evening_closings']}'),
             _WatchMetric(label: 'Past Due After 7:30 PM', value: '${summary['past_due_unposted_or_missing']}'),
             _WatchMetric(label: 'Attention Branches', value: '${summary['branch_exceptions']}'),
+            _WatchMetric(label: 'Reports Submitted', value: '${submissions['submitted']}'),
+            _WatchMetric(label: 'Reports Approved', value: '${submissions['approved']}'),
+            _WatchMetric(label: 'Reports Rejected', value: '${submissions['rejected']}'),
+            _WatchMetric(label: 'Reports Not Submitted', value: '${submissions['not_submitted']}'),
           ],
         ),
         const SizedBox(height: 14),
@@ -74,7 +82,8 @@ class BranchReportingWatchPanel extends StatelessWidget {
               title: Text('${slot['label']}'),
               subtitle: Text(
                 'Due: ${slot['time'] ?? 'end of day'} · ${slot['due_state']}\n'
-                'Evidence: ${slot['submission_state']}',
+                'Evidence: ${slot['submission_state']}' +
+                    (slot['time'] == null ? ' · no exact time deadline' : ''),
               ),
               trailing: slot['submission_state'] == 'overdue_evidence'
                   ? Icon(Icons.warning_amber_rounded,
@@ -101,6 +110,17 @@ class BranchReportingWatchPanel extends StatelessWidget {
                 'Pending stock requests ${branch['pending_stock_requests']}',
               ),
               children: [
+                for (final obligation in _records(branch['reporting_submissions']))
+                  ListTile(
+                    title: Text('Report: ${obligation['report_type']}'),
+                    subtitle: Text(
+                      'Status: ${obligation['submission_state']} · '
+                      'Revision: ${obligation['revision'] ?? '—'}',
+                    ),
+                    trailing: obligation['submission_state'] == 'approved'
+                        ? const Icon(Icons.check_circle_outline)
+                        : const Icon(Icons.assignment_late_outlined),
+                  ),
                 for (final employee in _records(branch['employees']))
                   ListTile(
                     title: Text('${employee['employee_name']} · #${employee['employee_id']}'),
