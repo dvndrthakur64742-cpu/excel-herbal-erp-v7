@@ -63,6 +63,13 @@ namespace ExcelHerbal\ERP8\B2B {
     public function get_results(string $sql,$format=null):array {
         $x=$this->selected($sql);return is_array($x)?$x:[];
     }
+    public int $inserts=0;
+    public function insert(string $table,array $row):int|false {
+        if($table!=='wp_eh7_b2b_verified_tenders')throw new RetailerSaleError('Unexpected canonical bridge mutation.');
+        $this->inserts++;
+        $this->rows[$table]=$row+['id'=>'99','consumed_sale_id'=>null];
+        return 1;
+    }
  }
  function quoteDigest(FakeWpdbV8 $d):void {
      $s=&$d->rows['v8_b2b_sale_intents_uat'];
@@ -86,7 +93,15 @@ namespace ExcelHerbal\ERP8\B2B {
  }
  $tests=[];
  $tests['valid field cash binds all staged rows and canonical V7 locked assessment']=static function(){[$out,$db]=caseRun();assert($out['assessment']['posting_allowed']===true&&$out['tender']['id']===99&&$out['quote']['saved_lines'][0]['product_id']===11);assert($out['assessment']['total_paise']===20000&&$out['assessment']['cogs_paise']===8000&&count($db->lockSql)>=14);};
- $tests['reader is pure read-only without DB mutation']=static function(){[$r,$db]=caseRun();foreach($db->lockSql as $sql)assert(str_starts_with($sql,'SELECT ')&&str_contains($sql,'FOR UPDATE'));};
+ $tests['existing locked canonical tender lookup is read-only']=static function(){[$r,$db]=caseRun();foreach($db->lockSql as $sql)assert(str_starts_with($sql,'SELECT ')&&str_contains($sql,'FOR UPDATE'));};
+ $tests['missing canonical tender is created from verified V8 evidence']=static function(){
+    [$out,$db]=caseRun(static fn($d)=>$d->rows['wp_eh7_b2b_verified_tenders']=null);
+    assert($db->inserts===1&&$out['tender']['id']===99);
+    assert($db->rows['wp_eh7_b2b_verified_tenders']['provider_transaction_id']==='CASH-INT-1-4-55');
+ };
+ $tests['canonical bridge refuses corrupted reservation evidence']=static fn()=>deny(
+    static function($d){$d->rows['wp_eh7_b2b_verified_tenders']=null;
+        $d->rows['v8_b2b_sale_tender_reservations_uat']['verified_source']='bank_settlement';},'promotion');
  $tests['UPI bank settlement matches exact merchant order and no employee Cash-in-Transit']=static function(){
     [$out,$db]=caseRun(static function($d){
         $order='EH8-UAT-'.str_repeat('a',32);
@@ -153,7 +168,6 @@ namespace ExcelHerbal\ERP8\B2B {
  'different tender proof ID'=>[static fn($d)=>$d->rows['v8_b2b_tender_intake_evidence_uat']['confirmed_tender_id']='199','evidence'],
  'wrong tender reference'=>[static fn($d)=>$d->rows['v8_b2b_verified_tenders']['payment_reference']='fake','evidence'],
  'tender already consumed'=>[static fn($d)=>$d->rows['v8_b2b_verified_tenders']['consumed_sale_id']=991,'evidence'],
- 'canonical receipt missing'=>[static fn($d)=>$d->rows['wp_eh7_b2b_verified_tenders']=null,'canonical'],
  'canonical receipt currency mismatch'=>[static fn($d)=>$d->rows['wp_eh7_b2b_verified_tenders']['currency']='USD','canonical'],
  'canonical receipt forged verified by'=>[static fn($d)=>$d->rows['wp_eh7_b2b_verified_tenders']['verified_by']='9','canonical'],
  'canonical receipt already consumed'=>[static fn($d)=>$d->rows['wp_eh7_b2b_verified_tenders']['consumed_sale_id']=24,'canonical'],
