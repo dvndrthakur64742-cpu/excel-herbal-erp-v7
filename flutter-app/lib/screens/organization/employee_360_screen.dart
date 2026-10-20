@@ -139,6 +139,7 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
             const Tab(text: 'Sales'),
             const Tab(text: 'Stock'),
             const Tab(text: 'Stock Requests'),
+            const Tab(text: 'Daily Reconciliation'),
             const Tab(text: 'Attendance'),
             if (financeVisible) const Tab(text: 'Ledger'),
             if (financeVisible) const Tab(text: 'Cash Control'),
@@ -179,6 +180,12 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
                       _Employee360PagedRegister(
                         employeeId: widget.employeeId,
                         type: 'requests',
+                        from: _from,
+                        to: _to,
+                      ),
+                      _Employee360PagedRegister(
+                        employeeId: widget.employeeId,
+                        type: 'reconciliation',
                         from: _from,
                         to: _to,
                       ),

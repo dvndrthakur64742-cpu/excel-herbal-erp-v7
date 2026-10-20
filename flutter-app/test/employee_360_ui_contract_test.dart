@@ -26,6 +26,8 @@ void main() {
     expect(profile, contains("'page_size': _pageSize"));
     expect(profile, contains("const Tab(text: 'Stock Requests')"));
     expect(profile, contains("type: 'requests'"));
+    expect(profile, contains("const Tab(text: 'Daily Reconciliation')"));
+    expect(profile, contains("type: 'reconciliation'"));
     expect(profile, contains('RecordsList(rows: rows)'));
     expect(profile, contains('showDateRangePicker('));
   });

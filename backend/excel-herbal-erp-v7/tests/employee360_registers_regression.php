@@ -59,6 +59,9 @@ namespace {
         public function stock(int $c,int $e,string $f,string $t,array $branches,int $limit,int $offset):array {
             $this->calls[]=['stock',$c,$e,$f,$t,$branches,$limit,$offset];return $this->fakeRows;
         }
+        public function reconciliation(int $c,int $e,string $f,string $t,array $branches,int $limit,int $offset):array {
+            $this->calls[]=['reconciliation',$c,$e,$f,$t,$branches,$limit,$offset];return $this->fakeRows;
+        }
         public function requests(int $c,int $e,string $f,string $t,array $branches,int $limit,int $offset):array {
             $this->calls[]=['requests',$c,$e,$f,$t,$branches,$limit,$offset];return $this->fakeRows;
         }
@@ -84,11 +87,36 @@ namespace {
     okay($requested['rows'][0]['issued_quantity']==='0'&&str_contains($requested['note'],'does not mean stock was issued'),'approval is not mistaken for physical issue');
     $reg->fakeRows=[];
 
+
+    $good=['daily_cycle_id'=>10,'branch_id'=>2,'business_date'=>'2026-10-19',
+        'cycle_status'=>'completed','settlement_status'=>'posted',
+        'issued_quantity'=>'5.000','closing_issued_quantity'=>'5.000',
+        'sold_quantity'=>'3.000','returned_quantity'=>'2.000',
+        'ledger_issue_in_quantity'=>'5.000','ledger_sale_out_quantity'=>'3.000',
+        'ledger_return_out_quantity'=>'2.000','expected_amount'=>'300.00',
+        'cash_amount'=>'100.00','upi_amount'=>'200.00','closing_sale_amount'=>'300.00'];
+    $reg->fakeRows=[$good];
+    $rec=Employee360Registers::view($self,7,'reconciliation','2026-10-01','2026-10-19',1,25,$reg,$profile);
+    okay($rec['rows'][0]['reconciliation_status']==='cycle_sources_match','posted cycle stock and cash split match');
+    okay($rec['rows'][0]['cycle_issued_minus_out_qty']==='0.000','completed cycle source movements leave zero');
+    okay($rec['rows'][0]['cash_handover_verified']===false&&$rec['rows'][0]['upi_bank_verified']===false,'legacy Cash/UPI not falsely bank or cashier verified');
+    $reg->fakeRows=[array_replace($good,['ledger_sale_out_quantity'=>'2.000'])];
+    $bad=Employee360Registers::view($self,7,'reconciliation','2026-10-01','2026-10-19',1,25,$reg,$profile);
+    okay($bad['rows'][0]['reconciliation_status']==='mismatch'&&$bad['rows'][0]['checks']['canonical_sale_out']===false,'missing canonical sale stock movement detected');
+    $reg->fakeRows=[array_replace($good,['expected_amount'=>'299.00'])];
+    $bad=Employee360Registers::view($self,7,'reconciliation','2026-10-01','2026-10-19',1,25,$reg,$profile);
+    okay($bad['rows'][0]['reconciliation_status']==='mismatch'&&$bad['rows'][0]['checks']['posted_cash_upi_split']===false,'incorrect final cash UPI allocation detected');
+    $reg->fakeRows=[array_replace($good,['cycle_status'=>'evening_submitted','settlement_status'=>'submitted'])];
+    $draft=Employee360Registers::view($self,7,'reconciliation','2026-10-01','2026-10-19',1,25,$reg,$profile);
+    okay($draft['rows'][0]['reconciliation_status']==='awaiting_posted_evening'&&$draft['rows'][0]['checks']===null,'unposted closing never assumed reconciled');
+    $reg->fakeRows=[array_replace($good,['issued_quantity'=>'5.0001'])];
+    denied(fn()=>Employee360Registers::view($self,7,'reconciliation','2026-10-01','2026-10-19',1,25,$reg,$profile),'reconciliation_source_invalid');
+    $reg->fakeRows=[];
     $manager=new Actor(50,22,1,2,[2,4],[Capabilities::EMP_VIEW],'BM');
     Employee360Registers::view($manager,7,'stock','2026-10-01','2026-10-19',1,50,$reg,$profile);
-    okay($reg->calls[3][5]===[2,4],'manager limited to authorized branches');
+    okay($reg->calls[8][5]===[2,4],'manager limited to authorized branches');
     Employee360Registers::view($manager,7,'requests','2026-10-01','2026-10-19',1,50,$reg,$profile);
-    okay($reg->calls[4][0]==='requests'&&$reg->calls[4][5]===[2,4],'manager request history limited to authorized branches');
+    okay($reg->calls[9][0]==='requests'&&$reg->calls[9][5]===[2,4],'manager request history limited to authorized branches');
     denied(fn()=>Employee360Registers::view(new Actor(50,22,1,2,[2],[],'FSE'),7,'sales','2026-10-01','2026-10-19',1,50,$reg,$profile),'permission_denied');
     denied(fn()=>Employee360Registers::view(new Actor(50,22,1,4,[4],[Capabilities::EMP_VIEW],'BM'),7,'sales','2026-10-01','2026-10-19',1,50,$reg,$profile),'branch_forbidden');
     HierarchyScope::$allow=false;
@@ -115,7 +143,8 @@ namespace {
     $db->sales(1,7,'2026-10-01','2026-10-19',[2,4],51,100);
     $db->stock(1,7,'2026-10-01','2026-10-19',[2],20,0);
     $db->requests(1,7,'2026-10-01','2026-10-19',[2,4],31,50);
-    okay(count($stub->q)===3,'three parameterized source queries');
+    $db->reconciliation(1,7,'2026-10-01','2026-10-19',[2,4],31,50);
+    okay(count($stub->q)===4,'four parameterized source queries');
     $salesSql=$stub->q[0][0];
     okay(str_contains($salesSql,"c.status='completed'")&&str_contains($salesSql,"es.status='posted'"),'only posted daily cycles');
     okay(str_contains($salesSql,'LEFT JOIN wp_eh7_evening_lines'),'cycle level aggregation no duplicated settlement totals');
@@ -137,7 +166,13 @@ namespace {
     okay(str_contains($requestSql,'ORDER BY c.business_date DESC,r.id DESC'),'request history ordered deterministically for pagination');
     okay(!str_contains($requestSql,'unit_cost')&&!str_contains($requestSql,'sale_price')&&!str_contains($requestSql,'purchase_cost'),'no commercial price or cost exposed to employee');
     okay($stub->q[2][1]===[1,7,'2026-10-01','2026-10-19',2,4,31,50],'request pagination and scope parameters bound');
-        $testText=file_get_contents(__DIR__.'/../src/Organization/Employee360Registers.php');
+        $reconSql=$stub->q[3][0];
+    okay(str_contains($reconSql,'wp_eh7_stock_ledger')&&str_contains($reconSql,'wp_eh7_daily_issue_lines')&&str_contains($reconSql,'wp_eh7_evening_lines'),'reconciliation joins actual V7 issue evening and custody ledger');
+    okay(str_contains($reconSql,"sl.source_type='daily_issue'")&&str_contains($reconSql,"sl.source_type='daily_sale'")&&str_contains($reconSql,"sl.source_type='daily_return'"),'exact stock movement sources checked');
+    okay(str_contains($reconSql,'mi.custodian_employee_id=c.employee_id')&&str_contains($reconSql,'mo.custodian_employee_id=c.employee_id'),'custody employee and branch linked to cycle');
+    okay(!str_contains($reconSql,'unit_cost')&&!str_contains($reconSql,'purchase_cost_snapshot')&&!str_contains($reconSql,'sale_price_snapshot'),'no commercial cost or price leak in reconciliation');
+    okay($stub->q[3][1]===[1,7,'2026-10-01','2026-10-19',2,4,31,50],'reconciliation SQL manager scope and pagination parameterized');
+    $testText=file_get_contents(__DIR__.'/../src/Organization/Employee360Registers.php');
     okay(str_contains($testText,'financial_custody_reconciliation')&&!str_contains($testText,'cash_remittance_completed'),'no fictitious cash settlement');
     echo 'PASS '.$GLOBALS['pass'].'/'.$GLOBALS['pass']." Employee360 detailed sales, stock and request registers\n";
 }
