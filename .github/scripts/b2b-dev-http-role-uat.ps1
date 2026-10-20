@@ -19,8 +19,10 @@ if($AuthorizedBranchId -le 0 -or $ForbiddenBranchId -le 0 -or $AuthorizedBranchI
 if($ExpectedSourceHead -notmatch '^[a-fA-F0-9]{40}$'){throw 'ExpectedSourceHead requires 40 hex characters.'}
 $ApiBase=$ApiBase.TrimEnd('/')
 $u=[Uri]$ApiBase
-if($u.Scheme -ne 'https' -or $u.Query -ne '' -or $u.Fragment -ne ''
-    -or -not $u.AbsolutePath.TrimEnd('/').EndsWith('/wp-json/excel-herbal-erp/v7')){
+if($u.Scheme -ne 'https' -or
+   $u.Query -ne '' -or
+   $u.Fragment -ne '' -or
+   (-not $u.AbsolutePath.TrimEnd('/').EndsWith('/wp-json/excel-herbal-erp/v7'))){
     throw 'Use an HTTPS WordPress ERP V7 API base with no query or fragment.'
 }
 if($u.Host -in @('office.excelherbal.in','excelherbal.in','www.excelherbal.in')){
@@ -53,7 +55,7 @@ function Assert-ERP {
     param($Value,[int]$Code,[string]$Label,[string]$ErrorCode='')
     $actualCode=if($Value.Json -and $Value.Json.error){[string]$Value.Json.error.code}else{''}
     if($Value.Status -ne $Code -or ($ErrorCode -and $actualCode -ne $ErrorCode)){
-        throw "$Label: expected HTTP $Code error=$ErrorCode but got $($Value.Status) error=$actualCode"
+        throw "$($Label): expected HTTP $Code error=$ErrorCode but got $($Value.Status) error=$actualCode"
     }
     $results[$Label]='passed'
     Write-Host "PASS $Label HTTP=$Code"
@@ -99,13 +101,19 @@ try{
     $reply=Request-ERP 'GET' $path -Bearer $financeToken
     Assert-ERP $reply 200 'finance_read_only_preflight'
     $d=$reply.Json.data
-    if($d.read_only -ne $true -or $d.structural_preflight_possible -ne $true
-        -or $d.existing_source_table_count -ne 14 -or $d.all_sources_innodb -ne $true
-        -or $d.company_id -le 0 -or $d.branch_id -ne $AuthorizedBranchId
-        -or $d.financial_records_disclosed -ne $false
-        -or $d.financial_posting_enabled -ne $false
-        -or $d.production_release_authorized -ne $false
-        -or $d.snapshot_executed -ne $false){
+    $contractFailed= @(
+        $d.read_only -ne $true
+        $d.structural_preflight_possible -ne $true
+        $d.existing_source_table_count -ne 14
+        $d.all_sources_innodb -ne $true
+        $d.company_id -le 0
+        $d.branch_id -ne $AuthorizedBranchId
+        $d.financial_records_disclosed -ne $false
+        $d.financial_posting_enabled -ne $false
+        $d.production_release_authorized -ne $false
+        $d.snapshot_executed -ne $false
+    )
+    if($contractFailed -contains $true){
         throw 'Structural source contract mismatch or unsafe financial release claim.'
     }
     $results['fourteen_innodb_no_financial_claim']='passed'
