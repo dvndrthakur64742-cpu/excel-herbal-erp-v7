@@ -16,7 +16,7 @@ void main() {
     expect(parent, contains("canSubmit: app.can('reports.submit')"));
     expect(parent, contains("canReview: app.can('reports.review')"));
     expect(parent, contains("canViewSalary: app.can('payroll.salary.view')"));
-    expect(panel, contains("if (!widget.canViewSalary)"));
+    expect(panel, contains("if(!widget.canViewSalary)"));
     expect(panel, contains("report_type"));
     expect(panel, contains("summary_text"));
     expect(panel, contains("period_date"));
