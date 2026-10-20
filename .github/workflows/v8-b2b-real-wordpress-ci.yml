@@ -10,14 +10,6 @@ on:
       - 'v8/backend/tests/b2b_real_wp_seed.php'
       - 'v8/backend/tests/b2b_real_wordpress_http_smoke.py'
       - 'v8/backend/tests/b2b_real_wordpress_router.php'
-  push:
-    branches:
-      - codex/erp-v8-foundation-20261017
-    paths:
-      - '.github/workflows/v8-b2b-real-wordpress-ci.yml'
-      - 'v8/backend/tests/b2b_real_wp_seed.php'
-      - 'v8/backend/tests/b2b_real_wordpress_http_smoke.py'
-      - 'v8/backend/tests/b2b_real_wordpress_router.php'
 
 permissions:
   contents: read
@@ -66,7 +58,9 @@ jobs:
         run: |
           export B2B_REAL_WP_ROOT="$RUNNER_TEMP/eh8-real-wp"
           echo "B2B_REAL_WP_ROOT=$B2B_REAL_WP_ROOT" >> "$GITHUB_ENV"
-          echo "B2B_REAL_WP_UAT_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          uat_secret="$(openssl rand -hex 24)"
+          echo "::add-mask::$uat_secret"
+          echo "B2B_REAL_WP_UAT_PASSWORD=$uat_secret" >> "$GITHUB_ENV"
           mkdir -p "$B2B_REAL_WP_ROOT"
           wp core download --version=6.8.3 --path="$B2B_REAL_WP_ROOT" --quiet
           wp config create --dbname=v8_test --dbuser=v8 --dbpass=v8 --dbhost=127.0.0.1:3306 --dbprefix=wp_ --path="$B2B_REAL_WP_ROOT" --skip-check --quiet

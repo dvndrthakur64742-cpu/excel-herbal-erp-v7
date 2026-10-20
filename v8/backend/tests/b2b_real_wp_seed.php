@@ -1,5 +1,4 @@
 <?php
-declare(strict_types=1);
 
 /**
  * Executed ONLY by wp-cli eval-file on a fresh, disposable local WordPress.
