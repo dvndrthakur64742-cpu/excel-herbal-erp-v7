@@ -162,8 +162,9 @@ namespace {
         'balances derived from entire authorized history, not visible page');
     denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
         $self,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'permission_denied');
+    $wrongBranchFinance=new Actor(31,18,1,3,[3],[Capabilities::EMP_VIEW,Capabilities::ACCOUNTING_VIEW],'BM');
     denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
-        $wrongBranch,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'branch_forbidden');
+        $wrongBranchFinance,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'branch_forbidden');
     $personSource->events=[['event_type'=>'gl','event_id'=>8,'branch_id'=>99]];
     denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
         $manager,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'person_ledger_source_invalid');
