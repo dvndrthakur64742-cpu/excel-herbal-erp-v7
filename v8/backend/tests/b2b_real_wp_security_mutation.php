@@ -1,5 +1,4 @@
 <?php
-declare(strict_types=1);
 /**
  * REAL WordPress/MariaDB negative-auth regression mutations.
  *
