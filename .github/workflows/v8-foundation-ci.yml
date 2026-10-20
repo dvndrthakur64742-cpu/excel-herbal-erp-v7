@@ -43,6 +43,8 @@ on:
       - 'flutter-app/lib/screens/reports/reports_screen.dart'
       - 'flutter-app/lib/core/api_paths.dart'
       - 'flutter-app/test/branch_daily_control_ui_contract_test.dart'
+      - 'backend/excel-herbal-erp-v7/src/DailyOrder/DailyFieldStockAudit.php'
+      - 'backend/excel-herbal-erp-v7/tests/daily_field_stock_audit_regression.php'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Registers.php'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
       - 'backend/excel-herbal-erp-v7/tests/employee360_regression.php'
