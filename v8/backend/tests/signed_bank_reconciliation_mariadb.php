@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__.'/../src/B2B/RetailerCashSale.php';
 require_once __DIR__.'/../src/B2B/TrustedTenderIntake.php';
 require_once __DIR__.'/../src/B2B/PdoTrustedTenderIntakeGateway.php';
-require_once __DIR__.'/SignedBankReconciliationLookupUat.php';
+require_once __DIR__.'/../src/B2B/SignedBankReconciliationLookupUat.php';
 
 use ExcelHerbal\ERP8\B2B\SignedBankReconciliationLookupUat;
 use ExcelHerbal\ERP8\B2B\TrustedTenderIntake;
