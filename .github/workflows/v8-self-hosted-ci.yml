@@ -1,4 +1,4 @@
-name: Excel Herbal V8 Self-Hosted Runner Check (No Deploy)
+name: Excel Herbal V8 Windows Cloud Regression (No Deploy)
 
 on:
   workflow_dispatch:
@@ -13,9 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  b2b-unit-self-hosted:
-    name: V8 PHP regression on connected runner
-    runs-on: [self-hosted, Windows]
+  b2b-unit-windows-cloud:
+    name: V8 PHP 8.4 regression on GitHub-hosted Windows
+    runs-on: windows-latest
     defaults:
       run:
         shell: cmd
@@ -25,14 +25,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Verify installed PHP on Windows runner (no machine changes)
+      - name: Set up PHP 8.4 on GitHub-hosted Windows
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Verify cloud PHP CLI
         run: |
           where php
-          if errorlevel 1 (
-            echo PHP CLI not on PATH. Install/configure PHP 8.3+ and rerun. No machine changes performed by this workflow.
-            exit /b 1
-          )
           php -v
+          php -m
       - name: Retailer sale policy tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
       - name: Retailer master and API boundary tests
