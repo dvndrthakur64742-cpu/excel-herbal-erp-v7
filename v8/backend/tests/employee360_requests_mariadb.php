@@ -5,6 +5,10 @@ declare(strict_types=1);
  * Disposable integration test of actual V7 Daily Order schema and Employee 360
  * request/issue projection. NO WordPress deployment or live writes.
  */
+// Disposable WordPress-independent test: provide site's business timezone only.
+if (!function_exists('wp_timezone')) {
+    function wp_timezone(): DateTimeZone { return new DateTimeZone('Asia/Kolkata'); }
+}
 $dsn=getenv('V8_TEST_DSN');
 if (!$dsn) { fwrite(STDOUT,"SKIP Employee 360 stock requests: V8_TEST_DSN absent\n");exit(0); }
 if (!in_array('mysql',PDO::getAvailableDrivers(),true)) {
