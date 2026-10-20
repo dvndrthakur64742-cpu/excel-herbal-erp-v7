@@ -101,7 +101,7 @@ spl_autoload_register(static function(string $name)use($legacy):void{
     if(is_file($p))require_once $p;
 });
 $src=dirname(__DIR__).'/src/B2B/';
-foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php'] as $name)require_once $src.$name;
+foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
@@ -114,7 +114,7 @@ foreach($tables as $name){
 }
 // The UAT writer's DRAFT source schema stays in v8_test; never run in WordPress installation.
 foreach(['001_b2b_preview_mysql.sql','004_trusted_tender_intake_UAT.sql','005_sale_intent_tender_binding_UAT.sql',
-  '006_immutable_checkout_intents_UAT.sql','007_immutable_sale_line_snapshots_UAT.sql',
+  '006_immutable_checkout_intents_UAT.sql','007_immutable_sale_line_snapshots_UAT.sql','010_signed_bank_reconciliation_UAT.sql',
   '009_v7_canonical_retailer_posting_DRAFT.sql'] as $file){
     $sql=file_get_contents(dirname(__DIR__).'/schema/'.$file);
     $sql=preg_replace('/^\s*--[^\r\n]*$/m','',$sql);
@@ -154,7 +154,7 @@ foreach($coa as $code=>[$type,$subtype]){$stmt=$pdo->prepare("INSERT INTO wp_eh7
  VALUES(?,?,?,?,?,1) ON DUPLICATE KEY UPDATE active=1");$stmt->execute([$company,$code,'CI '.$code,$type,$subtype]);}
 
 function createIntent(PDO $db,int $company,int $branch,int $product,int $party,string $at,string $ref,
- string $channel='counter',?int $employee=null,string $mode='cash'):array{
+ string $channel='counter',?int $employee=null,string $mode='cash',bool $forgeBankSignature=false):array{
     if(!in_array($channel,['counter','field'],true)||!in_array($mode,['cash','upi'],true)
         ||($channel==='field')!==($employee!==null))throw new RuntimeException('Invalid test source custody');
     $source=$mode==='upi'?'bank_settlement':($channel==='field'?'employee_cash_custody':'branch_cashier_cash');
@@ -173,19 +173,30 @@ function createIntent(PDO $db,int $company,int $branch,int $product,int $party,s
     $p->execute([$saleId,$company,$branch,$product]);
     $p=$db->prepare('INSERT INTO v8_b2b_payment_intent_to_sale_uat(payment_intent_id,sale_intent_id,company_id,branch_id,quote_digest) VALUES(?,?,?,?,?)');
     $p->execute([$paymentId,$saleId,$company,$branch,$digest]);
-    // Confirm the ORIGINAL tender via the real V8 guarded intake gateway,
-    // never by manually inserting verified_tenders or evidence rows.
-    // Cashier and UPI-bank callbacks below are synthetic UAT authorities ONLY.
+    // Confirm original tender through an HMAC-verified internal settlement feed.
+    // Signed values and signer secret are synthetic in disposable CI, NOT a live PSP.
+    $secret=str_repeat('C',64);
+    if($mode==='upi'){
+        $proof=['company_id'=>(string)$company,'branch_id'=>(string)$branch,
+            'lookup_key'=>'CI-LOOKUP-'.$ref,'status'=>'settled','currency'=>'INR',
+            'amount_paise'=>'20000','merchant_account'=>'CI-UAT-MERCHANT',
+            'merchant_order_id'=>$merchantOrder,'transaction_id'=>$ref,
+            'observed_at'=>gmdate('Y-m-d H:i:s'),'key_id'=>'canonical-ci-key'];
+        $proof['signature']=$forgeBankSignature?str_repeat('0',64):
+            \ExcelHerbal\ERP8\B2B\SignedBankReconciliationLookupUat::digest($proof,$secret);
+        $cols=array_keys($proof);
+        $p=$db->prepare('INSERT INTO v8_b2b_signed_bank_reconciliation_uat('.implode(',',$cols).') VALUES('.implode(',',array_fill(0,count($cols),'?')).')');
+        $p->execute(array_values($proof));
+    }
+    $source=new \ExcelHerbal\ERP8\B2B\SignedBankReconciliationLookupUat(
+        $db,static fn(string $keyId)=>$keyId==='canonical-ci-key'?$secret:null);
     $gateway=new \ExcelHerbal\ERP8\B2B\PdoTrustedTenderIntakeGateway(
         $db,
         static fn($c,$b,$actor,$ch,$emp)=>$c===$company&&$b===$branch&&
             (($ch==='field'&&$actor===8001&&$emp===$employee&&$emp!==null)
               ||($ch==='counter'&&$actor===8002&&$emp===null)),
         static fn($c,$b,$actor)=>$c===$company&&$b===$branch&&$actor===8002,
-        static fn($lookup)=>$lookup==='CI-LOOKUP-'.$ref?[
-            'company_id'=>$company,'branch_id'=>$branch,'status'=>'settled','currency'=>'INR','amount_paise'=>20000,
-            'merchant_account'=>'CI-UAT-MERCHANT','merchant_order_id'=>$merchantOrder,
-            'transaction_id'=>$ref]:null,
+        $source,
         static fn($c,$b)=>$c===$company&&$b===$branch?'CI-UAT-MERCHANT':''
     );
     $intake=new \ExcelHerbal\ERP8\B2B\TrustedTenderIntake($gateway);
@@ -274,6 +285,15 @@ try{
     checkUat((float)first($pdo,'SELECT debit FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$upiSale['journal_id'],$upiId])===200.0,'UPI payment debits UPI clearing not physical cash');
     checkUat(first($pdo,'SELECT status FROM v8_b2b_sale_intents_uat WHERE id=?',[$upi['sale_intent_id']])==='posted'
          && first($pdo,'SELECT status FROM v8_b2b_payment_intents_uat WHERE id=?',[$upi['payment_intent_id']])==='consumed','UPI posting finalizes original payment evidence');
+    // A forged bank signature must fail BEFORE a payment evidence row exists or
+    // the actual V7 stock/accounting writer may post.
+    $signedEvidenceBefore=(int)first($pdo,"SELECT COUNT(*) FROM v8_b2b_tender_intake_evidence_uat WHERE company_id=? AND payment_mode='upi'",[$company]);
+    $forgeryRejected=false;
+    try{createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-UPI-FORGED-MAC','counter',null,'upi',true);}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$forgeryRejected=true;}
+    checkUat($forgeryRejected,'real PDO canonical UPI intake rejects forged reconciliation HMAC');
+    checkUat((int)first($pdo,"SELECT COUNT(*) FROM v8_b2b_tender_intake_evidence_uat WHERE company_id=? AND payment_mode='upi'",[$company])===$signedEvidenceBefore,
+      'forged HMAC cannot create evidence for V7 posting');
     // Deterministic concurrency test: two INDEPENDENT MariaDB sessions contend
     // for the same immutable source row. Do not turn off unique constraints.
     $pdo->exec('SET SESSION innodb_lock_wait_timeout=1');
@@ -327,5 +347,5 @@ try{
     $final=$writer->post($keyContext);
     checkUat($final['status']==='posted' && $writer->post($keyContext)['replayed']===true,
         'released unique key posts once and subsequent request replays safely');
-    echo "CANONICAL V7 REAL MARIADB UAT: 39/39 PASS; v8_test only; no WordPress deployment\n";
+    echo "CANONICAL V7 REAL MARIADB UAT: 41/41 PASS; v8_test only; no WordPress deployment\n";
 }catch(Throwable $e){fwrite(STDERR,'CANONICAL V7 MARIADB UAT FAILED: '.$e::class.' '.$e->getMessage().' at '.$e->getFile().':'.$e->getLine()."\n");exit(1);}

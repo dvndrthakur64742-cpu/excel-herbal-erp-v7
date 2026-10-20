@@ -12,7 +12,8 @@ use Throwable;
 /**
  * Disposable MySQL/MariaDB UAT implementation of trusted tender intake.
  * NOT canonical ERP posting, NOT a WordPress HTTP handler, NOT a payment provider client.
- * The four trusted backend callbacks have no permissive defaults.
+ * UPI verification REQUIRES a typed authenticated source, not an arbitrary callback.
+ * Cash/actor/merchant authority callbacks remain UAT-only and must be server-resolved.
  */
 final class PdoTrustedTenderIntakeGateway implements TrustedTenderIntakeGateway
 {
@@ -21,7 +22,7 @@ final class PdoTrustedTenderIntakeGateway implements TrustedTenderIntakeGateway
         private PDO $db,
         private Closure $cashAuthorization,
         private Closure $upiAuthorization,
-        private Closure|AuthenticatedUpiSettlementSource $verifiedBankLookup,
+        private AuthenticatedUpiSettlementSource $verifiedBankLookup,
         private Closure $merchantAccountLookup
     ) {
         if($db->getAttribute(PDO::ATTR_DRIVER_NAME)!=='mysql'){
@@ -67,9 +68,7 @@ final class PdoTrustedTenderIntakeGateway implements TrustedTenderIntakeGateway
     {
         // Inject a pre-reconciled trusted bank record reader, not an unbounded external
         // network call inside the open database transaction.
-        $value=$this->verifiedBankLookup instanceof AuthenticatedUpiSettlementSource
-            ? $this->verifiedBankLookup->verifySettlement($providerLookupKey)
-            : ($this->verifiedBankLookup)($providerLookupKey); // CI/UAT synthetic callbacks only
+        $value=$this->verifiedBankLookup->verifySettlement($providerLookupKey);
         return is_array($value)?$value:null;
     }
 

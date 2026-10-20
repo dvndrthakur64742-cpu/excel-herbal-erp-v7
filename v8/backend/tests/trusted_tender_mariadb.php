@@ -3,10 +3,12 @@ declare(strict_types=1);
 require_once __DIR__.'/../src/B2B/RetailerCashSale.php';
 require_once __DIR__.'/../src/B2B/TrustedTenderIntake.php';
 require_once __DIR__.'/../src/B2B/PdoTrustedTenderIntakeGateway.php';
+require_once __DIR__.'/../src/B2B/SignedBankReconciliationLookupUat.php';
 
 use ExcelHerbal\ERP8\B2B\TrustedTenderIntake;
 use ExcelHerbal\ERP8\B2B\PdoTrustedTenderIntakeGateway;
 use ExcelHerbal\ERP8\B2B\RetailerSaleError;
+use ExcelHerbal\ERP8\B2B\SignedBankReconciliationLookupUat;
 
 $dsn=getenv('V8_TEST_DSN');
 if(!$dsn){echo "SKIP: no disposable V8_TEST_DSN; MariaDB intake NOT tested.\n";exit(0);}
@@ -20,7 +22,7 @@ try{
     if($pdo->query('SELECT DATABASE()')->fetchColumn()!=='v8_test'){
         throw new RuntimeException('Refusing to run UAT fixture against a non-v8_test database.');
     }
-    foreach(['001_b2b_preview_mysql.sql','004_trusted_tender_intake_UAT.sql'] as $filename){
+    foreach(['001_b2b_preview_mysql.sql','004_trusted_tender_intake_UAT.sql','010_signed_bank_reconciliation_UAT.sql'] as $filename){
         $sql=file_get_contents(__DIR__.'/../schema/'.$filename);
         $sql=preg_replace('/^\s*--[^\r\n]*$/m','',$sql);
         foreach(preg_split('/;\s*(?:\r?\n|$)/',$sql) as $statement){
@@ -37,13 +39,22 @@ try{
     $insert->execute([$company,$branch,'counter',null,'cash',100000,null]);$counterId=(int)$pdo->lastInsertId();
     $insert->execute([$company,$branch,'counter',null,'upi',123400,'order-test-88']);$upiId=(int)$pdo->lastInsertId();
     $insert->execute([$company,$branch,'counter',null,'upi',123400,'order-test-88']);$upiDuplicateId=(int)$pdo->lastInsertId();
-    $bank=['lookup-bank-88'=>['company_id'=>$company,'branch_id'=>$branch,'status'=>'settled','currency'=>'INR','amount_paise'=>123400,
-      'merchant_account'=>'excel-uat-upi','merchant_order_id'=>'order-test-88','transaction_id'=>'bank-UAT-UTR-88000']];
+    // Reconciliation evidence is independently signed before payment intake.
+    // All bank and signer inputs below are synthetic and available ONLY in disposable CI.
+    $secret=str_repeat('S',64);
+    $proof=['company_id'=>(string)$company,'branch_id'=>(string)$branch,'lookup_key'=>'lookup-bank-88',
+      'status'=>'settled','currency'=>'INR','amount_paise'=>'123400',
+      'merchant_account'=>'excel-uat-upi','merchant_order_id'=>'order-test-88',
+      'transaction_id'=>'bank-UAT-UTR-88000','observed_at'=>gmdate('Y-m-d H:i:s'),'key_id'=>'trusted-uat-key'];
+    $proof['signature']=SignedBankReconciliationLookupUat::digest($proof,$secret);
+    $stmt=$pdo->prepare('INSERT INTO v8_b2b_signed_bank_reconciliation_uat('.implode(',',array_keys($proof)).') VALUES('.implode(',',array_fill(0,count($proof),'?')).')');
+    $stmt->execute(array_values($proof));
+    $verifiedSource=new SignedBankReconciliationLookupUat($pdo,static fn(string $keyId)=>$keyId==='trusted-uat-key'?$secret:null);
     $gateway=new PdoTrustedTenderIntakeGateway($pdo,
       static fn($c,$b,$actor,$channel,$employee)=>$c===987654321&&$b===15&&
         (($channel==='field'&&$employee===42&&$actor===501)||($channel==='counter'&&$employee===null&&$actor===777)),
       static fn($c,$b,$actor)=>$c===987654321&&$b===15&&$actor===999,
-      static fn($key)=>$bank[$key]??null,
+      $verifiedSource,
       static fn($c,$b)=>$c===987654321&&$b===15?'excel-uat-upi':''
     );
     $intake=new TrustedTenderIntake($gateway);$checks=0;
