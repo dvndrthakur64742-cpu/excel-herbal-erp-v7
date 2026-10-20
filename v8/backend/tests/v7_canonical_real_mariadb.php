@@ -213,7 +213,12 @@ function createIntent(PDO $db,int $company,int $branch,int $product,int $party,s
     // already-locked V8 evidence atomically into the authoritative V7 source.
     return ['sale_intent_id'=>$saleId,'payment_intent_id'=>$paymentId,'tender_id'=>$tenderId,'digest'=>$digest];
 }
-function checkUat(bool $valid,string $message):void {if(!$valid)throw new RuntimeException('FAIL '.$message);echo 'PASS '.$message."\n";}
+$GLOBALS['v7_canonical_checks']=0;
+function checkUat(bool $valid,string $message):void {
+    if(!$valid)throw new RuntimeException('FAIL '.$message);
+    $GLOBALS['v7_canonical_checks']++;
+    echo 'PASS '.$message."\n";
+}
 function first(PDO $pdo,string $sql,array $args=[]):mixed {$stmt=$pdo->prepare($sql);$stmt->execute($args);return $stmt->fetchColumn();}
 function postContext(int $sale):array{return ['company_id'=>987665531,'branch_id'=>4001,'actor_id'=>8001,'retailer_id'=>77,'sale_intent_id'=>$sale,'idempotency_key'=>'CI-CANON-'.str_pad((string)$sale,8,'0',STR_PAD_LEFT)];}
 try{
@@ -319,15 +324,20 @@ try{
     try{$cashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-ALTERED');}
     catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$newRefDenied=true;}
     checkUat($newRefDenied,'cashier receipt cannot change after attestation');
-    $pdo->beginTransaction();
+    // Do not nest a raw PDO transaction around V7 Transaction::run:
+    // MySQL START TRANSACTION would implicitly end that fixture transaction.
+    // Restore synthetic tampering explicitly on this disposable connection.
+    $pdo->prepare('UPDATE wp_eh7_b2b_cashier_receipts_uat SET amount_paise=19999 WHERE id=?')
+        ->execute([$receipt['receipt_id']]);
     try {
-        $pdo->prepare('UPDATE wp_eh7_b2b_cashier_receipts_uat SET amount_paise=19999 WHERE id=?')
-            ->execute([$receipt['receipt_id']]);
         $tamperedRejected=false;
         try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
         catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$tamperedRejected=true;}
         checkUat($tamperedRejected,'forged short cashier receipt cannot post canonical GL');
-    } finally {if($pdo->inTransaction())$pdo->rollBack();}
+    } finally {
+        $pdo->prepare('UPDATE wp_eh7_b2b_cashier_receipts_uat SET amount_paise=20000 WHERE id=?')
+            ->execute([$receipt['receipt_id']]);
+    }
     // Closed posting period must fail before any Cash reclassification.
     $pdo->prepare("INSERT INTO wp_eh7_accounting_periods(company_id,period_start,period_end,status)
       VALUES(?,'2026-10-19','2026-10-19','closed')")->execute([$company]);
@@ -463,5 +473,5 @@ try{
     $final=$writer->post($keyContext);
     checkUat($final['status']==='posted' && $writer->post($keyContext)['replayed']===true,
         'released unique key posts once and subsequent request replays safely');
-    echo "CANONICAL V7 REAL MARIADB UAT: ${GLOBALS['v7_checks'] ?? 'cash handover extended'} PASS; v8_test only; no WordPress deployment\n";
+    echo 'CANONICAL V7 REAL MARIADB UAT: '.$GLOBALS['v7_canonical_checks'].'/'.$GLOBALS['v7_canonical_checks']." PASS; v8_test only; no WordPress deployment\n";
 }catch(Throwable $e){fwrite(STDERR,'CANONICAL V7 MARIADB UAT FAILED: '.$e::class.' '.$e->getMessage().' at '.$e->getFile().':'.$e->getLine()."\n");exit(1);}
