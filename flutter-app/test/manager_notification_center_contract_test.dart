@@ -16,7 +16,7 @@ void main() {
     expect(root, contains("ManagerNotificationCenterPanel("));
     expect(screen, contains("widget.api.get(ApiPaths.reportReminderDrafts"));
     expect(screen, contains('reportReminderDrafts}/prepare'));
-    expect(screen, contains('/$id/dismiss'));
+    expect(screen, contains('/\$id/dismiss'));
     expect(screen, contains("result['dispatch_enabled'] != false"));
     expect(screen, contains("data['dispatch_enabled'] != false"));
     expect(screen, contains("data['evidence'] != 'internal_followup_draft_only_no_delivery'"));
