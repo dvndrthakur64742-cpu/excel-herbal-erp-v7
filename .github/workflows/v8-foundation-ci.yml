@@ -8,6 +8,13 @@ on:
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchDailyControlReport.php'
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchPeriodControlReport.php'
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchComparisonReport.php'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/ReportingSubmissionService.php'
+      - 'backend/excel-herbal-erp-v7/tests/reporting_submissions_regression.php'
+      - 'backend/excel-herbal-erp-v7/src/Database/Schema.php'
+      - 'backend/excel-herbal-erp-v7/src/Security/Capabilities.php'
+      - 'backend/excel-herbal-erp-v7/src/Security/DesignationDefaults.php'
+      - 'flutter-app/lib/screens/reports/report_submissions_panel.dart'
+      - 'flutter-app/test/report_submissions_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchReportingWatch.php'
       - 'backend/excel-herbal-erp-v7/tests/branch_reporting_watch_regression.php'
       - 'flutter-app/lib/screens/reports/branch_reporting_watch_panel.dart'
@@ -60,6 +67,10 @@ jobs:
         run: php -l backend/excel-herbal-erp-v7/src/Reporting/BranchComparisonReport.php
       - name: Lint Manager Reporting Watch
         run: php -l backend/excel-herbal-erp-v7/src/Reporting/BranchReportingWatch.php
+      - name: Lint durable manager report attestation service and canonical migration
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/Reporting/ReportingSubmissionService.php
+          php -l backend/excel-herbal-erp-v7/src/Database/Schema.php
       - name: Domain regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
       - name: Canonical V7 Employee 360 Stock Request History regressions
@@ -74,6 +85,8 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_comparison_regression.php
       - name: Manager reporting schedule, closing evidence, branch authorization and no-notification claims
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_reporting_watch_regression.php
+      - name: Manager maker checker reports submission revision history and permission regression
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/reporting_submissions_regression.php
       - name: Retailer master and boundary regressions
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
       - name: Employee cash custody regression checks
@@ -131,6 +144,12 @@ jobs:
           php-version: '8.3'
           extensions: pdo_mysql
           coverage: none
+      - name: Branch report submission and regional maker-checker REAL MariaDB UAT
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/report_submissions_mariadb.php
       - name: Real V7 canonical StockService and AccountingService disposable MariaDB transaction UAT
         env:
           V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'

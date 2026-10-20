@@ -84,6 +84,7 @@ final class DesignationDefaults {
                 Capabilities::EXPENSE_CREATE,
                 Capabilities::EXPENSE_APPROVE,
                 Capabilities::BRANCH_CLOSE,
+                Capabilities::REPORT_SUBMIT,
                 Capabilities::PERFORMANCE_VIEW,
                 Capabilities::REPORTS_VIEW,
                 Capabilities::COMM_VIEW,
@@ -114,6 +115,7 @@ final class DesignationDefaults {
                 Capabilities::REPORTS_VIEW,
                 Capabilities::COMM_VIEW,
                 Capabilities::AUDIT_VIEW,
+                Capabilities::REPORT_REVIEW,
             ],
 
             // Regional/inspection roles are intentionally monitoring-heavy.
@@ -138,6 +140,7 @@ final class DesignationDefaults {
                 Capabilities::FINANCE_VIEW,
                 Capabilities::ACCOUNTING_VIEW,
                 Capabilities::PERFORMANCE_VIEW,
+                Capabilities::REPORT_REVIEW,
                 Capabilities::REPORTS_VIEW,
                 Capabilities::COMM_VIEW,
             ],

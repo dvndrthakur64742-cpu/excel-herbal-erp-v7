@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import 'branch_reporting_watch_panel.dart';
+import 'report_submissions_panel.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
@@ -114,7 +115,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ? baseScopeLabel
         : '$baseScopeLabel · Branch ${app.currentBranchId}';
 
-    final reportView = activeType == 'account_ledger'
+    final reportView = activeType == 'report_submissions'
+        ? app.currentBranchId == null
+            ? const _BranchRequired()
+            : ReportSubmissionsPanel(
+                key: ValueKey('reports-submit-' + app.currentBranchId.toString()),
+                api: api,
+                branchId: app.currentBranchId!,
+                businessDate: app.businessDate,
+                canSubmit: app.can('reports.submit'),
+                canReview: app.can('reports.review'),
+                canViewSalary: app.can('payroll.salary.view'),
+              )
+        : activeType == 'account_ledger'
         ? _AccountLedgerPanel(
             api: api,
             query: query,
@@ -379,6 +392,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ),
       ]);
     }
+    if (app.can('reports.submit') || app.can('reports.review')) {
+      out.add(const _ReportOption('report_submissions',
+          'Reporting Submissions & Approvals', Icons.assignment_turned_in_outlined));
+    }
     if (app.can('finance.accounting.view')) {
       out.addAll(const [
         _ReportOption('trial', 'Trial Balance', Icons.balance_outlined),
@@ -458,6 +475,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   _ReportConfig _config(String value) => switch (value) {
+        'report_submissions' => const _ReportConfig(
+            title: 'Reporting Submissions & Approvals',
+            path: ApiPaths.reportSubmissions,
+            recordType: 'report_submissions',
+            subtitle: 'Branch Manager submission, regional maker-checker review and immutable audit trail. No financial payment verification.',
+            emptyMessage: 'No report submissions for this branch.',
+          ),
         'branch_manager_watch' => const _ReportConfig(
             title: 'Manager Reporting Watch & Regional Exceptions',
             path: ApiPaths.managerReportingWatch,
