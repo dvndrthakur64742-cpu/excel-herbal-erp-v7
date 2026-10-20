@@ -23,7 +23,7 @@ try{
   $s=preg_replace('/^\s*--[^\r\n]*$/m','',file_get_contents($dir.$file));
   foreach(preg_split('/;\s*(?:\r?\n|$)/',$s) as $query)if(trim($query)!=='')$db->exec(trim($query));
  }
- $sql=preg_replace('/^\s*--[^\r\n]*$/m','',file_get_contents(__DIR__.'/010_signed_bank_reconciliation_UAT.sql'));
+ $sql=preg_replace('/^\s*--[^\r\n]*$/m','',file_get_contents(__DIR__.'/../schema/010_signed_bank_reconciliation_UAT.sql'));
  foreach(preg_split('/;\s*(?:\r?\n|$)/',$sql) as $query)if(trim($query)!=='')$db->exec(trim($query));
  $company=987654888;$branch=588;$actor=979;
  foreach(['v8_b2b_tender_intake_evidence_uat','v8_b2b_verified_tenders','v8_b2b_signed_bank_reconciliation_uat','v8_b2b_payment_intents_uat'] as $table){
