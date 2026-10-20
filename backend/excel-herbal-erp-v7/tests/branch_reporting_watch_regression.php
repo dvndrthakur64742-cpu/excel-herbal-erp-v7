@@ -11,7 +11,9 @@ use ExcelHerbal\ERP7\Reporting\{BranchReportingWatch,BranchReportingWatchReader}
 use ExcelHerbal\ERP7\Security\{Actor,Capabilities};
 use ExcelHerbal\ERP7\Domain\DomainException;
 
-if(!function_exists('wp_timezone'))function wp_timezone():DateTimeZone{return new DateTimeZone('Asia/Kolkata');}
+if(!function_exists('wp_timezone')) {
+    function wp_timezone():DateTimeZone {return new DateTimeZone('Asia/Kolkata');}
+}
 $n=0;
 function check(bool $ok,string $why):void {
     global $n;if(!$ok)throw new RuntimeException('FAIL '.$why);
