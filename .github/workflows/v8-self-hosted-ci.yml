@@ -32,6 +32,9 @@ on:
       - 'flutter-app/test/branch_comparison_csv_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/tests/branch_period_control_regression.php'
       - 'flutter-app/test/branch_period_control_ui_contract_test.dart'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/B2BStagingRestProbe.php'
+      - 'backend/excel-herbal-erp-v7/tests/b2b_staging_rest_probe_regression.php'
+      - 'backend/excel-herbal-erp-v7/src/Http/Api.php'
       - 'backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php'
       - 'backend/excel-herbal-erp-v7/src/Http/ApiDispatch.php'
       - 'backend/excel-herbal-erp-v7/src/Http/ApiContract.php'
@@ -116,6 +119,11 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_issuance.php
       - name: Canonical immutable quote and tender revalidation tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_quote_revalidation.php
+      - name: Disposable WordPress staging REST registration, role isolation, metadata and API smoke
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/Reporting/B2BStagingRestProbe.php
+          php -l backend/excel-herbal-erp-v7/src/Http/Api.php
+          php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/b2b_staging_rest_probe_regression.php
       - name: UAT B2B branch-day preflight fail-closed accounting role, incomplete batch and custody checks
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/b2b_branch_preflight_unit.php
       - name: V7 canonical StockService AccountingService same-connection UAT writer isolated regressions
