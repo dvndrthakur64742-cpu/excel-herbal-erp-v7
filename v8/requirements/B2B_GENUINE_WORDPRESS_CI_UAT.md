@@ -54,3 +54,40 @@ Never run `.github/scripts/b2b-dev-http-role-uat.ps1` against
 
 Green UAT does NOT authorize new canonical WordPress B2B posting endpoints,
 GST/HSN changes, refunds, production migration, or PR merge.
+
+
+## Subsequent security batch: real WordPress identity revocation and schema-failure HTTP checks
+
+The real WordPress CI additionally exercises **the same already-issued
+Finance Bearer token** after the underlying MariaDB security state changes:
+
+1. Introduce an explicit `finance.accounting.view` **deny** through the
+   actual ERP `employee_capability_overrides` table: next HTTP request must
+   return 403. Restore the override; next HTTP request succeeds without login.
+2. Deactivate the assigned branch: existing authenticated session must lose
+   effective branch authority immediately (403). Restore synthetic branch.
+3. Deactivate the synthetic ERP employee: old bearer must be denied at
+   `MobileAuth` / active-employee JOIN (401). Restore synthetic employee.
+   **Important:** this confirms inactivation blocks access while inactive;
+   it does not certify irreversible session revocation across reactivation.
+   That lifecycle policy requires a separate review and approval.
+4. Temporarily rename the otherwise-empty `v8_b2b_payment_intents_uat`
+   table. The genuine WordPress metadata query must produce
+   `missing_source_table_count=1` and
+   `structural_preflight_possible=false`; restore exact table identity.
+5. A guarded `assert_restored` WP-CLI command checks the original four
+   synthetic active employees, two active branches, absence of a finance deny,
+   and restored staging payment-intent table at the end.
+
+The only tool allowed to apply these changes is
+`v8/backend/tests/b2b_real_wp_security_mutation.php`: it refuses execution
+outside GitHub Actions + WP-CLI + WordPress `development` + exact runner
+installation root + `v8_test`, and validates the expected fake company,
+employee and branch identities and population sizes before every mutation.
+Each mutation uses an explicit allowlist; no user/customer/tender/journal/
+inventory production rows are created or changed.
+
+These checks run inside the existing genuine WordPress CI workflow,
+**not on Railway or a live WordPress installation**. They are security
+regressions, not proof that any real external bank or cashier has verified
+financial settlement.

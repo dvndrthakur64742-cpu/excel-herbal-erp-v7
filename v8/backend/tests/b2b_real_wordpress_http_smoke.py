@@ -72,6 +72,35 @@ def login(url,mobile):
        "real WordPress password verification and canonical MobileAuth token for "+mobile[-2:])
     return token
 
+def guarded_mutation(action):
+    """Change only isolated synthetic WP records through real wpdb/wp-cli.
+
+    The PHP mutation script checks GITHUB_ACTIONS, its installed root,
+    development environment, v8_test and exact fixture identity/counts.
+    """
+    allowed = {
+        "deny_finance", "restore_finance",
+        "disable_branch", "restore_branch",
+        "disable_employee", "restore_employee",
+        "hide_payment_table", "restore_payment_table",
+    }
+    if action not in allowed:
+        raise ValueError("Unknown guarded CI mutation")
+    env = dict(os.environ)
+    env["B2B_REAL_WP_MUTATION"] = action
+    script = Path(__file__).with_name("b2b_real_wp_security_mutation.php").resolve()
+    if not script.is_file():
+        raise RuntimeError("Real WordPress security mutation script is missing")
+    done = subprocess.run(
+        ["wp", "eval-file", str(script), "--path=" + str(ROOT)],
+        env=env, cwd=str(ROOT), capture_output=True, text=True, timeout=30,
+        check=False,
+    )
+    if done.returncode != 0:
+        # Never echo secrets, bearer tokens or arbitrary generated WP-CLI logs.
+        raise RuntimeError("Guarded disposable wp-cli mutation failed: " + action)
+
+
 def run(url):
     status,body,_=req(url,"/health")
     ok(status==200 and body.get("ok") is True,
@@ -126,6 +155,65 @@ def run(url):
         status,body,_=req(url,p,token=finance,method="POST")
         ok(status in (404,405) and body.get("ok") is not True,
            "WordPress does not register financial B2B staging POST")
+        # Remove one UAT-only staging payment-intent table while WordPress
+        # is running. The REAL metadata query must remain fail-closed and
+        # not silently return a ready signal for a partial migration.
+        guarded_mutation("hide_payment_table")
+        try:
+            incomplete,_=expect(url,p,200,token=finance)
+            diag=incomplete.get("data",{})
+            ok(diag.get("missing_source_table_count")==1
+               and diag.get("structural_preflight_possible") is False
+               and diag.get("reason")=="incomplete_disposable_uat_schema"
+               and diag.get("production_release_authorized") is False,
+               "real MariaDB missing payment-intent table blocks WordPress staging readiness")
+        finally:
+            guarded_mutation("restore_payment_table")
+        repaired,_=expect(url,p,200,token=finance)
+        ok(repaired.get("data",{}).get("existing_source_table_count")==14
+           and repaired.get("data",{}).get("structural_preflight_possible") is True,
+           "real MariaDB staging schema restored and checked without financial posting")
+
+        # Reuse the SAME real WordPress-issued bearer token after a
+        # permission change. The actor must be rebuilt on each request
+        # rather than caching finance/accounting capability at login.
+        guarded_mutation("deny_finance")
+        try:
+            expect(url,p,403,"permission_denied",token=finance)
+            ok(True,"live role override revokes finance view from an already minted bearer")
+        finally:
+            guarded_mutation("restore_finance")
+        restored,_=expect(url,p,200,token=finance)
+        ok(restored.get("data",{}).get("structural_preflight_possible") is True,
+           "restored finance capability is applied without a new login")
+
+        # When the assigned branch is disabled, every guarded finance
+        # request must lose effective branch authority immediately.
+        guarded_mutation("disable_branch")
+        try:
+            expect(url,p,403,"branch_access_required",token=finance)
+            ok(True,"inactive branch invalidates effective branch authority on existing bearer")
+        finally:
+            guarded_mutation("restore_branch")
+        restored,_=expect(url,p,200,token=finance)
+        ok(restored.get("data",{}).get("branch_id")==31,
+           "re-enabled synthetic branch recovers authorized finance scope")
+
+        # Session authentication joins the actual ACTIVE employee row.
+        # An employee made inactive must not continue using an old token.
+        guarded_mutation("disable_employee")
+        try:
+            expect(url,p,401,"not_authenticated",token=finance)
+            ok(True,"inactive ERP employee denies already issued WordPress bearer token")
+        finally:
+            guarded_mutation("restore_employee")
+        # The synthetic fixture is now back to its original state. Any
+        # irreversible session-revocation business policy needs explicit
+        # approval and is outside the test helper's direct SQL scope.
+        restored,_=expect(url,p,200,token=finance)
+        ok(restored.get("data",{}).get("read_only") is True,
+           "synthetic employee fixture restored for the normal logout test")
+
         expect(url,"/auth/logout",200,token=finance,method="POST")
         ok(True,"canonical logout revokes real WordPress bearer session")
         status,reply,_=req(url,p,token=finance)

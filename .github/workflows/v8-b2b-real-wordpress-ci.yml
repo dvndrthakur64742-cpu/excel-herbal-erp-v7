@@ -8,6 +8,7 @@ on:
       - 'backend/excel-herbal-erp-v7/**'
       - 'v8/backend/schema/**'
       - 'v8/backend/tests/b2b_real_wp_seed.php'
+      - 'v8/backend/tests/b2b_real_wp_security_mutation.php'
       - 'v8/backend/tests/b2b_real_wordpress_http_smoke.py'
       - 'v8/backend/tests/b2b_real_wordpress_router.php'
 
@@ -46,6 +47,7 @@ jobs:
           MYSQL_PWD: v8
         run: |
           php -l v8/backend/tests/b2b_real_wp_seed.php
+          php -l v8/backend/tests/b2b_real_wp_security_mutation.php
           php -l v8/backend/tests/b2b_real_wordpress_router.php
           python3 -m py_compile v8/backend/tests/b2b_real_wordpress_http_smoke.py
           test -n "${RUNNER_TEMP}"
@@ -89,9 +91,14 @@ jobs:
       - name: Seed only fake WP users and company/branches, no transactions
         run: |
           wp eval-file v8/backend/tests/b2b_real_wp_seed.php --path="$B2B_REAL_WP_ROOT"
-      - name: Exercise actual WordPress REST HTTP and real mobile login + role authorization
+      - name: Actual WordPress REST, dynamic permission revocation and schema fail-closed HTTP UAT
         run: |
           python3 v8/backend/tests/b2b_real_wordpress_http_smoke.py
+      - name: Verify temporary role branch employee and payment schema mutations were restored
+        env:
+          B2B_REAL_WP_MUTATION: assert_restored
+        run: |
+          wp eval-file v8/backend/tests/b2b_real_wp_security_mutation.php --path="$B2B_REAL_WP_ROOT"
       - name: No deployment or production access
         run: |
           echo 'PASS genuine WordPress/MariaDB test used only local GitHub ephemeral runner and synthetic users'
