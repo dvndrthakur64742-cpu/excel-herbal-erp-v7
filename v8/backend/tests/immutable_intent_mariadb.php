@@ -63,7 +63,7 @@ try{
     if($count!==1)throw new RuntimeException('Duplicate issuance created');
     $intake=new TrustedTenderIntake(new PdoTrustedTenderIntakeGateway($db,
         static fn($c,$b,$actor,$channel,$emp)=>$c===987654491&&$b===58&&$actor===13&&$channel==='field'&&$emp===47,
-        static fn()=>false,static fn()=>null,static fn()=>''));
+        static fn()=>false,null,static fn()=>''));
     $cash=$intake->cashCollected($company,$branch,13,$first['payment_intent_id']);
     if(($cash['status']??null)!=='confirmed')throw new RuntimeException('Cash evidence missing');
     $binding=new SaleIntentTenderBinding(new PdoSaleIntentTenderBindingGateway($db,

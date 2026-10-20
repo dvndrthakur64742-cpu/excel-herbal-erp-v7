@@ -34,7 +34,7 @@ try {
  $stmt->execute([$pay,$sale,$company,$branch,$digest]);
  $intake=new TrustedTenderIntake(new PdoTrustedTenderIntakeGateway($db,
      static fn($c,$b,$actor,$channel,$employee)=>$c===987654329&&$b===55&&$actor===333&&$channel==='field'&&$employee===42,
-     static fn()=>false,static fn()=>null,static fn()=>''));
+     static fn()=>false,null,static fn()=>''));
  $intake->cashCollected($company,$branch,333,$pay);
  $binder=new SaleIntentTenderBinding(new PdoSaleIntentTenderBindingGateway($db,
      static fn($c,$b,$actor,$sale)=>$c===987654329&&$b===55&&$actor===666&&$sale['canonical_party_id']===900));
