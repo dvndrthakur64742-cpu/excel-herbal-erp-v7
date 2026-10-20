@@ -86,10 +86,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       if (periodReports.contains(activeType)) 'to': toValue,
       if (asOfReports.contains(activeType)) 'to': app.businessDate,
       if (dayReports.contains(activeType)) 'date': toValue,
-      if (activeType == 'branch_weekly' || activeType == 'branch_monthly' ||
-          comparisonReports.contains(activeType))
-        'mode': const {'branch_weekly', 'branch_compare_weekly'}.contains(activeType)
-            ? 'week' : 'month',
+      if (activeType == 'branch_weekly' || activeType == 'branch_monthly')
+        'mode': activeType == 'branch_weekly' ? 'week' : 'month',
+      if (comparisonReports.contains(activeType))
+        'mode': activeType == 'branch_compare_weekly' ? 'week' : 'month',
       if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };

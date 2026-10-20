@@ -14,7 +14,7 @@ void main() {
     expect(code, contains("_ReportOption('branch_compare_monthly', 'Compare Branches (Month)'"));
     expect(code, contains("path: ApiPaths.branchCompare"));
     expect(code, contains("comparisonReports.contains(activeType)"));
-    expect(code, contains("'mode': const {'branch_weekly', 'branch_compare_weekly'}"));
+    expect(code, contains("'mode': activeType == 'branch_compare_weekly' ? 'week' : 'month'"));
     expect(code, contains("'date': toValue"));
     expect(code, contains("_BranchComparisonPanel(data: data, api: api, query: query)"));
     expect(code, contains("report['scope'] != 'single_authorized_branch_canonical_v7'"));
