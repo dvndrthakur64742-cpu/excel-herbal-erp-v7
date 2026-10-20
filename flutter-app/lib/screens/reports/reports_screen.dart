@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import 'branch_reporting_watch_panel.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
@@ -68,7 +69,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     };
     const asOfReports = {'trial', 'balance_sheet'};
     const dayReports = {
-      'branch_daily', 'branch_weekly', 'branch_monthly',
+      'branch_daily', 'branch_weekly', 'branch_monthly', 'branch_manager_watch',
       'branch_compare_weekly', 'branch_compare_monthly',
     };
     const comparisonReports = {'branch_compare_weekly', 'branch_compare_monthly'};
@@ -129,6 +130,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 future: api.get(config.path, query: query),
                 emptyMessage: config.emptyMessage,
                 builder: (context, data) {
+                  if (activeType == 'branch_manager_watch') {
+                    return BranchReportingWatchPanel(data: data);
+                  }
                   if (comparisonReports.contains(activeType)) {
                     return _BranchComparisonPanel(data: data, api: api, query: query);
                   }
@@ -346,6 +350,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     if (app.can('reports.view')) {
       out.addAll(const [
         _ReportOption('sales', 'Sales Summary', Icons.point_of_sale_outlined),
+        _ReportOption('branch_manager_watch', 'Manager Reporting Watch', Icons.fact_check_outlined),
         _ReportOption('branch_daily', 'Branch Daily Control', Icons.assignment_turned_in_outlined),
         _ReportOption('branch_weekly', 'Branch Weekly Performance', Icons.date_range_outlined),
         _ReportOption('branch_monthly', 'Branch Monthly Performance', Icons.calendar_month_outlined),
@@ -453,6 +458,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   _ReportConfig _config(String value) => switch (value) {
+        'branch_manager_watch' => const _ReportConfig(
+            title: 'Manager Reporting Watch & Regional Exceptions',
+            path: ApiPaths.managerReportingWatch,
+            recordType: 'branch_reporting_watch',
+            subtitle: '7:30 PM closing, Monday reporting/orders, month-start and salary-receipt agenda. Read-only evidence; notifications not sent.',
+            emptyMessage: 'No reporting obligations for the selected business date.',
+          ),
         'branch_compare_weekly' => const _ReportConfig(
             title: 'Authorized Branch Comparison (Weekly)',
             path: ApiPaths.branchCompare,

@@ -10,6 +10,8 @@ on:
       - 'flutter-app/test/branch_daily_control_ui_contract_test.dart'
       - 'flutter-app/test/branch_period_control_ui_contract_test.dart'
       - 'flutter-app/test/branch_comparison_csv_ui_contract_test.dart'
+      - 'flutter-app/lib/screens/reports/branch_reporting_watch_panel.dart'
+      - 'flutter-app/test/branch_reporting_watch_ui_test.dart'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
       - 'flutter-app/test/employee_360_ui_contract_test.dart'
       - 'flutter-app/pubspec.yaml'
@@ -43,6 +45,9 @@ jobs:
       - name: Regional multi branch comparison and CSV export Flutter contract
         working-directory: flutter-app
         run: flutter test test/branch_comparison_csv_ui_contract_test.dart
+      - name: Manager Reporting Watch widget, date, scope and evidence tests
+        working-directory: flutter-app
+        run: flutter test test/branch_reporting_watch_ui_test.dart
       - name: Stock allocation regression
         working-directory: flutter-app
         run: flutter test test/stock_allocation_test.dart

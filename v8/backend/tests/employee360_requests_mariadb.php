@@ -36,9 +36,10 @@ try {
     require_once $src.'Reporting/BranchDailyControlReport.php';
     require_once $src.'Reporting/BranchPeriodControlReport.php';
     require_once $src.'Reporting/BranchComparisonReport.php';
+    require_once $src.'Reporting/BranchReportingWatch.php';
     if (!defined('ARRAY_A')) define('ARRAY_A','ARRAY_A');
     $defs=\ExcelHerbal\ERP7\Database\Schema::definitions();
-    foreach (['daily_cycles','daily_requests','daily_request_lines','daily_issue_lines','evening_settlements','evening_lines','stock_ledger','accounts','journal_entries','journal_lines','performance_entries','employees','counter_sales'] as $table) {
+    foreach (['daily_cycles','daily_requests','daily_request_lines','daily_issue_lines','evening_settlements','evening_lines','stock_ledger','accounts','journal_entries','journal_lines','performance_entries','employees','counter_sales','branches','leave_requests','holidays'] as $table) {
         if (!isset($defs[$table])) throw new RuntimeException('Missing canonical V7 table '.$table);
         $db->exec('CREATE TABLE IF NOT EXISTS wp_eh7_'.$table.' ('.$defs[$table].') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
     }
@@ -433,6 +434,81 @@ try {
             &&$foreignCompare['total']['counter_sales_gross']==='0.00'
             &&$foreignCompare['total']['performance_points']==='0.00',
             'cross-company regional view cannot read other company source rows');
+
+        // Server-owned reporting watch: active FSE roster, posted original
+        // evening evidence, approved leave/holiday exclusions, company scope.
+        $db->prepare("INSERT INTO wp_eh7_branches(id,company_id,code,name,status,created_at)
+            VALUES(?,?,'CI-MANAGER-NORTH','North Report Branch','active','2026-10-20 02:00:00')")
+            ->execute([$branch,$company]);
+        $db->prepare("INSERT INTO wp_eh7_branches(id,company_id,code,name,status,created_at)
+            VALUES(?,?,'CI-MANAGER-SOUTH','South Report Branch','active','2026-10-20 02:00:00')")
+            ->execute([$otherBranch,$company]);
+        $addStaff=$db->prepare("INSERT INTO wp_eh7_employees
+            (id,company_id,employee_code,designation_code,assigned_branch_id,full_name,status,created_at)
+            VALUES(?,? ,?,'FSE',?,?,'active','2026-10-20 02:00:00')");
+        $addStaff->execute([$employee+2,$company,'CI-APPROVED-LEAVE',$otherBranch,'CI Approved Leave']);
+        $addStaff->execute([$employee+3,$company,'CI-MISSING-DAILY',$otherBranch,'CI Missing Daily']);
+        $db->prepare("INSERT INTO wp_eh7_leave_requests
+            (company_id,branch_id,employee_id,leave_type,date_from,date_to,status,requested_at)
+            VALUES(?,?,?,'annual','2026-10-20','2026-10-20','approved','2026-10-19 05:00:00')")
+            ->execute([$company,$otherBranch,$employee+2]);
+        $watchActor=new \ExcelHerbal\ERP7\Security\Actor(
+            5001,$employee+1,$company,$branch,[$otherBranch,$branch],
+            [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW],'RM');
+        $clock=new DateTimeImmutable('2026-10-20 21:00:00',new DateTimeZone('Asia/Kolkata'));
+        $watch=\ExcelHerbal\ERP7\Reporting\BranchReportingWatch::view(
+            $watchActor,'2026-10-20',null,null,$clock);
+        $assert($watch['summary']['branches']===2
+            &&$watch['summary']['eligible_field_staff']===3
+            &&$watch['summary']['posted_evening_closings']===1,
+            'real database reporting watch counts only active FSE, omits approved leave');
+        $assert($watch['summary']['missing_daily_cycles']===1
+            &&$watch['summary']['unposted_evening_closings']===1
+            &&$watch['summary']['past_due_unposted_or_missing']===2,
+            'real daily cycle absence and issued-but-unposted evening separately overdue after 7:30');
+        $assert(count($watch['reminder_candidates'])===2
+            &&$watch['delivery_enabled']===false,
+            'real MariaDB produces stable candidates without sending or inserting a notification');
+        $assert($watch['branches'][0]['branch_id']===$branch
+            &&$watch['branches'][1]['branch_id']===$otherBranch,
+            'real branch watch gives authorized branch exception ordering');
+        $assert($watch['branches'][0]['posted_daily_order_sales']==='300.00'
+            &&$watch['branches'][1]['posted_daily_order_sales']==='0.00',
+            'branch dashboard reuses canonical posted sales with no extra sale calculation');
+        $watchBefore=\ExcelHerbal\ERP7\Reporting\BranchReportingWatch::view(
+            $watchActor,'2026-10-20',null,null,
+            new DateTimeImmutable('2026-10-20 19:00:00',new DateTimeZone('Asia/Kolkata')));
+        $assert($watchBefore['summary']['past_due_unposted_or_missing']===0
+            &&$watchBefore['reminder_candidates']===[],
+            'real branch daily data not marked overdue before local 19:30');
+        $db->prepare("INSERT INTO wp_eh7_holidays
+            (company_id,branch_id,holiday_date,name,active,created_by,created_at)
+            VALUES(?,?,'2026-10-20','CI Branch Holiday',1,?,'2026-10-19 03:00:00')")
+            ->execute([$company,$otherBranch,$employee]);
+        $holidayId=(int)$db->lastInsertId();
+        $holidayWatch=\ExcelHerbal\ERP7\Reporting\BranchReportingWatch::view(
+            $watchActor,'2026-10-20',null,null,$clock);
+        $assert($holidayWatch['summary']['eligible_field_staff']===2
+            &&$holidayWatch['summary']['missing_daily_cycles']===0,
+            'branch holiday excludes remaining FSE from missing report false positives');
+        $db->prepare('UPDATE wp_eh7_holidays SET active=0 WHERE id=?')->execute([$holidayId]);
+        $oneBranch=\ExcelHerbal\ERP7\Reporting\BranchReportingWatch::view(
+            $watchActor,'2026-10-20',$otherBranch,null,$clock);
+        $assert($oneBranch['summary']['branches']===1
+            &&$oneBranch['summary']['missing_daily_cycles']===1
+            &&$oneBranch['summary']['posted_evening_closings']===0,
+            'branch-specific watch excludes other branch actual employee closings');
+        $foreignActor=new \ExcelHerbal\ERP7\Security\Actor(
+            5002,$employee,$otherCompany,$branch,[$branch,$otherBranch],
+            [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW],'RM');
+        $foreignDenied=false;
+        try{
+            \ExcelHerbal\ERP7\Reporting\BranchReportingWatch::view(
+                $foreignActor,'2026-10-20',null,null,$clock);
+        }catch(\ExcelHerbal\ERP7\Domain\DomainException $err){
+            $foreignDenied=$err->codeKey==='watch_branch_inactive';
+        }
+        $assert($foreignDenied,'same branch IDs in another company cannot access reporting watch');
         // A deliberately missing ledger sale row must never be masked by a
         // healthy evening settlement; the source totals visibly diverge.
         $db->prepare("DELETE FROM wp_eh7_stock_ledger WHERE company_id=? AND source_type='daily_sale' AND source_id=? AND batch_id=?")
