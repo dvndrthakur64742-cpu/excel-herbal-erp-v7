@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
+      - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
       - 'flutter-app/test/employee_360_ui_contract_test.dart'
       - 'flutter-app/pubspec.yaml'
       - '.github/workflows/v8-employee360-flutter-ci.yml'

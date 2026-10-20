@@ -142,6 +142,7 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
             const Tab(text: 'Daily Reconciliation'),
             const Tab(text: 'Attendance'),
             if (financeVisible) const Tab(text: 'Ledger'),
+            if (financeVisible) const Tab(text: 'Person Ledger'),
             if (financeVisible) const Tab(text: 'Cash Responsibility'),
             if (financeVisible) const Tab(text: 'Cash Control'),
             if (showGps) const Tab(text: 'GPS Route'),
@@ -198,6 +199,13 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
                         _Employee360List(
                           title: 'Employee-tagged journal lines (not a full cash ledger)',
                           rows: ledgerData['entries'],
+                        ),
+                      if (financeVisible)
+                        _Employee360PagedRegister(
+                          employeeId: widget.employeeId,
+                          type: 'person_ledger',
+                          from: _from,
+                          to: _to,
                         ),
                       if (financeVisible)
                         _Employee360TransitLedger(rows: ledgerData['entries']),
@@ -432,7 +440,13 @@ class _Employee360PagedRegisterState extends ConsumerState<_Employee360PagedRegi
     if (data['read_only'] != true ||
         data['register'] != widget.type ||
         int.tryParse('${data['employee_id']}') != widget.employeeId ||
-        int.tryParse('${data['page']}') != _page) {
+        int.tryParse('${data['page']}') != _page ||
+        (widget.type == 'person_ledger' &&
+            (data['balance_basis'] != 'complete_tagged_movement_history_not_visible_page' ||
+             data['financial_accounts'] is! List ||
+             data['stock_items'] is! List ||
+             data['employee_cash_handover_verified'] != false ||
+             data['upi_bank_settlement_verified'] != false))) {
       throw const FormatException('Employee register security contract mismatch.');
     }
     return data;
@@ -470,6 +484,34 @@ class _Employee360PagedRegisterState extends ConsumerState<_Employee360PagedRegi
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
+              if (widget.type == 'person_ledger')
+                SizedBox(
+                  height: 166,
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    children: [
+                      const Text('INR per employee-tagged GL account (Dr−Cr), not bank/cashier proof'),
+                      ..._recordRows(data['financial_accounts']).take(5).map(
+                        (a) => Text(
+                          '${a['account_code']}: opening ${a['opening_debit_minus_credit']} + '
+                          'Dr ${a['period_debit']} − Cr ${a['period_credit']} = '
+                          '${a['closing_debit_minus_credit']} INR',
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text('Stock PCS per branch/product/batch; movements, not physical count'),
+                      ..._recordRows(data['stock_items']).take(5).map(
+                        (s) => Text(
+                          'Branch ${s['branch_id']} · Product ${s['product_id']} '
+                          '· Batch ${s['batch_key']}: '
+                          '${s['opening_quantity']} + ${s['period_in']} − '
+                          '${s['period_out']} = ${s['closing_quantity']} PCS',
+                        ),
+                      ),
+                      const Text('Sales INR and points are separate events, not balances.'),
+                    ],
+                  ),
+                ),
               Expanded(child: RecordsList(rows: rows)),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

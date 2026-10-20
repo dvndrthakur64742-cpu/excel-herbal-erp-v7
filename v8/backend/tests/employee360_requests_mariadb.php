@@ -22,9 +22,15 @@ try {
     require_once $src.'Database/Schema.php';
     require_once $src.'Database/Db.php';
     require_once $src.'Organization/Employee360Registers.php';
+    require_once $src.'Core/Input.php';
+    require_once $src.'Domain/DomainException.php';
+    require_once $src.'Security/Actor.php';
+    require_once $src.'Security/Capabilities.php';
+    require_once $src.'Organization/Employee360Service.php';
+    require_once $src.'Organization/Employee360PersonLedger.php';
     if (!defined('ARRAY_A')) define('ARRAY_A','ARRAY_A');
     $defs=\ExcelHerbal\ERP7\Database\Schema::definitions();
-    foreach (['daily_cycles','daily_requests','daily_request_lines','daily_issue_lines','evening_settlements','evening_lines','stock_ledger'] as $table) {
+    foreach (['daily_cycles','daily_requests','daily_request_lines','daily_issue_lines','evening_settlements','evening_lines','stock_ledger','accounts','journal_entries','journal_lines','performance_entries'] as $table) {
         if (!isset($defs[$table])) throw new RuntimeException('Missing canonical V7 table '.$table);
         $db->exec('CREATE TABLE IF NOT EXISTS wp_eh7_'.$table.' ('.$defs[$table].') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
     }
@@ -138,6 +144,86 @@ try {
         $assert(count($allReconciled)===2,'company/employee scope includes own other branch but excludes foreign company');
         $requestPage=$reader->reconciliation($company,$employee,'2026-10-01','2026-10-20',[$branch],1,0);
         $assert(count($requestPage)===1 && (int)$requestPage[0]['daily_cycle_id']===$first,'cycle reconciliation limits and paginates real MariaDB rows');
+
+        // A single canonical employee person ledger: source-link FOUR types,
+        // but never add INR to PCS/points or derive balance from the current page.
+        $db->prepare("INSERT INTO wp_eh7_stock_ledger(company_id,branch_id,product_id,batch_id,custodian_employee_id,direction,quantity,source_type,source_id,occurred_at,created_by)
+           VALUES(?,?,?,?,?,'IN',1,'opening_transfer',?,'2026-10-19 03:00:00',?)")
+           ->execute([$company,$branch,11,201,$employee,$first,$employee]);
+        $db->prepare("INSERT INTO wp_eh7_accounts(company_id,code,name,type,subtype,active)
+          VALUES(?,'EMPLOYEE_CASH_IN_TRANSIT','CI employee cash','asset','cash',1)")->execute([$company]);
+        $account=(int)$db->lastInsertId();
+        $journal=$db->prepare("INSERT INTO wp_eh7_journal_entries(company_id,branch_id,entry_no,entry_date,source_type,source_id,status,created_by,created_at)
+          VALUES(?,?,?,?,?,?,'posted',?,'2026-10-20 03:00:00')");
+        $gl=$db->prepare("INSERT INTO wp_eh7_journal_lines(journal_entry_id,account_id,debit,credit,party_type,party_id,description)
+          VALUES(?,?,?,?,'employee',?,'CI tagged employee Cash')");
+        $journal->execute([$company,$branch,'EMP-OPENING-'.$first,'2026-10-19 09:00:00','daily_cycle',$first,$employee]);
+        $gl->execute([(int)$db->lastInsertId(),$account,50,0,$employee]);
+        $journal->execute([$company,$branch,'EMP-COLLECT-'.$first,'2026-10-20 09:00:00','daily_cycle',$first,$employee]);
+        $gl->execute([(int)$db->lastInsertId(),$account,200,0,$employee]);
+        $journal->execute([$company,$branch,'EMP-REMIT-'.$first,'2026-10-20 12:00:00','b2b_cash_remittance',$first,$employee]);
+        $gl->execute([(int)$db->lastInsertId(),$account,0,200,$employee]);
+        $db->prepare("INSERT INTO wp_eh7_performance_entries
+          (company_id,branch_id,employee_id,business_date,source_type,source_id,points,salary_fund,created_at)
+          VALUES(?,?,?,'2026-10-20','daily_cycle',?,7.00,0,'2026-10-20 04:00:00')")
+           ->execute([$company,$branch,$employee,$first]);
+        $personReader=new \ExcelHerbal\ERP7\Organization\EmployeePersonLedgerWpReader();
+        $events=$personReader->events($company,$employee,'2026-10-20','2026-10-20',[$branch],50,0);
+        $types=array_count_values(array_column($events,'event_type'));
+        $assert(($types['gl']??0)===2 && ($types['stock']??0)===6
+            && ($types['sale']??0)===1 && ($types['points']??0)===1,
+            'four-source person timeline is globally paginated from canonical MariaDB rows');
+        $assert(count($events)===10 && (int)$events[0]['event_id']>0,
+            'source-linked timeline contains exactly ten unique real in-period events');
+        $eventPage=$personReader->events($company,$employee,'2026-10-20','2026-10-20',[$branch],3,3);
+        $assert(count($eventPage)===3
+            &&count(array_intersect(
+                array_map(fn($r)=>$r['event_type'].':'.$r['event_id'],array_slice($events,0,3)),
+                array_map(fn($r)=>$r['event_type'].':'.$r['event_id'],$eventPage)))===0,
+            'global page two contains no duplicate event from first page');
+        $financial=$personReader->financialBalances($company,$employee,'2026-10-20','2026-10-20',[$branch]);
+        $assert(count($financial)===1 && (float)$financial[0]['opening_delta']===50.0
+            && (float)$financial[0]['period_debit']===200.0
+            && (float)$financial[0]['period_credit']===200.0,
+            'per-account opening and full-period Cash Dr/Cr derive from all posted tagged GL');
+        $stockBalances=$personReader->stockBalances($company,$employee,'2026-10-20','2026-10-20',[$branch]);
+        $s201=array_values(array_filter($stockBalances,fn($row)=>(int)$row['product_id']===11 && (int)$row['batch_key']===201));
+        $assert(count($s201)===1 &&(float)$s201[0]['opening_quantity']===1.0
+            &&(float)$s201[0]['period_in']===1.0 &&(float)$s201[0]['period_out']===1.0,
+            'historical stock opening/IN/OUT respects original product and batch');
+        $selfActor=new \ExcelHerbal\ERP7\Security\Actor(451,$employee,$company,$branch,[$branch],
+           [\ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW],'BM');
+        $fakeProfile=new class($employee,$company,$branch) implements \ExcelHerbal\ERP7\Organization\Employee360Reader {
+            public function __construct(private int $emp,private int $company,private int $branch){}
+            public function employee(int $c,int $id):?array {return ['id'=>$this->emp,'company_id'=>$this->company,'assigned_branch_id'=>$this->branch];}
+            public function sales(int $c,int $e,string $f,string $t,array $b):array{return [];}
+            public function performance(int $c,int $e,string $f,string $t,array $b):array{return [];}
+            public function attendance(int $c,int $e,string $f,string $t,array $b):array{return [];}
+            public function stock(int $c,int $id,array $b):array{return [];}
+            public function ledger(int $c,int $e,string $f,string $t,array $b):array{return [];}
+        };
+        $person=\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+            $selfActor,$employee,'2026-10-20','2026-10-20',1,3,$personReader,$fakeProfile);
+        $assert($person['has_more']===true && count($person['rows'])===3
+            && $person['financial_accounts'][0]['opening_debit_minus_credit']==='50.00'
+            && $person['financial_accounts'][0]['closing_debit_minus_credit']==='50.00',
+            'PHP person ledger display totals reconcile regardless of its 3-row page');
+        $personPage2=\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+            $selfActor,$employee,'2026-10-20','2026-10-20',2,3,$personReader,$fakeProfile);
+        $assert($personPage2['financial_accounts'][0]['closing_debit_minus_credit']==='50.00',
+            'financial closing retained on other page independent of LIMIT/OFFSET');
+        $firstStock=array_values(array_filter($person['stock_items'],fn($row)=>$row['product_id']===11 && $row['batch_key']===201));
+        $assert(count($firstStock)===1&&$firstStock[0]['closing_quantity']==='1.000',
+            'canonical PCS batch closing is opening 1 plus issue 1 minus sale 1');
+        $assert($person['employee_cash_handover_verified']===false && $person['upi_bank_settlement_verified']===false
+            && $person['physical_stock_verified']===false,
+            'sales/GL/stock do not manufacture cashier bank or physical proof');
+        $nonFinance=new \ExcelHerbal\ERP7\Security\Actor(452,$employee,$company,$branch,[$branch],[],'FSE');
+        $denied=false;
+        try{\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+            $nonFinance,$employee,'2026-10-20','2026-10-20',1,3,$personReader,$fakeProfile);}
+        catch(\ExcelHerbal\ERP7\Domain\DomainException $e){$denied=$e->codeKey==='permission_denied';}
+        $assert($denied,'self employee cannot read finance person ledger without finance permission');
         // A deliberately missing ledger sale row must never be masked by a
         // healthy evening settlement; the source totals visibly diverge.
         $db->prepare("DELETE FROM wp_eh7_stock_ledger WHERE company_id=? AND source_type='daily_sale' AND source_id=? AND batch_id=?")

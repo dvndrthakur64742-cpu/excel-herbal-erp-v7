@@ -26,6 +26,10 @@ final class Employee360Registers {
         Actor $actor,int $employeeId,string $type,string $from,string $to,int $page=1,int $pageSize=50,
         ?Employee360RegisterReader $registerReader=null,?Employee360Reader $employeeReader=null
     ):array {
+        if($type==='person_ledger'){
+            require_once __DIR__.'/Employee360PersonLedger.php';
+            return Employee360PersonLedger::view($actor,$employeeId,$from,$to,$page,$pageSize,null,$employeeReader);
+        }
         Employee360Service::validatePeriod($from,$to);
         if(!in_array($type,['sales','stock','requests','reconciliation'],true))
             throw new DomainException('Employee 360 register type must be sales, stock, requests or reconciliation.','register_type_invalid',422);

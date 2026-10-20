@@ -110,5 +110,78 @@ namespace {
     assertion(str_contains($stub->queries[3][0],'s.custodian_key=%d'),'employee custody scoped');
     assertion(str_contains($stub->queries[4][0],"l.party_type='employee'") && str_contains($stub->queries[4][0],"j.status='posted'"),'tagged posted ledger only');
     assertion(str_contains($stub->queries[4][0],'j.branch_id IN (%d)'),'GL branch guard');
+
+    require_once __DIR__.'/../src/Organization/Employee360PersonLedger.php';
+    $personSource=new class implements \ExcelHerbal\ERP7\Organization\EmployeePersonLedgerReader {
+        public array $calls=[];
+        public array $events=[
+            ['event_type'=>'gl','event_id'=>8,'branch_id'=>2,'debit'=>'200.00','credit'=>'0.00'],
+            ['event_type'=>'stock','event_id'=>7,'branch_id'=>2,'qty_in'=>'5.000','qty_out'=>'0.000'],
+            ['event_type'=>'points','event_id'=>6,'branch_id'=>2,'points'=>'7.00'],
+        ];
+        public array $fin=[
+            ['account_id'=>4,'account_code'=>'EMPLOYEE_CASH_IN_TRANSIT',
+             'opening_delta'=>'50.00','period_debit'=>'200.00','period_credit'=>'100.00'],
+        ];
+        public array $stock=[
+            ['branch_id'=>2,'product_id'=>11,'batch_key'=>201,
+             'opening_quantity'=>'2.000','period_in'=>'5.000','period_out'=>'3.000'],
+        ];
+        public function events(int $c,int $e,string $f,string $t,array $b,int $limit,int $offset):array {
+            $this->calls[]=['events',$c,$e,$f,$t,$b,$limit,$offset];
+            return array_slice($this->events,$offset,$limit);
+        }
+        public function financialBalances(int $c,int $e,string $f,string $t,array $b):array {
+            $this->calls[]=['financial',$c,$e,$f,$t,$b];
+            return $this->fin;
+        }
+        public function stockBalances(int $c,int $e,string $f,string $t,array $b):array {
+            $this->calls[]=['stock',$c,$e,$f,$t,$b];
+            return $this->stock;
+        }
+    };
+    $person=\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $manager,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360());
+    assertion($person['register']==='person_ledger'&&$person['read_only'],'Tally person ledger read only');
+    assertion($person['has_more']===true&&count($person['rows'])===2,'unified cross-source pagination');
+    assertion($person['financial_accounts'][0]['opening_debit_minus_credit']==='50.00'
+        &&$person['financial_accounts'][0]['closing_debit_minus_credit']==='150.00',
+        'GL opening + debits - credits yields closing INR per account');
+    assertion($person['stock_items'][0]['closing_quantity']==='4.000',
+        'PCS opening + IN - OUT yields stock closing per batch');
+    assertion($person['employee_cash_handover_verified']===false
+        &&$person['upi_bank_settlement_verified']===false
+        &&$person['physical_stock_verified']===false,
+        'financial and inventory balances never claim physical verification');
+    assertion($personSource->calls[0][5]===[2] &&$personSource->calls[0][6]===3
+        &&$personSource->calls[0][7]===0,'globally paginated finance manager branch scope');
+    $pageTwo=\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $manager,10,'2026-10-01','2026-10-19',2,2,$personSource,new Memory360());
+    assertion(count($pageTwo['rows'])===1
+        &&$pageTwo['financial_accounts'][0]['closing_debit_minus_credit']==='150.00',
+        'balances derived from entire authorized history, not visible page');
+    denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $self,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'permission_denied');
+    denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $wrongBranch,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'branch_forbidden');
+    $personSource->events=[['event_type'=>'gl','event_id'=>8,'branch_id'=>99]];
+    denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $manager,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'person_ledger_source_invalid');
+    $personSource->events=[];
+    $personSource->fin[0]['period_debit']='1.234';
+    denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $manager,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'person_ledger_source_invalid');
+    $personSource->fin[0]['period_debit']='200.00';
+    $personSource->stock[0]['opening_quantity']='-2.000';
+    $negative=\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $manager,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360());
+    assertion($negative['stock_items'][0]['closing_quantity']==='0.000','signed opening stock balances supported');
+    $personSource->stock[0]['opening_quantity']='2.000';
+    denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $manager,10,'2026-10-01','2026-10-19',0,2,$personSource,new Memory360()),'register_pagination_invalid');
+    $registerSource=file_get_contents(__DIR__.'/../src/Organization/Employee360Registers.php');
+    assertion(str_contains($registerSource,"if(".'$type'."==='person_ledger')") && str_contains($registerSource,"Employee360PersonLedger::view("),
+        'existing authorized Employee 360 register route dispatches Tally person ledger');
+
     echo 'PASS '.$GLOBALS['passed'].'/'. $GLOBALS['passed']." Employee360 role, finance, branch, posted-source and profile regressions\n";
 }

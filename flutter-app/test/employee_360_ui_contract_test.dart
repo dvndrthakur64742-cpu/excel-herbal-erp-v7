@@ -39,6 +39,12 @@ void main() {
     final selfProfile = File('lib/screens/home/profile_screen.dart').readAsStringSync();
     expect(profile, contains("app.can('finance.accounting.view')"));
     expect(profile, contains("const Tab(text: 'Cash Responsibility')"));
+    expect(profile, contains("const Tab(text: 'Person Ledger')"));
+    expect(profile, contains("type: 'person_ledger'"));
+    expect(profile, contains('complete_tagged_movement_history_not_visible_page'));
+    expect(profile, contains('financial_accounts'));
+    expect(profile, contains('stock_items'));
+    expect(profile, contains('Sales INR and points are separate events'));
     expect(profile, contains("_Employee360TransitLedger(rows: ledgerData['entries'])"));
     expect(profile, contains("e['source_type'] == 'b2b_cash_remittance'"));
     expect(profile, contains("'EMPLOYEE_CASH_IN_TRANSIT'"));
