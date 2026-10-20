@@ -66,6 +66,15 @@ final class TrustedTenderIntake
                 || $bank['amount_paise']!==$intent['amount_paise']) {
                 throw new RetailerSaleError('Provider-verified settled INR payment for exact invoice amount required.');
             }
+            // Verified bank-feed scope, when supplied by a signed reconciliation
+            // adapter, is bound to the same immutable company and branch.
+            // Legacy provider callbacks without these fields remain UAT-only.
+            if(array_key_exists('company_id',$bank)||array_key_exists('branch_id',$bank)){
+                if(!is_int($bank['company_id']??null)||!is_int($bank['branch_id']??null)
+                    ||$bank['company_id']!==$companyId||$bank['branch_id']!==$branchId){
+                    throw new RetailerSaleError('Signed settlement evidence company or branch mismatch.');
+                }
+            }
             $merchant=$this->gateway->merchantAccount($companyId,$branchId);
             if($merchant==='' || !is_string($bank['merchant_account']??null)
                 || !hash_equals($merchant,$bank['merchant_account'])){

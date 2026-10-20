@@ -222,3 +222,7 @@ Real V7 service test extended to Field Cash (employee stock + Cash in Transit) a
 ## 2026-10-20: verified-tender bridge in real V7 Stock/GL UAT (v0.21)
 
 `V7UatCanonicalTenderBridge` promotes locked V8 issued/reserved verified Cash/UPI proof to the V7 canonical tender table within the **same existing V7 accounting transaction**. Unlike v0.20, disposable MariaDB fixtures no longer manually seed canonical verified tenders. This is UAT-only; the external independently authenticated payment-provider / physical cashier ingestion is **still missing** and cannot be claimed complete. Updated disposable MariaDB acceptance suite to 37 assertions. See `requirements/V7_REAL_MARIADB_UAT.md`.
+
+## 2026-10-20: internal signed bank settlement read barrier (UAT v0.23)
+
+Added HMAC-sealed bank-reconciliation record lookup on an isolated `v8_test` table, with strict source, age and company/branch assertions and MariaDB negative tests. Demonstrates a safe input contract for `TrustedTenderIntake`, **not a real PSP API / signature format / webhook**. Provider selection and independent source authentication remain required before live payments. See `requirements/V7_REAL_MARIADB_UAT.md`.
