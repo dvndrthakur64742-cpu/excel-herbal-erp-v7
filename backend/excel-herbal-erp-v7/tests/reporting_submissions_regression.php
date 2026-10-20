@@ -82,7 +82,9 @@ $GLOBALS['wpdb']=new class{
     public function get_results(string $sql,mixed $mode=null):array{
         if(!preg_match('/FROM\s+([a-z0-9_]+)/i',$sql,$m))throw new RuntimeException('Bad SQL table');
         $rows=array_values(array_filter($this->tables[$m[1]]??[],fn($row)=>$this->where($sql,$row)));
-        usort($rows,fn($a,$b)=>$b['id']<=>$a['id']);return $rows;
+        if(str_contains($sql,'ORDER BY id ASC'))usort($rows,fn($a,$b)=>$a['id']<=>$b['id']);
+        else usort($rows,fn($a,$b)=>$b['id']<=>$a['id']);
+        return $rows;
     }
 };
 if(!defined('ARRAY_A'))define('ARRAY_A','ARRAY_A');

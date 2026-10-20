@@ -193,7 +193,7 @@ class _ReportSubmissionsPanelState extends State<ReportSubmissionsPanel> {
               subtitle:Text(row['status'].toString()+' · revision '+
                 row['revision'].toString()+'\n'+row['summary_text'].toString()),
               isThreeLine:true,
-              trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[
+              trailing:Wrap(alignment:WrapAlignment.end,spacing:0,children:[
                 IconButton(icon:const Icon(Icons.history_outlined),
                   tooltip:'View submission history',
                   onPressed:()=>_history(int.parse(row['id'].toString()))),
