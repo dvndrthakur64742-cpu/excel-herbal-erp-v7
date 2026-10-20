@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS v8_b2b_tender_intake_evidence_uat (
  verified_by BIGINT UNSIGNED NOT NULL, channel VARCHAR(12) NOT NULL,
  employee_id BIGINT UNSIGNED NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  UNIQUE KEY uq_payment_use_across_branches (company_id,payment_mode,payment_reference),
+ UNIQUE KEY uq_global_verified_reference (payment_mode,payment_reference),
  UNIQUE KEY uq_one_proof (confirmed_tender_id),
  CHECK (amount_paise > 0)
 ) ENGINE=InnoDB;

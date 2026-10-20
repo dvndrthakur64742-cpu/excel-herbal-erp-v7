@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace ExcelHerbal\ERP8\B2B;
 
+require_once __DIR__.'/AuthenticatedUpiSettlementSource.php';
+
 use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -14,7 +16,7 @@ use PDO;
  * Only the independently trusted reconciliation importer can have signing keys.
  * Keep bank/importer credentials out of the ERP and out of browser/HTTP input.
  */
-final class SignedBankReconciliationLookupUat
+final class SignedBankReconciliationLookupUat implements AuthenticatedUpiSettlementSource
 {
     private const FIELDS = [
         'company_id','branch_id','lookup_key','status','currency','amount_paise',
@@ -45,6 +47,11 @@ final class SignedBankReconciliationLookupUat
 
     /** Only returns a settled payment if the backend-origin proof is intact and current. */
     public function __invoke(string $lookupKey): ?array
+    {
+        return $this->verifySettlement($lookupKey);
+    }
+
+    public function verifySettlement(string $lookupKey): ?array
     {
         if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._:\/-]{7,127}$/D', $lookupKey)) return null;
         if ($this->db->inTransaction() === false) return null; // caller must lock its issued intent first

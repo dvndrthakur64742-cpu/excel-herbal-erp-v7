@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace ExcelHerbal\ERP8\B2B;
 
+require_once __DIR__.'/AuthenticatedUpiSettlementSource.php';
+
 use Closure;
 use PDO;
 use Throwable;
@@ -19,7 +21,7 @@ final class PdoTrustedTenderIntakeGateway implements TrustedTenderIntakeGateway
         private PDO $db,
         private Closure $cashAuthorization,
         private Closure $upiAuthorization,
-        private Closure $verifiedBankLookup,
+        private Closure|AuthenticatedUpiSettlementSource $verifiedBankLookup,
         private Closure $merchantAccountLookup
     ) {
         if($db->getAttribute(PDO::ATTR_DRIVER_NAME)!=='mysql'){
@@ -65,7 +67,9 @@ final class PdoTrustedTenderIntakeGateway implements TrustedTenderIntakeGateway
     {
         // Inject a pre-reconciled trusted bank record reader, not an unbounded external
         // network call inside the open database transaction.
-        $value=($this->verifiedBankLookup)($providerLookupKey);
+        $value=$this->verifiedBankLookup instanceof AuthenticatedUpiSettlementSource
+            ? $this->verifiedBankLookup->verifySettlement($providerLookupKey)
+            : ($this->verifiedBankLookup)($providerLookupKey); // CI/UAT synthetic callbacks only
         return is_array($value)?$value:null;
     }
 
@@ -92,9 +96,10 @@ final class PdoTrustedTenderIntakeGateway implements TrustedTenderIntakeGateway
                 'payment_mode'=>(string)$existing['payment_mode'],'amount_paise'=>(int)$existing['amount_paise'],
                 'verified_source'=>(string)$existing['verified_source'],'status'=>'confirmed'];
         }
-        // Prevent the same bank transaction/cash reference being credited to ANY branch twice.
-        $q=$this->db->prepare('SELECT intent_id FROM v8_b2b_tender_intake_evidence_uat WHERE company_id=? AND payment_mode=? AND payment_reference=? FOR UPDATE');
-        $q->execute([$company,$evidence['payment_mode'],$evidence['payment_reference']]);
+        // Prevent a UPI bank reference being credited across companies or branches;
+        // the global unique index is the final guard for concurrent INSERT races.
+        $q=$this->db->prepare('SELECT intent_id FROM v8_b2b_tender_intake_evidence_uat WHERE payment_mode=? AND payment_reference=? FOR UPDATE');
+        $q->execute([$evidence['payment_mode'],$evidence['payment_reference']]);
         if($q->fetchColumn()!==false)throw new RetailerSaleError('Payment reference already allocated to another intent.');
         $q=$this->db->prepare("INSERT INTO v8_b2b_verified_tenders(company_id,branch_id,payment_mode,payment_reference,amount_paise,verified_source,verified_at,status) VALUES(?,?,?,?,?,?,UTC_TIMESTAMP(),'confirmed')");
         $q->execute([$company,$branch,$evidence['payment_mode'],$evidence['payment_reference'],$evidence['amount_paise'],$evidence['verified_source']]);

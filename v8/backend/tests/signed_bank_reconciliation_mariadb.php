@@ -35,7 +35,7 @@ try{
  $gateway=new PdoTrustedTenderIntakeGateway($db,
   static fn()=>false,
   static fn($c,$b,$staff)=>$c===$company&&$b===$branch&&$staff===$actor,
-  $lookup(...),
+  $lookup, // typed authenticated settlement-source interface
   static fn($c,$b)=>$c===$company&&$b===$branch?'CI-MERCHANT-588':''
  );
  $intake=new TrustedTenderIntake($gateway);
@@ -61,6 +61,7 @@ try{
   catch(RetailerSaleError $e){return $needle===''||str_contains($e->getMessage(),$needle);}
   return false;
  };
+ $assert($lookup instanceof \ExcelHerbal\ERP8\B2B\AuthenticatedUpiSettlementSource,'signed importer implements provider-independent trusted verification contract');
  $assert($lookup('CI-LOOKUP-absent')===null,'bank feed cannot be read outside a locked payment transaction');
  [$id,$r]=$make('ACCEPT-01');
  $good=$intake->upiSettled($company,$branch,$actor,$id,$r['lookup_key']);
@@ -92,6 +93,17 @@ try{
  try{$make('REPLAY-11',['transaction_id'=>'CI-TXN-ACCEPT-01']);}
  catch(PDOException $e){$duplicateBlocked=$e->getCode()==='23000';}
  $assert($duplicateBlocked,'MariaDB refuses repeated merchant and bank settlement reference');
+ $crossMerchantBlocked=false;
+ try{$make('REPLAY-ALT-MERCHANT',['merchant_account'=>'OTHER-CI-MERCHANT','company_id'=>(string)($company+1),'transaction_id'=>'CI-TXN-ACCEPT-01']);}
+ catch(PDOException $e){$crossMerchantBlocked=$e->getCode()==='23000';}
+ $assert($crossMerchantBlocked,'same bank transaction cannot be inserted for another merchant or company');
+ [$id,$r]=$make('VALID-BAD-AMOUNT',['amount_paise'=>'249999']);
+ $assert($reject($id,$r['lookup_key'],'exact invoice'),'valid HMAC for a short settlement still cannot pay full original intent');
+ [$id,$r]=$make('VALID-PENDING',['status'=>'pending']);
+ $assert($reject($id,$r['lookup_key'],'settled INR'),'authentic pending event is not a settled payment');
+ [$id,$r]=$make('KEY-REVOKED');
+ $db->prepare('UPDATE v8_b2b_signed_bank_reconciliation_uat SET key_id=? WHERE lookup_key=?')->execute(['revoked-key',$r['lookup_key']]);
+ $assert($reject($id,$r['lookup_key'],'settled INR'),'key revocation or invalid signature fails closed');
  [$id,$r]=$make('BRANCH-12',['branch_id'=>(string)($branch+1)]);
  $assert($reject($id,$r['lookup_key'],'company or branch'),'signed record for different branch cannot confirm issued intent');
  [$id,$r]=$make('COMPANY-13',['company_id'=>(string)($company+1)]);

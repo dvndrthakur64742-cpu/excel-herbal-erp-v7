@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS v8_b2b_signed_bank_reconciliation_uat (
   key_id VARCHAR(64) NOT NULL,
   signature CHAR(64) NOT NULL,
   UNIQUE KEY one_settlement_reference (merchant_account,transaction_id),
+  -- A UPI/bank reference cannot be reused even by a different ERP company or destination account.
+  UNIQUE KEY one_global_bank_reference (transaction_id),
   KEY company_scope (company_id,branch_id),
   CHECK (amount_paise>0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
