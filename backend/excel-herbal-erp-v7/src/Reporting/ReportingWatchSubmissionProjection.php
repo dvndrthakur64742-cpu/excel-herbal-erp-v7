@@ -118,7 +118,7 @@ final class ReportingWatchSubmissionProjection {
             // 23:59:59 in the legacy watch was a display fallback, not an
             // agreed reporting SLA. It must not generate an overdue flag.
             if($template['time']===null){
-                $template['due_state']=$businessDate>$clock->format('Y-m-d')
+                $template['due_state']=$businessDate<$clock->format('Y-m-d')
                     ?'date_passed_deadline_unspecified':'deadline_unspecified';
             }
             $slots[]=$template;

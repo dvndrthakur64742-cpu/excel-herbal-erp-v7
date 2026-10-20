@@ -180,8 +180,14 @@ try{
    $monthDraft=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::prepare(
        $regional,$branch,'2026-10-01',$watchReader,null,
        new DateTimeImmutable('2026-10-01 11:00:00',wp_timezone()));
-   $assert($monthDraft['created']===2&&$monthDraft['eligible']===2,
-       'first-day 10:30 known deadline allows monthly and daily drafts only');
+   $assert($monthDraft['created']===1&&$monthDraft['eligible']===1,
+       '11:00 AM known monthly 10:30 cutoff creates monthly draft, not 19:30 daily');
+   $nightDraft=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::prepare(
+       $regional,$branch,'2026-10-01',$watchReader,null,
+       new DateTimeImmutable('2026-10-01 20:00:00',wp_timezone()));
+   $assert($nightDraft['eligible']===2&&$nightDraft['created']===1
+       &&$nightDraft['duplicates_skipped']===1,
+       'at 8:00 PM existing monthly draft deduped, daily 19:30 candidate added once');
    $wrongCompanyDenied=false;
    try{
        \ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::list(
