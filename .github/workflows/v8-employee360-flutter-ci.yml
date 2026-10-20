@@ -1,0 +1,33 @@
+name: Excel Herbal Employee 360 Flutter UI Tests (No Deploy)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
+      - 'flutter-app/test/employee_360_ui_contract_test.dart'
+      - 'flutter-app/pubspec.yaml'
+      - '.github/workflows/v8-employee360-flutter-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  employee360-flutter-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Get Flutter dependencies
+        working-directory: flutter-app
+        run: flutter pub get
+      - name: Employee 360 UI contract test
+        working-directory: flutter-app
+        run: flutter test test/employee_360_ui_contract_test.dart
+      - name: Stock allocation regression
+        working-directory: flutter-app
+        run: flutter test test/stock_allocation_test.dart
