@@ -67,7 +67,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       'account_ledger',
     };
     const asOfReports = {'trial', 'balance_sheet'};
-    const dayReports = {'branch_daily', 'branch_weekly', 'branch_monthly'};
+    const dayReports = {
+      'branch_daily', 'branch_weekly', 'branch_monthly',
+      'branch_compare_weekly', 'branch_compare_monthly',
+    };
+    const comparisonReports = {'branch_compare_weekly', 'branch_compare_monthly'};
     final defaultFrom = DateTime.tryParse(app.businessMonthStart) ??
         DateTime(DateTime.now().year, DateTime.now().month, 1);
     final defaultTo = DateTime.tryParse(app.businessDate) ?? DateTime.now();
@@ -76,17 +80,22 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final fromValue = _dateKey(fromDate);
     final toValue = _dateKey(toDate);
     final query = <String, dynamic>{
-      if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
+      if (app.currentBranchId != null && !comparisonReports.contains(activeType))
+        'branch_id': app.currentBranchId,
       if (periodReports.contains(activeType)) 'from': fromValue,
       if (periodReports.contains(activeType)) 'to': toValue,
       if (asOfReports.contains(activeType)) 'to': app.businessDate,
       if (dayReports.contains(activeType)) 'date': toValue,
-      if (activeType == 'branch_weekly' || activeType == 'branch_monthly')
-        'mode': activeType == 'branch_weekly' ? 'week' : 'month',
+      if (activeType == 'branch_weekly' || activeType == 'branch_monthly' ||
+          comparisonReports.contains(activeType))
+        'mode': const {'branch_weekly', 'branch_compare_weekly'}.contains(activeType)
+            ? 'week' : 'month',
       if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };
-    final baseScopeLabel = dayReports.contains(activeType)
+    final baseScopeLabel = comparisonReports.contains(activeType)
+        ? 'All authorised branches · ${BusinessFormat.date(toValue)}'
+        : dayReports.contains(activeType)
         ? BusinessFormat.date(toValue)
         : activeType == 'stock'
         ? 'Live stock'
@@ -98,7 +107,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 : asOfReports.contains(activeType)
                     ? BusinessFormat.date(app.businessDate)
                     : '${BusinessFormat.date(fromValue)} – ${BusinessFormat.date(toValue)}';
-    final scopeLabel = app.currentBranchId == null
+    final scopeLabel = comparisonReports.contains(activeType)
+        ? baseScopeLabel
+        : app.currentBranchId == null
         ? baseScopeLabel
         : '$baseScopeLabel · Branch ${app.currentBranchId}';
 
@@ -118,6 +129,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 future: api.get(config.path, query: query),
                 emptyMessage: config.emptyMessage,
                 builder: (context, data) {
+                  if (comparisonReports.contains(activeType)) {
+                    return _BranchComparisonPanel(data: data, api: api, query: query);
+                  }
                   if (activeType == 'branch_weekly' || activeType == 'branch_monthly') {
                     return _BranchPeriodControlPanel(data: data);
                   }
@@ -170,7 +184,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-              child: BranchSelector(allowAllAuthorised: !needsBranch),
+              child: comparisonReports.contains(activeType)
+                  ? const SizedBox.shrink()
+                  : BranchSelector(allowAllAuthorised: !needsBranch),
             ),
             Expanded(
               child: LayoutBuilder(
@@ -333,6 +349,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         _ReportOption('branch_daily', 'Branch Daily Control', Icons.assignment_turned_in_outlined),
         _ReportOption('branch_weekly', 'Branch Weekly Performance', Icons.date_range_outlined),
         _ReportOption('branch_monthly', 'Branch Monthly Performance', Icons.calendar_month_outlined),
+        _ReportOption('branch_compare_weekly', 'Compare Branches (Week)', Icons.compare_arrows_outlined),
+        _ReportOption('branch_compare_monthly', 'Compare Branches (Month)', Icons.insights_outlined),
         _ReportOption(
           'price_distribution',
           'Price Distribution',
@@ -435,6 +453,20 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   _ReportConfig _config(String value) => switch (value) {
+        'branch_compare_weekly' => const _ReportConfig(
+            title: 'Authorized Branch Comparison (Weekly)',
+            path: ApiPaths.branchCompare,
+            recordType: 'branch_compare',
+            subtitle: 'Compare only permitted branches; export a server-authorized Excel-ready CSV. Financial GL and verified payment claims excluded.',
+            emptyMessage: 'No authorized branch comparison data.',
+          ),
+        'branch_compare_monthly' => const _ReportConfig(
+            title: 'Authorized Branch Comparison (Monthly)',
+            path: ApiPaths.branchCompare,
+            recordType: 'branch_compare',
+            subtitle: 'Compare posted sales, points, stock and pending closings across permitted branches and prior month.',
+            emptyMessage: 'No authorized branch comparison data.',
+          ),
         'branch_weekly' => const _ReportConfig(
             title: 'Branch Weekly Performance',
             path: ApiPaths.branchPeriodControl,
@@ -565,6 +597,124 @@ class _ReportOption {
 }
 
 
+
+
+class _BranchComparisonPanel extends StatelessWidget {
+  const _BranchComparisonPanel({required this.data, required this.api, required this.query});
+  final dynamic data;
+  final dynamic api;
+  final Map<String, dynamic> query;
+
+  @override
+  Widget build(BuildContext context) {
+    if (data is! Map) {
+      return const Center(child: Text('Branch comparison response invalid.'));
+    }
+    final result = Map<String, dynamic>.from(data as Map);
+    final coverage = result['coverage'];
+    if (result['read_only'] != true ||
+        result['scope'] != 'only_effective_authorized_branches' ||
+        result['financial_visibility'] != 'no_gl_data_exported' ||
+        coverage is! Map ||
+        coverage['cashier_handover_verified'] != false ||
+        coverage['upi_bank_verified'] != false ||
+        coverage['counter_sales_separate_from_daily_orders'] != true ||
+        !const {'week', 'month'}.contains(result['mode']) ||
+        result['branch_ids'] is! List ||
+        result['branches'] is! List) {
+      return const Center(child: Text('Multi-branch authority and payment contract mismatch.'));
+    }
+    final totals = Map<String, dynamic>.from((result['total'] as Map?) ?? const {});
+    final previous = Map<String, dynamic>.from((result['previous_total'] as Map?) ?? const {});
+    final rows = (result['branches'] as List)
+        .whereType<Map>()
+        .map((r) => Map<String, dynamic>.from(r))
+        .toList();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              'All effective authorized branches (max 12). Previous full '
+              'period is NOT working-day normalized. Posted Cash/UPI are '
+              'allocations, not independently bank/cashier verified. '
+              'No employee Cash GL is exported.',
+            ),
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Export authorized CSV for Excel'),
+            onPressed: () async {
+              try {
+                final response = await api.get(ApiPaths.branchCompare,
+                    query: {...query, 'export': 'csv'});
+                if (response is! Map ||
+                    response['read_only'] != true ||
+                    response['scope'] != 'only_effective_authorized_branches' ||
+                    response['mime_type'] != 'text/csv' ||
+                    response['encoding'] != 'utf-8-sig' ||
+                    response['csv'] is! String ||
+                    response['filename'] is! String ||
+                    jsonEncode(response['branch_ids']) != jsonEncode(result['branch_ids'])) {
+                  throw StateError('CSV server authorization mismatch');
+                }
+                await Share.shareXFiles(
+                  [XFile.fromData(
+                    Uint8List.fromList(utf8.encode(response['csv'] as String)),
+                    name: response['filename'] as String,
+                    mimeType: 'text/csv',
+                  )],
+                  text: 'Excel Herbal authorised branch performance',
+                );
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Authorized CSV export failed; retry.')),
+                  );
+                }
+              }
+            },
+          ),
+        ),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          _MetricCard(label: 'Total Posted Daily Sales', value: BusinessFormat.money(totals['posted_daily_order_sales'])),
+          _MetricCard(label: 'Previous Period Sales', value: BusinessFormat.money(previous['posted_daily_order_sales'])),
+          _MetricCard(label: 'Sales Change INR', value: '${result['sales_change_inr']}'),
+          _MetricCard(label: 'Cash Allocations', value: BusinessFormat.money(totals['daily_cash_allocations'])),
+          _MetricCard(label: 'UPI Allocations', value: BusinessFormat.money(totals['daily_upi_allocations'])),
+          _MetricCard(label: 'Counter Sales (separate)', value: BusinessFormat.money(totals['counter_sales_gross'])),
+          _MetricCard(label: 'Issued PCS', value: BusinessFormat.quantity(totals['issued_quantity'])),
+          _MetricCard(label: 'Sold PCS', value: BusinessFormat.quantity(totals['sold_quantity'])),
+          _MetricCard(label: 'Points', value: BusinessFormat.quantity(totals['performance_points'])),
+          _MetricCard(label: 'Pending Closings', value: '${totals['pending_daily_orders'] ?? 0}'),
+          _MetricCard(label: 'Needs Attention', value: '${totals['employees_needing_attention'] ?? 0}'),
+        ]),
+        const SizedBox(height: 12),
+        Text('Authorized Branch Ranking by Posted Sales',
+            style: Theme.of(context).textTheme.titleMedium),
+        for (final row in rows)
+          Card(
+            child: ListTile(
+              title: Text('Branch #${row['branch_id']}'),
+              subtitle: Text('Posted ${BusinessFormat.money((row['totals'] as Map?)?['posted_daily_order_sales'])} '
+                  '· Points ${(row['totals'] as Map?)?['performance_points']} '
+                  '· Pending ${(row['totals'] as Map?)?['pending_daily_orders']} '
+                  '· Issues ${(row['totals'] as Map?)?['pending_stock_requests']}'),
+              trailing: Text('Δ ${row['sales_change_inr']} INR'),
+            ),
+          ),
+        const SizedBox(height: 4),
+        const Text('CSV contains per-branch and employee summary rows. '
+          'No shadow GL, customer details, prices, wages or bank validation.'),
+      ],
+    );
+  }
+}
 
 class _BranchPeriodControlPanel extends StatelessWidget {
   const _BranchPeriodControlPanel({required this.data});

@@ -9,6 +9,9 @@ on:
       - 'v8/**'
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchDailyControlReport.php'
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchPeriodControlReport.php'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/BranchComparisonReport.php'
+      - 'backend/excel-herbal-erp-v7/tests/branch_comparison_regression.php'
+      - 'flutter-app/test/branch_comparison_csv_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/tests/branch_period_control_regression.php'
       - 'flutter-app/test/branch_period_control_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php'
@@ -63,6 +66,8 @@ jobs:
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_daily_control_regression.php
       - name: Branch weekly monthly reports, comparators, finance and branch scope
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_period_control_regression.php
+      - name: Multi branch manager comparison, exact totals, authorization and CSV formula injection
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_comparison_regression.php
       - name: Retailer master and API boundary tests
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
       - name: Employee cash responsibility tests

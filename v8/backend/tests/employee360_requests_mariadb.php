@@ -35,6 +35,7 @@ try {
     require_once $src.'Security/Guard.php';
     require_once $src.'Reporting/BranchDailyControlReport.php';
     require_once $src.'Reporting/BranchPeriodControlReport.php';
+    require_once $src.'Reporting/BranchComparisonReport.php';
     if (!defined('ARRAY_A')) define('ARRAY_A','ARRAY_A');
     $defs=\ExcelHerbal\ERP7\Database\Schema::definitions();
     foreach (['daily_cycles','daily_requests','daily_request_lines','daily_issue_lines','evening_settlements','evening_lines','stock_ledger','accounts','journal_entries','journal_lines','performance_entries','employees','counter_sales'] as $table) {
@@ -368,6 +369,70 @@ try {
             $branchDenied=$err->codeKey==='branch_forbidden';
         }
         $assert($branchDenied,'unauthorized real weekly/monthly branch scope rejected before querying');
+
+        // Real multi-branch comparison runs the EXISTING BranchPeriodControl
+        // service once per authorized branch. Never copies its finance-only GL.
+        $regionalActor=new \ExcelHerbal\ERP7\Security\Actor(
+            4903,$employee+1,$company,$branch,[$otherBranch,$branch],
+            [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW],'RM');
+        $branchCompare=\ExcelHerbal\ERP7\Reporting\BranchComparisonReport::view(
+            $regionalActor,'week','2026-10-20');
+        $assert($branchCompare['branch_ids']===[$branch,$otherBranch]
+            &&count($branchCompare['branches'])===2,
+            'real MariaDB compare only authorized company branches in deterministic order');
+        $assert($branchCompare['total']['posted_daily_order_sales']==='300.00'
+            &&$branchCompare['total']['counter_sales_gross']==='25.00'
+            &&$branchCompare['top_posted_sales_branch_id']===$branch,
+            'original posted Daily Order counted once; Counter Sales remain distinct across branches');
+        $assert($branchCompare['total']['pending_daily_orders']===2
+            &&$branchCompare['total']['pending_stock_requests']===3,
+            'branch-period pending issued cycles and requested stock combined without duplicate sale');
+        $assert($branchCompare['total']['performance_points']==='7.00'
+            &&$branchCompare['total']['issued_quantity']==='5.000'
+            &&$branchCompare['total']['custody_in_quantity']==='6.000',
+            'regional summary performance and full-week custody preserve canonical movement units');
+        $assert($branchCompare['financial_visibility']==='no_gl_data_exported'
+            &&!isset($branchCompare['branches'][0]['employees'][0]['tagged_cash_in_transit']),
+            'regional comparison deliberately contains NO employee Cash-in-Transit GL');
+        $scoped=\ExcelHerbal\ERP7\Reporting\BranchComparisonReport::view(
+            $regionalActor,'month','2026-10-20',(string)$otherBranch);
+        $assert($scoped['branch_ids']===[$otherBranch]
+            &&$scoped['total']['posted_daily_order_sales']==='0.00'
+            &&$scoped['total']['pending_daily_orders']===1,
+            'client-selected authorized branch is constrained to its own real canonical data');
+        $regionalCsv=\ExcelHerbal\ERP7\Reporting\BranchComparisonReport::view(
+            $regionalActor,'week','2026-10-20','','csv');
+        $assert($regionalCsv['branch_ids']===[$branch,$otherBranch]
+            &&str_starts_with($regionalCsv['csv'],"\xEF\xBB\xBF")
+            &&str_contains($regionalCsv['csv'],'"authorized_total","ALL"')
+            &&!str_contains($regionalCsv['csv'],'tagged_cash_in_transit'),
+            'real MariaDB authorized CSV export has Excel BOM, scoped totals and no GL leak');
+        $regionalBlocked=false;
+        try{
+            \ExcelHerbal\ERP7\Reporting\BranchComparisonReport::view(
+                $regionalActor,'week','2026-10-20',$branch.','.($otherBranch+1));
+        }catch(\ExcelHerbal\ERP7\Domain\DomainException $err){
+            $regionalBlocked=$err->codeKey==='branch_forbidden';
+        }
+        $assert($regionalBlocked,'disallowed third branch is denied before any comparison source query');
+        $financeRegional=new \ExcelHerbal\ERP7\Security\Actor(
+            4904,$employee+1,$company,$branch,[$otherBranch,$branch],
+            [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW,
+             \ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW],'RM');
+        $financeRegionalComparison=\ExcelHerbal\ERP7\Reporting\BranchComparisonReport::view(
+            $financeRegional,'month','2026-10-20');
+        $assert($financeRegionalComparison['financial_visibility']==='no_gl_data_exported'
+            &&!isset($financeRegionalComparison['branches'][0]['employees'][0]['tagged_cash_in_transit']),
+            'even finance-authorized regional export strips GL and personal Cash liability');
+        $foreignRegional=new \ExcelHerbal\ERP7\Security\Actor(
+            4905,$employee+1,$otherCompany,$branch,[$branch,$otherBranch],
+            [\ExcelHerbal\ERP7\Security\Capabilities::REPORTS_VIEW],'RM');
+        $foreignCompare=\ExcelHerbal\ERP7\Reporting\BranchComparisonReport::view(
+            $foreignRegional,'month','2026-10-20');
+        $assert($foreignCompare['total']['posted_daily_order_sales']==='0.00'
+            &&$foreignCompare['total']['counter_sales_gross']==='0.00'
+            &&$foreignCompare['total']['performance_points']==='0.00',
+            'cross-company regional view cannot read other company source rows');
         // A deliberately missing ledger sale row must never be masked by a
         // healthy evening settlement; the source totals visibly diverge.
         $db->prepare("DELETE FROM wp_eh7_stock_ledger WHERE company_id=? AND source_type='daily_sale' AND source_id=? AND batch_id=?")

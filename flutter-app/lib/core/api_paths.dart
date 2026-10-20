@@ -76,7 +76,8 @@ abstract final class ApiPaths {
       performanceRewards = '/performance/rewards',
       performancePromotions = '/performance/promotions';
 
-  static const branchPeriodControl = '/reports/branch-period',
+  static const branchCompare = '/reports/branch-compare',
+      branchPeriodControl = '/reports/branch-period',
       branchDailyControl = '/reports/branch-daily',
       reportsSales = '/reports/sales',
       reportsPurchase = '/reports/purchase',
