@@ -38,6 +38,10 @@ void main() {
     final dashboard = File('lib/screens/home/home_screen.dart');
     final selfProfile = File('lib/screens/home/profile_screen.dart').readAsStringSync();
     expect(profile, contains("app.can('finance.accounting.view')"));
+    expect(profile, contains("const Tab(text: 'Cash Responsibility')"));
+    expect(profile, contains("_Employee360TransitLedger(rows: ledgerData['entries'])"));
+    expect(profile, contains("e['source_type'] == 'b2b_cash_remittance'"));
+    expect(profile, contains("'EMPLOYEE_CASH_IN_TRANSIT'"));
     expect(profile, contains("app.can('workforce.gps.team.view')"));
     expect(profile, contains("data['read_only'] != true"));
     expect(profile, contains("data['dashboard_unchanged'] != true"));

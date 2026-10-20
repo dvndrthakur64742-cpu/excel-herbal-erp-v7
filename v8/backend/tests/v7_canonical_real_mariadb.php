@@ -101,7 +101,7 @@ spl_autoload_register(static function(string $name)use($legacy):void{
     if(is_file($p))require_once $p;
 });
 $src=dirname(__DIR__).'/src/B2B/';
-foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php'] as $name)require_once $src.$name;
+foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
@@ -115,7 +115,7 @@ foreach($tables as $name){
 // The UAT writer's DRAFT source schema stays in v8_test; never run in WordPress installation.
 foreach(['001_b2b_preview_mysql.sql','004_trusted_tender_intake_UAT.sql','005_sale_intent_tender_binding_UAT.sql',
   '006_immutable_checkout_intents_UAT.sql','007_immutable_sale_line_snapshots_UAT.sql','010_signed_bank_reconciliation_UAT.sql',
-  '009_v7_canonical_retailer_posting_DRAFT.sql'] as $file){
+  '009_v7_canonical_retailer_posting_DRAFT.sql','011_v7_canonical_cash_handover_DRAFT.sql'] as $file){
     $sql=file_get_contents(dirname(__DIR__).'/schema/'.$file);
     $sql=preg_replace('/^\s*--[^\r\n]*$/m','',$sql);
     foreach(preg_split('/;\s*(?:\r?\n|$)/',$sql) as $statement){
@@ -273,6 +273,122 @@ try{
     checkUat((float)first($pdo,'SELECT debit FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$fieldSale['journal_id'],$transitId])===200.0,'field cash debits Employee Cash in Transit, not Branch Cash');
     checkUat(first($pdo,'SELECT party_type FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$fieldSale['journal_id'],$transitId])==='employee'
         && (int)first($pdo,'SELECT party_id FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$fieldSale['journal_id'],$transitId])===$employee,'field Cash journal is tagged to the correct employee ledger');
+
+    // CANONICAL CASH HANDOVER UAT: independent authenticated cashier evidence
+    // plus real V7 AccountingService journal on the SAME PDO-backed WordPress DB.
+    // The receipt and remittance table are disposable DRAFT source/audit records;
+    // wp_eh7_journal_entries / journal_lines remain the ONLY GL.
+    $financeActor=new \ExcelHerbal\ERP7\Security\Actor(
+        8002,9002,$company,$branch,[$branch],
+        [\ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW],'BM');
+    $cashierAuthority=static fn($action,$actor,$c,$b)=>
+        in_array($action,['cash_receipt.attest','cash_remittance.post'],true)
+        &&$actor===8002&&$c===$company&&$b===$branch;
+    $cashier=new \ExcelHerbal\ERP8\B2B\V7CanonicalCashHandoverUat($financeActor,$cashierAuthority);
+    $cashDenied=false;
+    try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$cashDenied=true;}
+    checkUat($cashDenied,'unattested field Cash cannot be reclassified in canonical V7 GL');
+    $selfActor=new \ExcelHerbal\ERP7\Security\Actor(
+        $user,$employee,$company,$branch,[$branch],
+        [\ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW],'BM');
+    $selfCashier=new \ExcelHerbal\ERP8\B2B\V7CanonicalCashHandoverUat(
+        $selfActor,static fn()=>true);
+    $selfDenied=false;
+    try{$selfCashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-001');}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$selfDenied=true;}
+    checkUat($selfDenied,'original field seller cannot self-attest branch cashier receipt');
+    $wrongBranch=false;
+    try{$cashier->attest($branch+1,$fieldSale['sale_id'],'CI-CASHIER-REF-001');}
+    catch(Throwable $e){$wrongBranch=true;}
+    checkUat($wrongBranch,'cashier cannot attest outside authorized branch');
+    $unprivileged=new \ExcelHerbal\ERP8\B2B\V7CanonicalCashHandoverUat(
+        new \ExcelHerbal\ERP7\Security\Actor(8003,9003,$company,$branch,[$branch],[],'FSE'),
+        static fn()=>true);
+    $unprivilegedDenied=false;
+    try{$unprivileged->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-001');}
+    catch(Throwable $e){$unprivilegedDenied=true;}
+    checkUat($unprivilegedDenied,'server-side finance permission blocks unauthorized cashier');
+    $receipt=$cashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-001');
+    checkUat($receipt['amount_paise']===20000 && !$receipt['already_attested'],
+        'independent cashier receipt derives exact Cash amount from V7 posted sale');
+    $receiptRetry=$cashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-001');
+    checkUat($receiptRetry['receipt_id']===$receipt['receipt_id']&&$receiptRetry['already_attested'],
+        'cashier exact duplicate attestation does not create a second physical receipt');
+    $newRefDenied=false;
+    try{$cashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-ALTERED');}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$newRefDenied=true;}
+    checkUat($newRefDenied,'cashier receipt cannot change after attestation');
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE wp_eh7_b2b_cashier_receipts_uat SET amount_paise=19999 WHERE id=?')
+            ->execute([$receipt['receipt_id']]);
+        $tamperedRejected=false;
+        try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+        catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$tamperedRejected=true;}
+        checkUat($tamperedRejected,'forged short cashier receipt cannot post canonical GL');
+    } finally {if($pdo->inTransaction())$pdo->rollBack();}
+    // Closed posting period must fail before any Cash reclassification.
+    $pdo->prepare("INSERT INTO wp_eh7_accounting_periods(company_id,period_start,period_end,status)
+      VALUES(?,'2026-10-19','2026-10-19','closed')")->execute([$company]);
+    $closedDenied=false;
+    try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+    catch(Throwable $e){$closedDenied=true;}
+    checkUat($closedDenied,'canonical accounting period close blocks Cash handover journal');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_cash_remittances WHERE company_id=?',[$company])===0,
+        'period close creates no Cash remittance source');
+    $pdo->prepare("DELETE FROM wp_eh7_accounting_periods WHERE company_id=? AND status='closed'")->execute([$company]);
+    // Force real AccountingService journal write to fail to test atomic rollback.
+    $wp->failJournalInsert=true;
+    $failedRemit=false;
+    try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+    catch(Throwable $e){$failedRemit=true;}
+    $wp->failJournalInsert=false;
+    checkUat($failedRemit,'injected V7 GL journal failure rejects Cash handover');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_cash_remittances WHERE company_id=?',[$company])===0
+      && first($pdo,'SELECT consumed_remittance_id FROM wp_eh7_b2b_cashier_receipts_uat WHERE id=?',[$receipt['receipt_id']])===null,
+      'journal failure rolls back Cash source and preserves unconsumed cashier proof');
+    $remit=$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');
+    checkUat($remit['status']==='posted' && !$remit['replayed'] && $remit['amount_paise']===20000,
+        'full Cash handover created one posted V7 canonical reclassification');
+    checkUat((int)first($pdo,"SELECT COUNT(*) FROM wp_eh7_journal_entries WHERE company_id=? AND source_type='b2b_cash_remittance' AND source_id=?",[$company,$remit['remittance_id']])===1,
+        'exactly one Cash remittance posted via existing AccountingService');
+    $branchCashId=(int)first($pdo,"SELECT id FROM wp_eh7_accounts WHERE company_id=? AND code='BRANCH_CASH'",[$company]);
+    checkUat((float)first($pdo,'SELECT debit FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$remit['journal_id'],$branchCashId])===200.0
+        &&(float)first($pdo,'SELECT credit FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$remit['journal_id'],$transitId])===200.0,
+        'canonical GL Dr Branch Cash / Cr Employee Cash in Transit for exact ₹200');
+    checkUat((int)first($pdo,'SELECT SUM(debit)*100 FROM wp_eh7_journal_lines WHERE journal_entry_id=?',[$remit['journal_id']])===20000
+        &&(int)first($pdo,'SELECT SUM(credit)*100 FROM wp_eh7_journal_lines WHERE journal_entry_id=?',[$remit['journal_id']])===20000,
+        'canonical cash handover journal balances to the paise');
+    checkUat(first($pdo,'SELECT party_type FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$remit['journal_id'],$transitId])==='employee'
+      &&(int)first($pdo,'SELECT party_id FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$remit['journal_id'],$transitId])===$employee,
+      'canonical employee ledger pairs sale-time Cash debit with cashier-time Cash credit');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_retailer_sales WHERE company_id=? AND sale_intent_id=?',[$company,$field['sale_intent_id']])===1
+      &&(int)first($pdo,"SELECT COUNT(*) FROM wp_eh7_stock_ledger WHERE source_type='b2b_retailer_sale' AND source_id=?",[$fieldSale['sale_id']])===1,
+      'Cash handover does not create another sale or subtract employee stock twice');
+    checkUat((int)first($pdo,'SELECT consumed_remittance_id FROM wp_eh7_b2b_cashier_receipts_uat WHERE id=?',[$receipt['receipt_id']])===$remit['remittance_id'],
+      'single original cashier attestation consumed once by canonical remittance');
+    $remitRetry=$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');
+    checkUat($remitRetry['replayed']===true && $remitRetry['journal_id']===$remit['journal_id'],
+      'exact idempotent Cash retry returns original canonical journal');
+    $newKeyDenied=false;
+    try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-NEW-KEY');}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$newKeyDenied=true;}
+    checkUat($newKeyDenied,'same field sale cannot remittance-post under another idempotency key');
+    $receiptAfter=$cashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-001');
+    checkUat($receiptAfter['consumed']===true,'cashier receipt replay identifies previously consumed evidence');
+    $afterJournal=$pdo->prepare(
+        "SELECT j.source_type,j.source_id,l.debit,l.credit FROM wp_eh7_journal_entries j
+          JOIN wp_eh7_journal_lines l ON l.journal_entry_id=j.id
+          WHERE j.company_id=? AND l.party_type='employee' AND l.party_id=?
+            AND j.source_type IN ('b2b_retailer_sale','b2b_cash_remittance')
+          ORDER BY j.id");
+    $afterJournal->execute([$company,$employee]);
+    $employeeLedger=$afterJournal->fetchAll(PDO::FETCH_ASSOC);
+    checkUat(count($employeeLedger)===2
+      &&(float)$employeeLedger[0]['debit']===200.0
+      &&(float)$employeeLedger[1]['credit']===200.0,
+      'real employee-linked person ledger shows matching Cash collection and cashier handover');
     // UPI: bank settlement is distinct from both employee cash and branch cash.
     $upi=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-UPI-TXN-001','counter',null,'upi');
     checkUat(first($pdo,'SELECT verified_by FROM v8_b2b_tender_intake_evidence_uat WHERE intent_id=?',[$upi['payment_intent_id']])==8002,
@@ -347,5 +463,5 @@ try{
     $final=$writer->post($keyContext);
     checkUat($final['status']==='posted' && $writer->post($keyContext)['replayed']===true,
         'released unique key posts once and subsequent request replays safely');
-    echo "CANONICAL V7 REAL MARIADB UAT: 41/41 PASS; v8_test only; no WordPress deployment\n";
+    echo "CANONICAL V7 REAL MARIADB UAT: ${GLOBALS['v7_checks'] ?? 'cash handover extended'} PASS; v8_test only; no WordPress deployment\n";
 }catch(Throwable $e){fwrite(STDERR,'CANONICAL V7 MARIADB UAT FAILED: '.$e::class.' '.$e->getMessage().' at '.$e->getFile().':'.$e->getLine()."\n");exit(1);}

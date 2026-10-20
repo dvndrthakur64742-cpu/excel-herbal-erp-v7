@@ -142,6 +142,7 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
             const Tab(text: 'Daily Reconciliation'),
             const Tab(text: 'Attendance'),
             if (financeVisible) const Tab(text: 'Ledger'),
+            if (financeVisible) const Tab(text: 'Cash Responsibility'),
             if (financeVisible) const Tab(text: 'Cash Control'),
             if (showGps) const Tab(text: 'GPS Route'),
           ];
@@ -198,6 +199,8 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
                           title: 'Employee-tagged journal lines (not a full cash ledger)',
                           rows: ledgerData['entries'],
                         ),
+                      if (financeVisible)
+                        _Employee360TransitLedger(rows: ledgerData['entries']),
                       if (financeVisible)
                         _Employee360CashControl(
                           employeeId: widget.employeeId,
@@ -339,6 +342,37 @@ class _Employee360List extends StatelessWidget {
           Expanded(child: RecordsList(rows: _recordRows(rows))),
         ],
       );
+}
+
+/// Finance-only, read-only view of canonical employee-tagged journal lines.
+/// History is paginated upstream (1000 limit), so never infer a final liability
+/// balance from the rows present here. No UAT remittance fields are asserted live.
+class _Employee360TransitLedger extends StatelessWidget {
+  const _Employee360TransitLedger({required this.rows});
+  final dynamic rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final tagged = _recordRows(rows)
+        .where((e) =>
+            '${e['account_code'] ?? ''}' == 'EMPLOYEE_CASH_IN_TRANSIT' &&
+            (e['source_type'] == 'b2b_retailer_sale' ||
+             e['source_type'] == 'b2b_cash_remittance'))
+        .toList();
+    return Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(12),
+          child: Text(
+            'Field Cash Dr = received from customer; Cr = cashier handover '
+            'journal. This is an employee-tagged journal excerpt, not a '
+            'complete balance or independent proof of cash deposit.',
+          ),
+        ),
+        Expanded(child: RecordsList(rows: tagged)),
+      ],
+    );
+  }
 }
 
 class _Employee360PagedRegister extends ConsumerStatefulWidget {
