@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace ExcelHerbal\ERP8\B2B;
 
 use ExcelHerbal\ERP7\Security\{Actor,Capabilities,Guard};
+require_once __DIR__.'/V7UatCanonicalTenderBridge.php';
 
 /**
  * Development v8_test ONLY. Binds immutable UAT sale/payment/tender rows to
@@ -98,6 +99,11 @@ final class V7UatLockedCheckoutReader
             ||($t['status']??null)!=='confirmed'||($t['consumed_sale_id']??null)!==null)
             throw new RetailerSaleError('Verified tender evidence cannot authorize canonical sale.');
         $canonical=$this->row($db,'SELECT * FROM '.$this->prefix($db).'eh7_b2b_verified_tenders WHERE company_id=%d AND branch_id=%d AND sale_intent_id=%d FOR UPDATE',[$company,$branch,$id]);
+        if($canonical===null){
+            // Promote ONLY row-locked and source-checked V8 evidence. This insert
+            // belongs to the very same V7 stock/GL transaction and rolls back.
+            $canonical=V7UatCanonicalTenderBridge::ensure($db,$sale,$reservation,$payment,$e,$t);
+        }
         if(!$canonical||!$this->eq($canonical,'id',$this->positiveInt($canonical['id']??null))
             ||!$this->eq($canonical,'payment_intent_id',$payId)||!$this->eq($canonical,'tender_id',$tenderId)
             ||($canonical['quote_digest']??null)!==$digest||($canonical['payment_mode']??null)!==$mode

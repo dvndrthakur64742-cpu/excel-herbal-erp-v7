@@ -101,7 +101,7 @@ spl_autoload_register(static function(string $name)use($legacy):void{
     if(is_file($p))require_once $p;
 });
 $src=dirname(__DIR__).'/src/B2B/';
-foreach(['RetailerCashSale.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php'] as $name)require_once $src.$name;
+foreach(['RetailerCashSale.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
@@ -179,9 +179,8 @@ function createIntent(PDO $db,int $company,int $branch,int $product,int $party,s
     $p->execute([$paymentId,$tenderId,$company,$branch,$mode,$ref,$source,8001,$channel,$employee]);
     $p=$db->prepare('INSERT INTO v8_b2b_sale_tender_reservations_uat(company_id,branch_id,sale_intent_id,payment_intent_id,tender_id,retailer_id,canonical_party_id,channel,employee_id,payment_mode,payment_reference,verified_source,amount_paise,quote_digest) VALUES(?,?,?,?,?,77,?,?,?,?,?,?,20000,?)');
     $p->execute([$company,$branch,$saleId,$paymentId,$tenderId,$party,$channel,$employee,$mode,$ref,$source,$digest]);
-    // Disposable test's pre-verified bridge row: NOT a production trust adapter.
-    $p=$db->prepare("INSERT INTO wp_eh7_b2b_verified_tenders(company_id,branch_id,sale_intent_id,payment_intent_id,tender_id,quote_digest,channel,employee_id,payment_mode,currency,status,verified_by,verified_source,amount_paise,provider_transaction_id,confirmed_at) VALUES(?,?,?,?,?,?,?,?,?,'INR','confirmed',8001,?,20000,?,UTC_TIMESTAMP())");
-    $p->execute([$company,$branch,$saleId,$paymentId,$tenderId,$digest,$channel,$employee,$mode,$source,$ref]);
+    // No wp_eh7_b2b_verified_tenders fixture! The guarded reader must bridge
+    // already-locked V8 evidence atomically into the authoritative V7 source.
     return ['sale_intent_id'=>$saleId,'payment_intent_id'=>$paymentId,'tender_id'=>$tenderId,'digest'=>$digest];
 }
 function checkUat(bool $valid,string $message):void {if(!$valid)throw new RuntimeException('FAIL '.$message);echo 'PASS '.$message."\n";}
@@ -191,8 +190,11 @@ try{
     $actor=new \ExcelHerbal\ERP7\Security\Actor($user,$employee,$company,$branch,[$branch],['sales.create'],'BM');
     $writer=new \ExcelHerbal\ERP8\B2B\V7CanonicalPostingSinkUat($actor,new \ExcelHerbal\ERP8\B2B\V7UatLockedCheckoutReader());
     $pair=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-CASH-INT-A');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$pair['sale_intent_id']])===0,'canonical tender is not manually pre-seeded');
     $sale=$writer->post(postContext($pair['sale_intent_id']));
     checkUat($sale['status']==='posted' && $sale['replayed']===false,'real V7 B2B sale and journal posted');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=? AND consumed_sale_id=?',[$pair['sale_intent_id'],$sale['sale_id']])===1,
+        'trusted locked V8 evidence promoted and consumed once in canonical tender table');
     checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND product_id=?',[$company,$product])===8000,'real canonical V7 stock decreased by 2 PCS');
     checkUat((int)first($pdo,"SELECT COUNT(*) FROM wp_eh7_stock_ledger WHERE source_type='b2b_retailer_sale' AND source_id=?",[$sale['sale_id']])===1,'real V7 stock ledger records one OUT');
     $dr=(float)first($pdo,'SELECT SUM(debit) FROM wp_eh7_journal_lines WHERE journal_entry_id=?',[$sale['journal_id']]);
@@ -209,9 +211,21 @@ try{
     try{$writer->post(postContext($bad['sale_intent_id']));}catch(Throwable $e){$blocked=true;}
     $wp->failJournalInsert=false;
     checkUat($blocked,'journal insert failure rejects entire canonical transaction');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$bad['sale_intent_id']])===0,
+        'journal failure also rolls back canonical tender promotion');
     checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND product_id=?',[$company,$product])===8000,'journal failure rolls back canonical stock');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_retailer_sales WHERE sale_intent_id=?',[$bad['sale_intent_id']])===0 && first($pdo,'SELECT status FROM v8_b2b_sale_intents_uat WHERE id=?',[$bad['sale_intent_id']])==='awaiting_payment','journal failure rolls back sale header and evidence state');
     checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_checkout_keys WHERE company_id=? AND request_key=?',[$company,postContext($bad['sale_intent_id'])['idempotency_key']])===0,'failed idempotency lock rolled back');
+    // A forged reservation proof source must not gain a canonical tender even
+    // if an original tender/evidence row is otherwise marked confirmed.
+    $tampered=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-REJECT-PROOF-BRIDGE');
+    $pdo->prepare("UPDATE v8_b2b_sale_tender_reservations_uat SET verified_source='bank_settlement' WHERE sale_intent_id=?")
+        ->execute([$tampered['sale_intent_id']]);
+    $rejected=false;
+    try{$writer->post(postContext($tampered['sale_intent_id']));}catch(Throwable $e){$rejected=true;}
+    checkUat($rejected,'mismatched reservation verification source rejects canonical tender promotion');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$tampered['sale_intent_id']])===0,
+        'rejected bridge cannot leave a canonical tender or financial posting');
     // End-to-end FIELD Cash: the collection is employee custody, not cashier remittance.
     $pdo->prepare("INSERT INTO wp_eh7_stock_balances(company_id,branch_id,product_id,batch_key,custodian_key,quantity,average_unit_cost,updated_at)
       VALUES(?,?,?,0,?,5.000,40.0000,?) ON DUPLICATE KEY UPDATE quantity=5.000,average_unit_cost=40.0000")
@@ -219,6 +233,8 @@ try{
     $field=createIntent($pdo,$company,$branch,$product,$party,$mainDay,'CI-FIELD-CASH-1','field',$employee);
     $fieldSale=$writer->post(postContext($field['sale_intent_id']));
     checkUat($fieldSale['status']==='posted' && $fieldSale['employee_cash_to_remit_paise']===20000,'field cash posts as employee liability pending physical deposit');
+    checkUat(first($pdo,'SELECT verified_source FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$field['sale_intent_id']])==='employee_cash_custody',
+        'field cash canonical bridge preserves employee-custody source');
     checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND product_id=? AND custodian_key=?',[$company,$product,$employee])===3000,'field cash only reduces employee stock custody');
     checkUat((int)first($pdo,'SELECT quantity*1000 FROM wp_eh7_stock_balances WHERE company_id=? AND product_id=? AND custodian_key=0',[$company,$product])===8000,'field cash does not take stock from branch warehouse');
     $transitId=(int)first($pdo,"SELECT id FROM wp_eh7_accounts WHERE company_id=? AND code='EMPLOYEE_CASH_IN_TRANSIT'",[$company]);
@@ -230,6 +246,8 @@ try{
     $upiSale=$writer->post(postContext($upi['sale_intent_id']));
     $upiId=(int)first($pdo,"SELECT id FROM wp_eh7_accounts WHERE company_id=? AND code='UPI_CLEARING'",[$company]);
     checkUat($upiSale['status']==='posted' && $upiSale['employee_cash_to_remit_paise']===0,'UPI posts without employee cash remittance');
+    checkUat(first($pdo,'SELECT verified_source FROM wp_eh7_b2b_verified_tenders WHERE sale_intent_id=?',[$upi['sale_intent_id']])==='bank_settlement',
+        'UPI canonical bridge preserves bank-settlement source');
     checkUat((float)first($pdo,'SELECT debit FROM wp_eh7_journal_lines WHERE journal_entry_id=? AND account_id=?',[$upiSale['journal_id'],$upiId])===200.0,'UPI payment debits UPI clearing not physical cash');
     checkUat(first($pdo,'SELECT status FROM v8_b2b_sale_intents_uat WHERE id=?',[$upi['sale_intent_id']])==='posted'
          && first($pdo,'SELECT status FROM v8_b2b_payment_intents_uat WHERE id=?',[$upi['payment_intent_id']])==='consumed','UPI posting finalizes original payment evidence');
@@ -286,5 +304,5 @@ try{
     $final=$writer->post($keyContext);
     checkUat($final['status']==='posted' && $writer->post($keyContext)['replayed']===true,
         'released unique key posts once and subsequent request replays safely');
-    echo "CANONICAL V7 REAL MARIADB UAT: 30/30 PASS; v8_test only; no WordPress deployment\n";
+    echo "CANONICAL V7 REAL MARIADB UAT: 37/37 PASS; v8_test only; no WordPress deployment\n";
 }catch(Throwable $e){fwrite(STDERR,'CANONICAL V7 MARIADB UAT FAILED: '.$e::class.' '.$e->getMessage().' at '.$e->getFile().':'.$e->getLine()."\n");exit(1);}
