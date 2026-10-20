@@ -61,8 +61,32 @@ try{
   catch(RetailerSaleError $e){return $needle===''||str_contains($e->getMessage(),$needle);}
   return false;
  };
+ // Verify all tender/settlement adapters are tied to disposable v8_test, even
+ // when a caller switches the active schema on an existing PDO connection.
+ $otherDsn=preg_replace('/dbname=v8_test(?=;|$)/i','dbname=information_schema',$dsn,1,$dsnCount);
+ if($dsnCount!==1)throw new RuntimeException('Cannot derive safe metadata-only test DSN');
+ $other=new PDO($otherDsn,getenv('V8_TEST_USER')?:'v8',getenv('V8_TEST_PASSWORD')?:'v8',[
+     PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+ $refused=false;
+ try{new PdoTrustedTenderIntakeGateway($other,static fn()=>false,static fn()=>false,null,static fn()=>'');}
+ catch(RetailerSaleError $e){$refused=str_contains($e->getMessage(),'v8_test');}
+ $assert($refused,'trusted UAT gateway rejects non-v8_test database at construction');
+ $db->exec('USE information_schema');
+ $refused=false;
+ try{$intake->upiSettled($company,$branch,$actor,1,'CI-LOOKUP-NOT-ALLOWED');}
+ catch(RetailerSaleError $e){$refused=str_contains($e->getMessage(),'v8_test');}
+ finally{$db->exec('USE v8_test');}
+ $assert($refused,'trusted UAT gateway fails closed if database is switched after construction');
  $assert($lookup instanceof \ExcelHerbal\ERP8\B2B\AuthenticatedUpiSettlementSource,'signed importer implements provider-independent trusted verification contract');
  $assert($lookup('CI-LOOKUP-absent')===null,'bank feed cannot be read outside a locked payment transaction');
+ $db->beginTransaction();
+ try {
+     $db->exec('USE information_schema');
+     $assert($lookup('CI-LOOKUP-absent')===null,'signed reconciliation reader rejects schema switching within a transaction');
+ } finally {
+     $db->rollBack();
+     $db->exec('USE v8_test');
+ }
  [$id,$r]=$make('ACCEPT-01');
  $good=$intake->upiSettled($company,$branch,$actor,$id,$r['lookup_key']);
  $assert($good['payment_reference']===$r['transaction_id']&&$good['amount_paise']===250000,'signed reconciled UPI creates exact confirmed original tender');

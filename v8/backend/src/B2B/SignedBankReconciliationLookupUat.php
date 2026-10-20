@@ -54,7 +54,9 @@ final class SignedBankReconciliationLookupUat implements AuthenticatedUpiSettlem
     public function verifySettlement(string $lookupKey): ?array
     {
         if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._:\/-]{7,127}$/D', $lookupKey)) return null;
-        if ($this->db->inTransaction() === false) return null; // caller must lock its issued intent first
+        if ($this->db->inTransaction() === false
+            || $this->db->query('SELECT DATABASE()')->fetchColumn() !== 'v8_test') return null;
+        // Caller must lock its issued intent first; never verify in a switched schema.
         $q = $this->db->prepare('SELECT * FROM v8_b2b_signed_bank_reconciliation_uat WHERE lookup_key=? FOR UPDATE');
         $q->execute([$lookupKey]);
         $row = $q->fetch(PDO::FETCH_ASSOC);

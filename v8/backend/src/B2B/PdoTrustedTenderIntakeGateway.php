@@ -12,6 +12,7 @@ use Throwable;
 /**
  * Disposable MySQL/MariaDB UAT implementation of trusted tender intake.
  * NOT canonical ERP posting, NOT a WordPress HTTP handler, NOT a payment provider client.
+ * Guard both construction and active operations against a live/non-UAT database.
  * UPI verification accepts only a typed authenticated source; null explicitly disables UPI.
  * An arbitrary callable is never accepted for signed/bank proof.
  * Cash/actor/merchant authority callbacks remain UAT-only and must be server-resolved.
@@ -30,11 +31,13 @@ final class PdoTrustedTenderIntakeGateway implements TrustedTenderIntakeGateway
             throw new RetailerSaleError('InnoDB MySQL/MariaDB driver is required for atomic payment evidence.');
         }
         $db->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
+        $this->requireDisposableDatabase();
     }
 
     public function atomic(callable $operation):array
     {
         if($this->inTransaction||$this->db->inTransaction())throw new RetailerSaleError('Nested tender intake transactions are forbidden.');
+        $this->requireDisposableDatabase();
         $this->db->beginTransaction();$this->inTransaction=true;
         try{
             $result=$operation();
@@ -114,5 +117,13 @@ final class PdoTrustedTenderIntakeGateway implements TrustedTenderIntakeGateway
     private function requireTransaction():void
     {
         if(!$this->inTransaction||!$this->db->inTransaction())throw new RetailerSaleError('Locked tender operation requires transaction.');
+        $this->requireDisposableDatabase();
+    }
+
+    private function requireDisposableDatabase():void
+    {
+        if($this->db->query('SELECT DATABASE()')->fetchColumn() !== 'v8_test'){
+            throw new RetailerSaleError('Trusted tender intake must use disposable v8_test only.');
+        }
     }
 }
