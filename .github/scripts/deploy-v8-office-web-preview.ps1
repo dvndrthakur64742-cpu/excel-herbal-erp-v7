@@ -171,20 +171,26 @@ if ($chrome.MainWindowTitle -match 'Log In|Login') {
   throw 'Visible Chrome WordPress session is not authenticated.'
 }
 
-$root = Get-AutomationRoot $chrome
-$desktopTab = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Hyperlink) -ExactName 'Desktop Web'
-if (-not $desktopTab) {
-  $desktopTab = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Desktop Web'
-}
-if ($desktopTab) {
-  Invoke-Control $desktopTab
-  Start-Sleep -Seconds 3
+# We have already verified the exact ?page=eh7-setup-assistant&tab=desktop URL.
+# Re-clicking Desktop Web starts a second navigation; UIA previously read the
+# stale page during that reload and falsely reported the upload button missing.
+# Wait for the actual upload control on the authenticated Desktop Web page.
+$upload = $null
+for ($i=0; $i -lt 60; $i++) {
+  $chrome = Get-Process -Id $chrome.Id -ErrorAction Stop
+  if ($chrome.MainWindowTitle -match '(?i)Log In|Login') {
+    throw 'WordPress administrator session needs login; upload not attempted.'
+  }
   $root = Get-AutomationRoot $chrome
+  $upload = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Upload Web Bundle'
+  if ($upload -and $upload.Current.IsEnabled) {
+    Write-Host ('PASS authenticated WordPress Desktop Web upload control ready after '+$i+'s')
+    break
+  }
+  Start-Sleep -Seconds 1
 }
-
-$upload = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Upload Web Bundle'
-if (-not $upload) {
-  throw ('Setup Assistant Upload Web Bundle control was not found. Browser title: ' + $chrome.MainWindowTitle)
+if (-not $upload -or -not $upload.Current.IsEnabled) {
+  throw ('Authenticated Desktop Web upload control was not ready after 60 seconds. Browser title: '+$chrome.MainWindowTitle)
 }
 
 # The page contains more than one file chooser. Resolve the chooser from the
@@ -237,22 +243,16 @@ if (-not $upload -or -not $upload.Current.IsEnabled) {
 }
 Write-Host ('INFO selected_candidate_zip=' + $zipPath)
 
-# Submit the exact form that owns Upload Web Bundle. The file has already
-# been selected through the native chooser, so requestSubmit preserves the
-# multipart file payload and includes the submit button name/value expected by
-# the Setup Assistant handler.
+# Press the verified native WordPress submit button directly.
+# This preserves the browser's multipart file input and button name/value.
+# Browser address-bar javascript pseudo URLs were unreliable and unnecessary.
 $shell = New-Object -ComObject WScript.Shell
 [void]$shell.AppActivate($chrome.Id)
-Start-Sleep -Milliseconds 300
-$submitScript = "script:(()=>{const all=[...document.querySelectorAll('button,input[type=submit],input[type=button]')];const b=all.find(e=>((e.value||e.textContent||'').trim()==='Upload Web Bundle'));if(!b){document.title='EH7SUBMIT-NOBUTTON';return;}const f=b.closest('form');if(!f){document.title='EH7SUBMIT-NOFORM';return;}document.title='EH7SUBMIT-FIRE';if(f.requestSubmit){f.requestSubmit(b)}else{f.submit()}})()"
-[System.Windows.Forms.SendKeys]::SendWait('^l')
-Start-Sleep -Milliseconds 120
-# Chrome strips a pasted javascript: prefix; type "java" and paste the rest.
-[System.Windows.Forms.SendKeys]::SendWait('java')
-[System.Windows.Forms.Clipboard]::SetText($submitScript)
-[System.Windows.Forms.SendKeys]::SendWait('^v')
-[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-Start-Sleep -Seconds 18
+Start-Sleep -Milliseconds 500
+Write-Host 'INFO submitting verified Upload Web Bundle form via native button InvokePattern'
+Invoke-Control $upload
+Start-Sleep -Seconds 30
+
 $chrome = Get-Process -Id $chrome.Id -ErrorAction Stop
 Write-Host ('INFO post_submit_browser_title=' + $chrome.MainWindowTitle)
 
