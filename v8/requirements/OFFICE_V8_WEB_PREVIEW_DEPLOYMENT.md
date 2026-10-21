@@ -35,3 +35,20 @@ This is a **client-side read-only restriction**, not server-side production fina
 - Some V8 UI panels query new API endpoints absent from the installed V7 backend, so those data panels can be unavailable; no V8 PHP/B2B sale-writer deployment is authorized.
 - A green CI build is **not proof of live deployment**; the explicit live SHA verification step must PASS first.
 - Never merge PR #25, run UAT-only migrations on the existing Office database, enable live bank verification or change production settlement gates through this workflow.
+
+## 2026-10-21 deployment trigger - explicit owner request
+
+The owner asked to deploy to the existing Office WordPress test-mode site.
+This branch authorizes only V8 WEB-ONLY READ-ONLY PREVIEW, using the tested
+base source eab1717e21ff2ece7e228f62ca851d01499274c6.
+Real authenticated Office site preflight: staging=true; host hardening=passed;
+installed backend and web head a9d03f384096b54464ffbe9ba79da88252f9dd28;
+old main.dart.js SHA-256 370475e9f998a6bde87128db48d11f6ed7db2d806e4b4b5a7fefea25a1f98531.
+
+The host is not fully sanitized and active mobile sessions remain. No PHP backend,
+database schema, accounting writers, sales posting, payroll, stock changes or
+production deployment is authorized. Fail closed on changed baseline, failing
+tests or unavailable authenticated web uploader. Keep PR #25 Draft and unmerged.
+
+This documentation-only approval marker is the one-time deployment trigger.
+Later feature development pushes must not automatically deploy.
