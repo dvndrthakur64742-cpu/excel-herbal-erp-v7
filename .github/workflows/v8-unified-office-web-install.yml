@@ -1,0 +1,49 @@
+name: Install Bundled V8 Read-Only Frontend via Unified WP Setup
+run-name: "Office V8 unified backend verified -> bundled frontend install"
+on:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/v8-unified-office-web-install.yml'
+      - '.github/scripts/install-v8-unified-office-web.ps1'
+permissions:
+  contents: read
+concurrency:
+  group: office-unified-v8-web-install
+  cancel-in-progress: false
+jobs:
+  install-staging-readonly-web:
+    if: contains(github.event.head_commit.message, '[approved-v8-bundled-readonly-web]')
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 16
+    defaults:
+      run:
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert signed-in interactive runner and valid PowerShell syntax
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:GITHUB_REF -ne 'refs/heads/codex/erp-v8-foundation-20261017'){throw 'Unexpected Git branch'}
+          $session=(Get-Process -Id $PID).SessionId
+          if($session -eq 0){throw 'Chrome UI not accessible in Session 0'}
+          $file=Join-Path $env:GITHUB_WORKSPACE '.github/scripts/install-v8-unified-office-web.ps1'
+          $tokens=$null;$parseErrors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile($file,[ref]$tokens,[ref]$parseErrors)
+          if($parseErrors.Count -gt 0){throw ('PowerShell parser error: '+$parseErrors[0].Message)}
+          Write-Host ('PASS interactive_runner_session='+$session)
+      - name: Install certified read-only V8 web bundle using native V8 WordPress admin
+        run: |
+          & '.github/scripts/install-v8-unified-office-web.ps1'
+      - name: Independent hash and schema check on remote WordPress
+        run: |
+          $ErrorActionPreference='Stop'
+          $base='https://office.excelherbal.in'
+          $raw=& curl.exe --silent --fail --show-error --location --max-time 30 ($base+'/wp-json/excel-herbal-erp/v7/health')
+          if($LASTEXITCODE -ne 0){throw 'Remote health API unavailable'}
+          $h=($raw -join [Environment]::NewLine)|ConvertFrom-Json
+          if($h.ok -ne $true -or $h.data.source_head -cne '95a9e2806edef95257cd6b6aee6f1d56ca632d6b' -or $h.data.schema -cne '7.3.8-reminder-review-center-1' -or $h.data.web_runtime.source_head -cne '95a9e2806edef95257cd6b6aee6f1d56ca632d6b' -or $h.data.web_runtime.main_sha256 -cne 'a0462c5f464f0300659b79ea3fd87fbc505849eefc4a3085820ff21e5d0781f8'){
+            throw 'New preview web hash/source does not match pinned certified V8 ZIP'
+          }
+          Write-Host ('PASS Verified staging V8 frontend SHA='+$h.data.web_runtime.main_sha256)
+          Write-Host ('PASS V8 backend remains SHA='+$h.data.source_head)

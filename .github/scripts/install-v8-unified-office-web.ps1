@@ -1,0 +1,115 @@
+param(
+  [string]$OfficeUrl='https://office.excelherbal.in',
+  [string]$InstalledCoreHead='95a9e2806edef95257cd6b6aee6f1d56ca632d6b',
+  [string]$ExpectedMainSha256='a0462c5f464f0300659b79ea3fd87fbc505849eefc4a3085820ff21e5d0781f8',
+  [string]$PreexistingMainSha256='370475e9f998a6bde87128db48d11f6ed7db2d806e4b4b5a7fefea25a1f98531'
+)
+$ErrorActionPreference='Stop'
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+$session=(Get-Process -Id $PID -ErrorAction Stop).SessionId
+if($session -eq 0){throw 'Interactive desktop required (Session 0 blocked).'}
+if($OfficeUrl -cne 'https://office.excelherbal.in'){throw 'Only the approved Office staging site may be changed.'}
+if($InstalledCoreHead -cne '95a9e2806edef95257cd6b6aee6f1d56ca632d6b'){throw 'Unexpected main plugin identity.'}
+if($ExpectedMainSha256 -cne 'a0462c5f464f0300659b79ea3fd87fbc505849eefc4a3085820ff21e5d0781f8'){throw 'Unexpected bundled preview identity.'}
+$healthUrl=$OfficeUrl+'/wp-json/excel-herbal-erp/v7/health'
+function Get-Health {
+  $raw=& curl.exe --fail --silent --show-error --location --connect-timeout 10 --max-time 30 $healthUrl
+  if($LASTEXITCODE -ne 0){throw 'Staging REST health is unavailable; no upload.'}
+  return (($raw -join [Environment]::NewLine)|ConvertFrom-Json)
+}
+$health=Get-Health
+if($health.ok -ne $true -or $health.data.environment -ne 'staging' -or
+   $health.data.source_head -cne $InstalledCoreHead -or
+   $health.data.schema -cne '7.3.8-reminder-review-center-1' -or
+   $health.data.schema_installed -ne $true -or
+   $health.data.host_hardening.status -ne 'passed'){
+  throw 'Staging V8 backend/schema/hardening does not match approved pinned baseline.'
+}
+$current=[string]$health.data.web_runtime.main_sha256
+if($current -ceq $ExpectedMainSha256 -and [string]$health.data.web_runtime.source_head -ceq $InstalledCoreHead){
+  Write-Host 'PASS already deployed: web source and main SHA match the certified V8 plugin.'
+  exit 0
+}
+if($current -cne $PreexistingMainSha256){throw 'Unexpected current web content; refusing to replace unrecognized bundle.'}
+Write-Host 'PASS preflight: approved V8 backend/schema and original web SHA; no production/backend DB writes'
+
+$chromeExe=@('C:\Program Files\Google\Chrome\Application\chrome.exe','C:\Program Files (x86)\Google\Chrome\Application\chrome.exe') |
+  Where-Object {Test-Path -LiteralPath $_ -PathType Leaf} | Select-Object -First 1
+if(-not $chromeExe){throw 'Chrome executable unavailable on the interactive runner.'}
+$url=$OfficeUrl+'/wp-admin/admin.php?page=excel-herbal-erp-v8'
+Start-Process -FilePath $chromeExe -ArgumentList @('--new-window',$url) | Out-Null
+Write-Host 'INFO navigated to authenticated V8 Unified Setup Center'
+$buttonName='Install Bundled V8 Read-Only Web Preview'
+$found=@()
+$chromeWindows=@()
+for($attempt=0;$attempt -lt 60;$attempt++){
+  Start-Sleep -Seconds 1
+  $found=@()
+  $chromeWindows=@(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne [IntPtr]::Zero})
+  foreach($chrome in $chromeWindows){
+    try {
+      $root=[System.Windows.Automation.AutomationElement]::FromHandle($chrome.MainWindowHandle)
+      if(-not $root){continue}
+      $edits=$root.FindAll(
+        [System.Windows.Automation.TreeScope]::Descendants,
+        [System.Windows.Automation.PropertyCondition]::new(
+          [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+          [System.Windows.Automation.ControlType]::Edit))
+      $exactUrl=$false
+      foreach($edit in $edits){
+        $label=[string]$edit.Current.Name
+        if($label -notmatch '(?i)address and search bar|search google or type a url'){continue}
+        $p=$edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+        $value=([string]$p.Current.Value).Trim()
+        if($value -notmatch '^https?://'){$value='https://'+$value}
+        $uri=[Uri]$value
+        if($uri.Host -cne 'office.excelherbal.in' -or $uri.AbsolutePath -cne '/wp-admin/admin.php'){break}
+        $query=[Uri]::UnescapeDataString($uri.Query.TrimStart('?'))
+        if($query -match '(?:^|&)page=excel-herbal-erp-v8(?:&|$)'){$exactUrl=$true}
+        break
+      }
+      if(-not $exactUrl -or $chrome.MainWindowTitle -match '(?i)Log In|Login'){continue}
+      $predicate=[System.Windows.Automation.AndCondition]::new(
+        [System.Windows.Automation.PropertyCondition]::new(
+          [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+          [System.Windows.Automation.ControlType]::Button),
+        [System.Windows.Automation.PropertyCondition]::new(
+          [System.Windows.Automation.AutomationElement]::NameProperty,$buttonName))
+      $button=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$predicate)
+      if($button -and $button.Current.IsEnabled){$found+=,@{window=$chrome;button=$button}}
+    } catch { }
+  }
+  if($found.Count -gt 1){throw 'Multiple authenticated V8 Setup Center windows found; refusing ambiguous action.'}
+  if($found.Count -eq 1){break}
+}
+Write-Host ('INFO session='+$session+' visible_chrome_windows='+$chromeWindows.Count+' verified_v8_upload_buttons='+$found.Count)
+if($found.Count -ne 1){
+  throw 'V8 Setup Center button not visible or not enabled after 60 seconds. Administrator login may be required.'
+}
+# The WordPress nonce and the exact plugin's admin-post action are generated by
+# the installed V8 Setup Center. We invoke that single button, not a synthetic REST write.
+Write-Host ('INFO submitting exact WordPress button: '+$buttonName)
+$button=$found[0].button
+$button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+$success=$false
+for($check=0;$check -lt 24;$check++){
+  Start-Sleep -Seconds 5
+  try {
+    $h=Get-Health
+    if($h.ok -eq $true -and
+       $h.data.source_head -ceq $InstalledCoreHead -and
+       $h.data.schema -ceq '7.3.8-reminder-review-center-1' -and
+       $h.data.web_runtime.main_sha256 -ceq $ExpectedMainSha256 -and
+       $h.data.web_runtime.source_head -ceq $InstalledCoreHead){
+      $success=$true
+      break
+    }
+  }catch{Write-Host 'INFO waiting for successful WordPress preview installation and health check'}
+}
+if(-not $success){
+  throw 'No verified V8 web commit/hash after submitting Setup Center form. Review V8 admin deploy result. Do not claim success.'
+}
+Write-Host ('PASS installed V8 frontend source='+$InstalledCoreHead)
+Write-Host ('PASS installed V8 frontend SHA256='+$ExpectedMainSha256)
+Write-Host 'PASS staging backend unchanged, web readonly, previous web retained by V8 installer for rollback'
