@@ -92,17 +92,19 @@ final class EmployeeCashControlWpReader implements EmployeeCashControlReader {
         $scope=$branches?' AND c.branch_id IN ('.implode(',',array_fill(0,count($branches),'%d')).')':'';
         // Aggregate journals in a subquery before joining settlements: avoids multiplication by sale lines.
         // Legacy journal source = daily_cycle. No employee remittance table exists in canonical V7.
-        $j='(SELECT je.company_id,je.source_id,COUNT(DISTINCT je.id) journal_count,'
+        // Bind the journal branch to the cycle branch. A same-company, wrong-branch
+        // posted journal must not be misattributed as an employee Cash/UPI receipt.
+        $j='(SELECT je.company_id,je.branch_id,je.source_id,COUNT(DISTINCT je.id) journal_count,'
           ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='cash' THEN jl.debit ELSE 0 END),0) gl_cash_debit,"
           ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='upi' THEN jl.debit ELSE 0 END),0) gl_upi_debit "
           .'FROM '.Db::table('journal_entries').' je JOIN '.Db::table('journal_lines').' jl ON jl.journal_entry_id=je.id '
           .'JOIN '.Db::table('accounts').' a ON a.id=jl.account_id AND a.company_id=je.company_id '
-          ."WHERE je.company_id=%d AND je.source_type='daily_cycle' AND je.status='posted' GROUP BY je.company_id,je.source_id)";
+          ."WHERE je.company_id=%d AND je.source_type='daily_cycle' AND je.status='posted' GROUP BY je.company_id,je.branch_id,je.source_id)";
         $sql='SELECT c.id daily_cycle_id,c.branch_id,c.business_date,es.expected_amount,es.cash_amount,es.upi_amount,'
             .'COALESCE(j.journal_count,0) journal_count,COALESCE(j.gl_cash_debit,0) gl_cash_debit,'
             .'COALESCE(j.gl_upi_debit,0) gl_upi_debit FROM '.Db::table('daily_cycles').' c '
             .'JOIN '.Db::table('evening_settlements')." es ON es.daily_cycle_id=c.id AND es.status='posted' "
-            .'LEFT JOIN '.$j." j ON j.company_id=c.company_id AND j.source_id=c.id "
+            .'LEFT JOIN '.$j." j ON j.company_id=c.company_id AND j.branch_id=c.branch_id AND j.source_id=c.id "
             ."WHERE c.company_id=%d AND c.employee_id=%d AND c.status='completed' "
             .'AND c.business_date BETWEEN %s AND %s'.$scope
             .' ORDER BY c.business_date DESC,c.id DESC LIMIT %d OFFSET %d';

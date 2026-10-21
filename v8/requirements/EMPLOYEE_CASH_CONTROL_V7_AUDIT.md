@@ -29,3 +29,26 @@
 ## Next actual booking milestone
 
 Approved canonical journal source and accounts for `EMPLOYEE_CASH_IN_TRANSIT` plus verifiable cashier receipt, distinct company/branch/employee money buckets; one atomic stock+invoice+GL posting and a separate cash-deposit reclassification entry; bank reconciliation. Must be modeled before any real cashier-confirmed status is exposed.
+
+## 2026-10-21 — branch-isolated canonical Cash/UPI GL projection
+
+Cash Control now groups posted journal entries by company, branch and source
+daily_cycle ID, and joins them against all three dimensions of the completed
+employee cycle. Previously, a mis-tagged posted journal in another branch
+with the same company/source ID could inflate the employee's GL debit and
+journal-count results. The old matcher was insufficiently branch-specific.
+
+The change makes NO new financial proof claim: correct accounting debit totals
+still do not prove an employee deposited Cash with a cashier, physical cash
+receipt or bank-verified UPI. Mis-tagged external journals now cannot silently
+masquerade as in-branch GL for this cycle.
+
+Real MariaDB UAT runs in disposable v8_test, in an existing rollback-only
+fixture. It inserts a wrong-branch posted journal with matching source ID
+and ₹999 debit, proves the original cycle's GL totals and count remain
+unchanged, and proves other-branch period filters do not inherit that cycle.
+PHP 8.3/8.4 and Windows CI now explicitly run the canonical Cash Control
+regression when these paths change.
+
+No new schema, posting endpoint, shadow ledger, merge or deployment.
+

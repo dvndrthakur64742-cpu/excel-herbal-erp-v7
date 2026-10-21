@@ -509,6 +509,35 @@ try {
             $foreignDenied=$err->codeKey==='watch_branch_inactive';
         }
         $assert($foreignDenied,'same branch IDs in another company cannot access reporting watch');
+        // Disposable real MariaDB cross-branch Cash Control integrity test.
+        // Existing two same-branch posted daily_cycle journal headers count
+        // for the first cycle. Same company/source but different branch does NOT.
+        require_once $src.'Organization/EmployeeCashControl.php';
+        $cashReader=new \ExcelHerbal\ERP7\Organization\EmployeeCashControlWpReader();
+        $cashBefore=$cashReader->posted(
+            $company,$employee,'2026-10-20','2026-10-20',[$branch],25,0);
+        $before=array_values(array_filter($cashBefore,
+            static fn($r)=>(int)$r['daily_cycle_id']===$first));
+        $assert(count($before)===1&&(int)$before[0]['journal_count']===2,
+            'Employee 360 Cash Control sees two original same-branch daily GL sources');
+        $cashDebit=(float)$before[0]['gl_cash_debit'];
+        $journal->execute([$company,$otherBranch,'WRONG-BRANCH-'.$first,
+            '2026-10-20 15:00:00','daily_cycle',$first,$employee]);
+        $foreignJournal=(int)$db->lastInsertId();
+        $gl->execute([$foreignJournal,$account,999,0,$employee]);
+        $cashAfter=$cashReader->posted(
+            $company,$employee,'2026-10-20','2026-10-20',[$branch],25,0);
+        $after=array_values(array_filter($cashAfter,
+            static fn($r)=>(int)$r['daily_cycle_id']===$first));
+        $assert(count($after)===1
+            &&(int)$after[0]['journal_count']===2
+            &&(float)$after[0]['gl_cash_debit']===$cashDebit,
+            'wrong-branch same-source posted GL cannot inflate cash ledger or count');
+        $otherCash=$cashReader->posted(
+            $company,$employee,'2026-10-20','2026-10-20',[$otherBranch],25,0);
+        $assert(count($otherCash)===0,
+            'Cash Control never lists a daily cycle from the wrong authorized branch');
+        // The entire disposable dataset rolls back at fixture completion.
         // A deliberately missing ledger sale row must never be masked by a
         // healthy evening settlement; the source totals visibly diverge.
         $db->prepare("DELETE FROM wp_eh7_stock_ledger WHERE company_id=? AND source_type='daily_sale' AND source_id=? AND batch_id=?")

@@ -119,7 +119,14 @@ namespace {
     ok(str_contains($sql,"je.source_type='daily_cycle'")&&str_contains($sql,"je.status='posted'"),'posted journal source only');
     ok(str_contains($sql,'COUNT(DISTINCT je.id)'),'duplicate journal count');
     ok(str_contains($sql,'LOWER(a.subtype)'),'cash/upi account type classification');
-    ok(str_contains($sql,'GROUP BY je.company_id,je.source_id'),'no line-level amplification');
+    ok(str_contains($sql,'GROUP BY je.company_id,je.branch_id,je.source_id'),
+       'GL source grouped by company branch and daily cycle');
+    ok(str_contains($sql,'j.branch_id=c.branch_id'),
+       'wrong-branch journal cannot reconcile an employee daily cycle');
+    ok(str_contains($sql,'COUNT(DISTINCT je.id)'),
+       'per-branch count still protects against duplicate posted GL');
+    ok(!str_contains($sql,'CROSS JOIN') && !str_contains($sql,'INSERT INTO'),
+       'finance profile report never posts a journal');
     ok(str_contains($sql,'c.branch_id IN (%d,%d)'),'branch-scoped canonical read');
     ok($args===[1,1,7,'2026-10-01','2026-10-19',2,4,51,100],'all SQL parameters bound');
     ok(!str_contains($sql,'DELETE ')&&!str_contains($sql,'UPDATE '),'read only report');
