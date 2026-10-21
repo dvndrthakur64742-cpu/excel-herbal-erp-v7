@@ -85,14 +85,8 @@ final class ReportReminderDrafts {
                 'dismissed_by'=>$actor->employeeId];
         });
     }
-    public static function prepare(Actor $actor,int $branch,string $date,
-        ?BranchReportingWatchReader $watchReader=null,
-        ?ReportingWatchSubmissionReader $submissionReader=null,
-        ?\DateTimeImmutable $now=null):array {
-        self::requireReviewer($actor,$branch);
-        // Projection validates date, active branch and current canonical facts.
-        $watch=ReportingWatchSubmissionProjection::view($actor,$date,$branch,$watchReader,$submissionReader,$now);
-        $date=$watch['business_date'];
+    /** Shared canonical candidate contract for prepare and freshness review. */
+    private static function eligibleFromWatch(array $watch,int $branch,string $date):array {
         $eligible=[];
         foreach($watch['reminder_candidates'] as $candidate){
             if((int)$candidate['branch_id']!==$branch
@@ -124,6 +118,81 @@ final class ReportReminderDrafts {
         }
         if(count($eligible)>self::MAX_DRAFTS)
             throw new DomainException('Excess follow-up candidates.','report_draft_source_invalid',500);
+        return $eligible;
+    }
+
+    /**
+     * Optional read-only snapshot of reminder eligibility. It re-reads the
+     * canonical manager watch once, without altering draft rows or sending
+     * notifications. An old draft may be dismissed only by manual review.
+     * Current eligibility is NOT independent payment/stock verification.
+     */
+    public static function inspect(Actor $actor,int $branch,string $date,
+        string $state='draft',
+        ?BranchReportingWatchReader $watchReader=null,
+        ?ReportingWatchSubmissionReader $submissionReader=null,
+        ?\DateTimeImmutable $now=null):array {
+        self::requireReviewer($actor,$branch);
+        // Projection enforces an active authorized branch and 31-day window.
+        // Fail closed if current canonical evidence cannot be read.
+        $watch=ReportingWatchSubmissionProjection::view(
+            $actor,$date,$branch,$watchReader,$submissionReader,$now);
+        $date=$watch['business_date'];
+        $eligible=self::eligibleFromWatch($watch,$branch,$date);
+        $active=[];
+        foreach($eligible as $candidate){
+            $key=hash('sha256',$actor->companyId.'|'.$branch.'|'.$date.'|'
+                .$candidate['type'].'|'.$candidate['employee_id']);
+            if(isset($active[$key]))
+                throw new DomainException('Duplicate canonical reminder candidate.',
+                    'report_draft_source_invalid',500);
+            $active[$key]=true;
+        }
+        $list=self::list($actor,$branch,$date,$state);
+        $counts=['currently_eligible'=>0,'not_currently_eligible'=>0,'dismissed'=>0];
+        foreach($list['drafts'] as &$row){
+            if(!is_array($row)||(int)($row['id']??0)<1
+                ||(int)($row['branch_id']??0)!==$branch
+                ||($row['period_date']??null)!==$date
+                ||!in_array($row['state']??null,['draft','dismissed'],true)
+                ||!in_array($row['report_type']??null,
+                    ['evening_daily_closing','monthly_report'],true)
+                ||(int)($row['target_employee_id']??-1)<0){
+                throw new DomainException('Reminder review source invalid.',
+                    'report_draft_source_invalid',500);
+            }
+            $expected=hash('sha256',$actor->companyId.'|'.$branch.'|'.$date.'|'
+                .$row['report_type'].'|'.(int)$row['target_employee_id']);
+            if(!is_string($row['dedupe_key']??null)
+                ||!hash_equals($expected,$row['dedupe_key']))
+                throw new DomainException('Reminder review fingerprint invalid.',
+                    'report_draft_source_invalid',500);
+            $status=$row['state']==='dismissed'?'dismissed':
+                (isset($active[$expected])?'currently_eligible':'not_currently_eligible');
+            $row['source_eligibility']=$status;
+            $counts[$status]++;
+        }
+        unset($row);
+        $list['eligibility_counts']=$counts;
+        $list['canonical_reminder_candidates']=count($eligible);
+        $list['source_rechecked']=true;
+        $list['snapshot_atomic']=false;
+        $list['automatic_dismissal']=false;
+        $list['warning']='Point-in-time manager reporting evidence only; records may '
+            .'change concurrently. A draft is not proof of notification delivery. '
+            .'Not currently eligible does not erase manual reviewer history.';
+        return $list;
+    }
+
+    public static function prepare(Actor $actor,int $branch,string $date,
+        ?BranchReportingWatchReader $watchReader=null,
+        ?ReportingWatchSubmissionReader $submissionReader=null,
+        ?\DateTimeImmutable $now=null):array {
+        self::requireReviewer($actor,$branch);
+        // Projection validates date, active branch and current canonical facts.
+        $watch=ReportingWatchSubmissionProjection::view($actor,$date,$branch,$watchReader,$submissionReader,$now);
+        $date=$watch['business_date'];
+        $eligible=self::eligibleFromWatch($watch,$branch,$date);
         return Transaction::run(function()use($actor,$branch,$date,$eligible){
             $db=Db::wpdb();$table=Db::table('report_reminder_drafts');$created=0;
             foreach($eligible as $draft){

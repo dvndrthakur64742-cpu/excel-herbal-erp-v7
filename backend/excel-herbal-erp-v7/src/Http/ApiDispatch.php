@@ -25,6 +25,7 @@ public static function dispatch(string $h,$r,?Actor $a):mixed{return match($h){
   'reports.submission_create'=>ReportingSubmissionService::submit($a,self::arrBody($r)),
   'reports.submission_decide'=>ReportingSubmissionService::decide($a,(int)$r['id'],self::arrBody($r)),
   'reports.reminder_drafts'=>ReportReminderDrafts::list($a,self::readBranch($r,$a),(string)$r->get_param('date'),(string)($r->get_param('state')??'draft')),
+  'reports.reminder_freshness'=>ReportReminderDrafts::inspect($a,self::readBranch($r,$a),(string)$r->get_param('date'),(string)($r->get_param('state')??'draft')),
   'reports.reminder_prepare'=>ReportReminderDrafts::prepare($a,self::readBranch($r,$a),(string)$r->get_param('date')),
   'reports.reminder_dismiss'=>ReportReminderDrafts::dismiss($a,self::readBranch($r,$a),(int)$r['id'],(string)$r->get_param('reason')),
   'reports.manager_watch'=>ReportingWatchSubmissionProjection::view($a,(string)$r->get_param('date'),self::ni($r->get_param('branch_id'))),

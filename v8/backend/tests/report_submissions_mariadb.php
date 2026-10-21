@@ -189,6 +189,62 @@ try{
        &&$nightDraft['duplicates_skipped']===1,
        'at 8:00 PM existing monthly draft deduped, daily 19:30 candidate added once');
 
+
+   // Current-eligibility preview: proof changes must not delete historical
+   // drafts or claim that the reviewer sent anything.
+   $freshTime=new DateTimeImmutable('2026-10-01 20:00:00',wp_timezone());
+   $allBefore=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::inspect(
+       $regional,$branch,'2026-10-01','all',$watchReader,null,$freshTime);
+   $assert(count($allBefore['drafts'])===2
+       &&$allBefore['eligibility_counts']['currently_eligible']===2
+       &&$allBefore['source_rechecked']===true
+       &&$allBefore['snapshot_atomic']===false,
+       'read-only real SQL preview identifies monthly and daily reminder candidates');
+   $monthlyReport=\ExcelHerbal\ERP7\Reporting\ReportingSubmissionService::submit(
+       $bm,['branch_id'=>$branch,'report_type'=>'monthly_report',
+       'period_date'=>'2026-10-01',
+       'summary_text'=>'Monthly operational submission with branch report evidence']);
+   $afterSubmit=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::inspect(
+       $regional,$branch,'2026-10-01','all',$watchReader,null,$freshTime);
+   $statuses=[];foreach($afterSubmit['drafts'] as $r)$statuses[$r['report_type']]=$r['source_eligibility'];
+   $assert($statuses['monthly_report']==='not_currently_eligible'
+       &&$statuses['evening_daily_closing']==='currently_eligible'
+       &&$afterSubmit['eligibility_counts']['not_currently_eligible']===1,
+       'submitted real monthly report removes due eligibility without deleting historical draft');
+   \ExcelHerbal\ERP7\Reporting\ReportingSubmissionService::decide(
+       $regional,$monthlyReport['id'],['decision'=>'reject',
+           'note'=>'Please attach missing verified branch field summary']);
+   $afterReject=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::inspect(
+       $regional,$branch,'2026-10-01','all',$watchReader,null,$freshTime);
+   $assert($afterReject['eligibility_counts']['currently_eligible']===2
+       &&$afterReject['canonical_reminder_candidates']===2,
+       'rejected report is eligible again after original 10:30 cutoff');
+   \ExcelHerbal\ERP7\Reporting\ReportingSubmissionService::submit($bm,[
+       'branch_id'=>$branch,'report_type'=>'monthly_report','period_date'=>'2026-10-01',
+       'summary_text'=>'Corrected monthly submission includes complete branch review']);
+   \ExcelHerbal\ERP7\Reporting\ReportingSubmissionService::decide(
+       $regional,$monthlyReport['id'],['decision'=>'approve',
+           'note'=>'Monthly branch report verified by human reviewer']);
+   $afterApproved=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::inspect(
+       $regional,$branch,'2026-10-01','all',$watchReader,null,$freshTime);
+   $assert($afterApproved['eligibility_counts']['currently_eligible']===1
+       &&$afterApproved['eligibility_counts']['not_currently_eligible']===1,
+       'approved monthly report leaves historical draft visible as no longer due');
+   $persisted=$pdo->prepare(
+       'SELECT COUNT(*) FROM wp_eh7_report_reminder_drafts WHERE company_id=? AND branch_id=? AND period_date=? AND state=?');
+   $persisted->execute([$company,$branch,'2026-10-01','draft']);
+   $assert((int)$persisted->fetchColumn()===2
+       &&$afterApproved['notifications_sent']===0
+       &&$afterApproved['automatic_dismissal']===false,
+       'snapshot does not mutate drafts or send any reminders');
+   $inspectDenied=false;
+   try{\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::inspect(
+       $bm,$branch,'2026-10-01','all',$watchReader,null,$freshTime);}
+   catch(\ExcelHerbal\ERP7\Domain\DomainException $e){
+       $inspectDenied=$e->codeKey==='permission_denied';
+   }
+   $assert($inspectDenied,'submit-only BM cannot access reviewer freshness inspection');
+
    $dismissId=(int)$drafts['drafts'][0]['id'];
    $dismissed=\ExcelHerbal\ERP7\Reporting\ReportReminderDrafts::dismiss(
        $regional,$branch,$dismissId,'Daily closing followed up outside ERP and confirmed manually');

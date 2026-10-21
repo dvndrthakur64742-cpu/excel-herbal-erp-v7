@@ -89,3 +89,31 @@ approval may require document attachments and reconciliation evidence.
 - No salary amounts, outbound notifications, cron, posting, migration,
   deployment or PR merge.
 
+## 6. Manual stale-draft freshness preview (2026-10-21)
+
+GET /reports/reminder-drafts/freshness?branch_id=...&date=YYYY-MM-DD
+accepts the same optional state=draft|dismissed|all as the inbox.
+Only a user with reports.view + reports.review plus authority for the
+active company/branch can use this endpoint. It reads the existing canonical
+Manager Watch projection ONCE and compares the current candidate fingerprints
+against the persisted reviewer draft rows. The endpoint performs NO writes.
+
+Each returned row contains source_eligibility:
+- currently_eligible: the verified Watch still considers this reminder due.
+- not_currently_eligible: Watch no longer shows it as due; for example a
+  monthly report was submitted/approved or a field evening was completed,
+  the FSE was removed from the eligible roster, or due conditions changed.
+- dismissed: reviewer already dismissed it manually; retains audit reason.
+
+This is NOT automatic clearance, a bank/payment validation, or a guaranteed
+atomic point-in-time read: the Watch and draft queries are separate. Fail
+closed on malformed candidate/draft fingerprint, unauthorized branch or
+unavailable source. For historical dates outside the 31-day Watch window,
+the endpoint rejects validation rather than claiming an expired item is
+definitively resolved. Manual dismissal remains the only state mutation.
+No message dispatch, release, database schema migration or live deployment.
+
+Disposable MariaDB regression: genuine monthly draft is rechecked after
+submitted/rejected/resubmitted/approved transitions and remains stored for
+review; original FSE daily candidate stays independent.
+
