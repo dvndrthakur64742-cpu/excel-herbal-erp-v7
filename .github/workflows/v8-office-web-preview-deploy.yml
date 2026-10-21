@@ -100,11 +100,7 @@ jobs:
           $raw=& curl.exe --fail --silent --show-error --max-time 25 $url
           if($LASTEXITCODE -ne 0){throw 'Cannot attest actual Office WordPress staging health'}
           $h=($raw -join [Environment]::NewLine)|ConvertFrom-Json
-          if($h.ok -ne $true -or $h.data.environment -ne 'staging'
-              -or $h.data.source_head -ne $env:CURRENT_BACKEND_SHA
-              -or $h.data.web_runtime.main_sha256 -ne $env:OLD_WEB_SHA256
-              -or $h.data.schema_installed -ne $true
-              -or $h.data.host_hardening.status -ne 'passed'){
+          if(($h.ok -ne $true) -or ($h.data.environment -ne 'staging') -or ($h.data.source_head -ne $env:CURRENT_BACKEND_SHA) -or ($h.data.web_runtime.main_sha256 -ne $env:OLD_WEB_SHA256) -or ($h.data.schema_installed -ne $true) -or ($h.data.host_hardening.status -ne 'passed')){
             throw 'Existing installed Office backend/web or staging host differs from preapproved baseline. No deploy.'
           }
           Write-Host 'PASS no-change preflight: current WordPress backend and web match exact authorized hashes'
