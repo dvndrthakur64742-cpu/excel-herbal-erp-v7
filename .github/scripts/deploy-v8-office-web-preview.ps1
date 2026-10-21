@@ -86,7 +86,8 @@ function Get-VerifiedSetupWindow([string]$Url) {
         $pattern=$control.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
         $addr=([string]$pattern.Current.Value).Trim()
         if(-not $addr){continue}
-        $uri=[Uri](if($addr -match '^https?://'){$addr}else{'https://'+$addr})
+        $fullAddress=if($addr -match '^https?://'){$addr}else{'https://'+$addr}
+        $uri=[Uri]$fullAddress
         if($uri.Host -ine $target.Host -or $uri.AbsolutePath -ine '/wp-admin/admin.php'){break}
         $query=[Uri]::UnescapeDataString($uri.Query.TrimStart('?'))
         if($query -notmatch '(?:^|&)page=eh7-setup-assistant(?:&|$)' -or $query -notmatch '(?:^|&)tab=desktop(?:&|$)'){break}
