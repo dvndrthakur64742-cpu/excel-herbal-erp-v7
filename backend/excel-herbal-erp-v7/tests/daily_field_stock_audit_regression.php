@@ -33,10 +33,11 @@ class MemoryFieldSource implements Source {
         'issue_line_id'=>'6','product_id'=>'19','batch_id'=>null,
         'issued_quantity'=>'6.000','return_quantity'=>'2.000',
         'retail_quantity'=>'3.000','wholesale_quantity'=>'1.000',
+        'total_amount'=>'400.00','points'=>'8.00','salary_fund'=>'12.00',
     ]];
     public array $movements=[];
     public array $journals=[['id'=>'73','branch_id'=>'31','status'=>'posted']];
-    public array $performance=[['id'=>'100','branch_id'=>'31','employee_id'=>'52']];
+    public array $performance=[['id'=>'100','branch_id'=>'31','employee_id'=>'52','points'=>'8.00','salary_fund'=>'12.00']];
     public array $glLines=[
         ['id'=>'501','journal_entry_id'=>'73','account_id'=>'101','account_company_id'=>'11','account_code'=>'BR_CASH','account_type'=>'asset','account_subtype'=>'cash','debit'=>'150.00','credit'=>'0.00'],
         ['id'=>'502','journal_entry_id'=>'73','account_id'=>'102','account_company_id'=>'11','account_code'=>'BR_UPI','account_type'=>'asset','account_subtype'=>'upi','debit'=>'250.00','credit'=>'0.00'],
@@ -79,6 +80,12 @@ checkField($ok['stock_ledger_reconciled']&&$ok['state']==='posted_stock_reconcil
   &&$ok['issue_line_count']===1&&$ok['stock_movement_count']===5
   &&$ok['issued_milli']===6000&&$ok['sold_milli']===4000&&$ok['returned_milli']===2000,
   'canonical daily issue 6, sold 4, returned 2 double custody ledger read-only reconcile');
+checkField($ok['closing_line_amounts_reconcile']===true
+    &&$ok['posted_performance_totals_reconcile']===true
+    &&$ok['closing_sales_total_paise']===40000
+    &&$ok['closing_points_hundredths']===800
+    &&$ok['closing_salary_fund_paise']===1200,
+    'closing lines independently match sales, performance points and salary allocations');
 checkField($ok['canonical_gl_line_totals_match']===true
     &&$ok['journal_line_count']===5
     &&$ok['canonical_gl_totals_paise']['cash_debit_paise']===15000
@@ -133,6 +140,29 @@ checkField(in_array('employee_performance_record_missing_or_duplicate',Audit::in
 $a=clone $source;$a->journals[]=$a->journals[0];
 checkField(in_array('canonical_journal_header_missing_or_duplicate',Audit::inspect($finance,62,$a)['exceptions'],true),
     'duplicate posted canonical GL headers fail closed');
+
+$a=clone $source;$a->closingLines[0]['total_amount']='399.99';
+$r=Audit::inspect($finance,62,$a);
+checkField(in_array('evening_line_sales_total_mismatch',$r['exceptions'],true)
+    &&$r['state']==='blocked_integrity_exception'
+    &&$r['canonical_gl_line_totals_match']===true
+    &&$r['closing_line_amounts_reconcile']===false,
+    'one-paisa tampered sale line blocked even when posted GL is balanced');
+$a=clone $source;$a->closingLines[0]['points']='7.99';
+$r=Audit::inspect($finance,62,$a);
+checkField(in_array('employee_performance_points_mismatch',$r['exceptions'],true)
+    &&$r['posted_performance_totals_reconcile']===false,
+    'performance points mismatch detected without INR conversion');
+$a=clone $source;$a->performance[0]['points']='8.01';
+checkField(in_array('employee_performance_points_mismatch',Audit::inspect($finance,62,$a)['exceptions'],true),
+    'tampered employee performance row cannot overstate points');
+$a=clone $source;$a->closingLines[0]['salary_fund']='11.99';
+checkField(in_array('employee_salary_fund_mismatch',Audit::inspect($finance,62,$a)['exceptions'],true),
+    'salary fund allocation mismatch blocked but salary payment not assumed');
+$a=clone $source;$a->closingLines[0]['total_amount']='400.001';
+blockedField(fn()=>Audit::inspect($finance,62,$a),'field_audit_source_invalid');
+$a=clone $source;$a->closingLines[0]['points']='-1.00';
+blockedField(fn()=>Audit::inspect($finance,62,$a),'field_audit_source_invalid');
 $a=clone $source;$a->glLines[0]['debit']='149.00';
 checkField(in_array('gl_cash_debit_mismatch',Audit::inspect($finance,62,$a)['exceptions'],true)
     &&!Audit::inspect($finance,62,$a)['canonical_gl_line_totals_match'],

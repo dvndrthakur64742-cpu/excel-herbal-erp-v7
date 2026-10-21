@@ -91,3 +91,31 @@ V7 final-post may have legacy Cash/UPI policy gaps; the audit detects
 inconsistency, never changes policy or posts/repairs books. The Office
 WordPress deployment remains paused by the owner. No new route or database
 migration is included.
+
+## 2026-10-21 — Cross-source Closing Line and Performance Totals Audit
+
+The read-only finance-only Daily Field Stock Audit now compares individual
+canonical closing-line sales INR, points and salary-fund amounts against
+the posted settlement and its source-linked employee performance record.
+Values are parsed into exact paise or separate hundredths of incentive
+points, and never added to one another.
+
+For each completed Daily Order:
+- Sum of closing-line total_amount must equal evening expected_amount.
+- Sum of closing-line points must equal posted performance_entries.points.
+- Sum of closing-line salary_fund must equal posted performance_entries.salary_fund.
+- Existing reported Cash/UPI, GL debit/credit, issue/sale/return stock
+  movement and employee/branch authority tests remain independent.
+- Fail closed on malformed, negative or non-two-decimal financial amounts.
+- Expose the source subtotals and distinct reconciliation booleans, while
+  always maintaining the financial signoff and physical proof warnings.
+
+PHP regression and real disposable MariaDB UAT tamper each dimension with a
+one-paisa/one-hundredth source difference, then restore the fixture using
+savepoints. No new accounting or payroll writer, duplicate stock/GL engine,
+schema change, outward-facing API route, deployment or production mutation.
+
+A matching performance entry is NOT proof of actual payroll disbursement,
+and a matching Cash/UPI journal is NOT proof of cashier handover or bank
+settlement. Source readers remain non-atomic separate queries.
+

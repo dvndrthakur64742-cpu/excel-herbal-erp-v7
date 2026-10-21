@@ -92,6 +92,8 @@ final class DailyFieldStockAudit
         if($closing!==null&&count($lineRows)===0)$exceptions[]='closing_lines_missing';
 
         $seenClosing=[];$sold=0;$returned=0;$issued=0;
+        // Points and salary allocation are distinct from recorded sales INR.
+        $lineSalePaise=0;$linePointHundredths=0;$lineSalaryPaise=0;
         foreach($issues as $row)$issued+=$row['qty'];
         foreach($lineRows as $l){
             $il=self::id($l['issue_line_id']??null);
@@ -108,6 +110,17 @@ final class DailyFieldStockAudit
             if($qty!==$original['qty']||$ret+$retail+$wh!==$qty)
                 $exceptions[]='closing_quantity_mismatch';
             $sale=$retail+$wh;$sold+=$sale;$returned+=$ret;
+            $saleAmount=self::money($l['total_amount']??null);
+            $linePoints=self::money($l['points']??null);
+            $lineSalary=self::money($l['salary_fund']??null);
+            foreach([[$lineSalePaise,$saleAmount],[$linePointHundredths,$linePoints],
+                [$lineSalaryPaise,$lineSalary]] as [$running,$additional]){
+                if($running>PHP_INT_MAX-$additional)
+                    throw new DomainException('Closing amount overflow.','field_audit_source_invalid',500);
+            }
+            $lineSalePaise+=$saleAmount;
+            $linePointHundredths+=$linePoints;
+            $lineSalaryPaise+=$lineSalary;
             $suffix=$original['product'].':'.$original['batch'];
             if($completed){
                 $expect($expected,'daily_sale:'.$cycleId.':'.$suffix.':employee:OUT',$sale);
@@ -162,9 +175,23 @@ final class DailyFieldStockAudit
             if(count($perf)!==1||self::id($perf[0]['branch_id']??null)!==$branch
                 ||self::id($perf[0]['employee_id']??null)!==$employee)
                 $exceptions[]='employee_performance_record_missing_or_duplicate';
-            if($closing!==null&&self::money($closing['cash_amount']??null)
-                  +self::money($closing['upi_amount']??null)!==self::money($closing['expected_amount']??null))
-                $exceptions[]='cash_upi_reported_totals_mismatch';
+            if($closing!==null){
+                $expectedSale=self::money($closing['expected_amount']??null);
+                $reportedCash=self::money($closing['cash_amount']??null);
+                $reportedUpi=self::money($closing['upi_amount']??null);
+                if($reportedCash>PHP_INT_MAX-$reportedUpi
+                    ||$reportedCash+$reportedUpi!==$expectedSale)
+                    $exceptions[]='cash_upi_reported_totals_mismatch';
+                if($lineSalePaise!==$expectedSale)
+                    $exceptions[]='evening_line_sales_total_mismatch';
+            }
+            if(count($perf)===1&&self::id($perf[0]['branch_id']??null)===$branch
+                &&self::id($perf[0]['employee_id']??null)===$employee){
+                if(self::money($perf[0]['points']??null)!==$linePointHundredths)
+                    $exceptions[]='employee_performance_points_mismatch';
+                if(self::money($perf[0]['salary_fund']??null)!==$lineSalaryPaise)
+                    $exceptions[]='employee_salary_fund_mismatch';
+            }
         }elseif(count($journals)!==0||count($perf)!==0)
             $exceptions[]='financial_post_before_cycle_completion';
 
@@ -258,6 +285,16 @@ final class DailyFieldStockAudit
             'stock_movement_count'=>count($moves),
             'issued_milli'=>$issued,'sold_milli'=>$sold,'returned_milli'=>$returned,
             'journal_header_count'=>count($journals),'performance_entry_count'=>count($perf),
+            'closing_sales_total_paise'=>$lineSalePaise,
+            'closing_points_hundredths'=>$linePointHundredths,
+            'closing_salary_fund_paise'=>$lineSalaryPaise,
+            'closing_line_amounts_reconcile'=>$completed&&$closing!==null
+                &&$lineSalePaise===self::money($closing['expected_amount']??null),
+            'posted_performance_totals_reconcile'=>$completed&&count($perf)===1
+                &&self::id($perf[0]['branch_id']??null)===$branch
+                &&self::id($perf[0]['employee_id']??null)===$employee
+                &&!in_array('employee_performance_points_mismatch',$exceptions,true)
+                &&!in_array('employee_salary_fund_mismatch',$exceptions,true),
             'journal_line_count'=>$glLineCount,'canonical_gl_line_totals_match'=>$completed&&$glLineCount>0&&!$glIssues,
             'canonical_gl_totals_paise'=>$gl,
             'exceptions'=>$exceptions,'movement_differences'=>$diff,
@@ -315,7 +352,7 @@ final class DailyFieldStockAuditWpReader implements DailyFieldStockAuditReader {
         return $this->rows('SELECT es.daily_cycle_id,es.status,es.expected_amount,es.cash_amount,es.upi_amount FROM '.Db::table('evening_settlements').' es JOIN '.Db::table('daily_cycles').' c ON c.id=es.daily_cycle_id WHERE c.company_id=%d AND c.id=%d LIMIT 2',$company,$id);
     }
     public function closingLines(int $company,int $id):array {
-        return $this->rows('SELECT el.issue_line_id,el.product_id,el.batch_id,el.issued_quantity,el.return_quantity,el.retail_quantity,el.wholesale_quantity FROM '.Db::table('evening_lines').' el JOIN '.Db::table('evening_settlements').' es ON es.id=el.evening_settlement_id JOIN '.Db::table('daily_cycles').' c ON c.id=es.daily_cycle_id WHERE c.company_id=%d AND c.id=%d ORDER BY el.id LIMIT 251',$company,$id);
+        return $this->rows('SELECT el.issue_line_id,el.product_id,el.batch_id,el.issued_quantity,el.return_quantity,el.retail_quantity,el.wholesale_quantity,el.total_amount,el.points,el.salary_fund FROM '.Db::table('evening_lines').' el JOIN '.Db::table('evening_settlements').' es ON es.id=el.evening_settlement_id JOIN '.Db::table('daily_cycles').' c ON c.id=es.daily_cycle_id WHERE c.company_id=%d AND c.id=%d ORDER BY el.id LIMIT 251',$company,$id);
     }
     public function movements(int $company,int $branch,int $cycle,array $requestIds):array {
         $in=implode(',',array_fill(0,count($requestIds),'%d'));
@@ -335,6 +372,6 @@ final class DailyFieldStockAuditWpReader implements DailyFieldStockAuditReader {
             .'AND je.id=%d ORDER BY jl.id LIMIT 21',$company,$cycle,$journalId);
     }
     public function performance(int $company,int $id):array {
-        return $this->rows('SELECT id,branch_id,employee_id FROM '.Db::table('performance_entries')." WHERE company_id=%d AND source_type='daily_cycle' AND source_id=%d LIMIT 3",$company,$id);
+        return $this->rows('SELECT id,branch_id,employee_id,points,salary_fund FROM '.Db::table('performance_entries')." WHERE company_id=%d AND source_type='daily_cycle' AND source_id=%d LIMIT 3",$company,$id);
     }
 }

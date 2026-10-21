@@ -65,7 +65,8 @@ try{
         'created_at'=>'2026-10-20 12:00:00']);
     $insert('evening_lines',['id'=>880095,'evening_settlement_id'=>880081,'issue_line_id'=>880091,
         'product_id'=>8810,'batch_id'=>null,'issued_quantity'=>'6.000','return_quantity'=>'2.000',
-        'retail_quantity'=>'3.000','wholesale_quantity'=>'1.000','total_amount'=>'400.00']);
+        'retail_quantity'=>'3.000','wholesale_quantity'=>'1.000','total_amount'=>'400.00',
+        'points'=>'8.00','salary_fund'=>'12.00']);
     foreach([
         [880101,'daily_issue',$request,null,'OUT','6.000'],
         [880102,'daily_issue',$request,$employee,'IN','6.000'],
@@ -113,7 +114,9 @@ try{
         &&$r['stock_movement_count']===5&&$r['journal_header_count']===1
         &&$r['ready_for_production_financial_signoff']===false
         &&$r['canonical_gl_line_totals_match']===true
-        &&$r['journal_line_count']===5,
+        &&$r['journal_line_count']===5
+        &&$r['closing_line_amounts_reconcile']===true
+        &&$r['posted_performance_totals_reconcile']===true,
 
         'actual MariaDB canonical Daily Order issue 6, sold 4, return 2 and GL presence reconcile');
     $pdo->exec('SAVEPOINT badsale');
@@ -139,6 +142,28 @@ try{
     $ok(in_array('canonical_journal_header_missing_or_duplicate',$run()['exceptions'],true),
         'cross-branch journal source does not count as valid daily cycle finance evidence');
     $pdo->exec('ROLLBACK TO SAVEPOINT wrongheader');
+    $pdo->exec('SAVEPOINT badAmount');
+    $pdo->exec("UPDATE wp_eh7_evening_lines SET total_amount='399.99' WHERE id=880095");
+    $r=$run();
+    $ok(in_array('evening_line_sales_total_mismatch',$r['exceptions'],true)
+        &&$r['canonical_gl_line_totals_match']===true
+        &&$r['closing_line_amounts_reconcile']===false,
+        'real MariaDB one-paisa sale-line corruption blocked despite fully matching GL');
+    $pdo->exec('ROLLBACK TO SAVEPOINT badAmount');
+    $pdo->exec('SAVEPOINT badPoints');
+    $pdo->exec("UPDATE wp_eh7_performance_entries SET points='8.01' WHERE id=880502");
+    $ok(in_array('employee_performance_points_mismatch',$run()['exceptions'],true),
+        'real MariaDB employee performance points overstatement blocked');
+    $pdo->exec('ROLLBACK TO SAVEPOINT badPoints');
+    $pdo->exec('SAVEPOINT badSalary');
+    $pdo->exec("UPDATE wp_eh7_evening_lines SET salary_fund='12.01' WHERE id=880095");
+    $ok(in_array('employee_salary_fund_mismatch',$run()['exceptions'],true),
+        'real MariaDB salary fund source mismatch independently detected');
+    $pdo->exec('ROLLBACK TO SAVEPOINT badSalary');
+    $recovered=$run();
+    $ok($recovered['closing_line_amounts_reconcile']===true
+        &&$recovered['posted_performance_totals_reconcile']===true,
+        'MariaDB financial and performance source agreement restored after rollback');
     $pdo->exec('SAVEPOINT corruptGL');
     $pdo->exec("UPDATE wp_eh7_journal_lines SET debit='149.00' WHERE id=880401");
     $r=$run();
