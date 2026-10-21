@@ -82,7 +82,8 @@ jobs:
               for p in sorted(root.rglob("*")):
                   if p.is_file(): z.write(p,p.relative_to(root).as_posix())
           with zipfile.ZipFile(output) as z:
-              m=dict(x.split("  ",1) for x in z.read("SHA256SUMS.txt").decode().splitlines())
+              m={filename:digest for digest,filename in
+                 (line.split("  ",1) for line in z.read("SHA256SUMS.txt").decode().splitlines())}
               assert len(z.namelist())==len(m)+1
               for p,h in m.items(): assert hashlib.sha256(z.read(p)).hexdigest()==h,p
               for p in ("index.html","main.dart.js","flutter_bootstrap.js",".last_build_id"):
