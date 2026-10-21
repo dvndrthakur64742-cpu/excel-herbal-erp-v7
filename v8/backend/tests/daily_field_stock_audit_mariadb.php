@@ -16,7 +16,8 @@ foreach(['Domain/DomainException.php','Database/Db.php','Database/Schema.php',
     'DailyOrder/DailyFieldStockAudit.php'] as $f)require_once $src.$f;
 if(!defined('ARRAY_A'))define('ARRAY_A','ARRAY_A');
 foreach(['daily_cycles','daily_requests','daily_issue_lines','evening_settlements',
-    'evening_lines','stock_ledger','journal_entries','performance_entries'] as $name){
+    'evening_lines','stock_ledger','journal_entries','journal_lines',
+    'accounts','performance_entries'] as $name){
     $definition=Schema::definitions()[$name]??throw new RuntimeException('Canonical '.$name.' missing');
     $pdo->exec('CREATE TABLE IF NOT EXISTS wp_eh7_'.$name.' ('.$definition.') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 }
@@ -81,6 +82,26 @@ try{
         'entry_no'=>'DAILY-AUDIT-ROLLBACK-ONLY-880051','entry_date'=>'2026-10-20 23:59:59',
         'source_type'=>'daily_cycle','source_id'=>$cycle,'status'=>'posted',
         'created_by'=>500,'created_at'=>'2026-10-20 13:00:00']);
+    foreach([
+        [880301,'BR_CASH','asset','cash'],
+        [880302,'BR_UPI','asset','upi'],
+        [880303,'SALES','income',null],
+        [880304,'COGS','expense',null],
+        [880305,'INVENTORY','asset',null],
+    ] as [$id,$code,$type,$subtype]){
+        $insert('accounts',['id'=>$id,'company_id'=>$company,'code'=>$code,
+            'name'=>'Synthetic '.$code,'type'=>$type,'subtype'=>$subtype,'active'=>1]);
+    }
+    foreach([
+        [880401,880301,'150.00','0.00'],
+        [880402,880302,'250.00','0.00'],
+        [880403,880303,'0.00','400.00'],
+        [880404,880304,'200.00','0.00'],
+        [880405,880305,'0.00','200.00'],
+    ] as [$lineId,$accountId,$debit,$credit]){
+        $insert('journal_lines',['id'=>$lineId,'journal_entry_id'=>880501,
+            'account_id'=>$accountId,'debit'=>$debit,'credit'=>$credit]);
+    }
     $insert('performance_entries',['id'=>880502,'company_id'=>$company,'branch_id'=>$branch,
         'employee_id'=>$employee,'business_date'=>'2026-10-20','source_type'=>'daily_cycle',
         'source_id'=>$cycle,'points'=>'8.00','salary_fund'=>'12.00','created_at'=>'2026-10-20 13:00:00']);
@@ -90,7 +111,10 @@ try{
         &&$r['stock_ledger_reconciled']===true
         &&$r['issued_milli']===6000&&$r['sold_milli']===4000&&$r['returned_milli']===2000
         &&$r['stock_movement_count']===5&&$r['journal_header_count']===1
-        &&$r['ready_for_production_financial_signoff']===false,
+        &&$r['ready_for_production_financial_signoff']===false
+        &&$r['canonical_gl_line_totals_match']===true
+        &&$r['journal_line_count']===5,
+
         'actual MariaDB canonical Daily Order issue 6, sold 4, return 2 and GL presence reconcile');
     $pdo->exec('SAVEPOINT badsale');
     $pdo->exec("UPDATE wp_eh7_stock_ledger SET quantity='4.001' WHERE id=880103");
@@ -115,6 +139,26 @@ try{
     $ok(in_array('canonical_journal_header_missing_or_duplicate',$run()['exceptions'],true),
         'cross-branch journal source does not count as valid daily cycle finance evidence');
     $pdo->exec('ROLLBACK TO SAVEPOINT wrongheader');
+    $pdo->exec('SAVEPOINT corruptGL');
+    $pdo->exec("UPDATE wp_eh7_journal_lines SET debit='149.00' WHERE id=880401");
+    $r=$run();
+    $ok(in_array('gl_cash_debit_mismatch',$r['exceptions'],true)
+        &&in_array('gl_unbalanced',$r['exceptions'],true)
+        &&$r['canonical_gl_line_totals_match']===false,
+        'actual MariaDB tampered Cash journal debit fails stock + finance reconciliation');
+    $pdo->exec('ROLLBACK TO SAVEPOINT corruptGL');
+    $pdo->exec('SAVEPOINT corruptUPI');
+    $pdo->exec("UPDATE wp_eh7_journal_lines SET debit='249.00' WHERE id=880402");
+    $ok(in_array('gl_upi_debit_mismatch',$run()['exceptions'],true),
+        'actual MariaDB UPI journal shortfall blocks GL reconciliation');
+    $pdo->exec('ROLLBACK TO SAVEPOINT corruptUPI');
+    $pdo->exec('SAVEPOINT corruptCOGS');
+    $pdo->exec("UPDATE wp_eh7_journal_lines SET debit='199.00' WHERE id=880404");
+    $ok(in_array('gl_cogs_inventory_mismatch',$run()['exceptions'],true),
+        'actual MariaDB inventory and COGS imbalance blocks field cycle acceptance');
+    $pdo->exec('ROLLBACK TO SAVEPOINT corruptCOGS');
+    $ok($run()['canonical_gl_line_totals_match']===true,
+        'rollback restores all canonical five-line GL amounts exactly');
     $pdo->exec('SAVEPOINT open');
     $pdo->exec("UPDATE wp_eh7_daily_cycles SET status='issued' WHERE id=880051");
     $pdo->exec("DELETE FROM wp_eh7_evening_lines WHERE id=880095");

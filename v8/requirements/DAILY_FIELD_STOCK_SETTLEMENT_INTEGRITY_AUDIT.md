@@ -60,3 +60,34 @@ database table, public REST route, or migration.
 
 **No WordPress REST exposure. No backend deployment. No B2B posting.
 No PR merge. Office preview deployment is paused separately.**
+
+## Phase 2 — Canonical GL line amount reconciliation
+
+The same read-only finance-only audit now loads the actual V7
+`journal_lines` and scoped `accounts` for the sole posted
+`daily_cycle` journal. It requires at most 20 rows and checks:
+
+- The full posted header is linked to the requested company, branch and
+  cycle. All journal line IDs and account IDs must be unique, valid and
+  belong to that canonical journal and **same company**.
+- Cash account (`asset/cash`) **debit** matches reported evening Cash;
+  UPI account (`asset/upi`) **debit** matches reported evening UPI.
+- `SALES` **credit** matches evening expected sales, and
+  `COGS` debit equals `INVENTORY` credit. Repeated or
+  unknown account roles, wrong direction, missing journal lines, unbalanced
+  debits/credits and tampered amounts block the cycle.
+- Amounts are parsed strictly to **integer paise**. A 1-rupee mutation
+  fails. Actual PDO/MariaDB tests use savepoints for ledger tampering and
+  ultimately roll back all synthetic rows.
+- Report fields `canonical_gl_line_totals_match`,
+  `canonical_gl_totals_paise`, and `journal_line_count` describe
+  *internal accounting reconciliation only*. They are **NOT** proof of
+  employee-to-cashier physical remittance, real UPI bank settlement, tax
+  compliance, or finance approval.
+
+**Limitations unchanged:** no cross-query MVCC consistent snapshot; source
+reads must not be described as an atomic view under concurrent writers.
+V7 final-post may have legacy Cash/UPI policy gaps; the audit detects
+inconsistency, never changes policy or posts/repairs books. The Office
+WordPress deployment remains paused by the owner. No new route or database
+migration is included.

@@ -37,6 +37,13 @@ class MemoryFieldSource implements Source {
     public array $movements=[];
     public array $journals=[['id'=>'73','branch_id'=>'31','status'=>'posted']];
     public array $performance=[['id'=>'100','branch_id'=>'31','employee_id'=>'52']];
+    public array $glLines=[
+        ['id'=>'501','journal_entry_id'=>'73','account_id'=>'101','account_company_id'=>'11','account_code'=>'BR_CASH','account_type'=>'asset','account_subtype'=>'cash','debit'=>'150.00','credit'=>'0.00'],
+        ['id'=>'502','journal_entry_id'=>'73','account_id'=>'102','account_company_id'=>'11','account_code'=>'BR_UPI','account_type'=>'asset','account_subtype'=>'upi','debit'=>'250.00','credit'=>'0.00'],
+        ['id'=>'503','journal_entry_id'=>'73','account_id'=>'103','account_company_id'=>'11','account_code'=>'SALES','account_type'=>'income','account_subtype'=>null,'debit'=>'0.00','credit'=>'400.00'],
+        ['id'=>'504','journal_entry_id'=>'73','account_id'=>'104','account_company_id'=>'11','account_code'=>'COGS','account_type'=>'expense','account_subtype'=>null,'debit'=>'200.00','credit'=>'0.00'],
+        ['id'=>'505','journal_entry_id'=>'73','account_id'=>'105','account_company_id'=>'11','account_code'=>'INVENTORY','account_type'=>'asset','account_subtype'=>null,'debit'=>'0.00','credit'=>'200.00'],
+    ];
     public function __construct(){
         $i=0;
         foreach([
@@ -59,6 +66,7 @@ class MemoryFieldSource implements Source {
     public function closingLines(int $company,int $id):array{return $this->closingLines;}
     public function movements(int $company,int $branch,int $cycle,array $requestIds):array{return $this->movements;}
     public function journalHeaders(int $company,int $id):array{return $this->journals;}
+    public function journalLines(int $company,int $cycle,int $journalId):array{return $this->glLines;}
     public function performance(int $company,int $id):array{return $this->performance;}
 }
 $finance=new Actor(1,5,11,31,[31],[Capabilities::ACCOUNTING_VIEW],'RM');
@@ -71,6 +79,12 @@ checkField($ok['stock_ledger_reconciled']&&$ok['state']==='posted_stock_reconcil
   &&$ok['issue_line_count']===1&&$ok['stock_movement_count']===5
   &&$ok['issued_milli']===6000&&$ok['sold_milli']===4000&&$ok['returned_milli']===2000,
   'canonical daily issue 6, sold 4, returned 2 double custody ledger read-only reconcile');
+checkField($ok['canonical_gl_line_totals_match']===true
+    &&$ok['journal_line_count']===5
+    &&$ok['canonical_gl_totals_paise']['cash_debit_paise']===15000
+    &&$ok['canonical_gl_totals_paise']['upi_debit_paise']===25000
+    &&$ok['canonical_gl_totals_paise']['sales_credit_paise']===40000,
+    'posted cash/UPI debit, sales credit, COGS and inventory equal canonical GL amounts');
 checkField($ok['ready_for_production_financial_signoff']===false
     &&$ok['journal_amounts_independently_verified']===false
     &&$ok['physical_employee_cash_handover_verified']===false
@@ -119,6 +133,33 @@ checkField(in_array('employee_performance_record_missing_or_duplicate',Audit::in
 $a=clone $source;$a->journals[]=$a->journals[0];
 checkField(in_array('canonical_journal_header_missing_or_duplicate',Audit::inspect($finance,62,$a)['exceptions'],true),
     'duplicate posted canonical GL headers fail closed');
+$a=clone $source;$a->glLines[0]['debit']='149.00';
+checkField(in_array('gl_cash_debit_mismatch',Audit::inspect($finance,62,$a)['exceptions'],true)
+    &&!Audit::inspect($finance,62,$a)['canonical_gl_line_totals_match'],
+    'reported cash differs by one rupee from canonical GL Cash debit');
+$a=clone $source;$a->glLines[1]['debit']='249.00';
+checkField(in_array('gl_upi_debit_mismatch',Audit::inspect($finance,62,$a)['exceptions'],true),
+    'posted UPI debit is not proof when GL amount is short');
+$a=clone $source;$a->glLines[2]['credit']='399.00';
+checkField(in_array('gl_sales_credit_mismatch',Audit::inspect($finance,62,$a)['exceptions'],true),
+    'short Sales credit cannot be accepted even if stock movements reconcile');
+$a=clone $source;$a->glLines[3]['debit']='199.00';
+checkField(in_array('gl_cogs_inventory_mismatch',Audit::inspect($finance,62,$a)['exceptions'],true),
+    'COGS debit and Inventory credit cannot differ');
+$a=clone $source;$a->glLines[0]['account_company_id']='99';
+checkField(in_array('gl_foreign_or_duplicate_line',Audit::inspect($finance,62,$a)['exceptions'],true),
+    'cross-company cash ledger account cannot satisfy journal reconciliation');
+$a=clone $source;$a->glLines[]=$a->glLines[1];$a->glLines[5]['id']='999';
+checkField(in_array('gl_unknown_or_duplicate_account_role',Audit::inspect($finance,62,$a)['exceptions'],true),
+    'extra UPI debit line cannot be double counted');
+$a=clone $source;$a->glLines[1]['credit']='1.00';
+checkField(in_array('gl_invalid_debit_credit_direction',Audit::inspect($finance,62,$a)['exceptions'],true),
+    'journal line with simultaneous debit and credit is rejected');
+$a=clone $source;$a->glLines=[];
+checkField(in_array('gl_lines_missing',Audit::inspect($finance,62,$a)['exceptions'],true),
+    'posted journal header without journal lines fails closed');
+$a=clone $source;$a->glLines=array_fill(0,21,$a->glLines[0]);
+blockedField(fn()=>Audit::inspect($finance,62,$a),'field_audit_incomplete');
 $a=clone $source;$a->cycle['status']='issued';$a->closing=[];$a->closingLines=[];$a->journals=[];$a->performance=[];
 $a->movements=array_slice($a->movements,0,2);
 $r=Audit::inspect($finance,62,$a);

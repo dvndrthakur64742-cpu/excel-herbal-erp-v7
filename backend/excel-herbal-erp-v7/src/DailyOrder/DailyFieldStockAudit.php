@@ -18,6 +18,7 @@ interface DailyFieldStockAuditReader {
     public function closingLines(int $company,int $id):array;
     public function movements(int $company,int $branch,int $cycle,array $requestIds):array;
     public function journalHeaders(int $company,int $id):array;
+    public function journalLines(int $company,int $cycle,int $journalId):array;
     public function performance(int $company,int $id):array;
 }
 
@@ -166,6 +167,86 @@ final class DailyFieldStockAudit
                 $exceptions[]='cash_upi_reported_totals_mismatch';
         }elseif(count($journals)!==0||count($perf)!==0)
             $exceptions[]='financial_post_before_cycle_completion';
+
+        // Phase 2: reconcile the exact V7 GL debit/credit lines as amounts,
+        // not only the existence of a posted journal entry.
+        // This still does not assert an externally verified bank or cashier.
+        $gl=[];
+        $glLineCount=0;
+        $glIssues=[];
+        if($completed&&count($journals)===1
+            &&($journals[0]['status']??null)==='posted'
+            &&self::id($journals[0]['branch_id']??null)===$branch){
+            $header=self::id($journals[0]['id']??null);
+            if($header<1)
+                throw new DomainException('Invalid canonical GL header ID.','field_audit_source_invalid',500);
+            $lines=$reader->journalLines($actor->companyId,$cycleId,$header);
+            if(!is_array($lines)||count($lines)>20)
+                throw new DomainException('Incomplete canonical GL journal lines.','field_audit_incomplete',409);
+            $glLineCount=count($lines);
+            $sumDr=0;$sumCr=0;$roles=[];$lineIds=[];
+            foreach($lines as $l){
+                $lineId=self::id($l['id']??null);
+                $account=self::id($l['account_id']??null);
+                $j=self::id($l['journal_entry_id']??null);
+                $ac=self::id($l['account_company_id']??null);
+                if($lineId<1||isset($lineIds[$lineId])||$account<1||$j!==$header||$ac!==$actor->companyId){
+                    $glIssues[]='gl_foreign_or_duplicate_line';
+                    continue;
+                }
+                $lineIds[$lineId]=true;
+                $dr=self::money($l['debit']??null);$cr=self::money($l['credit']??null);
+                if(($dr>0&&$cr>0)||($dr===0&&$cr===0&&strtoupper((string)($l['account_code']??''))!=='SALES')){
+                    $glIssues[]='gl_invalid_debit_credit_direction';continue;
+                }
+                if($sumDr>PHP_INT_MAX-$dr||$sumCr>PHP_INT_MAX-$cr)
+                    throw new DomainException('GL amount overflow.','field_audit_source_invalid',500);
+                $sumDr+=$dr;$sumCr+=$cr;
+                $code=strtoupper((string)($l['account_code']??''));
+                $type=strtolower((string)($l['account_type']??''));
+                $subtype=strtolower((string)($l['account_subtype']??''));
+                $role=match(true){
+                    $code==='SALES'=>'sales',
+                    $code==='COGS'=>'cogs',
+                    $code==='INVENTORY'=>'inventory',
+                    $type==='asset'&&$subtype==='cash'=>'cash',
+                    $type==='asset'&&$subtype==='upi'=>'upi',
+                    default=>'unknown'
+                };
+                if($role==='unknown'||isset($roles[$role])){
+                    $glIssues[]='gl_unknown_or_duplicate_account_role';
+                    continue;
+                }
+                $roles[$role]=[$dr,$cr];
+            }
+            $amount=$closing!==null?self::money($closing['expected_amount']??null):0;
+            $cash=$closing!==null?self::money($closing['cash_amount']??null):0;
+            $upi=$closing!==null?self::money($closing['upi_amount']??null):0;
+            if(($roles['cash']??[0,0])!==[$cash,0]
+                ||($cash>0&&!isset($roles['cash'])))
+                $glIssues[]='gl_cash_debit_mismatch';
+            if(($roles['upi']??[0,0])!==[$upi,0]
+                ||($upi>0&&!isset($roles['upi'])))
+                $glIssues[]='gl_upi_debit_mismatch';
+            if(($roles['sales']??null)!==[0,$amount])
+                $glIssues[]='gl_sales_credit_mismatch';
+            $costDr=$roles['cogs']??[0,0];
+            $invCr=$roles['inventory']??[0,0];
+            if(($costDr[1]??0)!==0||($invCr[0]??0)!==0
+                ||$costDr[0]!==$invCr[1]||($costDr[0]>0&&
+                (!isset($roles['cogs'])||!isset($roles['inventory']))))
+                $glIssues[]='gl_cogs_inventory_mismatch';
+            if($sumDr!==$sumCr)$glIssues[]='gl_unbalanced';
+            if(!$lines)$glIssues[]='gl_lines_missing';
+            $gl=['cash_debit_paise'=>$roles['cash'][0]??0,
+                'upi_debit_paise'=>$roles['upi'][0]??0,
+                'sales_credit_paise'=>$roles['sales'][1]??0,
+                'cogs_debit_paise'=>$costDr[0],'inventory_credit_paise'=>$invCr[1],
+                'total_debit_paise'=>$sumDr,'total_credit_paise'=>$sumCr];
+            array_push($exceptions,...$glIssues);
+        }elseif($completed){
+            $exceptions[]='gl_lines_unavailable_without_valid_posted_header';
+        }
         $exceptions=array_values(array_unique($exceptions));
         return [
             'read_only'=>true,'company_id'=>$actor->companyId,'branch_id'=>$branch,
@@ -177,12 +258,14 @@ final class DailyFieldStockAudit
             'stock_movement_count'=>count($moves),
             'issued_milli'=>$issued,'sold_milli'=>$sold,'returned_milli'=>$returned,
             'journal_header_count'=>count($journals),'performance_entry_count'=>count($perf),
+            'journal_line_count'=>$glLineCount,'canonical_gl_line_totals_match'=>$completed&&$glLineCount>0&&!$glIssues,
+            'canonical_gl_totals_paise'=>$gl,
             'exceptions'=>$exceptions,'movement_differences'=>$diff,
             'snapshot_isolation_guaranteed'=>false,
             'journal_amounts_independently_verified'=>false,
             'physical_employee_cash_handover_verified'=>false,
             'upi_bank_settlement_verified'=>false,
-            'warning'=>'This is a read-only stock movement and finance-record-presence audit, not cashier custody, payment provider verification or GL line reconciliation.',
+            'warning'=>'This read-only audit compares canonical stock and GL line amounts only. It does not prove physical cashier remittance, independently verified bank settlement, or transaction-time MVCC consistency.',
         ];
     }
 
@@ -241,6 +324,15 @@ final class DailyFieldStockAuditWpReader implements DailyFieldStockAuditReader {
     }
     public function journalHeaders(int $company,int $id):array {
         return $this->rows('SELECT id,branch_id,status FROM '.Db::table('journal_entries')." WHERE company_id=%d AND source_type='daily_cycle' AND source_id=%d LIMIT 3",$company,$id);
+    }
+    public function journalLines(int $company,int $cycle,int $journalId):array {
+        return $this->rows('SELECT jl.id,jl.journal_entry_id,jl.account_id,a.company_id account_company_id,'
+            .'a.code account_code,a.type account_type,a.subtype account_subtype,jl.debit,jl.credit '
+            .'FROM '.Db::table('journal_lines').' jl '
+            .'JOIN '.Db::table('journal_entries').' je ON je.id=jl.journal_entry_id '
+            .'LEFT JOIN '.Db::table('accounts').' a ON a.id=jl.account_id '
+            ."WHERE je.company_id=%d AND je.source_type='daily_cycle' AND je.source_id=%d "
+            .'AND je.id=%d ORDER BY jl.id LIMIT 21',$company,$cycle,$journalId);
     }
     public function performance(int $company,int $id):array {
         return $this->rows('SELECT id,branch_id,employee_id FROM '.Db::table('performance_entries')." WHERE company_id=%d AND source_type='daily_cycle' AND source_id=%d LIMIT 3",$company,$id);
