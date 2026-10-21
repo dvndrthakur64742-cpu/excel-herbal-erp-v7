@@ -66,3 +66,7 @@ CI workflow: .github/workflows/v8-wordpress-unified-plugin.yml.
   up, file hashes match, existing ERP schema option remains unchanged.
 - One correct WordPress plugin ZIP root (excel-herbal-erp-v8/) and a separate
   SHA256 release manifest. Packaging does NOT deploy the plugin.
+
+## Mandatory schema migration gate (detected by packaging tests)
+
+Office WordPress currently reports schema version 7.3.5-performance-indexes-1, but the existing branch's ERP Core Schema::VERSION is 7.3.8-reminder-review-center-1. For safety the V8 plugin now refuses to activate or boot its business routes unless the installed schema **already exactly matches** the packaged Core's expected version. New plugin activation MUST NOT silently run dbDelta/ALTER, populate salary snapshots, revoke sessions or rewrite financial data. Before the V8 switch, obtain an independently verified DB backup, review the schema delta and seek explicit owner approval for a staging migration, run that migration with rollback readiness, then activate V8. The standalone plugin ZIP can be installed as INACTIVE while this gate remains blocked.

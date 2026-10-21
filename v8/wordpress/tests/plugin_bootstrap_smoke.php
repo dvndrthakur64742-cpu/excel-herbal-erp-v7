@@ -73,6 +73,17 @@ if (!class_exists(\ExcelHerbal\ERP7\Core\Plugin::class)) {
 if (!\ExcelHerbal\ERP8\BundledPreviewInstaller::canInstall()) {
     throw new RuntimeException('Bundled read-only Flutter V8 preview missing.');
 }
+$requiredSchema = \ExcelHerbal\ERP7\Database\Schema::VERSION;
+if ($requiredSchema === '7.3.5-performance-indexes-1') {
+    throw new RuntimeException('Test did not detect newer development schema.');
+}
+try {
+    \ExcelHerbal\ERP8\BundledPreviewInstaller::install();
+    throw new RuntimeException('Installer did not reject an unmigrated WordPress database.');
+} catch (RuntimeException $e) {
+    if (!str_contains($e->getMessage(),'ERP schema does not match')) throw $e;
+}
+$GLOBALS['eh8_wp_options']['eh7_schema_version'] = $requiredSchema;
 \ExcelHerbal\ERP8\SetupCenter::boot();
 if (count($GLOBALS['eh8_wp_actions']['admin_menu'] ?? []) !== 1
     || count($GLOBALS['eh8_wp_actions']['admin_post_ehv8_install_preview'] ?? []) !== 1) {
@@ -96,7 +107,7 @@ try {
     if (file_get_contents($temp.'/'.$result['rollback'].'/main.dart.js') !== 'original-v7-runtime') {
         throw new RuntimeException('Rollback copy changed previous runtime.');
     }
-    if (get_option('eh7_schema_version') !== '7.3.5-performance-indexes-1') {
+    if (get_option('eh7_schema_version') !== $requiredSchema) {
         throw new RuntimeException('Web installer changed existing database schema marker.');
     }
 } finally {

@@ -62,8 +62,13 @@ register_activation_hook(__FILE__, static function (): void {
     try {
         ehv8_assert_staging();
         ehv8_register_business_core();
+        $installed = (string) get_option('eh7_schema_version', '');
+        $required = \ExcelHerbal\ERP7\Database\Schema::VERSION;
+        if ($installed !== $required) {
+            throw new RuntimeException('ERP V8 activation requires a separately approved, backed-up schema migration. Installed: ' . $installed . '; required: ' . $required . '. Existing V7 must remain available.');
+        }
         if (!\ExcelHerbal\ERP7\Database\Schema::maybeUpgrade()) {
-            throw new RuntimeException('ERP database schema check failed; V8 activation stopped.');
+            throw new RuntimeException('ERP schema integrity check failed; V8 activation stopped.');
         }
     } catch (\Throwable $error) {
         if (function_exists('deactivate_plugins')) deactivate_plugins(plugin_basename(EHV8_PLUGIN_FILE), true);
@@ -90,6 +95,12 @@ add_action('plugins_loaded', static function (): void {
     try {
         ehv8_assert_staging();
         ehv8_register_business_core();
+        if ((string)get_option('eh7_schema_version', '') !== \ExcelHerbal\ERP7\Database\Schema::VERSION) {
+            add_action('admin_notices', static function (): void {
+                if (current_user_can('manage_options')) echo '<div class="notice notice-error"><p>V8 startup blocked: existing database requires an approved backup and schema migration. Existing ERP data was not changed.</p></div>';
+            });
+            return;
+        }
         \ExcelHerbal\ERP7\Core\Plugin::boot();
         \ExcelHerbal\ERP8\SetupCenter::boot();
     } catch (\Throwable $error) {
