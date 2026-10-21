@@ -122,9 +122,9 @@ ok(substr_count($source,"report_type <> 'salary_receipts'")===2,
 ok(str_contains($routes,"/reports/reminder-drafts/freshness")
     &&str_contains($dispatch,"'reports.reminder_freshness'=>ReportReminderDrafts::inspect"),
     'Read-only freshness review is registered separately from all mutations');
-ok(str_contains($source,"$list['snapshot_atomic']=false")
-    &&str_contains($source,"$list['automatic_dismissal']=false")
-    &&str_contains($source,"$list['source_rechecked']=true"),
+ok(str_contains($source,"\$list['snapshot_atomic']=false")
+    &&str_contains($source,"\$list['automatic_dismissal']=false")
+    &&str_contains($source,"\$list['source_rechecked']=true"),
     'Freshness states disclose non-atomic evidence and never auto-dismiss');
 ok(!str_contains($source,'wp_mail(')&&!str_contains($source,'wp_schedule_event('),
     'Freshness inspection has no transport or scheduler');
