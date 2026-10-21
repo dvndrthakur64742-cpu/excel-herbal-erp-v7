@@ -47,6 +47,7 @@ on:
       - 'backend/excel-herbal-erp-v7/tests/daily_field_stock_audit_regression.php'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Registers.php'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
+      - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Service.php'
       - 'backend/excel-herbal-erp-v7/src/Organization/EmployeeCashControl.php'
       - 'backend/excel-herbal-erp-v7/tests/employee_cash_control_regression.php'
       - 'backend/excel-herbal-erp-v7/tests/employee360_regression.php'
@@ -98,6 +99,10 @@ jobs:
           php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/daily_field_stock_audit_regression.php
       - name: Canonical V7 Employee 360 Stock Request History regressions
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
+      - name: Lint Employee 360 profile and detailed register projections
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/Organization/Employee360Service.php
+          php -l backend/excel-herbal-erp-v7/src/Organization/Employee360Registers.php
       - name: Tally Employee 360 Person Ledger complete-history regression
         run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_regression.php
       - name: Employee 360 Cash Control GL branch attribution and role regression

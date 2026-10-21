@@ -34,12 +34,13 @@ namespace {
     final class Memory360 implements Employee360Reader {
         public ?array $person=['id'=>10,'company_id'=>1,'employee_code'=>'EMP10','full_name'=>'Example','designation_code'=>'FSE','assigned_branch_id'=>2,'status'=>'active'];
         public array $calls=[];
+        public ?array $salesOverride=null,$pointsOverride=null,$attendanceOverride=null,$stockOverride=null,$ledgerOverride=null;
         public function employee(int $company,int $id):?array {$this->calls[]=['employee',$company,$id];return $this->person;}
-        public function sales(int $c,int $e,string $f,string $t,array $b):array {$this->calls[]=['sales',$b];return [['month'=>'2026-10','sale_amount'=>'500.00'],['month'=>'2026-09','sale_amount'=>'300.00']];}
-        public function performance(int $c,int $e,string $f,string $t,array $b):array {$this->calls[]=['performance',$b];return [['month'=>'2026-10','points'=>'12.00'],['month'=>'2026-08','points'=>'4.00']];}
-        public function attendance(int $c,int $e,string $f,string $t,array $b):array {$this->calls[]=['attendance',$b];return [['business_date'=>'2026-10-18','status'=>'present'],['business_date'=>'2026-10-17','status'=>'absent'],['business_date'=>'2026-09-15','status'=>'late']];}
-        public function stock(int $c,int $e,array $b):array {$this->calls[]=['stock',$b];return [['branch_id'=>2,'product_id'=>7,'quantity'=>'3.000']];}
-        public function ledger(int $c,int $e,string $f,string $t,array $b):array {$this->calls[]=['ledger',$b];return [['entry_no'=>'JE-42','debit'=>'100.00','credit'=>'0.00']];}
+        public function sales(int $c,int $e,string $f,string $t,array $b):array {$this->calls[]=['sales',$b];return $this->salesOverride??array_values(array_filter([['month'=>'2026-10','sale_amount'=>'500.00'],['month'=>'2026-09','sale_amount'=>'300.00']],static fn($r)=>$r['month']>=substr($f,0,7)&&$r['month']<=substr($t,0,7)));}
+        public function performance(int $c,int $e,string $f,string $t,array $b):array {$this->calls[]=['performance',$b];return $this->pointsOverride??array_values(array_filter([['month'=>'2026-10','points'=>'12.00'],['month'=>'2026-08','points'=>'4.00']],static fn($r)=>$r['month']>=substr($f,0,7)&&$r['month']<=substr($t,0,7)));}
+        public function attendance(int $c,int $e,string $f,string $t,array $b):array {$this->calls[]=['attendance',$b];return $this->attendanceOverride??array_values(array_filter([['branch_id'=>2,'business_date'=>'2026-10-18','status'=>'present'],['branch_id'=>2,'business_date'=>'2026-10-17','status'=>'absent'],['branch_id'=>2,'business_date'=>'2026-09-15','status'=>'late']],static fn($r)=>$r['business_date']>=$f&&$r['business_date']<=$t));}
+        public function stock(int $c,int $e,array $b):array {$this->calls[]=['stock',$b];return $this->stockOverride??[['branch_id'=>2,'product_id'=>7,'quantity'=>'3.000']];}
+        public function ledger(int $c,int $e,string $f,string $t,array $b):array {$this->calls[]=['ledger',$b];return $this->ledgerOverride??[['branch_id'=>2,'entry_no'=>'JE-42','debit'=>'100.00','credit'=>'0.00']];}
     }
     function assertion(bool $ok,string $case):void {if(!$ok)throw new \RuntimeException('FAIL '.$case);$GLOBALS['passed']++;}
     function denies(callable $fn,string $expected):void {try{$fn();throw new \RuntimeException('Expected denied '.$expected);}catch(DomainException $e){assertion($e->codeKey===$expected,'denies '.$expected);}}
@@ -84,6 +85,40 @@ namespace {
     denies(fn()=>Employee360Service::view($self,10,'2026-02-30','2026-10-19',new Memory360()),'date_invalid');
     denies(fn()=>Employee360Service::view($self,10,'2026-11-01','2026-10-19',new Memory360()),'period_invalid');
     denies(fn()=>Employee360Service::view($self,10,'2024-01-01','2026-10-19',new Memory360()),'period_invalid');
+    $duplicateSale=new Memory360();
+    $duplicateSale->salesOverride=[['month'=>'2026-10','sale_amount'=>'10.00'],['month'=>'2026-10','sale_amount'=>'20.00']];
+    denies(fn()=>Employee360Service::view($self,10,'2026-08-01','2026-10-19',$duplicateSale),'projection_corrupt');
+    $duplicatePoint=new Memory360();
+    $duplicatePoint->pointsOverride=[['month'=>'2026-10','points'=>'1.00'],['month'=>'2026-10','points'=>'2.00']];
+    denies(fn()=>Employee360Service::view($self,10,'2026-08-01','2026-10-19',$duplicatePoint),'projection_corrupt');
+    $invalidTotal=new Memory360();
+    $invalidTotal->salesOverride=[['month'=>'2026-10','sale_amount'=>'500.001']];
+    denies(fn()=>Employee360Service::view($self,10,'2026-08-01','2026-10-19',$invalidTotal),'projection_corrupt');
+    $periodLeak=new Memory360();
+    $periodLeak->salesOverride=[['month'=>'2026-06','sale_amount'=>'500.00']];
+    denies(fn()=>Employee360Service::view($self,10,'2026-08-01','2026-10-19',$periodLeak),'projection_corrupt');
+    $duplicateAttendance=new Memory360();
+    $duplicateAttendance->attendanceOverride=[
+       ['branch_id'=>2,'business_date'=>'2026-10-18','status'=>'present'],
+       ['branch_id'=>2,'business_date'=>'2026-10-18','status'=>'late']];
+    denies(fn()=>Employee360Service::view($self,10,'2026-08-01','2026-10-19',$duplicateAttendance),'projection_corrupt');
+    $attendanceWrongPeriod=new Memory360();
+    $attendanceWrongPeriod->attendanceOverride=[['branch_id'=>2,'business_date'=>'2026-07-15','status'=>'present']];
+    denies(fn()=>Employee360Service::view($self,10,'2026-08-01','2026-10-19',$attendanceWrongPeriod),'projection_corrupt');
+    $badStock=new Memory360();
+    $badStock->stockOverride=[['branch_id'=>99,'product_id'=>7,'quantity'=>'3.000']];
+    denies(fn()=>Employee360Service::view($manager,10,'2026-09-01','2026-10-19',$badStock),'projection_corrupt');
+    $badAttendance=new Memory360();
+    $badAttendance->attendanceOverride=[['branch_id'=>99,'business_date'=>'2026-10-18','status'=>'present']];
+    denies(fn()=>Employee360Service::view($manager,10,'2026-09-01','2026-10-19',$badAttendance),'projection_corrupt');
+    $badLedger=new Memory360();
+    $badLedger->ledgerOverride=[['branch_id'=>99,'entry_no'=>'JE-42','debit'=>'100.00','credit'=>'0.00']];
+    denies(fn()=>Employee360Service::view($manager,10,'2026-09-01','2026-10-19',$badLedger),'projection_corrupt');
+    $negativePoint=new Memory360();
+    $negativePoint->pointsOverride=[['month'=>'2026-10','points'=>'-2.50']];
+    $negativePointView=Employee360Service::view($self,10,'2026-10-01','2026-10-19',$negativePoint);
+    assertion($negativePointView['monthly_summary'][0]['points']==='-2.50'
+        &&$negativePointView['snapshot_atomic']===false,'signed point corrections supported with no false atomic snapshot');
     // The repository SQL must preserve company, employee, branch and posted filters.
     $stub=new class {
         public array $queries=[];
@@ -106,10 +141,14 @@ namespace {
     assertion(str_contains($stub->queries[0][0],'c.branch_id IN (%d,%d)'),'sales manager branch guard');
     assertion($stub->queries[0][1]===[1,10,'2026-10-01','2026-10-19',2,3],'bound SQL parameters');
     assertion(str_contains($stub->queries[1][0],'wp_eh7_performance_entries'),'performance ledger source');
-    assertion(str_contains($stub->queries[2][0],'wp_eh7_attendance'),'attendance source');
+    assertion(str_contains($stub->queries[2][0],'wp_eh7_attendance')
+        &&str_contains($stub->queries[2][0],'SELECT branch_id,business_date'),
+        'attendance source exposes branch for scope check');
     assertion(str_contains($stub->queries[3][0],'s.custodian_key=%d'),'employee custody scoped');
     assertion(str_contains($stub->queries[4][0],"l.party_type='employee'") && str_contains($stub->queries[4][0],"j.status='posted'"),'tagged posted ledger only');
-    assertion(str_contains($stub->queries[4][0],'j.branch_id IN (%d)'),'GL branch guard');
+    assertion(str_contains($stub->queries[4][0],'j.branch_id IN (%d)')
+        &&str_contains($stub->queries[4][0],'j.branch_id,j.entry_no'),
+        'tagged GL retains row branch for scope guard');
 
     require_once __DIR__.'/../src/Organization/Employee360PersonLedger.php';
     $personSource=new class implements \ExcelHerbal\ERP7\Organization\EmployeePersonLedgerReader {
@@ -180,6 +219,19 @@ namespace {
     $personSource->stock[0]['opening_quantity']='2.000';
     denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
         $manager,10,'2026-10-01','2026-10-19',0,2,$personSource,new Memory360()),'register_pagination_invalid');
+    $personSource->fin[0]['period_debit']='-1.00';
+    denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $manager,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'person_ledger_source_invalid');
+    $personSource->fin[0]['period_debit']='200.00';
+    $personSource->stock[0]['period_out']='-3.000';
+    denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $manager,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'person_ledger_source_invalid');
+    $personSource->stock[0]['period_out']='3.000';
+    $personSource->events=[['event_type'=>'gl','event_id'=>8,'branch_id'=>2],
+       ['event_type'=>'gl','event_id'=>8,'branch_id'=>2]];
+    denies(fn()=>\ExcelHerbal\ERP7\Organization\Employee360PersonLedger::view(
+        $manager,10,'2026-10-01','2026-10-19',1,2,$personSource,new Memory360()),'person_ledger_source_invalid');
+    $personSource->events=[];
     $registerSource=file_get_contents(__DIR__.'/../src/Organization/Employee360Registers.php');
     assertion(str_contains($registerSource,"if(".'$type'."==='person_ledger')") && str_contains($registerSource,"Employee360PersonLedger::view("),
         'existing authorized Employee 360 register route dispatches Tally person ledger');

@@ -44,9 +44,21 @@ final class Employee360Registers {
             'requests'=>$reader->requests($actor->companyId,$employeeId,$from,$to,$scope['branches'],$limit,$offset),
             'reconciliation'=>$reader->reconciliation($actor->companyId,$employeeId,$from,$to,$scope['branches'],$limit,$offset),
         };
-        if(!is_array($rows))throw new DomainException('Employee register query failed.','employee_360_query_failed',500);
+        if(!is_array($rows)||count($rows)>$limit)
+            throw new DomainException('Employee register query invalid or incomplete.','employee_360_query_failed',500);
         $more=count($rows)>$pageSize;
         $rows=array_slice($rows,0,$pageSize);
+        foreach($rows as $row){
+            $branch=is_array($row)?(int)($row['branch_id']??0):0;
+            if($branch<1||(!$scope['self']&&!in_array($branch,$scope['branches'],true)))
+                throw new DomainException('Employee register row outside authorized branch.','employee_360_scope_invalid',500);
+            if($type!=='stock'){
+                $date=$row['business_date']??null;
+                $valid=is_string($date)?\DateTimeImmutable::createFromFormat('!Y-m-d',$date):false;
+                if(!$valid||$valid->format('Y-m-d')!==$date||$date<$from||$date>$to)
+                    throw new DomainException('Employee register date outside period.','employee_360_scope_invalid',500);
+            }
+        }
         if($type==='reconciliation')$rows=array_map([self::class,'reconcileCycle'], $rows);
         return [
             'employee_id'=>$employeeId,'register'=>$type,'period'=>['from'=>$from,'to'=>$to],

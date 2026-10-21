@@ -52,14 +52,21 @@ final class Employee360PersonLedger {
         $branches=$scope['branches'];
         $events=$reader->events($actor->companyId,$employee,$from,$to,$branches,$pageSize+1,($page-1)*$pageSize);
         if(!is_array($events))throw new DomainException('Person ledger event reader failed.','person_ledger_source_invalid',500);
+        if(count($events)>$pageSize+1)
+            throw new DomainException('Person ledger event reader overflow.','person_ledger_source_invalid',500);
         $more=count($events)>$pageSize;
         $events=array_slice($events,0,$pageSize);
+        $seenEvents=[];
         foreach($events as $event){
             if(!is_array($event)||!in_array($event['event_type']??null,['gl','stock','sale','points'],true)
                 ||(int)($event['event_id']??0)<1
                 ||(int)($event['branch_id']??0)<1
                 ||(!$scope['self']&&!in_array((int)$event['branch_id'],$branches,true)))
                 throw new DomainException('Person ledger source or branch scope corrupt.','person_ledger_source_invalid',500);
+            $identity=$event['event_type'].':'.(int)$event['event_id'];
+            if(isset($seenEvents[$identity]))
+                throw new DomainException('Duplicate canonical employee event.','person_ledger_source_invalid',500);
+            $seenEvents[$identity]=true;
         }
         $rawFinance=$reader->financialBalances($actor->companyId,$employee,$from,$to,$branches);
         $rawStock=$reader->stockBalances($actor->companyId,$employee,$from,$to,$branches);
@@ -75,6 +82,8 @@ final class Employee360PersonLedger {
             $open=self::scaled($row['opening_delta']??null,2);
             $debit=self::scaled($row['period_debit']??null,2);
             $credit=self::scaled($row['period_credit']??null,2);
+            if($debit<0||$credit<0)
+                throw new DomainException('Posted GL debit or credit negative.','person_ledger_source_invalid',500);
             $accounts[]=['account_id'=>$id,'account_code'=>$row['account_code'],
                 'currency'=>'INR','opening_debit_minus_credit'=>self::fixed($open,2),
                 'period_debit'=>self::fixed($debit,2),'period_credit'=>self::fixed($credit,2),
@@ -93,6 +102,8 @@ final class Employee360PersonLedger {
             $open=self::scaled($row['opening_quantity']??null,3);
             $incoming=self::scaled($row['period_in']??null,3);
             $outgoing=self::scaled($row['period_out']??null,3);
+            if($incoming<0||$outgoing<0)
+                throw new DomainException('Employee stock movement negative.','person_ledger_source_invalid',500);
             $closing=$open+$incoming-$outgoing;
             $stocks[]=['branch_id'=>$branch,'product_id'=>$product,'batch_key'=>$batch,'unit'=>'PCS',
                 'opening_quantity'=>self::fixed($open,3),

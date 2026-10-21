@@ -68,7 +68,9 @@ namespace {
     }
     $self=new Actor(17,7,1,2,[2],[],'FSE');
     $profile=new ProfileReaderFake();$reg=new RegisterFake();
-    $reg->fakeRows=[['daily_cycle_id'=>3],['daily_cycle_id'=>2],['daily_cycle_id'=>1]];
+    $reg->fakeRows=[['daily_cycle_id'=>3,'branch_id'=>2,'business_date'=>'2026-10-19'],
+        ['daily_cycle_id'=>2,'branch_id'=>2,'business_date'=>'2026-10-18'],
+        ['daily_cycle_id'=>1,'branch_id'=>2,'business_date'=>'2026-10-17']];
     $a=Employee360Registers::view($self,7,'sales','2026-10-01','2026-10-19',1,2,$reg,$profile);
     okay($a['read_only']===true,'read-only sales');
     okay($a['register']==='sales','sales type');
@@ -80,7 +82,8 @@ namespace {
     $next=Employee360Registers::view($self,7,'stock','2026-10-01','2026-10-19',2,2,$reg,$profile);
     okay($next['register']==='stock'&&$reg->calls[1][0]==='stock','stock only custodian movement');
     okay($reg->calls[1][7]===2,'page 2 offset');
-    $reg->fakeRows=[['request_id'=>7,'request_status'=>'approved','requested_quantity'=>'3.000','issued_quantity'=>'0']];
+    $reg->fakeRows=[['request_id'=>7,'branch_id'=>2,'business_date'=>'2026-10-19',
+        'request_status'=>'approved','requested_quantity'=>'3.000','issued_quantity'=>'0']];
     $requested=Employee360Registers::view($self,7,'requests','2026-10-01','2026-10-19',1,25,$reg,$profile);
     okay($requested['register']==='requests'&&$requested['source']==='canonical_v7_daily_requests_and_issue_lines','requests map to canonical V7 registers');
     okay($reg->calls[2][0]==='requests'&&$reg->calls[2][5]===[],'request reader uses authorized self scope');
@@ -174,5 +177,26 @@ namespace {
     okay($stub->q[3][1]===[1,7,'2026-10-01','2026-10-19',2,4,31,50],'reconciliation SQL manager scope and pagination parameterized');
     $testText=file_get_contents(__DIR__.'/../src/Organization/Employee360Registers.php');
     okay(str_contains($testText,'financial_custody_reconciliation')&&!str_contains($testText,'cash_remittance_completed'),'no fictitious cash settlement');
+    // A query result with an unauthorized branch or business date must fail
+    // even if the SQL adapter was wrongly wired or a fixture is corrupt.
+    $reg->fakeRows=[['daily_cycle_id'=>99,'branch_id'=>99,'business_date'=>'2026-10-18']];
+    denied(fn()=>Employee360Registers::view($manager,7,'sales',
+        '2026-10-01','2026-10-19',1,25,$reg,$profile),'employee_360_scope_invalid');
+    $reg->fakeRows=[['request_id'=>99,'branch_id'=>99,'business_date'=>'2026-10-18']];
+    denied(fn()=>Employee360Registers::view($manager,7,'requests',
+        '2026-10-01','2026-10-19',1,25,$reg,$profile),'employee_360_scope_invalid');
+    $reg->fakeRows=[['stock_ledger_id'=>99,'branch_id'=>99]];
+    denied(fn()=>Employee360Registers::view($manager,7,'stock',
+        '2026-10-01','2026-10-19',1,25,$reg,$profile),'employee_360_scope_invalid');
+    $reg->fakeRows=[['daily_cycle_id'=>99,'branch_id'=>2,'business_date'=>'2026-09-30']];
+    denied(fn()=>Employee360Registers::view($self,7,'sales',
+        '2026-10-01','2026-10-19',1,25,$reg,$profile),'employee_360_scope_invalid');
+    $reg->fakeRows=[['daily_cycle_id'=>99,'branch_id'=>2,'business_date'=>'2026-02-30']];
+    denied(fn()=>Employee360Registers::view($self,7,'sales',
+        '2026-02-01','2026-03-01',1,25,$reg,$profile),'employee_360_scope_invalid');
+    $reg->fakeRows=[array_replace($good,['branch_id'=>99])];
+    denied(fn()=>Employee360Registers::view($manager,7,'reconciliation',
+        '2026-10-01','2026-10-19',1,25,$reg,$profile),'employee_360_scope_invalid');
+    $reg->fakeRows=[];
     echo 'PASS '.$GLOBALS['pass'].'/'.$GLOBALS['pass']." Employee360 detailed sales, stock and request registers\n";
 }

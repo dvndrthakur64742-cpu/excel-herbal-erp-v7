@@ -21,3 +21,35 @@ A single employee profile joins monthly sales, performance incentive points, att
 Development regression: `php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_regression.php` (37/37 locally).
 
 Before UI release: run V7 WordPress integration UAT on a disposable authorized test site, verify branch transfers, multi-branch manager visibility, datetime/timezone, percent escaping in MySQL DATE_FORMAT with WordPress `wpdb::prepare`, production-scale query performance, cash transit attribution, complete person ledger with source-level links and granular finance permissions. Verify the existing employee dashboard price-hiding rule separately. No deployment permitted from this change.
+
+## 2026-10-21 — consolidated read-only Employee 360 correctness batch
+
+The Employee Profile monthly sales/points projections now reject duplicated
+source months, impossible or out-of-request months, or malformed fixed-point
+money/point figures rather than silently replacing a value. Points reversals
+may be signed; posted sales totals are nonnegative and stay separate from
+incentives and tagged GL. Profile attendance source rows must have unique,
+real, in-period business dates so duplicates do not inflate days-present.
+
+Profile attendance, stock and finance-visible tagged GL rows now retain
+canonical branch provenance and are checked against the actor's effective
+manager branch authority in addition to query-level guards. The detailed
+sales, requests, stock and daily reconciliation registers similarly reject
+out-of-branch source rows and invalid or out-of-period business dates.
+
+Person Ledger additionally rejects duplicate event IDs within a page,
+negative posted GL debit/credit movement, negative period stock IN/OUT and
+overfull source pagination. Signed historical opening stock is still valid.
+
+The source is strictly read-only, built from V7 canonical records. Monthly
+profile fields come from separately issued queries and do not constitute a
+transactional snapshot of Sales, Attendance, Stock or GL. The response makes
+snapshot_atomic=false explicit. Tagged GL and Daily Order totals do NOT
+establish independent physical Cash handover or bank-verified UPI settlement.
+All prior employee dashboard price restrictions remain unchanged.
+
+Release gates: existing PHP 8.3, PHP 8.4, GitHub-hosted Windows and isolated
+MariaDB checks, additional negative source tests, no migration or live deploy.
+Production workflow, physical device verification and merge still require
+separate explicit review and approval.
+
