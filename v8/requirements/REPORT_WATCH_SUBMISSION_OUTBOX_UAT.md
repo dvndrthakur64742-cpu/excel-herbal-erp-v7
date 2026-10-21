@@ -70,3 +70,22 @@ This registry stores `summary_text` manually entered by the BM, not
 a full submitted PDF, sale reconciliation attachment or e-signature.
 A regional `approved` means reviewed human assertion only. Later business
 approval may require document attachments and reconciliation evidence.
+
+## 5. Reviewer inbox authorization and dismissal history (2026-10-21)
+
+- GET /reports/reminder-drafts with branch_id and date remains a
+  draft-only, read-only company+branch-scoped reviewer inbox.
+- Optional state=dismissed returns manually dismissed audit-history records,
+  including dismissed_at, dismissed_by and dismissal_reason. state=all returns
+  active drafts and dismissed records in ID order. Unsupported state is 422.
+- Salary reminder metadata must never be visible without the independent
+  payroll.salary.view capability, even to an otherwise authorized reports.review
+  user. Filtering executes in SQL before pagination; the same restriction
+  covers the locked dismiss lookup, returning not found on unauthorized IDs.
+- Default list behavior remains backward-compatible. No schema alteration.
+  Dismissals remain manual reviewed actions with a reason and audit entry.
+- This is review history, NOT a source freshness guarantee. A draft can become
+  stale after report submission; source revalidation remains later work.
+- No salary amounts, outbound notifications, cron, posting, migration,
+  deployment or PR merge.
+

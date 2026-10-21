@@ -17,21 +17,37 @@ final class ReportReminderDrafts {
         Guard::branch($actor,$branch,Capabilities::REPORT_REVIEW);
         Guard::cap($actor,Capabilities::REPORTS_VIEW);
     }
-    /** Always lists immutable draft rows; never a delivery state claim. */
-    public static function list(Actor $actor,int $branch,string $date):array {
+    /**
+     * Read-only reviewer inbox. Default "draft" preserves existing callers.
+     * "dismissed" and "all" expose manual audit history, not sent messages.
+     * Salary reminder metadata must never escape to a reviewer whose
+     * effective authority no longer includes payroll.salary.view.
+     */
+    public static function list(Actor $actor,int $branch,string $date,string $state='draft'):array {
         self::requireReviewer($actor,$branch);
         $date=\ExcelHerbal\ERP7\Core\Input::date($date,'Reminder draft date');
+        if(!in_array($state,['draft','dismissed','all'],true))
+            throw new DomainException('Invalid reminder review state.','report_draft_state_invalid',422);
         $db=Db::wpdb();$t=Db::table('report_reminder_drafts');
-        $rows=$db->get_results($db->prepare(
-            "SELECT id,branch_id,report_type,period_date,target_employee_id,reason,state,dedupe_key,created_at
+        $stateFilter=$state==='all'?"AND state IN ('draft','dismissed')":'AND state=%s';
+        $salaryFilter=$actor->can(Capabilities::SALARY_VIEW)
+            ?'':"AND report_type <> 'salary_receipts'";
+        $args=[$actor->companyId,$branch,$date];
+        if($state!=='all')$args[]=$state;
+        $sql=$db->prepare(
+            "SELECT id,branch_id,report_type,period_date,target_employee_id,reason,
+                    state,dedupe_key,created_at,dismissed_at,dismissed_by,dismissal_reason
              FROM {$t} WHERE company_id=%d AND branch_id=%d AND period_date=%s
-               AND state='draft' ORDER BY id ASC LIMIT 2001",
-            $actor->companyId,$branch,$date),ARRAY_A);
+               {$stateFilter} {$salaryFilter} ORDER BY id ASC LIMIT 2001",
+            ...$args);
+        if(!is_string($sql)||$sql==='')
+            throw new DomainException('Draft review query invalid.','report_draft_source_invalid',500);
+        $rows=$db->get_results($sql,ARRAY_A);
         if(!is_array($rows)||count($rows)>self::MAX_DRAFTS)
             throw new DomainException('Draft list incomplete.','report_draft_source_invalid',500);
         return ['read_only'=>true,'branch_id'=>$branch,'business_date'=>$date,
-            'drafts'=>$rows,'dispatch_enabled'=>false,
-            'evidence'=>'internal_followup_draft_only_no_delivery'];
+            'state_filter'=>$state,'drafts'=>$rows,'dispatch_enabled'=>false,
+            'notifications_sent'=>0,'evidence'=>'internal_followup_draft_only_no_delivery'];
     }
 
     /** Human reviewer discards a stale/internal draft. Does not send, queue or
@@ -45,8 +61,12 @@ final class ReportReminderDrafts {
             throw new DomainException('Invalid dismissal reference or reason.','report_draft_dismiss_invalid',422);
         return Transaction::run(static function()use($actor,$branch,$id,$reason){
             $db=Db::wpdb();$t=Db::table('report_reminder_drafts');
+            // Apply the salary capability to the mutation lookup too: a
+            // reviewer cannot dismiss or enumerate a salary-only draft.
+            $salaryFilter=$actor->can(Capabilities::SALARY_VIEW)
+                ?'':" AND report_type <> 'salary_receipts'";
             $row=$db->get_row($db->prepare(
-                "SELECT id,state FROM {$t} WHERE id=%d AND company_id=%d AND branch_id=%d FOR UPDATE",
+                "SELECT id,state FROM {$t} WHERE id=%d AND company_id=%d AND branch_id=%d{$salaryFilter} FOR UPDATE",
                 $id,$actor->companyId,$branch),ARRAY_A);
             if(!is_array($row))
                 throw new DomainException('Draft not found in authorized branch.','report_draft_not_found',404);
