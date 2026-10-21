@@ -51,25 +51,15 @@ for($attempt=0;$attempt -lt 60;$attempt++){
     try {
       $root=[System.Windows.Automation.AutomationElement]::FromHandle($chrome.MainWindowHandle)
       if(-not $root){continue}
-      $edits=$root.FindAll(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        [System.Windows.Automation.PropertyCondition]::new(
-          [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-          [System.Windows.Automation.ControlType]::Edit))
-      $exactUrl=$false
-      foreach($edit in $edits){
-        $label=[string]$edit.Current.Name
-        if($label -notmatch '(?i)address and search bar|search google or type a url'){continue}
-        $p=$edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
-        $value=([string]$p.Current.Value).Trim()
-        if($value -notmatch '^https?://'){$value='https://'+$value}
-        $uri=[Uri]$value
-        if($uri.Host -cne 'office.excelherbal.in' -or $uri.AbsolutePath -cne '/wp-admin/admin.php'){break}
-        $query=[Uri]::UnescapeDataString($uri.Query.TrimStart('?'))
-        if($query -match '(?:^|&)page=excel-herbal-erp-v8(?:&|$)'){$exactUrl=$true}
-        break
-      }
-      if(-not $exactUrl -or $chrome.MainWindowTitle -match '(?i)Log In|Login'){continue}
+      # The runner's real UI survey confirmed exact title, heading and enabled
+      # submit button, but Chrome's address bar does not always expose its value
+      # through UI Automation. Verify the exact WordPress admin screen instead.
+      if([string]$chrome.MainWindowTitle -notmatch '(?i)^Excel Herbal ERP V8.*WordPress'){continue}
+      $headingCondition=[System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::NameProperty,
+        'Excel Herbal ERP V8 — Unified Setup')
+      $heading=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$headingCondition)
+      if(-not $heading){continue}
       $predicate=[System.Windows.Automation.AndCondition]::new(
         [System.Windows.Automation.PropertyCondition]::new(
           [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
