@@ -1,4 +1,4 @@
-name: Office Setup Assistant desktop upload control inspection (read-only)
+name: V8 Unified Setup Center control and login inspection (read-only)
 on:
   push:
     branches: [codex/erp-v8-foundation-20261017]
@@ -14,7 +14,7 @@ jobs:
       run:
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
     steps:
-      - name: Inspect Office WordPress Setup Assistant UI labels without uploading
+      - name: Inspect actual WordPress V8 Unified Setup UI labels (read-only)
         run: |
           $ErrorActionPreference='Stop'
           Add-Type -AssemblyName UIAutomationClient
@@ -25,7 +25,7 @@ jobs:
           if($chrome.Count -eq 0){throw 'No visible Chrome session'}
           $exe=@('C:\Program Files\Google\Chrome\Application\chrome.exe','C:\Program Files (x86)\Google\Chrome\Application\chrome.exe') | Where-Object {Test-Path -LiteralPath $_} | Select-Object -First 1
           if(-not $exe){throw 'Chrome path missing'}
-          $target='https://office.excelherbal.in/wp-admin/admin.php?page=eh7-setup-assistant&tab=desktop'
+          $target='https://office.excelherbal.in/wp-admin/admin.php?page=excel-herbal-erp-v8'
           Start-Process -FilePath $exe -ArgumentList @('--new-window',$target) | Out-Null
           Start-Sleep -Seconds 7
           $chrome=@(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne [IntPtr]::Zero})
@@ -41,7 +41,7 @@ jobs:
                 $kind=[string]$element.Current.ControlType.ProgrammaticName
                 if($kind -notin @('ControlType.Button','ControlType.Hyperlink','ControlType.TabItem','ControlType.Edit','ControlType.Text')){continue}
                 $name=([string]$element.Current.Name).Trim()
-                if($name -notmatch '(?i)upload|web|desktop|bundle|install|zip|setup|file|choose|select|log in|wordpress'){continue}
+                if($name -notmatch '(?i)upload|web|desktop|bundle|install|zip|setup|file|choose|select|log in|wordpress|v8|staging|blocked|schema|login|error'){continue}
                 if($name.Length -gt 120){$name=$name.Substring(0,120)}
                 $name=$name -replace '[\r\n\t]',' '
                 if($hits -lt 70){Write-Host ('INFO control kind='+$kind+' name='+$name+' enabled='+$element.Current.IsEnabled+' id='+[string]$element.Current.AutomationId)}
