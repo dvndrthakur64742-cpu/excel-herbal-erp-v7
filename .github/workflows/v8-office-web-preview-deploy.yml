@@ -104,6 +104,15 @@ jobs:
             throw 'Existing installed Office backend/web or staging host differs from preapproved baseline. No deploy.'
           }
           Write-Host 'PASS no-change preflight: current WordPress backend and web match exact authorized hashes'
+      - name: Verify interactive runner and Chrome desktop BEFORE slow artifact download
+        run: |
+          $ErrorActionPreference='Stop'
+          $session=(Get-Process -Id $PID).SessionId
+          $windows=@(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
+          Write-Host ('INFO windows_runner_session='+$session+' visible_chrome_windows='+$windows.Count)
+          if($session -eq 0){throw 'Runner is in noninteractive Session 0. Stop GitHub runner service and launch run.cmd in the signed-in unlocked Windows desktop.'}
+          if($windows.Count -eq 0){throw 'No visible Chrome desktop window in the runner session. Open WordPress Admin on this same Windows runner desktop.'}
+          Write-Host 'PASS browser automation desktop preflight; target URL and login will still be independently verified before any upload.'
       - name: Download SHA-pinned V8 web candidate
         uses: actions/download-artifact@v4
         with:

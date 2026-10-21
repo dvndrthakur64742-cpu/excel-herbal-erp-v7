@@ -65,41 +65,62 @@ function Get-LiveMainHash {
   }
 }
 
-function Get-ChromeWindow([string]$TitlePattern = '') {
-  $windows = @(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
-  if ($windows.Count -eq 0) {
-    throw 'Visible Chrome window was not found on the runner desktop.'
+function Get-VerifiedSetupWindow([string]$Url) {
+  # A GitHub service account can see Chrome processes yet cannot use their
+  # desktop HWNDs. Reject Session 0 and never pick a tab by title alone.
+  $session=(Get-Process -Id $PID -ErrorAction Stop).SessionId
+  if($session -eq 0){
+    throw 'Windows Actions runner is in non-interactive Session 0. Run the runner with run.cmd from the unlocked Windows desktop, not as a service.'
   }
-  if ($TitlePattern) {
-    $matched = $windows | Where-Object { $_.MainWindowTitle -match $TitlePattern } | Select-Object -First 1
-    if ($matched) { return $matched }
-    return $null
+  $target=[Uri]$Url
+  $match=@()
+  $visible=@(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne [IntPtr]::Zero})
+  foreach($window in $visible){
+    try {
+      $root=[System.Windows.Automation.AutomationElement]::FromHandle($window.MainWindowHandle)
+      if(-not $root){continue}
+      $elements=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+      foreach($control in $elements){
+        if($control.Current.ControlType -ne [System.Windows.Automation.ControlType]::Edit){continue}
+        if([string]$control.Current.Name -notmatch '(?i)address and search bar|search google or type a url'){continue}
+        $pattern=$control.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+        $addr=([string]$pattern.Current.Value).Trim()
+        if(-not $addr){continue}
+        $uri=[Uri](if($addr -match '^https?://'){$addr}else{'https://'+$addr})
+        if($uri.Host -ine $target.Host -or $uri.AbsolutePath -ine '/wp-admin/admin.php'){break}
+        $query=[Uri]::UnescapeDataString($uri.Query.TrimStart('?'))
+        if($query -notmatch '(?:^|&)page=eh7-setup-assistant(?:&|$)' -or $query -notmatch '(?:^|&)tab=desktop(?:&|$)'){break}
+        if($window.MainWindowTitle -match '(?i)Log In|Login'){break}
+        $match+=,$window
+        break
+      }
+    }catch{}
   }
-  $preferred = $windows | Where-Object { $_.MainWindowTitle -match 'office|EH7|Excel Herbal|WordPress' } | Select-Object -First 1
-  if ($preferred) { return $preferred }
-  return $windows | Select-Object -First 1
+  Write-Host ('INFO runner_session='+$session+' chrome_visible_count='+$visible.Count+' authenticated_setup_window_count='+$match.Count)
+  if($match.Count -gt 1){throw 'Multiple Setup Assistant windows exist on the runner desktop; refusing ambiguous upload.'}
+  if($match.Count -eq 1){return $match[0]}
+  return $null
 }
 
 function Open-SetupAssistantWindow([string]$Url) {
-  $chromeExe = @(
+  $chromeExe=@(
     (Get-Command chrome.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1),
     'C:\Program Files\Google\Chrome\Application\chrome.exe',
     'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
-  ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
-
-  if (-not $chromeExe) {
-    throw 'Chrome executable was not found on the runner desktop.'
+  ) | Where-Object {$_ -and (Test-Path -LiteralPath $_ -PathType Leaf)} | Select-Object -First 1
+  if(-not $chromeExe){throw 'Chrome executable missing on the Windows runner.'}
+  $existing=Get-VerifiedSetupWindow -Url $Url
+  if($existing){
+    Write-Host 'PASS verified existing authenticated Office Setup Assistant browser window'
+    return $existing
   }
-
-  Start-Process -FilePath $chromeExe -ArgumentList @('--new-window', $Url) | Out-Null
-
-  for ($attempt = 0; $attempt -lt 30; $attempt++) {
+  Start-Process -FilePath $chromeExe -ArgumentList @('--new-window',$Url) | Out-Null
+  for($attempt=0;$attempt -lt 30;$attempt++){
     Start-Sleep -Milliseconds 500
-    $window = Get-ChromeWindow -TitlePattern 'EH7 Setup Assistant|office.*WordPress'
-    if ($window) { return $window }
+    $window=Get-VerifiedSetupWindow -Url $Url
+    if($window){return $window}
   }
-
-  throw 'Dedicated WordPress Setup Assistant Chrome window did not appear.'
+  throw 'Authenticated Office Setup Assistant window inaccessible to runner. Open WP Admin in the same unlocked runner desktop session; verify login and do not run runner as a Windows service.'
 }
 
 function Get-AutomationRoot([System.Diagnostics.Process]$Chrome) {

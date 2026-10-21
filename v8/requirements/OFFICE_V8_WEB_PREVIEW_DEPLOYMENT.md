@@ -52,3 +52,7 @@ tests or unavailable authenticated web uploader. Keep PR #25 Draft and unmerged.
 
 This documentation-only approval marker is the one-time deployment trigger.
 Later feature development pushes must not automatically deploy.
+
+## 2026-10-21 - Runner desktop detection hardening
+
+On the user's continued request, add a no-mutation Windows runner interactive-session preflight BEFORE the slow GitHub artifact download. Session 0 or zero visible Chrome windows now fail clearly. The uploader must select an actual Chrome window by verifying its UI Automation address-bar URL (Office host + exact Setup Assistant desktop page), not by loosely matching a Chrome title. Ambiguous or inaccessible admin windows fail closed. Administrator credentials/cookies are never accessed, and an ordinary authenticated WPVibe REST connection is not substituted for browser login. Production posting and backend remain excluded. The web-only release still requires the owner-approval marker.
