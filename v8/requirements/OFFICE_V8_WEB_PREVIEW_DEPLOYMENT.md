@@ -68,3 +68,26 @@ Independent archive validation of GitHub artifact 12326924510 on a separate Linu
 ## 2026-10-21 — Actual authenticated WordPress Desktop Web UI surveyed
 
 The Windows runner successfully opened the real authenticated `EH7 Setup Assistant` admin page in Session 1 and read real UI Automation labels: `Desktop Web` hyperlink, `Choose File: No file chosen` button and `Upload Web Bundle` button (enabled). The previous uploader unnecessarily re-clicked `Desktop Web` after opening the exact tab URL, starting a fresh navigation and querying stale UI too early. This uploader now keeps the already-verified Desktop Web tab, waits up to 60 seconds for the exact enabled upload control, and uses its native InvokePattern to submit the multipart form after selecting the certified ZIP. It never clicks other Setup Assistant actions. Post-upload actual WordPress bundle SHA and unchanged canonical V7 backend remain hard release gates. This change does not enable production accounting or backend writes.
+
+## 2026-10-22 — Verified installed baseline and one-shot web-only preview retry
+
+On the existing approved Office staging host, authenticated read-only health
+reports **source_head** `95a9e2806edef95257cd6b6aee6f1d56ca632d6b`,
+**web_runtime.main_sha256** `a0462c5f464f0300659b79ea3fd87fbc505849eefc4a3085820ff21e5d0781f8`,
+**schema_installed** true, environment **staging**, host-hardening **passed**.
+The old SHA guards in the dedicated web-preview workflow described an earlier
+site baseline and would reject this confirmed newer installed Office build.
+Update only those two exact-match guards; retain all status, host, schema,
+authenticated Chrome, source and immutable SHA validation.
+
+This is exclusively the owner-requested READ-ONLY Flutter web candidate;
+no new PHP plugin, migrations, journal writes, stock, salary or bank-posting.
+Do not assume success from an uploaded artifact or green hosted build: require
+the actual after-upload main.dart.js hash plus unchanged backend health before
+announcing a successful site deployment. The existing Office web runtime rollback
+remains mandatory, and existing mobile sessions are not revoked or modified.
+
+The current V8 installed plugin may not yet include FrontendShell, so Office
+root-page routing is a **separate plugin release** and is not claimed by this
+web-only preview deployment. The direct web preview is the valid acceptance URL
+until that separate release is staged and verified.

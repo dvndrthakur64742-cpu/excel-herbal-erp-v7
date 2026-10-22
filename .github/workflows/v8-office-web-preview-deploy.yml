@@ -133,8 +133,8 @@ jobs:
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
     env:
       OFFICE_UAT_SITE: https://office.excelherbal.in
-      CURRENT_BACKEND_SHA: a9d03f384096b54464ffbe9ba79da88252f9dd28
-      OLD_WEB_SHA256: 370475e9f998a6bde87128db48d11f6ed7db2d806e4b4b5a7fefea25a1f98531
+      CURRENT_BACKEND_SHA: 95a9e2806edef95257cd6b6aee6f1d56ca632d6b
+      OLD_WEB_SHA256: a0462c5f464f0300659b79ea3fd87fbc505849eefc4a3085820ff21e5d0781f8
     steps:
       - uses: actions/checkout@v4
       - name: Require owner-approved web-only branch and immutable published baseline
