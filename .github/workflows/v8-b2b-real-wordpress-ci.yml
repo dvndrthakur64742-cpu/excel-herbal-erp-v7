@@ -2,6 +2,12 @@ name: V8 Genuine WordPress B2B REST Auth and Role UAT (Disposable CI Only)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/v8-b2b-real-wordpress-ci.yml'
+      - 'backend/excel-herbal-erp-v7/src/**'
+      - 'v8/backend/tests/b2b_real_wordpress_http_smoke.py'
   pull_request:
     paths:
       - '.github/workflows/v8-b2b-real-wordpress-ci.yml'

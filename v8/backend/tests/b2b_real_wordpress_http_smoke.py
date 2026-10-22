@@ -138,6 +138,26 @@ def run(url):
         bm=login(url,"9876500102");tokens.append(bm)
         fse=login(url,"9876500103");tokens.append(fse)
         other=login(url,"9876500104");tokens.append(other)
+
+        # V8 GPS duty is independent of manual attendance and cannot be
+        # toggled by staff. Exercise genuine WP REST ActorResolver + MariaDB.
+        expect(url,"/workforce/gps/duty",401,"not_authenticated")
+        employee_gps,_=expect(url,"/workforce/gps/duty",200,token=fse)
+        state=employee_gps.get("data",{})
+        ok(state.get("branch_id")==31
+           and state.get("gps_status") in ("scheduled","active","auto_stopped")
+           and state.get("manual_start_allowed") is False
+           and state.get("manual_stop_allowed") is False,
+           "employee autonomous duty REST without manually recorded attendance")
+        attendance,_=expect(url,"/workforce/attendance/today",200,token=fse)
+        ok(attendance.get("data") is None,
+           "read-only GPS duty status does not manufacture payroll attendance")
+        other_gps,_=expect(url,"/workforce/gps/duty",200,token=other)
+        ok(other_gps.get("data",{}).get("branch_id")==32,
+           "GPS duty selects authenticated employee assigned branch, not request-supplied branch")
+        expect(url,"/workforce/gps/points",422,"gps_invalid",token=fse,
+               body={"lat":999.0,"lng":76.1,"source":"duty_web"},method="POST")
+        ok(True,"invalid GPS coordinates rejected by genuine WordPress REST before any route write")
         p="/development/b2b-staging-readiness?branch_id=31"
         result,headers=expect(url,p,200,token=finance)
         data=result["data"]
