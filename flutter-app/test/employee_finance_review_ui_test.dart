@@ -103,19 +103,19 @@ void main() {
     final forgedLedger = ledgerFixture()..['employee_cash_handover_verified'] = true;
     expect(
       () => EmployeeFinanceReviewSnapshot.fromResponses(
-        employeeId: 42, cashResponse: cashFixture(), ledgerResponse: forgedLedger),
+        employeeId: 42, from: '2026-10-01', to: '2026-10-22', cashResponse: cashFixture(), ledgerResponse: forgedLedger),
       throwsFormatException,
     );
     final forgedCash = cashFixture()..['cash_remittance_status'] = 'confirmed';
     expect(
       () => EmployeeFinanceReviewSnapshot.fromResponses(
-        employeeId: 42, cashResponse: forgedCash, ledgerResponse: ledgerFixture()),
+        employeeId: 42, from: '2026-10-01', to: '2026-10-22', cashResponse: forgedCash, ledgerResponse: ledgerFixture()),
       throwsFormatException,
     );
     final wrongPage = cashFixture()..['page'] = 2;
     expect(
       () => EmployeeFinanceReviewSnapshot.fromResponses(
-        employeeId: 42, cashResponse: wrongPage, ledgerResponse: ledgerFixture()),
+        employeeId: 42, from: '2026-10-01', to: '2026-10-22', cashResponse: wrongPage, ledgerResponse: ledgerFixture()),
       throwsFormatException,
     );
   });
@@ -125,21 +125,21 @@ void main() {
     (negative['page_totals'] as Map)['cash_reported_paise'] = '-100';
     expect(
       () => EmployeeFinanceReviewSnapshot.fromResponses(
-        employeeId: 42, cashResponse: negative, ledgerResponse: ledgerFixture()),
+        employeeId: 42, from: '2026-10-01', to: '2026-10-22', cashResponse: negative, ledgerResponse: ledgerFixture()),
       throwsFormatException,
     );
     final excess = cashFixture();
     (excess['page_flags'] as Map)['journal_mismatch_count'] = 2;
     expect(
       () => EmployeeFinanceReviewSnapshot.fromResponses(
-        employeeId: 42, cashResponse: excess, ledgerResponse: ledgerFixture()),
+        employeeId: 42, from: '2026-10-01', to: '2026-10-22', cashResponse: excess, ledgerResponse: ledgerFixture()),
       throwsFormatException,
     );
     final malformed = ledgerFixture();
     (malformed['financial_accounts'] as List).first['currency'] = 'USD';
     expect(
       () => EmployeeFinanceReviewSnapshot.fromResponses(
-        employeeId: 42, cashResponse: cashFixture(), ledgerResponse: malformed),
+        employeeId: 42, from: '2026-10-01', to: '2026-10-22', cashResponse: cashFixture(), ledgerResponse: malformed),
       throwsFormatException,
     );
   });
