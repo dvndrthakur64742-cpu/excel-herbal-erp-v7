@@ -299,11 +299,11 @@ uat_case('uat_attendance_self_checkout_real_sql_and_8pm_cron', function () use (
                 'created_at'=>uat_date().' 09:30:00'
             ]);
             $GLOBALS['eh7_uat_clock_override']='19:59:59';
-            \\ExcelHerbal\\ERP7\\Workforce\\ScheduledAttendanceService::run();
+            \ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService::run();
             if($wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=30")!==null)
                 throw new RuntimeException('Auto-checkout fired before 8 PM');
             $GLOBALS['eh7_uat_clock_override']='20:05:00';
-            \\ExcelHerbal\\ERP7\\Workforce\\ScheduledAttendanceService::run();
+            \ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService::run();
             $auto=$wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=30");
             if(substr((string)$auto,-8)!=='20:00:00')
                 throw new RuntimeException('Automatic checkout not anchored at 8 PM');
