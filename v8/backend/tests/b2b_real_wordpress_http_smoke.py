@@ -155,9 +155,9 @@ def run(url):
         other_gps,_=expect(url,"/workforce/gps/duty",200,token=other)
         ok(other_gps.get("data",{}).get("branch_id")==32,
            "GPS duty selects authenticated employee assigned branch, not request-supplied branch")
-        expect(url,"/workforce/gps/points",422,"gps_invalid",token=fse,
+        expect(url,"/workforce/gps/points",400,"idempotency_required",token=fse,
                body={"lat":999.0,"lng":76.1,"source":"duty_web"},method="POST")
-        ok(True,"invalid GPS coordinates rejected by genuine WordPress REST before any route write")
+        ok(True,"WordPress rejects GPS writes without mandatory idempotency key before any route mutation")
         p="/development/b2b-staging-readiness?branch_id=31"
         result,headers=expect(url,p,200,token=finance)
         data=result["data"]
