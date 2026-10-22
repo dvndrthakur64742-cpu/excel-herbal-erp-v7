@@ -32,6 +32,31 @@ void main() {
     expect(profile, contains('showDateRangePicker('));
   });
 
+  test('Authorized employee sheet opens the existing Finance Review tab directly', () {
+    final employees = File('lib/screens/organization/organization_employees.dart')
+        .readAsStringSync();
+    final profile = File('lib/screens/organization/employee_360_screen.dart')
+        .readAsStringSync();
+
+    expect(employees, contains("title: const Text('Finance Review')"));
+    expect(
+      employees,
+      contains("if (app.can('organization.employee.view') &&\n"
+          "                      app.can('finance.accounting.view'))"),
+    );
+    expect(employees, contains('openFinanceReview: true,'));
+    expect(employees, contains('openFinanceReview: openFinanceReview,'));
+    expect(profile, contains('this.openFinanceReview = false,'));
+    expect(profile, contains("tabs.indexWhere((tab) => tab.text == 'Finance Review')"));
+    expect(profile, contains('initialIndex: widget.openFinanceReview && financeVisible &&'));
+    expect(profile, contains('financeIndex >= 0'));
+    expect(profile, contains('final financeVisible = ledgerData is Map &&'));
+    expect(profile, contains("app.can('finance.accounting.view')"));
+    expect(profile, contains('ApiPaths.employee360(widget.employeeId)'));
+    // The shortcut is navigation only; it cannot bypass server finance permission.
+    expect(employees, isNot(contains('ApiPaths.employee360CashControl(')));
+  });
+
   test('Dashboard untouched and finance/GPS details are permission scoped', () {
     final profile = File('lib/screens/organization/employee_360_screen.dart')
         .readAsStringSync();

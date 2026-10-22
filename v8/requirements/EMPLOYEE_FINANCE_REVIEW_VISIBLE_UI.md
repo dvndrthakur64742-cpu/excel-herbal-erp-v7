@@ -72,3 +72,30 @@ new separately approved web-only release; no WordPress files, REST handlers,
 real data, payroll or posting rules changed in this QA commit. Full browser
 Admin/Manager interaction, actual device/mobile testing and negative role UAT
 are still pending. Staging remains unsanitized and mobile sessions exist.
+
+## 2026-10-22 — Employee manager shortcut (development only)
+
+Read-only browser QA confirmed that the Office staging Flutter ERP is open
+inside the user's authorized Chrome session. Enabling its accessibility
+semantics exposed live module navigation. Existing Employee 360 is reached
+through **Organization & Masters → Employees → employee actions → Sales,
+Points & Stock**, after which a finance-authorized reviewer previously needed
+to scroll to the 11th horizontal tab to reach **Finance Review**. Live Chrome
+navigation was stopped when another operator changed the browser screen, to
+avoid disrupting concurrent work. A full logged-in finance-tab walkthrough
+and actual device testing therefore remain pending, not claimed PASS.
+
+The employee action sheet now offers a **Finance Review** shortcut only
+if both `organization.employee.view` and `finance.accounting.view` are
+granted. It opens the same `Employee360Screen` via its existing Navigator
+route, requesting the already-authorized Finance Review tab as initial
+tab. If the finance tab is not visible because the canonical profile or
+role omits finance access, Employee 360 opens at the safe Summary tab
+instead. Existing API/server identity, branch and capability checks still
+apply. No new REST route, duplicated dashboard, journal, settlement posting,
+data copy, schema migration or WordPress staging deployment was introduced.
+
+Test coverage asserts the two-capability shortcut, its original Employee 360
+Navigator route, the finance-tab lookup, Summary fallback and unchanged
+read-only finance APIs. This development change still requires authorized
+interactive browser QA before a separately approved web-only release.

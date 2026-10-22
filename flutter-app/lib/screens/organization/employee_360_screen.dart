@@ -17,10 +17,14 @@ class Employee360Screen extends ConsumerStatefulWidget {
     super.key,
     required this.employeeId,
     required this.employeeName,
+    this.openFinanceReview = false,
   });
 
   final int employeeId;
   final String employeeName;
+  /// Direct the manager to the existing read-only Finance Review tab.
+  /// The standard Summary remains the fallback when finance permission is absent.
+  final bool openFinanceReview;
 
   @override
   ConsumerState<Employee360Screen> createState() => _Employee360ScreenState();
@@ -149,9 +153,15 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
             if (financeVisible) const Tab(text: 'Finance Review'),
             if (showGps) const Tab(text: 'GPS Route'),
           ];
+          final financeIndex =
+              tabs.indexWhere((tab) => tab.text == 'Finance Review');
           return DefaultTabController(
-            key: ValueKey('employee360-${widget.employeeId}-$financeVisible-$showGps'),
+            key: ValueKey('employee360-${widget.employeeId}-$financeVisible-$showGps-${widget.openFinanceReview}'),
             length: tabs.length,
+            initialIndex: widget.openFinanceReview && financeVisible &&
+                    financeIndex >= 0
+                ? financeIndex
+                : 0,
             child: Column(
               children: [
                 Padding(

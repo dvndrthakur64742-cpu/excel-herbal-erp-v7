@@ -289,7 +289,11 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
     }
   }
 
-  Future<void> _openEmployee360(int employeeId, String employeeName) async {
+  Future<void> _openEmployee360(
+    int employeeId,
+    String employeeName, {
+    bool openFinanceReview = false,
+  }) async {
     final closed = await OverlayTransition.closeAndSettle(context);
     if (!closed || !mounted) return;
     await Navigator.of(context).push<void>(
@@ -297,6 +301,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
         builder: (_) => Employee360Screen(
           employeeId: employeeId,
           employeeName: employeeName,
+          openFinanceReview: openFinanceReview,
         ),
       ),
     );
@@ -517,6 +522,23 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       onTap: () => _openEmployee360(
                         id,
                         '${employee['full_name'] ?? 'Employee'}',
+                      ),
+                    ),
+                  // Same canonical Employee 360 route, not a duplicate
+                  // finance module. Read permission AND finance permission.
+                  if (app.can('organization.employee.view') &&
+                      app.can('finance.accounting.view'))
+                    ListTile(
+                      leading: const Icon(Icons.fact_check_outlined),
+                      title: const Text('Finance Review'),
+                      subtitle: const Text(
+                        'Booked Cash/UPI, journal checks and person ledger · read-only',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _openEmployee360(
+                        id,
+                        '${employee['full_name'] ?? 'Employee'}',
+                        openFinanceReview: true,
                       ),
                     ),
                   ListTile(
