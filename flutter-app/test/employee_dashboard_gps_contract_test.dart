@@ -54,7 +54,7 @@ void main() {
     expect(policy, contains("'manual_stop_allowed'=>false"));
     expect(tracking, contains('_scheduleTimer = Timer(delay'));
     expect(tracking, contains('_stopTimer = Timer(delay'));
-    expect(tracking, contains('Duty GPS is automatic. It stops only after checkout or the 5 PM duty cutoff.'));
+    expect(tracking, contains('Duty GPS is automatic between 10:30 AM and 5 PM. Attendance check-out cannot stop it.'));
     expect(coordinator, contains('ref.read(gpsTrackingProvider).sync()'));
     expect(tracking, isNot(contains('void employeeStart(')));
     expect(tracking, isNot(contains('void employeeStop(')));
@@ -97,6 +97,20 @@ void main() {
     expect(screen, isNot(contains("Text('Start GPS Duty')")));
     expect(screen, isNot(contains("Text('Stop GPS Duty')")));
     expect(scheduler, isNot(contains('GpsDutyPolicy::START')));
+  });
+
+  test('read-only preview loads duty via GET without location sampling or POST', () {
+    final screen = File('lib/screens/my_work/my_work_attendance.dart').readAsStringSync();
+    final preview = screen.substring(
+      screen.indexOf('if (PreviewReadOnlyPolicy.enabled)\n          AsyncPanel('),
+      screen.indexOf('else\n          Card(', screen.indexOf('if (PreviewReadOnlyPolicy.enabled)\n          AsyncPanel(')),
+    );
+    expect(preview, contains('api.get(ApiPaths.gpsDuty)'));
+    expect(preview, contains('Read-only preview: no device location or GPS uploads.'));
+    expect(preview, isNot(contains('gpsTrackingProvider).sync()')));
+    expect(preview, isNot(contains('ApiPaths.gpsPoints')));
+    expect(screen, contains('Attendance completed for today'));
+    expect(screen, contains('Attendance se alag.'));
   });
 
   test('route widget overlays recorded points on attributed OpenStreetMap road tiles', () {

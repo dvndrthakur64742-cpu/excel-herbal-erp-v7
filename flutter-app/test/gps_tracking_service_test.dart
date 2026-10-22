@@ -283,6 +283,38 @@ void main() {
       expect(service.dutyStatus, 'auto_stopped');
     });
 
+    test('server revokes GPS duty during upload and cancels sampling', () async {
+      final api = _FakeGpsApi(_attendance('active'))
+        ..gpsPointError = const ApiException(
+          'gps_duty_inactive', 'Approved leave stops GPS duty.', 409,
+        );
+      final location = _FakeLocation()..backgroundTracking = true;
+      final service = GpsTrackingService.forTest(
+        api: api, location: location);
+      await service.start();
+      expect(service.active, isFalse);
+      expect(service.armed, isFalse);
+      expect(service.dutyStatus, 'not_scheduled');
+      expect(service.lastError, contains('Approved leave'));
+      expect(location.watchRequests, 0);
+      expect(api.posts, hasLength(1));
+      service.dispose();
+    });
+
+    test('failed server duty refresh closes existing local GPS collection', () async {
+      final api = _FakeGpsApi(_attendance('active'));
+      final service = GpsTrackingService.forTest(
+        api: api, location: _FakeLocation());
+      await service.start();
+      expect(service.active, isTrue);
+      api.attendance = <String, dynamic>{'gps_status': 'not_scheduled'};
+      await service.sync();
+      expect(service.active, isFalse);
+      expect(service.armed, isFalse);
+      expect(service.dutyStatus, 'not_scheduled');
+      service.dispose();
+    });
+
     test('server leave/holiday state prevents local tracking', () async {
       final api = _FakeGpsApi(_attendance('not_scheduled'));
       final service = GpsTrackingService.forTest(

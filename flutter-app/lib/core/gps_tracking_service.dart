@@ -77,8 +77,8 @@ class GpsTrackingService extends ChangeNotifier {
       final data = await _api.get(ApiPaths.gpsDuty);
       if (data is Map) attendance = Map<String, dynamic>.from(data);
     } catch (e) {
+      stop(status: 'unavailable');
       _lastError = UiError.message(e);
-      _dutyStatus = 'unavailable';
       notifyListeners();
       return;
     }
@@ -143,7 +143,8 @@ class GpsTrackingService extends ChangeNotifier {
       _dutyStatus = 'active';
       notifyListeners();
       await sendNow();
-      if (_active && _location.supportsBackgroundTracking) {
+      if (!_active) return; // A rejected server GPS policy must not rearm timers.
+      if (_location.supportsBackgroundTracking) {
         // Android's foreground location service keeps collecting fixes while
         // the employee switches apps or locks the screen. Upload no more than
         // one point per five minutes to preserve the agreed route cadence.
@@ -231,7 +232,7 @@ class GpsTrackingService extends ChangeNotifier {
     // turn tracking off in that case so an employee cannot bypass duty GPS.
     if (status == 'stopped') {
       _lastError =
-          'Duty GPS is automatic. It stops only after checkout or the 5 PM duty cutoff.';
+          'Duty GPS is automatic between 10:30 AM and 5 PM. Attendance check-out cannot stop it.';
       notifyListeners();
       return;
     }
@@ -270,25 +271,7 @@ class GpsTrackingService extends ChangeNotifier {
       _lastError = null;
     } catch (e) {
       _lastError = UiError.message(e);
-      if (e is ApiException &&
-          const {
-            'gps_checkin_required',
-            'gps_window_closed',
-            'gps_recorded_date_invalid',
-          }.contains(e.code)) {
-        stop(
-          status: e.code == 'gps_window_closed'
-              ? 'auto_stopped'
-              : 'not_checked_in',
-        );
-        return;
-      }
-      if (e is ApiException && e.code == 'gps_window_not_started') {
-        _active = false;
-        _pointTimer?.cancel();
-        _pointTimer = null;
-        unawaited(start());
-      }
+      if (_handleServerDutyRejection(e)) return;
     } finally {
       _sending = false;
       notifyListeners();
@@ -314,21 +297,41 @@ class GpsTrackingService extends ChangeNotifier {
       _lastError = null;
     } catch (e) {
       _lastError = UiError.message(e);
-      if (e is ApiException &&
-          const {
-            'gps_checkin_required',
-            'gps_window_closed',
-            'gps_recorded_date_invalid',
-          }.contains(e.code)) {
-        stop(
-          status: e.code == 'gps_window_closed'
-              ? 'auto_stopped'
-              : 'not_checked_in',
-        );
-      }
+      _handleServerDutyRejection(e);
     } finally {
       _sending = false;
       notifyListeners();
+    }
+  }
+
+
+  /// A revoked/expired server duty immediately cancels local location sampling.
+  /// No employee or attendance action is allowed to override this decision.
+  bool _handleServerDutyRejection(Object error) {
+    if (error is! ApiException) return false;
+    switch (error.code) {
+      case 'gps_window_closed':
+        stop(status: 'auto_stopped');
+        return true;
+      case 'gps_duty_inactive':
+      case 'gps_employee_inactive':
+      case 'gps_branch_required':
+      case 'gps_checkin_required': // backward compatibility, not a V8 rule
+        stop(status: 'not_scheduled');
+        _lastError = UiError.message(error);
+        notifyListeners();
+        return true;
+      case 'gps_recorded_date_invalid':
+        stop(status: 'unavailable');
+        _lastError = UiError.message(error);
+        notifyListeners();
+        return true;
+      case 'gps_window_not_started':
+        stop(status: 'scheduled');
+        unawaited(start());
+        return true;
+      default:
+        return false;
     }
   }
 
