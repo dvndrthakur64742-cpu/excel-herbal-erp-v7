@@ -19,6 +19,13 @@ if (!defined('ARRAY_A')) define('ARRAY_A', 'ARRAY_A');
 if (!function_exists('current_time')) {
     function current_time($format, $gmt = false) {
         $ts = time();
+        // Isolated MariaDB UAT only: deterministic local clock, NEVER present in
+        // production. The override is reset after the individual UAT case.
+        $fake = $GLOBALS['eh7_uat_clock_override'] ?? null;
+        if (is_string($fake) && $fake !== '') {
+            $ts = strtotime(gmdate('Y-m-d', $ts).' '.$fake.' UTC');
+            if ($ts === false) throw new RuntimeException('Invalid disposable UAT clock');
+        }
         if ($format === 'mysql') return gmdate('Y-m-d H:i:s', $ts);
         if ($format === 'Y-m-d') return gmdate('Y-m-d', $ts);
         return gmdate($format, $ts);

@@ -39,6 +39,12 @@ if (!function_exists('get_date_from_gmt')) {
         return $instant->setTimezone(wp_timezone())->format((string)$format);
     }
 }
+if (!function_exists('get_gmt_from_date')) {
+    function get_gmt_from_date($local, $format='Y-m-d H:i:s'): string {
+        return (new DateTimeImmutable((string)$local,wp_timezone()))
+            ->setTimezone(new DateTimeZone('UTC'))->format($format);
+    }
+}
 
 final class Eh7UatRequest implements ArrayAccess {
     public function __construct(private array $params = [], private array $json = []) {}
@@ -201,34 +207,46 @@ uat_case('uat_bootstrap_contract_metadata', function () use ($self) {
     }
 });
 
-uat_case('uat_manual_attendance_disabled_cross_branch', function () use ($self, $wpdb) {
-    try {
-        uat_dispatch('work.check_in', $self, ['branch_id'=>2,'lat'=>31.9579,'lng'=>77.1095]);
-    } catch (DomainException $e) {
-        if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) throw $e;
-        $count = (int)$wpdb->get_var($wpdb->prepare(
-            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
-            1, 10, uat_date()
-        ));
-        if ($count !== 0) throw new RuntimeException('disabled cross-branch check-in created attendance');
-        return;
+uat_case('uat_attendance_self_branch_security_and_independent_gps', function () use ($self,$wpdb) {
+    // Genuine synthetic MariaDB with a deterministic 9:15 AM UAT-only clock.
+    // Server GPS state must exist before employee attendance does.
+    $countBefore=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+        1,10,uat_date()));
+    if($countBefore!==0)throw new RuntimeException('Synthetic attendance fixture not clean');
+    $duty=uat_dispatch('work.gps_duty',$self);
+    if(!in_array($duty['gps_status']??'', ['scheduled','active','auto_stopped'],true))
+        throw new RuntimeException('Automatic GPS requires manual attendance');
+    if((int)$duty['branch_id']!==1)
+        throw new RuntimeException('GPS authority returned wrong assigned branch');
+    $countAfter=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+        1,10,uat_date()));
+    if($countAfter!==0)throw new RuntimeException('GET GPS duty manufactured attendance');
+    $GLOBALS['eh7_uat_clock_override']='09:15:00';
+    try{
+        try{uat_dispatch('work.check_in',$self,['branch_id'=>2]);}
+        catch(DomainException $e){
+            if($e->codeKey!=='attendance_branch_forbidden'||$e->httpStatus!==403)throw $e;
+            $record=uat_dispatch('work.check_in',$self,['branch_id'=>1]);
+            if((int)($record['id']??0)<1)throw new RuntimeException('Valid manual check-in did not insert');
+            $saved=$wpdb->get_row($wpdb->prepare(
+                'SELECT check_in_at,check_out_at,branch_id FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+                1,10,uat_date()),ARRAY_A);
+            if(!$saved||$saved['check_out_at']!==null||(int)$saved['branch_id']!==1
+                ||substr((string)$saved['check_in_at'],-8)!=='09:15:00')
+                throw new RuntimeException('Manual check-in database time/branch mismatch');
+            try{uat_dispatch('work.check_in',$self,['branch_id'=>1]);}
+            catch(DomainException $dup){
+                if($dup->codeKey!=='attendance_already_checked_in'||$dup->httpStatus!==409)throw $dup;
+                return;
+            }
+            throw new RuntimeException('Duplicate same-day check-in accepted');
+        }
+        throw new RuntimeException('Cross-branch self check-in accepted');
+    }finally{
+        unset($GLOBALS['eh7_uat_clock_override']);
     }
-    throw new RuntimeException('manual cross-branch check-in was not disabled');
-});
-
-uat_case('uat_attendance_manual_checkin_disabled', function () use ($self, $wpdb) {
-    try {
-        uat_dispatch('work.check_in', $self, ['branch_id'=>1]);
-    } catch (DomainException $e) {
-        if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) throw $e;
-        $count = (int)$wpdb->get_var($wpdb->prepare(
-            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
-            1, 10, uat_date()
-        ));
-        if ($count !== 0) throw new RuntimeException('manual check-in created attendance');
-        return;
-    }
-    throw new RuntimeException('manual check-in was accepted');
 });
 
 uat_case('uat_sales_capability_fail_closed', function () use ($self) {
@@ -248,23 +266,60 @@ uat_case('uat_sales_capability_fail_closed', function () use ($self) {
     throw new RuntimeException('actor without SALES_CREATE capability posted a sale');
 });
 
-uat_case('uat_attendance_manual_start_stop_disabled', function () use ($self, $wpdb) {
-    foreach (['work.check_in', 'work.check_out'] as $handler) {
-        try {
-            uat_dispatch($handler, $self, ['branch_id'=>1,'lat'=>31.9579,'lng'=>77.1095]);
-        } catch (DomainException $e) {
-            if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) {
-                throw $e;
-            }
-            continue;
+uat_case('uat_attendance_self_checkout_real_sql_and_8pm_cron', function () use ($self,$wpdb) {
+    $table=Db::table('attendance');
+    $GLOBALS['eh7_uat_clock_override']='18:05:00';
+    try {
+        $out=uat_dispatch('work.check_out',$self);
+        if((int)($out['id']??0)<1)throw new RuntimeException('Employee self checkout failed');
+        $checkOut=$wpdb->get_var($wpdb->prepare(
+            "SELECT check_out_at FROM {$table} WHERE company_id=%d AND employee_id=%d AND business_date=%s",
+            1,10,uat_date()));
+        if(substr((string)$checkOut,-8)!=='18:05:00')
+            throw new RuntimeException('Actual 6 PM checkout time not stored');
+        try{uat_dispatch('work.check_out',$self);}
+        catch(DomainException $error){
+            if($error->codeKey!=='attendance_already_checked_out'||$error->httpStatus!==409)throw $error;
+            // Disconnected GPS route rows must never be manufactured by attendance.
+            $existing=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('gps_points'));
+            if($existing!==0)throw new RuntimeException('Attendance generated a GPS point');
+            // Employee 30 intentionally lacks attendance; create synthetic open
+            // attendance only in this disposable isolated database.
+            uat_insert($wpdb,'attendance',[
+                'company_id'=>1,'branch_id'=>2,'employee_id'=>30,
+                'business_date'=>uat_date(),'status'=>'present',
+                'check_in_at'=>uat_date().' 09:30:00',
+                'created_at'=>uat_date().' 09:30:00'
+            ]);
+            // Historical open attendance must NOT be altered by today's auto-close.
+            uat_insert($wpdb,'attendance',[
+                'company_id'=>1,'branch_id'=>2,'employee_id'=>20,
+                'business_date'=>(new DateTimeImmutable(uat_date()))->modify('-1 day')->format('Y-m-d'),
+                'status'=>'present','check_in_at'=>uat_date().' 09:30:00',
+                'created_at'=>uat_date().' 09:30:00'
+            ]);
+            $GLOBALS['eh7_uat_clock_override']='19:59:59';
+            \\ExcelHerbal\\ERP7\\Workforce\\ScheduledAttendanceService::run();
+            if($wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=30")!==null)
+                throw new RuntimeException('Auto-checkout fired before 8 PM');
+            $GLOBALS['eh7_uat_clock_override']='20:05:00';
+            \\ExcelHerbal\\ERP7\\Workforce\\ScheduledAttendanceService::run();
+            $auto=$wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=30");
+            if(substr((string)$auto,-8)!=='20:00:00')
+                throw new RuntimeException('Automatic checkout not anchored at 8 PM');
+            if($wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=20")!==null)
+                throw new RuntimeException('Auto checkout modified historical attendance');
+            $manual=$wpdb->get_var($wpdb->prepare(
+                "SELECT check_out_at FROM {$table} WHERE employee_id=%d AND business_date=%s",
+                10,uat_date()));
+            if(substr((string)$manual,-8)!=='18:05:00')
+                throw new RuntimeException('Auto checkout overwrote employee manual checkout');
+            return;
         }
-        throw new RuntimeException('manual attendance action was accepted: '.$handler);
+        throw new RuntimeException('Duplicate manual checkout accepted');
+    }finally{
+        unset($GLOBALS['eh7_uat_clock_override']);
     }
-    $count = (int)$wpdb->get_var($wpdb->prepare(
-        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
-        1, 10, uat_date()
-    ));
-    if ($count !== 0) throw new RuntimeException('manual attendance action created an attendance record');
 });
 
 uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) {
