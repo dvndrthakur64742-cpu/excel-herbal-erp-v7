@@ -40,12 +40,15 @@ foreach([[31,'UAT-31','Synthetic Branch A'],[32,'UAT-32','Synthetic Branch B']] 
 $identities=[
     ['finance','RM',31,'9876500101'],
     ['bm','BM',31,'9876500102'],
+    ['asm','ASM',31,'9876500105'],
     ['fse','EMPLOYEE',31,'9876500103'],
     ['otherbranch','RM',32,'9876500104'],
+    ['admin','SYSADMIN',31,'9876500106'],
 ];
 $secret=getenv('B2B_REAL_WP_UAT_PASSWORD');
 if(!is_string($secret)||strlen($secret)<16)
     throw new RuntimeException('Require ephemeral 16+ character CI UAT password.');
+$asmEmployeeId=0;
 foreach($identities as [$name,$designation,$branch,$mobile]){
     $login='eh8_uat_'.$name;
     if(username_exists($login))throw new RuntimeException('Refusing duplicate WP identity.');
@@ -55,12 +58,14 @@ foreach($identities as [$name,$designation,$branch,$mobile]){
         'company_id'=>11,'employee_code'=>'UAT-'.strtoupper($name),
         'wp_user_id'=>$id,'designation_code'=>$designation,
         'assigned_branch_id'=>$branch,
+        'reporting_employee_id'=>$name==='fse'?$asmEmployeeId:null,
         'full_name'=>'Synthetic UAT '.$name,'mobile'=>$mobile,
         'monthly_salary'=>'0.00','status'=>'active','created_at'=>$now,
     ]);
     if($inserted!==1)throw new RuntimeException('ERP employee seed failed: '.$name);
+    if($name==='asm')$asmEmployeeId=(int)$wpdb->insert_id;
 }
-$expected=4;
+$expected=6;
 if((int)$wpdb->get_var("SELECT COUNT(*) FROM {$employees}")!==$expected)
     throw new RuntimeException('Synthetic employees not fully inserted.');
-WP_CLI::success('Four synthetic real WP users + company 11 and branches 31/32 installed on disposable v8_test.');
+WP_CLI::success('Six synthetic real WP users + company 11 and branches 31/32 installed on disposable v8_test.');

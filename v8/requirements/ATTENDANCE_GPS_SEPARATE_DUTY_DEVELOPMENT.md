@@ -28,3 +28,11 @@ Flutter requests the dedicated GPS duty endpoint and keeps all manual GPS toggle
 ## Verified full MariaDB GPS write coverage
 
 The isolated real MariaDB UAT now verifies employee GPS POST at 11:00, correct tenant/branch/employee ownership, `attendance_id=NULL`, unchanged attendance count, retrieval through the GPS route endpoint, and rejection at 17:00 without an extra GPS row. The GPS server clock uses WordPress `current_time('mysql')`, consistent with `Db::today()` and self-attendance. No real Office or business transactions are used.
+
+## 2026-10-22 Genuine WordPress GPS REST/role UAT follow-up (development only)
+
+- Genuine local WordPress + disposable MariaDB HTTP tests now cover GPS duty GET and an actual GPS POST with a mandatory idempotency key, replay/mismatch detection, and a route readback with `attendance_id=NULL`. No real staff data or live WordPress requests are used.
+- Synthetic UAT roles: field employee, ASM, BM, regional manager and system admin. Management `workforce.gps.team.view` is now included by default for ASM/SM/BM/regional/senior management; manager routes remain constrained by existing hierarchy and company/branch scope. Field employees never receive team GPS capability by default.
+- GPS team requests with an explicit branch outside assigned authority fail with HTTP 403 instead of returning an ambiguous empty list. Self/peer GPS route access, cross-branch restrictions and no manual start route are covered via real WordPress REST.
+- The CI test adjusts only a disposable WordPress installation's configured timezone to give a deterministic 11 AM business clock. It never changes the GitHub runner clock or staging settings. This ensures the 10:30–17:00 write is exercised by a genuine WordPress request regardless of the CI run hour.
+- Rollout remains blocked pending an explicit staging approval, backed-up plugin rollback, on-device GPS permissions and background tracking checks, and inspection of existing staging mobile sessions. No database schema change is introduced here.

@@ -84,7 +84,11 @@ final class RecoveryService {
         $sql.=" ORDER BY recorded_at,id";return (array)$db->get_results($db->prepare($sql,...$args),ARRAY_A);
     }
     public static function gpsTeam(Actor $a,?int $branchId=null):array {
-        Guard::cap($a,Capabilities::GPS_TEAM_VIEW);$db=Db::wpdb();$ids=HierarchyScope::visibleEmployeeIds($a,$branchId);if(!$ids)return[];$ph=implode(',',array_fill(0,count($ids),'%d'));$args=array_merge([$a->companyId,Db::today()],$ids);
+        Guard::cap($a,Capabilities::GPS_TEAM_VIEW);
+        // Explicit branch filters must not silently succeed outside the actor's authority.
+        if($branchId!==null&&($branchId<1||!$a->hasBranch($branchId)))
+            throw new DomainException('Branch is outside effective authority.','branch_forbidden',403);
+        $db=Db::wpdb();$ids=HierarchyScope::visibleEmployeeIds($a,$branchId);if(!$ids)return[];$ph=implode(',',array_fill(0,count($ids),'%d'));$args=array_merge([$a->companyId,Db::today()],$ids);
         $sql="SELECT e.id employee_id,e.employee_code,e.full_name,e.designation_code,e.reporting_designation_code,e.assigned_branch_id,a.id attendance_id,a.check_in_at,a.check_out_at,a.status attendance_status,g.latitude,g.longitude,g.accuracy_m,g.recorded_at latest_gps_at FROM ".Db::table('employees')." e LEFT JOIN ".Db::table('attendance')." a ON a.company_id=e.company_id AND a.employee_id=e.id AND a.business_date=%s LEFT JOIN ".Db::table('gps_points')." g ON g.id=(SELECT gp.id FROM ".Db::table('gps_points')." gp WHERE gp.company_id=e.company_id AND gp.employee_id=e.id AND gp.recorded_at>=%s AND gp.recorded_at<%s ORDER BY gp.recorded_at DESC,gp.id DESC LIMIT 1) WHERE e.company_id=%d AND e.status='active' AND e.id IN ({$ph}) ORDER BY e.full_name";
         $day=Db::today();$gpsFrom=get_gmt_from_date($day.' '.GpsDutyPolicy::START);$gpsTo=get_gmt_from_date($day.' '.GpsDutyPolicy::STOP);$args2=array_merge([$day,$gpsFrom,$gpsTo,$a->companyId],$ids);$rows=(array)$db->get_results($db->prepare($sql,...$args2),ARRAY_A);foreach($rows as&$r){$r=array_merge($r,GpsDutyPolicy::state(['business_date'=>Db::today()]));$r['reporting_category']=HierarchyScope::reportingCategoryForCode((string)$r['designation_code'],(string)($r['reporting_designation_code']??''));}unset($r);return$rows;
     }

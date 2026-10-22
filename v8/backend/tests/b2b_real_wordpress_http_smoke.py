@@ -5,6 +5,7 @@ Runs only against locally installed WordPress on disposable v8_test.
 Never accepts a host URL, port forwarded to the public Internet, or a live DB.
 """
 import json
+from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 import socket
@@ -12,6 +13,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 ROOT=Path(os.environ["B2B_REAL_WP_ROOT"]).resolve()
@@ -29,8 +31,10 @@ def ok(condition,label):
     CHECKS+=1
     print("PASS real WordPress:",label,flush=True)
 
-def req(url,path,token=None,body=None,method="GET"):
+def req(url,path,token=None,body=None,method="GET",idempotency_key=None):
     headers={"Accept":"application/json"}
+    if idempotency_key is not None:
+        headers["X-Idempotency-Key"]=idempotency_key
     if token:
         headers["Authorization"]="Bearer "+token
     data=None
@@ -52,8 +56,8 @@ def port():
         s.bind(("127.0.0.1",0))
         return s.getsockname()[1]
 
-def expect(url,path,code,error=None,token=None,body=None,method="GET"):
-    status,reply,headers=req(url,path,token,body,method)
+def expect(url,path,code,error=None,token=None,body=None,method="GET",idempotency_key=None):
+    status,reply,headers=req(url,path,token,body,method,idempotency_key)
     actual=reply.get("error",{}).get("code") if isinstance(reply.get("error"),dict) else None
     if status!=code or (error is not None and actual!=error):
         raise AssertionError(
@@ -120,6 +124,80 @@ def guarded_mutation(action):
         )
 
 
+
+def gps_role_matrix(url,fse,bm,asm,admin,other):
+    """Real REST + real MariaDB, after CI pins ONLY its disposable WP local time near 11 AM."""
+    duty,_=expect(url,"/workforce/gps/duty",200,token=fse)
+    ok(duty["data"]["gps_status"]=="active"
+       and duty["data"]["gps_should_track"] is True,
+       "disposable WP canonical business clock permits autonomous 10:30-17:00 GPS")
+
+    expect(url,"/workforce/gps/team?branch_id=31",403,"permission_denied",token=fse)
+    ok(True,"field employee cannot inspect other employees' GPS map")
+    bm_team,_=expect(url,"/workforce/gps/team?branch_id=31",200,token=bm)
+    employees=bm_team.get("data",[])
+    fse_row=next((r for r in employees if r.get("employee_code")=="UAT-FSE"),None)
+    ok(isinstance(fse_row,dict) and fse_row.get("attendance_id") is None,
+       "BM may inspect own branch GPS independently of attendance")
+    employee_id=int(fse_row["employee_id"])
+    asm_team,_=expect(url,"/workforce/gps/team?branch_id=31",200,token=asm)
+    codes={r.get("employee_code") for r in asm_team.get("data",[])}
+    ok("UAT-FSE" in codes and "UAT-OTHERBRANCH" not in codes,
+       "ASM GPS visibility follows reporting tree rather than arbitrary branches")
+    expect(url,"/workforce/gps/team?branch_id=32",403,"branch_forbidden",token=bm)
+    expect(url,"/workforce/gps/team?branch_id=31",403,"branch_forbidden",token=other)
+    ok(True,"BM and regional manager denied explicit unauthorised branch GPS filter")
+    admin_team,_=expect(url,"/workforce/gps/team?branch_id=32",200,token=admin)
+    ok(any(r.get("employee_code")=="UAT-OTHERBRANCH" for r in admin_team["data"]),
+       "system administrator permitted across active company branches")
+
+    begin=(datetime.now(timezone.utc)-timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    end=(datetime.now(timezone.utc)+timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    interval="?from="+urllib.parse.quote(begin)+"&to="+urllib.parse.quote(end)
+    peer=interval+"&employee_id="+str(employee_id)
+    other_row=next((r for r in admin_team["data"]
+                    if r.get("employee_code")=="UAT-OTHERBRANCH"),None)
+    assert other_row is not None
+    other_peer=interval+"&employee_id="+str(int(other_row["employee_id"]))
+    expect(url,"/workforce/gps/route"+other_peer,403,"permission_denied",token=fse)
+    expect(url,"/workforce/gps/route"+peer,403,"employee_scope_forbidden",token=other)
+    ok(True,"peer route cannot be enumerated by self-only or unrelated-branch actors")
+
+    payload={"lat":31.12345,"lng":76.12345,"source":"duty_web"}
+    key="ci-disposable-gps-write-1"
+    reply,_=expect(url,"/workforce/gps/points",200,token=fse,
+                   body=payload,method="POST",idempotency_key=key)
+    record_id=reply.get("data",{}).get("id")
+    ok(isinstance(record_id,int) and record_id>0,
+       "actual WordPress GPS POST persists a synthetic employee point")
+    replay,_=expect(url,"/workforce/gps/points",200,token=fse,
+                    body=payload,method="POST",idempotency_key=key)
+    ok(replay.get("data",{}).get("id")==record_id,
+       "same idempotency key replays original GPS row, not a duplicate")
+    expect(url,"/workforce/gps/points",409,"idempotency_payload_mismatch",
+           token=fse,body={**payload,"lat":31.555},
+           method="POST",idempotency_key=key)
+    ok(True,"reusing GPS idempotency key with different coordinates is rejected")
+
+    mine,_=expect(url,"/workforce/gps/route"+interval,200,token=fse)
+    rows=mine.get("data",[])
+    matching=[r for r in rows if int(r.get("id",0))==record_id]
+    ok(len(rows)==1 and len(matching)==1
+       and matching[0].get("attendance_id") is None
+       and int(matching[0]["branch_id"])==31,
+       "real GPS route stores exactly one correct-branch point with NULL attendance")
+    for role,token in [("ASM",asm),("BM",bm),("Admin",admin)]:
+        route,_=expect(url,"/workforce/gps/route"+peer,200,token=token)
+        ok(any(r.get("id")==record_id for r in route["data"]),
+           role+" can view permitted employee GPS route in real WordPress")
+    attendance,_=expect(url,"/workforce/attendance/today",200,token=fse)
+    ok(attendance.get("data") is None,
+       "GPS write never creates, edits, or fakes the payroll attendance record")
+    # These are not real API routes: duty always follows server time, never staff toggles.
+    status,body,_=req(url,"/workforce/gps/start",token=fse,method="POST")
+    ok(status in (404,405) and body.get("ok") is not True,
+       "no employee-accessible manual GPS start endpoint registered")
+
 def run(url):
     status,body,_=req(url,"/health")
     ok(status==200 and body.get("ok") is True,
@@ -138,6 +216,8 @@ def run(url):
         bm=login(url,"9876500102");tokens.append(bm)
         fse=login(url,"9876500103");tokens.append(fse)
         other=login(url,"9876500104");tokens.append(other)
+        asm=login(url,"9876500105");tokens.append(asm)
+        admin=login(url,"9876500106");tokens.append(admin)
 
         # V8 GPS duty is independent of manual attendance and cannot be
         # toggled by staff. Exercise genuine WP REST ActorResolver + MariaDB.
@@ -158,6 +238,7 @@ def run(url):
         expect(url,"/workforce/gps/points",400,"idempotency_required",token=fse,
                body={"lat":999.0,"lng":76.1,"source":"duty_web"},method="POST")
         ok(True,"WordPress rejects GPS writes without mandatory idempotency key before any route mutation")
+        gps_role_matrix(url,fse,bm,asm,admin,other)
         p="/development/b2b-staging-readiness?branch_id=31"
         result,headers=expect(url,p,200,token=finance)
         data=result["data"]
