@@ -52,7 +52,7 @@ if(!$company||$company['name']!=='Isolated Synthetic UAT'
     throw new RuntimeException('Refused: synthetic fixture identity did not match exactly.');
 // Protect against running on any polluted real business database.
 if((int)$wpdb->get_var("SELECT COUNT(*) FROM {$companyTable}")!==1
-   ||(int)$wpdb->get_var("SELECT COUNT(*) FROM {$employeeTable}")!==4
+   ||(int)$wpdb->get_var("SELECT COUNT(*) FROM {$employeeTable}")!==6
    ||(int)$wpdb->get_var("SELECT COUNT(*) FROM {$branchTable}")!==2)
     throw new RuntimeException('Refused: disposable CI master record counts mismatch.');
 if($action==='reactivate_employee_service'){
