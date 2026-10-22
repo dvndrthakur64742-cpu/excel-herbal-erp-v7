@@ -127,18 +127,19 @@ final class V7CanonicalCashHandoverUat
         });
     }
 
-    private function existingVerifiedJournal(array $row,int $amount,int $employee):int
+    /** Re-read the exact company/branch GL and all journal lines; never drop foreign accounts. */
+    private function existingVerifiedJournal(array $row,int $branch,int $amount,int $employee):int
     {
         $db=Db::wpdb();$journal=(int)($row['journal_entry_id']??0);
         if(($row['status']??null)!=='posted'||$journal<1)
             throw new RetailerSaleError('Previously posted Cash remittance is incomplete.');
         $h=$db->get_row($db->prepare('SELECT id FROM '.Db::table('journal_entries').
-            " WHERE id=%d AND company_id=%d AND source_type='b2b_cash_remittance' ".
+            " WHERE id=%d AND company_id=%d AND branch_id=%d AND source_type='b2b_cash_remittance' ".
             "AND source_id=%d AND status='posted' FOR UPDATE",
-            $journal,$this->actor->companyId,(int)$row['id']),ARRAY_A);
+            $journal,$this->actor->companyId,$branch,(int)$row['id']),ARRAY_A);
         $lines=$db->get_results($db->prepare(
             'SELECT a.code,jl.debit,jl.credit,jl.party_type,jl.party_id FROM '.
-            Db::table('journal_lines').' jl JOIN '.Db::table('accounts').
+            Db::table('journal_lines').' jl LEFT JOIN '.Db::table('accounts').
             ' a ON a.id=jl.account_id AND a.company_id=%d WHERE jl.journal_entry_id=%d ORDER BY jl.id',
             $this->actor->companyId,$journal
         ),ARRAY_A);
@@ -172,6 +173,8 @@ final class V7CanonicalCashHandoverUat
             $db=Db::wpdb();$company=$this->actor->companyId;
             $receipt=self::receipt($company,$branch,$saleId);
             if(!$receipt||$receipt['status']!=='confirmed'
+                ||(int)$receipt['cashier_user_id']!==$this->actor->userId
+                ||(int)$receipt['cashier_employee_id']!==$this->actor->employeeId
                 ||(int)$receipt['amount_paise']!==$sale['amount_paise']
                 ||(int)$receipt['employee_id']!==$sale['employee_id']
                 ||(int)$receipt['cashier_employee_id']===$sale['employee_id']
@@ -186,11 +189,14 @@ final class V7CanonicalCashHandoverUat
             if(is_array($prior)){
                 if($prior['request_key']!==$key
                     ||!hash_equals((string)$prior['request_fingerprint'],$fingerprint)
+                    ||(int)$prior['branch_id']!==$branch
+                    ||(int)$prior['employee_id']!==$sale['employee_id']
+                    ||(int)$prior['cashier_employee_id']!==$this->actor->employeeId
                     ||(int)$prior['receipt_id']!==(int)$receipt['id']
                     ||(int)$prior['amount_paise']!==$sale['amount_paise']
                     ||(int)$receipt['consumed_remittance_id']!==(int)$prior['id'])
                     throw new RetailerSaleError('Duplicate or altered Cash remittance attempt.');
-                $journal=$this->existingVerifiedJournal($prior,$sale['amount_paise'],$sale['employee_id']);
+                $journal=$this->existingVerifiedJournal($prior,$branch,$sale['amount_paise'],$sale['employee_id']);
                 return ['remittance_id'=>(int)$prior['id'],'journal_id'=>$journal,
                     'sale_id'=>$saleId,'employee_id'=>$sale['employee_id'],
                     'amount_paise'=>$sale['amount_paise'],'status'=>'posted','replayed'=>true];
@@ -227,7 +233,7 @@ final class V7CanonicalCashHandoverUat
             if($updated!==1||$consumed!==1)
                 throw new RetailerSaleError('Atomic Cash handover receipt consumption failed.');
             $this->existingVerifiedJournal(['id'=>$id,'status'=>'posted','journal_entry_id'=>$journal],
-                $sale['amount_paise'],$sale['employee_id']);
+                $branch,$sale['amount_paise'],$sale['employee_id']);
             return ['remittance_id'=>$id,'journal_id'=>$journal,'sale_id'=>$saleId,
                 'employee_id'=>$sale['employee_id'],'amount_paise'=>$sale['amount_paise'],
                 'status'=>'posted','replayed'=>false];

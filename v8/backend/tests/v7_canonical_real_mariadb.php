@@ -343,6 +343,14 @@ try{
         in_array($action,['cash_receipt.attest','cash_remittance.post'],true)
         &&$actor===8002&&$c===$company&&$b===$branch;
     $cashier=new \ExcelHerbal\ERP8\B2B\V7CanonicalCashHandoverUat($financeActor,$cashierAuthority);
+    // Another independently authorized finance user must not be able to
+    // consume another cashier's attested physical receipt.
+    $otherCashier=new \ExcelHerbal\ERP8\B2B\V7CanonicalCashHandoverUat(
+        new \ExcelHerbal\ERP7\Security\Actor(8004,9004,$company,$branch,[$branch],
+            [\ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW],'BM'),
+        static fn($action,$actor,$c,$b)=>
+            in_array($action,['cash_receipt.attest','cash_remittance.post'],true)
+            &&$actor===8004&&$c===$company&&$b===$branch);
     $cashDenied=false;
     try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
     catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$cashDenied=true;}
@@ -370,6 +378,17 @@ try{
     $receipt=$cashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-001');
     checkUat($receipt['amount_paise']===20000 && !$receipt['already_attested'],
         'independent cashier receipt derives exact Cash amount from V7 posted sale');
+    $otherAttestDenied=false;
+    try{$otherCashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-001');}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$otherAttestDenied=true;}
+    checkUat($otherAttestDenied,
+        'second authorized cashier cannot replay first cashiers signed-in receipt');
+    $otherPostDenied=false;
+    try{$otherCashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$otherPostDenied=true;}
+    checkUat($otherPostDenied
+        &&(int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_cash_remittances WHERE company_id=?',[$company])===0,
+        'second authorized cashier cannot post first cashiers independent attestation');
     $receiptRetry=$cashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-001');
     checkUat($receiptRetry['receipt_id']===$receipt['receipt_id']&&$receiptRetry['already_attested'],
         'cashier exact duplicate attestation does not create a second physical receipt');
@@ -442,6 +461,51 @@ try{
       'Cash handover does not create another sale or subtract employee stock twice');
     checkUat((int)first($pdo,'SELECT consumed_remittance_id FROM wp_eh7_b2b_cashier_receipts_uat WHERE id=?',[$receipt['receipt_id']])===$remit['remittance_id'],
       'single original cashier attestation consumed once by canonical remittance');
+    $otherReplayDenied=false;
+    try{$otherCashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$otherReplayDenied=true;}
+    checkUat($otherReplayDenied,
+        'second cashier cannot replay or adopt a consumed Cash remittance');
+    $pdo->prepare('UPDATE wp_eh7_b2b_cash_remittances SET cashier_employee_id=? WHERE id=?')
+        ->execute([9004,$remit['remittance_id']]);
+    try{
+        $alteredLedger=$crossAudit($fieldSale['sale_id']);
+        checkUat($alteredLedger['cross_ledger_consistent']===false
+            &&in_array('cashier_receipt_or_remittance_mismatch',$alteredLedger['mismatch_codes'],true),
+            'cross-ledger audit detects a remittance cashier inconsistent with original receipt');
+        $alteredReplayDenied=false;
+        try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+        catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$alteredReplayDenied=true;}
+        checkUat($alteredReplayDenied,
+            'Cash remittance idempotency replay rejects changed cashier ownership');
+    } finally {
+        $pdo->prepare('UPDATE wp_eh7_b2b_cash_remittances SET cashier_employee_id=? WHERE id=?')
+            ->execute([$financeActor->employeeId,$remit['remittance_id']]);
+    }
+    $pdo->prepare('UPDATE wp_eh7_b2b_cash_remittances SET branch_id=? WHERE id=?')
+        ->execute([$branch+1,$remit['remittance_id']]);
+    try{
+        $foreignBranchReplayDenied=false;
+        try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+        catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$foreignBranchReplayDenied=true;}
+        checkUat($foreignBranchReplayDenied,
+            'Cash remittance replay rejects altered cross-branch source');
+    } finally {
+        $pdo->prepare('UPDATE wp_eh7_b2b_cash_remittances SET branch_id=? WHERE id=?')
+            ->execute([$branch,$remit['remittance_id']]);
+    }
+    $pdo->prepare('UPDATE wp_eh7_journal_entries SET branch_id=? WHERE id=?')
+        ->execute([$branch+1,$remit['journal_id']]);
+    try{
+        $wrongBranchGlReplay=false;
+        try{$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+        catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$wrongBranchGlReplay=true;}
+        checkUat($wrongBranchGlReplay,
+            'replay cannot treat a cross-branch Cash GL header as same-branch remittance');
+    } finally {
+        $pdo->prepare('UPDATE wp_eh7_journal_entries SET branch_id=? WHERE id=?')
+            ->execute([$branch,$remit['journal_id']]);
+    }
     $remitRetry=$cashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');
     checkUat($remitRetry['replayed']===true && $remitRetry['journal_id']===$remit['journal_id'],
       'exact idempotent Cash retry returns original canonical journal');

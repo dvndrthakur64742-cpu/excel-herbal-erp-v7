@@ -220,7 +220,10 @@ final class V7B2BCrossLedgerAuditUat
                 ||$int($receipt['employee_id']??null)!==$employee
                 ||$int($receipt['amount_paise']??null)!==$invoice
                 ||$int($receipt['consumed_remittance_id']??null)!==$int($r['id']??null)
-                ||$int($receipt['cashier_employee_id']??null)===$employee)
+                ||$int($receipt['cashier_employee_id']??null)===null
+                ||$int($receipt['cashier_employee_id']??null)===$employee
+                ||($int($receipt['cashier_user_id']??null)??0)<1
+                ||$int($r['cashier_employee_id']??null)!==$int($receipt['cashier_employee_id']??null))
                 $fail('cashier_receipt_or_remittance_mismatch');
             $cashGlHeader=$get('SELECT * FROM '.Db::table('journal_entries').
                 ' WHERE id=%d AND company_id=%d AND branch_id=%d',
