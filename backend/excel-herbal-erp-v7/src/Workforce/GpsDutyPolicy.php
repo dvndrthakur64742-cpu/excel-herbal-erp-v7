@@ -9,7 +9,10 @@ final class GpsDutyPolicy {
 
     public static function state(?array $attendance,?string $nowLocal=null):array {
         $tz=function_exists('wp_timezone')?wp_timezone():new \DateTimeZone('UTC');
-        $now=$nowLocal?new \DateTimeImmutable($nowLocal,$tz):new \DateTimeImmutable('now',$tz);
+        // Use the canonical WordPress business clock, also shared by payroll
+        // and the attendance API; never infer duty from user-device time.
+        $clock=$nowLocal??(function_exists('current_time')?current_time('mysql'):null);
+        $now=$clock?new \DateTimeImmutable($clock,$tz):new \DateTimeImmutable('now',$tz);
         $date=(string)($attendance['business_date']??$now->format('Y-m-d'));
         $start=new \DateTimeImmutable($date.' '.self::START,$tz);
         $stop=new \DateTimeImmutable($date.' '.self::STOP,$tz);

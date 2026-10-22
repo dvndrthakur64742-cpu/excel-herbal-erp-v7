@@ -207,6 +207,50 @@ uat_case('uat_bootstrap_contract_metadata', function () use ($self) {
     }
 });
 
+uat_case('uat_gps_post_without_attendance_real_mariadb_and_route', function () use ($self,$wpdb) {
+    // Isolated disposable synthetic data and fake server clock, no Office writes.
+    $table=Db::table('gps_points');
+    $GLOBALS['eh7_uat_clock_override']='11:00:00';
+    try {
+        $duty=uat_dispatch('work.gps_duty',$self);
+        if(($duty['gps_status']??'')!=='active')
+            throw new RuntimeException('GPS not active at 11:00 despite independent duty window');
+        $point=uat_dispatch('work.gps_point',$self,[],[
+            'lat'=>31.9579,'lng'=>77.1095,'accuracy'=>5.6,'source'=>'duty_web'
+        ]);
+        if((int)($point['id']??0)<1)throw new RuntimeException('GPS point insert not confirmed');
+        $row=$wpdb->get_row($wpdb->prepare(
+            "SELECT id,company_id,branch_id,employee_id,attendance_id,source,recorded_at FROM {$table} WHERE id=%d",
+            (int)$point['id']),ARRAY_A);
+        if(!$row||(int)$row['company_id']!==1||(int)$row['branch_id']!==1
+           ||(int)$row['employee_id']!==10||$row['attendance_id']!==null
+           ||$row['source']!=='duty_web'||substr((string)$row['recorded_at'],-8)!=='11:00:00')
+            throw new RuntimeException('Independent GPS point corrupted identity, branch, source, time or attendance nullable link');
+        $attendanceCount=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE employee_id=%d AND business_date=%s',
+            10,uat_date()));
+        if($attendanceCount!==0)throw new RuntimeException('GPS posting invented a payroll attendance row');
+        $date=uat_date();
+        $route=uat_dispatch('work.gps_route',$self,[
+            'from'=>$date.'T10:30:00Z','to'=>$date.'T17:00:00Z'
+        ]);
+        if(count($route)!==1||(int)$route[0]['id']!==(int)$point['id']||$route[0]['attendance_id']!==null)
+            throw new RuntimeException('GPS route read omits points with nullable attendance reference');
+        $GLOBALS['eh7_uat_clock_override']='17:00:00';
+        try{uat_dispatch('work.gps_point',$self,[],[
+            'lat'=>31.9579,'lng'=>77.1095,'source'=>'duty_web'
+        ]);}catch(DomainException $error){
+            if($error->codeKey!=='gps_duty_inactive'||$error->httpStatus!==409)throw $error;
+            $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+            if($count!==1)throw new RuntimeException('Late GPS duty rejection wrote a second point');
+            return;
+        }
+        throw new RuntimeException('GPS point accepted after automatic 5 PM cutoff');
+    }finally{
+        unset($GLOBALS['eh7_uat_clock_override']);
+    }
+});
+
 uat_case('uat_attendance_self_branch_security_and_independent_gps', function () use ($self,$wpdb) {
     // Genuine synthetic MariaDB with a deterministic 9:15 AM UAT-only clock.
     // Server GPS state must exist before employee attendance does.
@@ -282,7 +326,7 @@ uat_case('uat_attendance_self_checkout_real_sql_and_8pm_cron', function () use (
             if($error->codeKey!=='attendance_already_checked_out'||$error->httpStatus!==409)throw $error;
             // Disconnected GPS route rows must never be manufactured by attendance.
             $existing=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('gps_points'));
-            if($existing!==0)throw new RuntimeException('Attendance generated a GPS point');
+            if($existing!==1)throw new RuntimeException('Attendance modified GPS points saved independently before check-in');
             // Employee 30 intentionally lacks attendance; create synthetic open
             // attendance only in this disposable isolated database.
             uat_insert($wpdb,'attendance',[

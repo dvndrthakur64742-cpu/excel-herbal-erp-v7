@@ -18,6 +18,8 @@ function requireStatus(string $local,string $expected):void {
 }
 requireStatus('10:29:59','scheduled');
 requireStatus('10:30:00','active');
+// Explicit clock injection is reserved for boundary tests; runtime duty
+// derives from canonical WordPress current_time('mysql') when available.
 requireStatus('16:59:59','active');
 requireStatus('17:00:00','auto_stopped');
 if(!GpsDutyPolicy::state(null,'2026-10-22 11:00:00')['gps_should_track'])
