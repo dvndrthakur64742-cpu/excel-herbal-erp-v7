@@ -91,3 +91,33 @@ The current V8 installed plugin may not yet include FrontendShell, so Office
 root-page routing is a **separate plugin release** and is not claimed by this
 web-only preview deployment. The direct web preview is the valid acceptance URL
 until that separate release is staged and verified.
+
+## 2026-10-22 — failed upload guard and current WordPress form fix
+
+Run 39774038933 built, signed and restored a 33-entry candidate ZIP
+(SHA-256 f57e8fe8aafb29c3cef450fa4a94ea35f685dad745ff82fd5fd1f2d20be926de),
+but **deployment failed before upload**. The Windows uploader still hard-coded
+the obsolete a9d03f3/370475e baseline although the workflow had been updated
+to the verified installed 95a9e28/a0462c5 baseline. The website's old web
+SHA remained unchanged. The fix reads both required SHA pins from the exact
+workflow's environment; it fails closed if either pin is malformed or the
+site diverges.
+
+The old Excel Herbal Setup Assistant upload page is no longer the active
+administration path. The existing V7 UAT Web Deploy Admin registered by the
+V8 business core exposes the supported administrator form at
+/wp-admin/tools.php?page=eh7-uat-web-deploy. The updater now verifies that
+exact Office URL and explicitly sets/verifies the original **source SHA**,
+**audit reason** and **confirmation checkbox** in the authenticated Chrome
+UI before selecting a certified WEB-ONLY ZIP and submitting the actual form.
+The site's nonce and administrator authorization remain mandatory and are
+never forged or bypassed. The old web runtime must be preserved as a rollback.
+The final live hash check and unchanged business backend are still required
+for a truthful deployed status.
+
+The Office front page's legacy unreplaced [excel_herbal_portal] shortcode
+and a narrow WordPress-contained iframe displayed the WordPress shell behind
+the Flutter login. WordPress page 1194 was changed via its own content edit
+path to redirect to the existing /wp-content/uploads/eh7-flutter-web/index.html
+same-origin standalone app, with a no-script link. No plugin source, ledger,
+stock, PHP finance posting, employee session, schema or credentials changed.

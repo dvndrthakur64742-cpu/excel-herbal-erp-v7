@@ -41,9 +41,14 @@ $healthUrl = $uatSiteRoot + '/wp-json/excel-herbal-erp/v7/health'
 $healthRaw = & curl.exe --fail --silent --show-error --location --connect-timeout 8 --max-time 25 $healthUrl
 if ($LASTEXITCODE -ne 0) { throw 'Office staging health endpoint unreachable.' }
 $health = ($healthRaw -join [Environment]::NewLine) | ConvertFrom-Json
+# Both SHA pins must come from the same exact-head GitHub workflow preflight.
+if ([string]$env:CURRENT_BACKEND_SHA -cnotmatch '^[a-f0-9]{40}$' -or
+    [string]$env:OLD_WEB_SHA256 -cnotmatch '^[a-f0-9]{64}$') {
+  throw 'Missing audited expected Office backend/web hash: refuse deployment.'
+}
 if ($health.ok -ne $true -or [string]$health.data.environment -ne 'staging' -or
-    [string]$health.data.source_head -ne 'a9d03f384096b54464ffbe9ba79da88252f9dd28' -or
-    [string]$health.data.web_runtime.main_sha256 -ne '370475e9f998a6bde87128db48d11f6ed7db2d806e4b4b5a7fefea25a1f98531' -or
+    [string]$health.data.source_head -cne [string]$env:CURRENT_BACKEND_SHA -or
+    [string]$health.data.web_runtime.main_sha256 -cne [string]$env:OLD_WEB_SHA256 -or
     [string]$health.data.host_hardening.status -ne 'passed' -or $health.data.schema_installed -ne $true) {
   throw 'Office staging baseline changed; abort web-only preview without modifying the site.'
 }
@@ -88,9 +93,9 @@ function Get-VerifiedSetupWindow([string]$Url) {
         if(-not $addr){continue}
         $fullAddress=if($addr -match '^https?://'){$addr}else{'https://'+$addr}
         $uri=[Uri]$fullAddress
-        if($uri.Host -ine $target.Host -or $uri.AbsolutePath -ine '/wp-admin/admin.php'){break}
+        if($uri.Host -ine $target.Host -or $uri.AbsolutePath -ine '/wp-admin/tools.php'){break}
         $query=[Uri]::UnescapeDataString($uri.Query.TrimStart('?'))
-        if($query -notmatch '(?:^|&)page=eh7-setup-assistant(?:&|$)' -or $query -notmatch '(?:^|&)tab=desktop(?:&|$)'){break}
+        if($query -notmatch '(?:^|&)page=eh7-uat-web-deploy(?:&|$)'){break}
         if($window.MainWindowTitle -match '(?i)Log In|Login'){break}
         $match+=,$window
         break
@@ -158,7 +163,7 @@ function Invoke-Control([System.Windows.Automation.AutomationElement]$Element) {
 Write-Host ('INFO expected_main_sha256=' + $expectedMainHash)
 Write-Host 'INFO pre_upload_live_hash_check=skipped_runner_network_is_slow'
 
-    $setupUrl = $uatSiteRoot + '/wp-admin/admin.php?page=eh7-setup-assistant&tab=desktop'
+$setupUrl = $uatSiteRoot + '/wp-admin/tools.php?page=eh7-uat-web-deploy'
 $chrome = Open-SetupAssistantWindow -Url $setupUrl
 $shell = New-Object -ComObject WScript.Shell
 if (-not $shell.AppActivate($chrome.Id)) {
@@ -171,10 +176,10 @@ if ($chrome.MainWindowTitle -match 'Log In|Login') {
   throw 'Visible Chrome WordPress session is not authenticated.'
 }
 
-# We have already verified the exact ?page=eh7-setup-assistant&tab=desktop URL.
+# Already verified the exact Office Advanced Certified Web Deployment management URL.
 # Re-clicking Desktop Web starts a second navigation; UIA previously read the
 # stale page during that reload and falsely reported the upload button missing.
-# Wait for the actual upload control on the authenticated Desktop Web page.
+# Wait for the original authenticated certified web upload control.
 $upload = $null
 for ($i=0; $i -lt 60; $i++) {
   $chrome = Get-Process -Id $chrome.Id -ErrorAction Stop
@@ -182,7 +187,7 @@ for ($i=0; $i -lt 60; $i++) {
     throw 'WordPress administrator session needs login; upload not attempted.'
   }
   $root = Get-AutomationRoot $chrome
-  $upload = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Upload Web Bundle'
+  $upload = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Deploy Certified Web Bundle'
   if ($upload -and $upload.Current.IsEnabled) {
     Write-Host ('PASS authenticated WordPress Desktop Web upload control ready after '+$i+'s')
     break
@@ -192,6 +197,46 @@ for ($i=0; $i -lt 60; $i++) {
 if (-not $upload -or -not $upload.Current.IsEnabled) {
   throw ('Authenticated Desktop Web upload control was not ready after 60 seconds. Browser title: '+$chrome.MainWindowTitle)
 }
+
+# The current V8 admin form requires original source SHA, audit reason and
+# explicit owner acknowledgement. Use the native browser controls and its
+# WordPress nonce: no direct unauthenticated multipart POST or cookie extraction.
+function Find-CertifiedField(
+  [System.Windows.Automation.AutomationElement]$Root,
+  [System.Windows.Automation.ControlType]$Type,
+  [string]$AutomationId,
+  [string]$NameLike
+) {
+  $all=$Root.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+    [System.Windows.Automation.Condition]::TrueCondition)
+  foreach($element in $all) {
+    try {
+      if($element.Current.ControlType -ne $Type){continue}
+      if([string]$element.Current.AutomationId -eq $AutomationId){return $element}
+      if($NameLike -and [string]$element.Current.Name -like $NameLike){return $element}
+    }catch{}
+  }
+  return $null
+}
+$root=Get-AutomationRoot $chrome
+$headControl=Find-CertifiedField -Root $root -Type ([System.Windows.Automation.ControlType]::Edit) -AutomationId 'eh7_source_head' -NameLike '*Certified source head*'
+$reasonControl=Find-CertifiedField -Root $root -Type ([System.Windows.Automation.ControlType]::Edit) -AutomationId 'eh7_reason' -NameLike '*Audit reason*'
+$confirmControl=Find-CertifiedField -Root $root -Type ([System.Windows.Automation.ControlType]::CheckBox) -AutomationId 'eh7_confirm' -NameLike '*I confirm this certified BUILD/UAT web deployment*'
+if(-not $headControl -or -not $reasonControl -or -not $confirmControl){
+  throw 'Missing certified source, reason or confirmation field: refusing the wrong WordPress upload form.'
+}
+$headValue=$headControl.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+$reasonValue=$reasonControl.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+$confirmation=$confirmControl.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+$headValue.SetValue($SourceHead)
+$reasonValue.SetValue('Owner approved Office read-only Employee Finance Review web preview')
+if($confirmation.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On){$confirmation.Toggle()}
+if($headValue.Current.Value -cne $SourceHead -or
+   $reasonValue.Current.Value.Length -lt 10 -or
+   $confirmation.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On){
+  throw 'Certified SHA, reason or explicit admin confirmation did not validate.'
+}
+Write-Host 'PASS original WordPress certified deploy form SHA, audit reason and confirmation validated'
 
 # The page contains more than one file chooser. Resolve the chooser from the
 # smallest ancestor that contains the Upload Web Bundle button so we never
@@ -237,7 +282,18 @@ Start-Sleep -Milliseconds 100
 Start-Sleep -Seconds 3
 
 $root = Get-AutomationRoot $chrome
-$upload = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Upload Web Bundle'
+$upload = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Deploy Certified Web Bundle'
+$headControl=Find-CertifiedField -Root $root -Type ([System.Windows.Automation.ControlType]::Edit) -AutomationId 'eh7_source_head' -NameLike '*Certified source head*'
+$confirmControl=Find-CertifiedField -Root $root -Type ([System.Windows.Automation.ControlType]::CheckBox) -AutomationId 'eh7_confirm' -NameLike '*I confirm this certified BUILD/UAT web deployment*'
+if(-not $headControl -or -not $confirmControl){
+  throw 'Certified form controls went missing after ZIP selection.'
+}
+$afterHead=$headControl.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+$afterConfirm=$confirmControl.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+if($afterHead.Current.Value -cne $SourceHead -or
+   $afterConfirm.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On){
+  throw 'Certified source SHA or explicit authorization changed during ZIP selection.'
+}
 if (-not $upload -or -not $upload.Current.IsEnabled) {
   throw 'Upload Web Bundle button is missing or disabled after selecting the candidate ZIP.'
 }
@@ -279,7 +335,7 @@ if ($noticeNames.Count -gt 0) {
 # A successful multipart POST reloads the Setup Assistant and clears the
 # native file input. If the selected ZIP is still present, submission did not happen.
 $root = Get-AutomationRoot $chrome
-$uploadAfter = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Upload Web Bundle'
+$uploadAfter = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Deploy Certified Web Bundle'
 $chooseAfter = $null
 if ($uploadAfter) {
   $walkerAfter = [System.Windows.Automation.TreeWalker]::ControlViewWalker
