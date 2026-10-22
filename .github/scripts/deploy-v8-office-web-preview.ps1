@@ -328,20 +328,46 @@ if ($noticeNames.Count -gt 0) {
   Write-Host 'INFO post_upload_ui_notices_end'
 }
 
-# The browser may show a transient network error even if the authenticated
-# WordPress POST succeeded. Only ACCEPT exact source and main.dart.js hashes.
-# Never claim a deployment based only on a clicked button or an old UI notice.
-$afterHealthRaw=& curl.exe --fail --silent --show-error --connect-timeout 10 --max-time 30 $healthUrl
-if($LASTEXITCODE -ne 0){throw 'Post-upload Office staging health unavailable; deployment unverified.'}
-$afterHealth=($afterHealthRaw -join [Environment]::NewLine)|ConvertFrom-Json
-if($afterHealth.ok -ne $true -or
-   $afterHealth.data.environment -ne 'staging' -or
-   $afterHealth.data.source_head -cne [string]$env:CURRENT_BACKEND_SHA -or
-   $afterHealth.data.schema_installed -ne $true -or
-   $afterHealth.data.host_hardening.status -ne 'passed' -or
-   $afterHealth.data.web_runtime.source_head -cne $SourceHead -or
-   $afterHealth.data.web_runtime.main_sha256 -cne $expectedMainHash) {
-  throw ('Certified WordPress upload NOT VERIFIED; new web SHA does not match. Current '+[string]$afterHealth.data.web_runtime.main_sha256)
+# A multi-megabyte WordPress POST may continue processing AFTER Chrome
+# reports a network error or after the first 30-second UI wait. Do not
+# retry/duplicate the upload. Observe the server to a bounded deadline.
+# Fail on unexpected backend/schema/host changes. Only the exact certified
+# new source HEAD + main.dart.js SHA qualifies as success.
+$deadline=(Get-Date).AddMinutes(5)
+$verified=$false
+$lastObserved='none'
+do {
+  $rawResponse=& curl.exe --fail --silent --show-error --connect-timeout 10 --max-time 25 $healthUrl
+  if($LASTEXITCODE -eq 0 -and $rawResponse) {
+    $state=$null
+    try {$state=($rawResponse -join [Environment]::NewLine)|ConvertFrom-Json}
+    catch {Write-Host 'INFO WordPress upload processing; health JSON not yet available'}
+    if($null -ne $state -and $state.ok -eq $true) {
+      if($state.data.environment -ne 'staging' -or
+         $state.data.source_head -cne [string]$env:CURRENT_BACKEND_SHA -or
+         $state.data.schema_installed -ne $true -or
+         $state.data.host_hardening.status -ne 'passed') {
+        throw 'Unapproved ERP backend, schema or host change detected after web-only upload.'
+      }
+      $newHead=[string]$state.data.web_runtime.source_head
+      $newHash=[string]$state.data.web_runtime.main_sha256
+      $lastObserved=$newHead+' / '+$newHash
+      if($newHead -ceq $SourceHead -and $newHash -ceq $expectedMainHash) {
+        $verified=$true
+        break
+      }
+      if($newHead -cne [string]$env:CURRENT_BACKEND_SHA -or
+         $newHash -cne [string]$env:OLD_WEB_SHA256) {
+        throw ('Unexpected independent Office web runtime after upload: '+$lastObserved)
+      }
+    }
+  }
+  Write-Host ('INFO WordPress still processing certified ZIP; observed='+$lastObserved)
+  if((Get-Date) -ge $deadline){break}
+  Start-Sleep -Seconds 10
+} while((Get-Date) -lt $deadline)
+if(-not $verified) {
+  throw ('Web upload was NOT VERIFIED before the five-minute deadline. Last observed '+$lastObserved+'; do not resubmit automatically.')
 }
-Write-Host ('PASS WordPress web-only runtime source HEAD='+$SourceHead)
-Write-Host ('PASS uploaded main.dart.js HASH='+$expectedMainHash)
+Write-Host ('PASS WordPress certified web source HEAD='+$SourceHead)
+Write-Host ('PASS WordPress certified main.dart.js HASH='+$expectedMainHash)

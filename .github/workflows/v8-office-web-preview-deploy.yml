@@ -169,7 +169,7 @@ jobs:
     env:
       OFFICE_UAT_SITE: https://office.excelherbal.in
       CURRENT_BACKEND_SHA: 95a9e2806edef95257cd6b6aee6f1d56ca632d6b
-      OLD_WEB_SHA256: a0462c5f464f0300659b79ea3fd87fbc505849eefc4a3085820ff21e5d0781f8
+      OLD_WEB_SHA256: f57e8fe8aafb29c3cef450fa4a94ea35f685dad745ff82fd5fd1f2d20be926de
     steps:
       - uses: actions/checkout@v4
       - name: Require owner-approved web-only branch and immutable published baseline

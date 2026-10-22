@@ -149,3 +149,41 @@ admin form. Post-upload completion is determined by fresh live backend +
 SHA-256/source-head verification, NOT merely the button click or browser
 navigation. The full backend/core, database, cash/stock and salary remain
 unchanged. Preserve the verified pre-deploy web backup and route.
+
+
+## 2026-10-22 — Office staging: verified deployment COMPLETE, post-server completion
+
+The approved CanvasKit-only candidate from commit
+`bdcc617e41ace10d44422a7d914a38eb459ea300` was built and SHA
+validated: 14 unused renderer/symbol files omitted, 19 certified web files,
+6,872,372-byte inner ZIP (9 transport blocks), main.dart.js SHA-256
+`f57e8fe8aafb29c3cef450fa4a94ea35f685dad745ff82fd5fd1f2d20be926de`.
+
+GitHub Actions run 39781021789's upload job initially marked failure because
+it checked the old web SHA immediately after WordPress received the POST.
+WordPress continued processing and successfully saved
+`eh7_uat_web_deploy_last_result.ok=true` with the new source and hash at
+2026-10-22 12:54:17 UTC. A *separate* authenticated WordPress V7 health
+read confirmed the new `web_runtime.source_head` and
+`web_runtime.main_sha256`. An independent Windows HTTP GET of the public
+`/wp-content/uploads/eh7-flutter-web/main.dart.js` returned exactly
+`f57e8fe8aafb29c3cef450fa4a94ea35f685dad745ff82fd5fd1f2d20be926de`
+for its 5,421,405 bytes. The canonical backend remained
+`95a9e2806edef95257cd6b6aee6f1d56ca632d6b`, staging hardening and
+schema checks passed; no new PHP core, migrations or financial posting.
+
+**Runner diagnosis:** a WordPress multipart POST can finish processing well
+after the client/browser initially reports a network error. Prevent misleading
+failure and dangerous duplicate submissions by polling ONLY authenticated
+read-only server health for at most five minutes after submitting a single
+approved ZIP. Fail closed for an unexpected source hash, backend change,
+environment mismatch, or deadline; only an exact signed new web SHA and
+unchanged core count as success.
+
+Now that the live CanvasKit web SHA is `f57e8fe8...`, pin the next
+release workflow's expected *old* web SHA to that exact live value. This
+maintenance commit **does not trigger another Office deployment**.
+
+**Acceptance status:** Flutter tests and compiled web PASS; deployed web
+HTTP hash verified. A full authenticated human Admin/Manager Employee 360
+interaction is still pending and must not be represented as completed.
