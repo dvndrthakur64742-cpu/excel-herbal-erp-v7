@@ -12,11 +12,11 @@ Map<String, dynamic> cashFixture() => {
   'page': 1,
   'page_size': 25,
   'has_more': true,
-  'page_totals': {
+  'page_totals': <String, dynamic>{
     'cash_reported_paise': 15000,
     'upi_reported_paise': 3000,
   },
-  'page_flags': {
+  'page_flags': <String, dynamic>{
     'journal_mismatch_count': 1,
     'cash_remittance_unproven_count': 1,
   },
