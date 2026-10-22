@@ -121,3 +121,31 @@ the Flutter login. WordPress page 1194 was changed via its own content edit
 path to redirect to the existing /wp-content/uploads/eh7-flutter-web/index.html
 same-origin standalone app, with a no-script link. No plugin source, ledger,
 stock, PHP finance posting, employee session, schema or credentials changed.
+
+
+## 2026-10-22 — HTTP-size-safe CanvasKit-only artifact and UIA correction
+
+The 15 MB web candidate was mostly alternate rendering runtimes. The
+**compiled Flutter 3.44.9 bootstrap builds only dart2js+CanvasKit**. The
+certified release workflow now inspects the compiler-produced bootstrap and
+fails closed unless its build list matches this exact CanvasKit-only format
+(and the self-unregistering service worker has no asset pre-cache). It excludes
+unused Skwasm, Wimp, experimental WebParagraph and debugging .symbols files,
+while retaining BOTH full/Chromium CanvasKit JS+WASM, the main JS, bootstrap,
+fonts, shaders, assets, service-worker and page entrypoint. It regenerates a
+manifest of every included byte, proves the exact archive source commit, and
+enforces a strict 9 MiB upload budget. **If Flutter starts building another
+renderer, pruning aborts until an architect changes and tests this gate.**
+
+The previous certified admin UI automation had two independent problems:
+Chrome exposed the file chooser by `AutomationId=eh7_web_bundle` rather than
+`Choose File:*`; and immediately reading the ValuePattern/checkbox after
+setting values occasionally observed a transient older state. Use exact
+WordPress `eh7_source_head`, `eh7_reason`, `eh7_confirm`,
+`eh7_web_bundle` element identifiers and allow short accessibility update
+settling; still fail closed on missing source, audit reason or owner
+confirmation, wrong selected ZIP, wrong staging hash or wrong WordPress
+admin form. Post-upload completion is determined by fresh live backend +
+SHA-256/source-head verification, NOT merely the button click or browser
+navigation. The full backend/core, database, cash/stock and salary remain
+unchanged. Preserve the verified pre-deploy web backup and route.

@@ -56,12 +56,47 @@ jobs:
           CANDIDATE_SHA: ${{ github.sha }}
         run: |
           python3 - <<'PY'
-          import hashlib, os
+          import hashlib, json, os, re
           from pathlib import Path
           root=Path("flutter-app/build/web")
           (root/".last_build_id").write_text(os.environ["CANDIDATE_SHA"]+"\n",encoding="ascii")
-          for name in ("index.html","main.dart.js","flutter_bootstrap.js",".last_build_id"):
+          for name in ("index.html","main.dart.js","flutter_bootstrap.js",".last_build_id","flutter_service_worker.js"):
               assert (root/name).is_file() and (root/name).stat().st_size>0,name
+          # Flutter 3.44.9 currently ships several unused rendering engines.
+          # Slim the WEB-ONLY POST without changing executable app assets.
+          # Fail closed on any future change to the compiled renderer config.
+          bootstrap=(root/"flutter_bootstrap.js").read_text(encoding="utf-8")
+          match=re.search(r'_flutter\.buildConfig\s*=\s*(\{[^\n;]*\})\s*;',bootstrap)
+          assert match, "Compiled Flutter renderer manifest missing: refuse pruning"
+          configuration=json.loads(match.group(1))
+          assert configuration.get("builds")==[
+              {"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"},{}
+          ], "Flutter build renderer changed: refuse pruning"
+          # Only CanvasKit is referenced by this exact compiler output; retain
+          # BOTH full fallback and Chromium CanvasKit native WASM variants.
+          # The service worker merely unregisters itself and does not precache.
+          worker=(root/"flutter_service_worker.js").read_text(encoding="utf-8")
+          assert "self.registration.unregister()" in worker and "RESOURCES" not in worker, "Unexpected active service worker"
+          retained_engine={
+              "canvaskit/canvaskit.js","canvaskit/canvaskit.wasm",
+              "canvaskit/chromium/canvaskit.js","canvaskit/chromium/canvaskit.wasm",
+          }
+          removed=[]
+          for p in sorted(root.rglob("*")):
+              if not p.is_file(): continue
+              relative=p.relative_to(root).as_posix()
+              if relative.startswith("canvaskit/") and relative not in retained_engine:
+                  # Extra Skwasm/Wimp/experimental engines and debug symbols
+                  # are not built into THIS version's active CanvasKit app.
+                  assert relative.endswith(".symbols") or relative.startswith(
+                      ("canvaskit/skwasm", "canvaskit/wimp", "canvaskit/experimental_webparagraph/")
+                  ), f"Unknown engine file: {relative}; refuse deletion"
+                  p.unlink()
+                  removed.append(relative)
+          assert len(removed)>=10, "Expected unused renderer files missing"
+          for required in retained_engine:
+              assert (root/required).is_file() and (root/required).stat().st_size>1000,required
+          print("PASS exact CanvasKit-only renderer pruning",len(removed),"unused runtime files")
           paths=sorted(p for p in root.rglob("*") if p.is_file() and p.name!="SHA256SUMS.txt")
           rows=[]
           for p in paths:
@@ -89,7 +124,7 @@ jobs:
               for p,h in m.items(): assert hashlib.sha256(z.read(p)).hexdigest()==h,p
               for p in ("index.html","main.dart.js","flutter_bootstrap.js",".last_build_id"):
                   assert p in m,p
-          assert output.stat().st_size<=50*1024*1024
+          assert output.stat().st_size<=9*1024*1024, "HTTP-safe web ZIP exceeded 9 MiB; refuse deployment"
           print("PASS signed inner WordPress ZIP source files",len(m))
           PY
       - name: Encode immutable WordPress ZIP into ASCII-only transport blocks

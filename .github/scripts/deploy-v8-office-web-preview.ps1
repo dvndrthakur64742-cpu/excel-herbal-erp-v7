@@ -213,7 +213,7 @@ function Find-CertifiedField(
     try {
       if($element.Current.ControlType -ne $Type){continue}
       if([string]$element.Current.AutomationId -eq $AutomationId){return $element}
-      if($NameLike -and [string]$element.Current.Name -like $NameLike){return $element}
+      if(-not $AutomationId -and $NameLike -and [string]$element.Current.Name -like $NameLike){return $element}
     }catch{}
   }
   return $null
@@ -231,6 +231,9 @@ $confirmation=$confirmControl.GetCurrentPattern([System.Windows.Automation.Toggl
 $headValue.SetValue($SourceHead)
 $reasonValue.SetValue('Owner approved Office read-only Employee Finance Review web preview')
 if($confirmation.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On){$confirmation.Toggle()}
+# Chromium accessibility controls commit ValuePattern/Toggle asynchronously.
+# Do not prematurely reject a verified form while the UI is settling.
+Start-Sleep -Milliseconds 650
 if($headValue.Current.Value -cne $SourceHead -or
    $reasonValue.Current.Value.Length -lt 10 -or
    $confirmation.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On){
@@ -238,23 +241,12 @@ if($headValue.Current.Value -cne $SourceHead -or
 }
 Write-Host 'PASS original WordPress certified deploy form SHA, audit reason and confirmation validated'
 
-# The page contains more than one file chooser. Resolve the chooser from the
-# smallest ancestor that contains the Upload Web Bundle button so we never
-# attach the web ZIP to the backend/other upload form by mistake.
-$walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
-$container = $walker.GetParent($upload)
-$choose = $null
-for ($depth = 0; $depth -lt 14 -and $container; $depth++) {
-  $candidate = Find-ControlByName -Root $container -Type ([System.Windows.Automation.ControlType]::Button) -ExactName '' -NameLike 'Choose File:*'
-  if ($candidate) {
-    $choose = $candidate
-    break
-  }
-  $container = $walker.GetParent($container)
-}
-
-if (-not $choose) {
-  throw 'The file chooser belonging to Upload Web Bundle was not found.'
+# Chrome exposes this specific native WordPress file chooser as the
+# AutomationId eh7_web_bundle, not as "Choose File:*".
+# Never choose another browser or backend-upload input by positional order.
+$choose=Find-CertifiedField -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -AutomationId 'eh7_web_bundle' -NameLike ''
+if(-not $choose -or [string]$choose.Current.Name -notlike 'Certified Flutter Web ZIP:*') {
+  throw 'The original CERTIFIED Flutter web-only ZIP input could not be identified.'
 }
 
 Write-Host ('INFO web_upload_control=' + [string]$upload.Current.Name + ' automation_id=' + [string]$upload.Current.AutomationId)
@@ -294,8 +286,12 @@ if($afterHead.Current.Value -cne $SourceHead -or
    $afterConfirm.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On){
   throw 'Certified source SHA or explicit authorization changed during ZIP selection.'
 }
+$afterChoose=Find-CertifiedField -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -AutomationId 'eh7_web_bundle' -NameLike ''
+if(-not $afterChoose -or [string]$afterChoose.Current.Name -notmatch 'Excel-Herbal-ERP-v7\.4\.0-Web-Candidate\.zip') {
+  throw 'Incorrect or missing CERTIFIED web-only ZIP after the original Windows file dialog.'
+}
 if (-not $upload -or -not $upload.Current.IsEnabled) {
-  throw 'Upload Web Bundle button is missing or disabled after selecting the candidate ZIP.'
+  throw 'Deploy Certified Web Bundle button is missing or disabled after ZIP selection.'
 }
 Write-Host ('INFO selected_candidate_zip=' + $zipPath)
 
@@ -305,7 +301,7 @@ Write-Host ('INFO selected_candidate_zip=' + $zipPath)
 $shell = New-Object -ComObject WScript.Shell
 [void]$shell.AppActivate($chrome.Id)
 Start-Sleep -Milliseconds 500
-Write-Host 'INFO submitting verified Upload Web Bundle form via native button InvokePattern'
+Write-Host 'INFO submitting verified Deploy Certified Web Bundle form via native button InvokePattern'
 Invoke-Control $upload
 Start-Sleep -Seconds 30
 
@@ -332,28 +328,20 @@ if ($noticeNames.Count -gt 0) {
   Write-Host 'INFO post_upload_ui_notices_end'
 }
 
-# A successful multipart POST reloads the Setup Assistant and clears the
-# native file input. If the selected ZIP is still present, submission did not happen.
-$root = Get-AutomationRoot $chrome
-$uploadAfter = Find-ControlByName -Root $root -Type ([System.Windows.Automation.ControlType]::Button) -ExactName 'Deploy Certified Web Bundle'
-$chooseAfter = $null
-if ($uploadAfter) {
-  $walkerAfter = [System.Windows.Automation.TreeWalker]::ControlViewWalker
-  $containerAfter = $walkerAfter.GetParent($uploadAfter)
-  for ($depth = 0; $depth -lt 14 -and $containerAfter; $depth++) {
-    $candidateAfter = Find-ControlByName -Root $containerAfter -Type ([System.Windows.Automation.ControlType]::Button) -ExactName '' -NameLike 'Choose File:*'
-    if ($candidateAfter) { $chooseAfter = $candidateAfter; break }
-    $containerAfter = $walkerAfter.GetParent($containerAfter)
-  }
+# The browser may show a transient network error even if the authenticated
+# WordPress POST succeeded. Only ACCEPT exact source and main.dart.js hashes.
+# Never claim a deployment based only on a clicked button or an old UI notice.
+$afterHealthRaw=& curl.exe --fail --silent --show-error --connect-timeout 10 --max-time 30 $healthUrl
+if($LASTEXITCODE -ne 0){throw 'Post-upload Office staging health unavailable; deployment unverified.'}
+$afterHealth=($afterHealthRaw -join [Environment]::NewLine)|ConvertFrom-Json
+if($afterHealth.ok -ne $true -or
+   $afterHealth.data.environment -ne 'staging' -or
+   $afterHealth.data.source_head -cne [string]$env:CURRENT_BACKEND_SHA -or
+   $afterHealth.data.schema_installed -ne $true -or
+   $afterHealth.data.host_hardening.status -ne 'passed' -or
+   $afterHealth.data.web_runtime.source_head -cne $SourceHead -or
+   $afterHealth.data.web_runtime.main_sha256 -cne $expectedMainHash) {
+  throw ('Certified WordPress upload NOT VERIFIED; new web SHA does not match. Current '+[string]$afterHealth.data.web_runtime.main_sha256)
 }
-if (-not $chooseAfter) {
-  throw 'Web upload form could not be re-read after submission.'
-}
-$chooseAfterName = [string]$chooseAfter.Current.Name
-Write-Host ('INFO post_submit_choose_control=' + $chooseAfterName)
-if ($chooseAfterName -match 'Excel-Herbal-ERP-v7\.4\.0-Web-Candidate\.zip') {
-  throw 'WordPress web upload form did not submit; selected ZIP is still attached to the file input.'
-}
-
-Write-Host 'PASS WordPress web upload form submitted and reloaded.'
-Write-Host ('INFO expected_live_main_sha256=' + $expectedMainHash)
+Write-Host ('PASS WordPress web-only runtime source HEAD='+$SourceHead)
+Write-Host ('PASS uploaded main.dart.js HASH='+$expectedMainHash)
