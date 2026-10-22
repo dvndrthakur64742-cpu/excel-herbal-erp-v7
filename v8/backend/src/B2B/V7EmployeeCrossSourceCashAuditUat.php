@@ -34,6 +34,49 @@ final class V7EmployeeCrossSourceCashAuditUat
         return (int)$raw;
     }
 
+    /**
+     * Bounded, PAGE-ONLY suspicious-overlap review.
+     * A daily cycle may include multiple B2B sales. Matching calendar day and
+     * Cash amount is NOT a common business transaction identifier or proof.
+     * Never consume or suppress either source using these review candidates.
+     */
+    private static function overlapCandidates(
+        int $company,int $branch,int $employee,array $daily,array $b2b
+    ):array {
+        $candidates=[];
+        foreach ($daily as $day) {
+            $cash=$day['field_cash_reported_paise'];
+            if ($cash<=0)continue;
+            foreach ($b2b as $sale) {
+                if ($day['business_date']!==$sale['business_date'])continue;
+                $amount=$sale['field_cash_reported_paise'];
+                if ($amount<=0||$amount>$cash)continue;
+                $rule=$amount===$cash?'same_day_equal_cash':'same_day_b2b_cash_within_daily_cash';
+                // This token identifies a review snapshot, not independently
+                // authenticated evidence of shared sale provenance.
+                $reviewDigest=hash('sha256',json_encode([
+                    'v8_cross_source_review_v1',$company,$branch,$employee,
+                    $day['source_key'],$sale['source_key'],
+                    $day['business_date'],$cash,$amount,$rule,
+                ],JSON_THROW_ON_ERROR));
+                $candidates[]=[
+                    'legacy_source_key'=>$day['source_key'],
+                    'b2b_source_key'=>$sale['source_key'],
+                    'business_date'=>$day['business_date'],
+                    'legacy_cash_paise'=>$cash,
+                    'b2b_cash_paise'=>$amount,
+                    'risk_signal'=>$rule,
+                    'review_digest'=>$reviewDigest,
+                    'review_state'=>'suspected_overlap_unverified',
+                    'common_original_sale_reference'=>null,
+                    'may_deduplicate'=>false,
+                    'may_net_or_adjust_stock'=>false,
+                ];
+            }
+        }
+        return $candidates;
+    }
+
     public static function inspect(
         Actor $actor,int $branch,int $employee,string $from,string $to,
         Closure $serverAuthority,int $limit=25,int $offset=0
@@ -61,6 +104,10 @@ final class V7EmployeeCrossSourceCashAuditUat
             if(!is_array($row)||self::id($row['branch_id']??null)!==$branch)
                 throw new RetailerSaleError('Daily Order Cash source crossed branch.');
             $id=self::id($row['daily_cycle_id']??null);
+            $date=(string)($row['business_date']??'');
+            if(!preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D',$date)
+                ||$date<$from||$date>$to)
+                throw new RetailerSaleError('Daily Order source date escaped finance review period.');
             $cash=self::paise($row['cash_amount']??null);
             $upi=self::paise($row['upi_amount']??null);
             $sale=self::paise($row['expected_amount']??null);
@@ -118,7 +165,8 @@ final class V7EmployeeCrossSourceCashAuditUat
             $invoice=self::id($row['invoice_total_paise']??null);
             if($invoice>99999999999999 || ($row['status']??null)!=='posted'
                 ||(string)($row['outstanding_paise']??'')!=='0'
-                ||!preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D',(string)($row['business_date']??'')))
+                ||!preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D',(string)($row['business_date']??''))
+                ||(string)$row['business_date']<$from||(string)$row['business_date']>$to)
                 throw new RetailerSaleError('Invalid posted B2B field Cash record.');
             $key='b2b_retailer_sale:'.$id;
             if(isset($b2b[$key]))throw new RetailerSaleError('Duplicate canonical B2B source.');
@@ -139,6 +187,7 @@ final class V7EmployeeCrossSourceCashAuditUat
                 'mismatch_codes'=>$audit['mismatch_codes']??[],
             ];
         }
+        $review=self::overlapCandidates($company,$branch,$employee,$daily,$b2b);
         return [
             'company_id'=>$company,'branch_id'=>$branch,'employee_id'=>$employee,
             'period'=>['from'=>$from,'to'=>$to],
@@ -147,6 +196,16 @@ final class V7EmployeeCrossSourceCashAuditUat
                 'canonical_b2b_field_cash'=>['rows'=>array_values($b2b),'has_more'=>$b2bMore],
             ],
             'source_keys_independent'=>true,
+            'suspected_overlap_review'=>[
+                'candidates'=>$review,'candidate_count'=>count($review),
+                'scope'=>'current_separate_pages_only',
+                'exhaustive_full_period_review'=>false,
+                'independent_common_sale_evidence_available'=>false,
+                'no_candidate_does_not_prove_no_duplicate'=>true,
+                'review_only_no_automatic_merge'=>true,
+            ],
+            'verified_transaction_links'=>[],
+            'cross_source_duplicate_prevention_active'=>false,
             'same_sale_across_sources_not_proven'=>true,
             'combined_sale_total_paise'=>null,
             'combined_employee_cash_outstanding_paise'=>null,
@@ -155,7 +214,7 @@ final class V7EmployeeCrossSourceCashAuditUat
             'physical_legacy_daily_cash_verified'=>false,
             'external_bank_deposit_verified'=>false,
             'scope'=>'disposable_v8_test_finance_review_only',
-            'warning'=>'Legacy Daily Order and canonical B2B are separate sources. Their records may describe overlapping physical sales: no global totals, inferred cashier handover, cross-source netting or automatic employee shortage.'
+            'warning'=>'Same-day or equal-Cash candidates are ONLY review signals, not verified same-sale links. No global totals, deduplication, inferred cashier handover, cross-source netting or automatic employee shortage. This page is not exhaustive.'
         ];
     }
 }

@@ -116,3 +116,47 @@ exercise dual-source sample records in disposable real MariaDB, corruption of
 legacy Sales journal credit independent of the B2B handover, empty periods,
 unauthorized finance scope and target employee. No WordPress production HTTP
 route, schema migration, shadow GL, Cash write, PR merge or deployment.
+
+## 2026-10-22 — Step 1: bounded cross-source duplicate-risk review (development only)
+
+The two systems do not share a verified event-level sale reference. V7 legacy
+Daily Order is a **whole employee-day closing**; B2B retailer sale is an
+**individual sale**. A daily settlement can contain multiple retailer sales.
+Treating the same employee/date/amount as a one-to-one match would silently
+distort turnover, stock, Cash custody, points and payroll.
+
+The finance-gated, disposable-v8_test read-only employee Cash cross-source
+projection now supplies a separate suspected_overlap_review:
+
+- same_day_equal_cash: legacy daily Cash amount equals a posted B2B field Cash
+  sale for the same company, branch, employee and business date.
+- same_day_b2b_cash_within_daily_cash: positive field Cash sale amount fits
+  within that day's larger posted legacy Cash total.
+- No candidate if the relevant Daily Cash is lower than the whole B2B Cash
+  payment or the business day differs. Such absence **does not prove** two
+  physical sales are distinct.
+- Each pair has namespaced source keys and a deterministic SHA-256 **review
+  snapshot digest** from original IDs, scope, day, amounts and risk rule.
+  This digest detects a changed review snapshot; **it is not independent
+  proof** of the transaction. It is not an external receipt signature.
+
+Every candidate is explicitly suspected_overlap_unverified with
+may_deduplicate=false, may_net_or_adjust_stock=false and no original
+shared-sale reference. verified_transaction_links=[] and
+cross_source_duplicate_prevention_active=false. Both combined financial
+totals and employee Cash outstanding remain NULL. Separate pages of at most
+100 rows per source mean **candidate review is only for current pages**;
+exhaustive_full_period_review=false, including on empty pages. This review
+must not drive a release sign-off, sale cancellation, payroll deduction,
+financial posting or automatic stock movement.
+
+Existing real-MariaDB UAT inserts a posted canonical B2B Cash sale and
+an independent completed Daily Order. It checks non-equal Cash, equal Cash,
+Daily Cash containment, deterministic/change-sensitive review digest,
+wrong-day isolation and strict no-netting. Tampering is restored after each
+test. No production/office staging DB migration, HTTP endpoint or deployment.
+
+**Next release blocker:** implement an owner-approved immutable shared source
+identifier supported by original receipt/payment/order-line provenance, plus
+a distinct independently authorized review workflow. Without that original
+identity evidence, *verified* deduplication must remain unavailable.

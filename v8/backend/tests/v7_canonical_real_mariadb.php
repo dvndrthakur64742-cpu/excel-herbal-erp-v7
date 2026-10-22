@@ -588,6 +588,84 @@ try{
         $pdo->prepare('UPDATE wp_eh7_journal_lines SET credit=150.00 WHERE id=?')
             ->execute([$dailySalesLine]);
     }
+    // An aggregate daily Cash collection of INR 100 cannot contain a fully
+    // Cash-paid INR 200 retailer sale; same day/employee alone proves nothing.
+    checkUat($cross['suspected_overlap_review']['candidate_count']===0
+        &&$cross['suspected_overlap_review']['no_candidate_does_not_prove_no_duplicate']===true
+        &&$cross['verified_transaction_links']===[]
+        &&$cross['cross_source_duplicate_prevention_active']===false,
+        'same employee and business day with insufficient Daily Cash cannot be guessed as the same sale');
+
+    // Deliberately make the daily Cash equal to one B2B sale, with a balanced
+    // journal. Equality is a review signal, NOT transaction provenance.
+    $changeLegacyCash=$pdo->prepare('UPDATE wp_eh7_evening_settlements
+        SET expected_amount=?,cash_amount=?,upi_amount=?
+        WHERE daily_cycle_id=?');
+    $changeLegacyLine=$pdo->prepare('UPDATE wp_eh7_journal_lines
+        SET debit=? WHERE journal_entry_id=? AND account_id=?');
+    $changeLegacySales=$pdo->prepare('UPDATE wp_eh7_journal_lines
+        SET credit=? WHERE id=?');
+    try {
+        $changeLegacyCash->execute(['200.00','200.00','0.00',$dailyCycleId]);
+        $changeLegacyLine->execute(['200.00',$dailyJournal,$coaId('BRANCH_CASH')]);
+        $changeLegacyLine->execute(['0.00',$dailyJournal,$coaId('UPI_CLEARING')]);
+        $changeLegacySales->execute(['200.00',$dailySalesLine]);
+        $potential=$crossEmployee($auditActor,$branch,$employee,
+            '2026-10-19','2026-10-19',$crossAuthority);
+        $review=$potential['suspected_overlap_review']['candidates'];
+        checkUat(count($review)===1
+            &&$review[0]['risk_signal']==='same_day_equal_cash'
+            &&$review[0]['legacy_source_key']==='daily_cycle:'.$dailyCycleId
+            &&$review[0]['b2b_source_key']==='b2b_retailer_sale:'.$fieldSale['sale_id']
+            &&strlen($review[0]['review_digest'])===64
+            &&$potential['source_pages']['legacy_daily_orders']['rows'][0]['journal_consistent']===true,
+            'equal company branch employee date and Cash produces one review candidate');
+        checkUat($review[0]['review_state']==='suspected_overlap_unverified'
+            &&$review[0]['common_original_sale_reference']===null
+            &&$review[0]['may_deduplicate']===false
+            &&$review[0]['may_net_or_adjust_stock']===false
+            &&$potential['verified_transaction_links']===[]
+            &&$potential['combined_sale_total_paise']===null
+            &&$potential['combined_employee_cash_outstanding_paise']===null,
+            'same-date equal-cash coincidence cannot automatically merge sales, stock or employee liability');
+        $reviewAgain=$crossEmployee($auditActor,$branch,$employee,
+            '2026-10-19','2026-10-19',$crossAuthority);
+        checkUat($reviewAgain['suspected_overlap_review']['candidates'][0]['review_digest']
+                ===$review[0]['review_digest'],
+            'review snapshot digest is deterministic across unchanged source data');
+
+        // A larger daily total can contain multiple independently posted
+        // retailer sales. It is not a 1-to-1 transaction match.
+        $changeLegacyCash->execute(['250.00','250.00','0.00',$dailyCycleId]);
+        $changeLegacyLine->execute(['250.00',$dailyJournal,$coaId('BRANCH_CASH')]);
+        $changeLegacySales->execute(['250.00',$dailySalesLine]);
+        $containment=$crossEmployee($auditActor,$branch,$employee,
+            '2026-10-19','2026-10-19',$crossAuthority);
+        checkUat($containment['suspected_overlap_review']['candidate_count']===1
+            &&$containment['suspected_overlap_review']['candidates'][0]['risk_signal']
+                ==='same_day_b2b_cash_within_daily_cash'
+            &&$containment['suspected_overlap_review']['candidates'][0]['review_digest']
+                !==$review[0]['review_digest']
+            &&$containment['verified_transaction_links']===[],
+            'aggregated Daily Cash containment gets a distinct unverified review signal');
+
+        $pdo->prepare("UPDATE wp_eh7_daily_cycles SET business_date='2026-10-18' WHERE id=?")
+            ->execute([$dailyCycleId]);
+        $differentDate=$crossEmployee($auditActor,$branch,$employee,
+            '2026-10-19','2026-10-19',$crossAuthority);
+        checkUat($differentDate['suspected_overlap_review']['candidate_count']===0
+            &&count($differentDate['source_pages']['legacy_daily_orders']['rows'])===0
+            &&count($differentDate['source_pages']['canonical_b2b_field_cash']['rows'])===1
+            &&$differentDate['suspected_overlap_review']['exhaustive_full_period_review']===false,
+            'different business dates do not produce same-day overlap evidence');
+    } finally {
+        $pdo->prepare("UPDATE wp_eh7_daily_cycles SET business_date='2026-10-19' WHERE id=?")
+            ->execute([$dailyCycleId]);
+        $changeLegacyCash->execute(['150.00','100.00','50.00',$dailyCycleId]);
+        $changeLegacyLine->execute(['100.00',$dailyJournal,$coaId('BRANCH_CASH')]);
+        $changeLegacyLine->execute(['50.00',$dailyJournal,$coaId('UPI_CLEARING')]);
+        $changeLegacySales->execute(['150.00',$dailySalesLine]);
+    }
     $onlyB2B=$crossEmployee($auditActor,$branch,$employee,'2026-10-18','2026-10-18',$crossAuthority);
     checkUat(count($onlyB2B['source_pages']['legacy_daily_orders']['rows'])===0
         &&count($onlyB2B['source_pages']['canonical_b2b_field_cash']['rows'])===0
