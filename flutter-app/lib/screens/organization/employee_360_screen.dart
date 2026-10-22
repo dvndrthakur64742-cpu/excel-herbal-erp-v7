@@ -7,6 +7,7 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/gps_route_view.dart';
 import '../../widgets/records_list.dart';
+import 'employee_finance_review_panel.dart';
 
 /// Existing V7 canonical employee 360 REST response. No shadow customer,
 /// sales, stock, attendance or ledger state is maintained in the Flutter app.
@@ -145,6 +146,7 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
             if (financeVisible) const Tab(text: 'Person Ledger'),
             if (financeVisible) const Tab(text: 'Cash Responsibility'),
             if (financeVisible) const Tab(text: 'Cash Control'),
+            if (financeVisible) const Tab(text: 'Finance Review'),
             if (showGps) const Tab(text: 'GPS Route'),
           ];
           return DefaultTabController(
@@ -211,6 +213,12 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
                         _Employee360TransitLedger(rows: ledgerData['entries']),
                       if (financeVisible)
                         _Employee360CashControl(
+                          employeeId: widget.employeeId,
+                          from: _from,
+                          to: _to,
+                        ),
+                      if (financeVisible)
+                        EmployeeFinanceReviewPanel(
                           employeeId: widget.employeeId,
                           from: _from,
                           to: _to,
