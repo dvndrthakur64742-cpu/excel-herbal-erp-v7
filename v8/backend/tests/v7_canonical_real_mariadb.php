@@ -103,14 +103,14 @@ spl_autoload_register(static function(string $name)use($legacy):void{
 $src=dirname(__DIR__).'/src/B2B/';
 require_once $legacy.'Organization/Employee360Service.php';
 require_once $legacy.'Organization/EmployeeCashControl.php';
-foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php','V7EmployeeCrossSourceCashAuditUat.php','V7B2BBranchDayPreflightUat.php','V7B2BConsistentSnapshotUat.php'] as $name)require_once $src.$name;
+foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php','V7CrossSourceReferenceReviewUat.php','V7EmployeeCrossSourceCashAuditUat.php','V7B2BBranchDayPreflightUat.php','V7B2BConsistentSnapshotUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
 $tables=['companies','branches','employees','products','batches','stock_balances','stock_ledger',
   'product_commercial_revisions','accounts','accounting_periods','branch_closings',
   'journal_entries','journal_lines','number_series','parties','counter_sales',
-  'daily_cycles','evening_settlements'];
+  'daily_cycles','evening_settlements','daily_requests','daily_issue_lines','evening_lines'];
 foreach($tables as $name){
     if(!isset($canonical[$name]))throw new RuntimeException('Missing authoritative V7 table definition: '.$name);
     $pdo->exec('CREATE TABLE IF NOT EXISTS wp_eh7_'.$name.' ('.$canonical[$name].') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
@@ -118,7 +118,8 @@ foreach($tables as $name){
 // The UAT writer's DRAFT source schema stays in v8_test; never run in WordPress installation.
 foreach(['001_b2b_preview_mysql.sql','004_trusted_tender_intake_UAT.sql','005_sale_intent_tender_binding_UAT.sql',
   '006_immutable_checkout_intents_UAT.sql','007_immutable_sale_line_snapshots_UAT.sql','010_signed_bank_reconciliation_UAT.sql',
-  '009_v7_canonical_retailer_posting_DRAFT.sql','011_v7_canonical_cash_handover_DRAFT.sql'] as $file){
+  '009_v7_canonical_retailer_posting_DRAFT.sql','011_v7_canonical_cash_handover_DRAFT.sql',
+  '012_cross_source_reference_UAT.sql'] as $file){
     $sql=file_get_contents(dirname(__DIR__).'/schema/'.$file);
     $sql=preg_replace('/^\s*--[^\r\n]*$/m','',$sql);
     foreach(preg_split('/;\s*(?:\r?\n|$)/',$sql) as $statement){
@@ -634,6 +635,164 @@ try{
                 ===$review[0]['review_digest'],
             'review snapshot digest is deterministic across unchanged source data');
 
+        // Independent original-document association UAT. Legacy has no
+        // retailer order reference on its final day-summary header; only
+        // signed original line evidence can even be considered for review.
+        $referenceKey=str_repeat('CI-SERVER-ONLY-WITNESS-KEY-',3);
+        $reviewAccess=static fn($action,$actorId,$c,$b,$target)=>
+            $action==='employee.cash.reference_review'
+            &&$actorId===8010&&$c===$company&&$b===$branch&&$target===$employee;
+        $resolveReferenceKey=static fn($c,$b)=>
+            $c===$company&&$b===$branch?$referenceKey:null;
+        $reviewSource=static fn(int $id,int $saleId,$auth,$key)=>
+            \ExcelHerbal\ERP8\B2B\V7CrossSourceReferenceReviewUat::inspect(
+                $auditActor,$branch,$employee,$id,$saleId,$auth,$key);
+        $unproven=$reviewSource($dailyCycleId,$fieldSale['sale_id'],
+            $reviewAccess,$resolveReferenceKey);
+        checkUat($unproven['evidence_state']==='missing_original_document_evidence'
+            &&$unproven['verified_transaction_links']===[]
+            &&$unproven['may_deduplicate']===false
+            &&$unproven['combined_sale_total_paise']===null,
+            'matching Cash and date alone never create a signed shared-order reference');
+        $pdo->prepare("INSERT INTO wp_eh7_daily_requests
+            (daily_cycle_id,type,status,requested_by,created_at)
+            VALUES(?,'initial','issued',?,'2026-10-19 09:15:00')")
+            ->execute([$dailyCycleId,$employee]);
+        $dailyRequest=(int)$pdo->lastInsertId();
+        $pdo->prepare('INSERT INTO wp_eh7_daily_issue_lines
+            (daily_request_id,product_id,quantity,sale_price_snapshot)
+            VALUES(?,?,2.000,100.00)')->execute([$dailyRequest,$product]);
+        $dailyIssue=(int)$pdo->lastInsertId();
+        $settlementId=(int)first($pdo,
+            'SELECT id FROM wp_eh7_evening_settlements WHERE daily_cycle_id=?',[$dailyCycleId]);
+        $pdo->prepare('INSERT INTO wp_eh7_evening_lines
+            (evening_settlement_id,issue_line_id,product_id,issued_quantity,
+            retail_quantity,retail_rate,total_amount)
+            VALUES(?,?,?,2.000,2.000,100.00,200.00)')
+            ->execute([$settlementId,$dailyIssue,$product]);
+        $dailyLineId=(int)$pdo->lastInsertId();
+        $b2bLineId=(int)first($pdo,
+            'SELECT id FROM wp_eh7_b2b_retailer_sale_lines WHERE sale_id=?',
+            [$fieldSale['sale_id']]);
+        $proof=[
+            'company_id'=>$company,'branch_id'=>$branch,'employee_id'=>$employee,
+            'legacy_daily_cycle_id'=>$dailyCycleId,
+            'legacy_evening_line_id'=>$dailyLineId,
+            'b2b_sale_id'=>$fieldSale['sale_id'],
+            'b2b_sale_line_id'=>$b2bLineId,
+            'business_date'=>'2026-10-19',
+            'original_order_reference'=>'CI-ORIGINAL-ORDER-001',
+            'original_receipt_reference'=>'CI-ORIGINAL-RECEIPT-001',
+            'source_document_sha256'=>hash('sha256','synthetic independent original document fixture'),
+            'evidence_product_id'=>$product,'evidence_quantity_pcs'=>2,
+            'evidence_line_paise'=>20000,
+            'witness_user_id'=>8002,'reviewer_user_id'=>8010,
+        ];
+        $proofSignature=\ExcelHerbal\ERP8\B2B\V7CrossSourceReferenceReviewUat::signature(
+            $proof,$referenceKey);
+        $proof['proof_signature']=$proofSignature;
+        $proof['status']='reviewed';
+        $proof['created_at']='2026-10-19 18:30:00';
+        $cols=array_keys($proof);
+        $pdo->prepare('INSERT INTO v8_b2b_cross_source_reference_evidence_uat('
+            .implode(',',$cols).') VALUES('.implode(',',array_fill(0,count($cols),'?')).')')
+            ->execute(array_values($proof));
+        $proofId=(int)$pdo->lastInsertId();
+        $correlated=$reviewSource($dailyCycleId,$fieldSale['sale_id'],
+            $reviewAccess,$resolveReferenceKey);
+        checkUat($correlated['evidence_state']==='signed_line_association_reviewed_uat'
+            &&$correlated['finance_gl_consistent']===true
+            &&$correlated['reference_evidence_id']===$proofId
+            &&$correlated['original_order_reference']==='CI-ORIGINAL-ORDER-001'
+            &&$correlated['original_receipt_reference']==='CI-ORIGINAL-RECEIPT-001'
+            &&$correlated['witness_user_id']===8002&&$correlated['reviewer_user_id']===8010,
+            'real MariaDB independently signed original order and receipt correlate both canonical sale lines');
+        checkUat($correlated['original_source_system_integrated']===false
+            &&$correlated['verified_transaction_links']===[]
+            &&$correlated['release_duplicate_prevention_ready']===false
+            &&$correlated['may_deduplicate']===false
+            &&$correlated['may_net_or_adjust_stock']===false
+            &&$correlated['combined_cash_outstanding_paise']===null,
+            'signed document association still cannot dedupe or financially net unintegrated source records');
+        $againProof=$reviewSource($dailyCycleId,$fieldSale['sale_id'],
+            $reviewAccess,$resolveReferenceKey);
+        checkUat($againProof===$correlated,
+            'same original reference proof replays as identical read-only source review');
+        $reviewRejected=false;
+        try{$reviewSource($dailyCycleId,$fieldSale['sale_id'],
+            static fn()=>false,$resolveReferenceKey);}
+        catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$reviewRejected=true;}
+        checkUat($reviewRejected,'independent finance reviewer authority cannot be bypassed');
+        $wrongKeyRejected=false;
+        try{$reviewSource($dailyCycleId,$fieldSale['sale_id'],
+            $reviewAccess,static fn()=>str_repeat('wrong-secret',5));}
+        catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$wrongKeyRejected=true;}
+        checkUat($wrongKeyRejected,'incorrect trusted signer secret rejects stored source-link evidence');
+        $testTamper=static function(string $sql,array $values,string $label)
+            use($pdo,$reviewSource,$dailyCycleId,$fieldSale,$reviewAccess,$resolveReferenceKey):void {
+            $pdo->prepare($sql)->execute($values);
+            $refused=false;
+            try{$reviewSource($dailyCycleId,$fieldSale['sale_id'],
+                $reviewAccess,$resolveReferenceKey);}
+            catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$refused=true;}
+            checkUat($refused,$label);
+        };
+        try {
+            $testTamper('UPDATE v8_b2b_cross_source_reference_evidence_uat
+                SET original_receipt_reference=? WHERE id=?',
+                ['CI-FORGED-RECEIPT',$proofId],
+                'edited original Cash receipt reference fails HMAC attestation');
+        } finally {
+            $pdo->prepare('UPDATE v8_b2b_cross_source_reference_evidence_uat
+                SET original_receipt_reference=? WHERE id=?')
+                ->execute([$proof['original_receipt_reference'],$proofId]);
+        }
+        try {
+            $testTamper('UPDATE wp_eh7_evening_lines SET total_amount=? WHERE id=?',
+                ['199.99',$dailyLineId],
+                'one-paisa original legacy line tamper rejects signed common reference');
+        } finally {
+            $pdo->prepare('UPDATE wp_eh7_evening_lines SET total_amount=200.00 WHERE id=?')
+                ->execute([$dailyLineId]);
+        }
+        try {
+            $testTamper('UPDATE wp_eh7_daily_requests SET daily_cycle_id=? WHERE id=?',
+                [$dailyCycleId+10000,$dailyRequest],
+                'orphaned original issue request cannot link an unrelated Daily cycle');
+        } finally {
+            $pdo->prepare('UPDATE wp_eh7_daily_requests SET daily_cycle_id=? WHERE id=?')
+                ->execute([$dailyCycleId,$dailyRequest]);
+        }
+        try {
+            $testTamper('UPDATE wp_eh7_b2b_retailer_sale_lines SET quantity_pcs=? WHERE id=?',
+                [3,$b2bLineId],
+                'changed retailer quantity rejects a previously signed source association');
+        } finally {
+            $pdo->prepare('UPDATE wp_eh7_b2b_retailer_sale_lines SET quantity_pcs=2 WHERE id=?')
+                ->execute([$b2bLineId]);
+        }
+        try {
+            $wrongReviewer=$proof;
+            $wrongReviewer['reviewer_user_id']=$wrongReviewer['witness_user_id'];
+            $newSignature=\ExcelHerbal\ERP8\B2B\V7CrossSourceReferenceReviewUat::signature(
+                $wrongReviewer,$referenceKey);
+            $pdo->prepare('UPDATE v8_b2b_cross_source_reference_evidence_uat
+                SET reviewer_user_id=?,proof_signature=? WHERE id=?')
+                ->execute([$wrongReviewer['reviewer_user_id'],$newSignature,$proofId]);
+            $selfApproved=false;
+            try{$reviewSource($dailyCycleId,$fieldSale['sale_id'],
+                $reviewAccess,$resolveReferenceKey);}
+            catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$selfApproved=true;}
+            checkUat($selfApproved,'even a valid HMAC cannot grant same-person witness and review');
+        } finally {
+            $pdo->prepare('UPDATE v8_b2b_cross_source_reference_evidence_uat
+                SET reviewer_user_id=?,proof_signature=? WHERE id=?')
+                ->execute([$proof['reviewer_user_id'],$proofSignature,$proofId]);
+        }
+        checkUat($reviewSource($dailyCycleId,$fieldSale['sale_id'],
+            $reviewAccess,$resolveReferenceKey)['evidence_state']
+                ==='signed_line_association_reviewed_uat',
+            'all simulated tampering is restored without changing original journals');
         // A larger daily total can contain multiple independently posted
         // retailer sales. It is not a 1-to-1 transaction match.
         $changeLegacyCash->execute(['250.00','250.00','0.00',$dailyCycleId]);

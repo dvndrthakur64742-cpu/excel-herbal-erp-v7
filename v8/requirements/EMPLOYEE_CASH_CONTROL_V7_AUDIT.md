@@ -160,3 +160,53 @@ test. No production/office staging DB migration, HTTP endpoint or deployment.
 identifier supported by original receipt/payment/order-line provenance, plus
 a distinct independently authorized review workflow. Without that original
 identity evidence, *verified* deduplication must remain unavailable.
+
+
+## 2026-10-22 — Step 1: original order/receipt reference evidence gate (UAT only)
+
+New V7CrossSourceReferenceReviewUat and isolated
+012_cross_source_reference_UAT.sql demonstrate **how an independently
+witnessed and independently finance-reviewed original document reference
+could be checked** against the real V7 source rows.
+
+- Synthetic evidence explicitly names the original Daily **cycle + evening
+  line** and B2B **sale + sale line**, company, branch, employee, date,
+  original order reference, original receipt reference, external-document
+  SHA-256, product, batch (looked up in canonical source), whole PCS,
+  monetary paise, distinct witness and reviewer IDs.
+- A server-owned secret signs the scope and all immutable document-reference
+  attributes using HMAC-SHA256; a separate authenticated finance reviewer
+  must own the evidence's reviewer identity. Wrong key, altered receipt,
+  self-approval and revoked source lineage fail closed.
+- Read-only validation fetches canonical V7 Daily cycle, posted settlement,
+  evening line, original issued-stock request, posted B2B sale/line, B2B
+  cross-ledger audit and independently reconciled Daily GL. It refuses
+  wrong company/branch/employee, date, source product, quantity or amount.
+- Unique synthetic source-line keys prevent a given source line from being
+  asserted against multiple sale lines on the disposable database. This
+  is NOT a real transaction-id uniqueness guarantee across source systems.
+- Outcomes are missing_original_document_evidence or
+  signed_line_association_reviewed_uat. The latter proves only a **signed
+  UAT witness assertion plus current canonical line/account agreement**;
+  neither legacy V7 nor B2B currently emits the same immutable source
+  reference through a trusted production bridge.
+
+### Explicit release gate still CLOSED
+
+A day-wide Daily Order and a per-retailer B2B sale may both be accurate
+records describing overlapping activity. A manual witness attestation or
+same Cash/product/quantity is not guaranteed original-order identity. A
+real independently authenticated originating Order/Receipt API or other
+owner-approved original evidence source must first supply a shared durable
+event-level ID, transaction conflict rules, maker-checker authorization,
+and replay-safe posting-time enforcement before declaring a true verified
+duplicate. Until then verified_transaction_links=[],
+may_deduplicate=false, release_duplicate_prevention_ready=false,
+all combined financial totals NULL and zero automatic ledger/stock/salary
+writes. No staging install, production migration, site deploy, or new
+WordPress write endpoint has been performed.
+
+Real disposable MariaDB UAT includes a signed original-reference fixture,
+missing evidence, wrong server signing key, altered receipt, 0.01 legacy line
+corruption, cross-cycle stock issue, changed product quantity, valid-HMAC
+self-review and restored records. All test data is synthetic.
