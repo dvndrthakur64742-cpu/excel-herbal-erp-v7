@@ -79,3 +79,40 @@ transaction rollback. These are accounting consistency tests only; **cashier
 receipt, physical remittance, bank deposit, real PSP UPI confirmation, and
 salary impact remain unverified**. This scope introduces no schema migration,
 posting endpoint, staging write, production release or data repair.
+
+## 2026-10-22 — Legacy Daily Order vs B2B employee Cash source separation (UAT only)
+
+`V7EmployeeCrossSourceCashAuditUat::inspect` is a disposable-`v8_test`,
+server-authorized, finance-only, read-only cross-source projection. It brings
+together **two independently identified sources**, not two newly posted
+financial ledgers:
+
+- **Legacy Daily Order:** Completed `eh7_daily_cycles` with posted
+  `eh7_evening_settlements`, reported Cash/UPI, and original posted
+  `daily_cycle` GL. Recheck Cash/UPI debit, reverse payment credits, SALES
+  credit, full GL debit/credit balance and missing/duplicate journals. A
+  matched bookkeeping journal **does not prove physical cashier remittance
+  or independently verified UPI bank settlement**.
+- **Canonical B2B field Cash:** Posted `eh7_b2b_retailer_sales` under the
+  target employee/company/branch and date. Call the existing
+  `V7B2BCrossLedgerAuditUat` for each source ID; a complete cashier-handover
+  state requires an independently attested receipt and the existing canonical
+  V7 GL remittance journal. Non-Cash B2B (UPI, counter) is intentionally not
+  an employee cash liability and is excluded from this custody report.
+
+Identifiers are namespace-qualified (`daily_cycle:<id>` and
+`b2b_retailer_sale:<id>`) and two source lists have separate pagination.
+**Do not sum or net them.** There is no trustworthy bridge proving whether
+an old daily closing and a B2B retailer sale refer to the same physical sale.
+The returned `combined_sale_total_paise` and
+`combined_employee_cash_outstanding_paise` are explicitly NULL. A source
+match does not prove inter-source deduplication or actual Cash/UPI settlement.
+Source snapshots are not guaranteed atomic; the report cannot certify a
+complete period or physical deposit.
+
+A server-side authorization callback must approve the exact actor, company,
+branch and target employee in addition to the V7 Finance/branch guard. Tests
+exercise dual-source sample records in disposable real MariaDB, corruption of
+legacy Sales journal credit independent of the B2B handover, empty periods,
+unauthorized finance scope and target employee. No WordPress production HTTP
+route, schema migration, shadow GL, Cash write, PR merge or deployment.

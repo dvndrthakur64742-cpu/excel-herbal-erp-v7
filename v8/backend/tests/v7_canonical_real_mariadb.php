@@ -101,13 +101,16 @@ spl_autoload_register(static function(string $name)use($legacy):void{
     if(is_file($p))require_once $p;
 });
 $src=dirname(__DIR__).'/src/B2B/';
-foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php','V7B2BBranchDayPreflightUat.php','V7B2BConsistentSnapshotUat.php'] as $name)require_once $src.$name;
+require_once $legacy.'Organization/Employee360Service.php';
+require_once $legacy.'Organization/EmployeeCashControl.php';
+foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php','V7EmployeeCrossSourceCashAuditUat.php','V7B2BBranchDayPreflightUat.php','V7B2BConsistentSnapshotUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
 $tables=['companies','branches','employees','products','batches','stock_balances','stock_ledger',
   'product_commercial_revisions','accounts','accounting_periods','branch_closings',
-  'journal_entries','journal_lines','number_series','parties','counter_sales'];
+  'journal_entries','journal_lines','number_series','parties','counter_sales',
+  'daily_cycles','evening_settlements'];
 foreach($tables as $name){
     if(!isset($canonical[$name]))throw new RuntimeException('Missing authoritative V7 table definition: '.$name);
     $pdo->exec('CREATE TABLE IF NOT EXISTS wp_eh7_'.$name.' ('.$canonical[$name].') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
@@ -515,6 +518,82 @@ try{
     checkUat($newKeyDenied,'same field sale cannot remittance-post under another idempotency key');
     $receiptAfter=$cashier->attest($branch,$fieldSale['sale_id'],'CI-CASHIER-REF-001');
     checkUat($receiptAfter['consumed']===true,'cashier receipt replay identifies previously consumed evidence');
+    // Read-only cross-source finance UAT: legacy posted Daily Order and
+    // B2B field Cash share an employee, but no verified common sale identity.
+    // They must be separate source keys and MUST NOT be summed.
+    $pdo->prepare("INSERT INTO wp_eh7_daily_cycles
+        (company_id,branch_id,employee_id,business_date,status,created_by,created_at)
+        VALUES(?,?,?,'2026-10-19','completed',?,'2026-10-19 09:00:00')")
+        ->execute([$company,$branch,$employee,$employee]);
+    $dailyCycleId=(int)$pdo->lastInsertId();
+    $pdo->prepare("INSERT INTO wp_eh7_evening_settlements
+        (daily_cycle_id,status,expected_amount,cash_amount,upi_amount,created_at)
+        VALUES(?,'posted','150.00','100.00','50.00','2026-10-19 18:00:00')")
+        ->execute([$dailyCycleId]);
+    $coaId=static function(string $code)use($pdo,$company):int{
+        return (int)first($pdo,'SELECT id FROM wp_eh7_accounts WHERE company_id=? AND code=?',[$company,$code]);
+    };
+    $pdo->prepare("INSERT INTO wp_eh7_journal_entries
+        (company_id,branch_id,entry_no,entry_date,source_type,source_id,status,created_by,created_at)
+        VALUES(?,?,'CI-LEGACY-CASH-CROSS-SOURCE','2026-10-19 23:59:59','daily_cycle',?,'posted',?,'2026-10-19 23:59:59')")
+        ->execute([$company,$branch,$dailyCycleId,$user]);
+    $dailyJournal=(int)$pdo->lastInsertId();
+    $insertDailyLine=$pdo->prepare("INSERT INTO wp_eh7_journal_lines
+        (journal_entry_id,account_id,debit,credit) VALUES(?,?,?,?)");
+    $insertDailyLine->execute([$dailyJournal,$coaId('BRANCH_CASH'),'100.00','0.00']);
+    $insertDailyLine->execute([$dailyJournal,$coaId('UPI_CLEARING'),'50.00','0.00']);
+    $insertDailyLine->execute([$dailyJournal,$coaId('SALES'),'0.00','150.00']);
+    $dailySalesLine=(int)$pdo->lastInsertId();
+    $crossAuthority=static fn($action,$userId,$c,$b,$target)=>
+        $action==='employee.cash.cross_source.view'
+        &&$userId===8010&&$c===$company&&$b===$branch&&$target===$employee;
+    $crossEmployee=static fn($who,$b,$target,$f,$t,$auth)=>
+        \ExcelHerbal\ERP8\B2B\V7EmployeeCrossSourceCashAuditUat::inspect(
+            $who,$b,$target,$f,$t,$auth);
+    $cross=$crossEmployee($auditActor,$branch,$employee,'2026-10-19','2026-10-19',$crossAuthority);
+    $daily=$cross['source_pages']['legacy_daily_orders']['rows'];
+    $newB2B=$cross['source_pages']['canonical_b2b_field_cash']['rows'];
+    checkUat(count($daily)===1 && count($newB2B)===1
+        &&$daily[0]['source_key']==='daily_cycle:'.$dailyCycleId
+        &&$newB2B[0]['source_key']==='b2b_retailer_sale:'.$fieldSale['sale_id']
+        &&$daily[0]['journal_consistent']===true
+        &&$newB2B[0]['cash_handover_verified']===true,
+        'read-only cross-source report identifies Daily Order and reconciled B2B as separate employee Cash sources');
+    checkUat($daily[0]['posted_sale_paise']===15000
+        &&$daily[0]['field_cash_reported_paise']===10000
+        &&$daily[0]['upi_reported_paise']===5000
+        &&$newB2B[0]['posted_sale_paise']===20000
+        &&$cross['combined_sale_total_paise']===null
+        &&$cross['combined_employee_cash_outstanding_paise']===null
+        &&$cross['same_sale_across_sources_not_proven']===true
+        &&$cross['physical_legacy_daily_cash_verified']===false,
+        'overlapping Daily and B2B sales cannot be automatically combined, netted or called cash proof');
+    $noAuth=false;
+    try{$crossEmployee($auditActor,$branch,$employee,'2026-10-19','2026-10-19',static fn()=>false);}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$noAuth=true;}
+    checkUat($noAuth,'cross-source employee Cash report requires server-side employee financial authorization');
+    $noNeighbor=false;
+    try{$crossEmployee($auditActor,$branch,$employee+1,'2026-10-19','2026-10-19',$crossAuthority);}
+    catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$noNeighbor=true;}
+    checkUat($noNeighbor,'cross-source reader denies unapproved employee target');
+    $pdo->prepare('UPDATE wp_eh7_journal_lines SET credit=149.99 WHERE id=?')
+        ->execute([$dailySalesLine]);
+    try{
+        $corruptCross=$crossEmployee($auditActor,$branch,$employee,
+            '2026-10-19','2026-10-19',$crossAuthority);
+        checkUat($corruptCross['source_pages']['legacy_daily_orders']['rows'][0]['journal_consistent']===false
+            &&$corruptCross['source_pages']['canonical_b2b_field_cash']['rows'][0]['journal_consistent']===true,
+            'one-paisa legacy SALES journal corruption does not invalidate independently reconciled B2B source');
+    } finally {
+        $pdo->prepare('UPDATE wp_eh7_journal_lines SET credit=150.00 WHERE id=?')
+            ->execute([$dailySalesLine]);
+    }
+    $onlyB2B=$crossEmployee($auditActor,$branch,$employee,'2026-10-18','2026-10-18',$crossAuthority);
+    checkUat(count($onlyB2B['source_pages']['legacy_daily_orders']['rows'])===0
+        &&count($onlyB2B['source_pages']['canonical_b2b_field_cash']['rows'])===0
+        &&$onlyB2B['combined_sale_total_paise']===null,
+        'empty day cannot accidentally inherit sales from another date or produce a false financial zero');
+
     $afterJournal=$pdo->prepare(
         "SELECT j.source_type,j.source_id,l.debit,l.credit FROM wp_eh7_journal_entries j
           JOIN wp_eh7_journal_lines l ON l.journal_entry_id=j.id
