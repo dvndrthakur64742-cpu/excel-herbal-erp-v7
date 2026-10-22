@@ -45,6 +45,11 @@ class _EmployeeFinanceReviewPanelState
   }
 
   Future<EmployeeFinanceReviewSnapshot> _fetch() async {
+    // Defense in depth: a hidden finance tab must not start authenticated
+    // Cash/GL requests after a role change. V7 REST rechecks permission.
+    if (!ref.read(appStateProvider).can('finance.accounting.view')) {
+      throw StateError('Finance permission required.');
+    }
     final api = ref.read(apiClientProvider);
     final data = await Future.wait<dynamic>([
       api.get(

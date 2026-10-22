@@ -72,6 +72,9 @@ void main() {
     expect(profile, contains("if (financeVisible) const Tab(text: 'Finance Review')"));
     expect(profile, contains('EmployeeFinanceReviewPanel('));
     expect(review, contains("appStateProvider).can('finance.accounting.view')"));
+    expect(review, contains("ref.read(appStateProvider).can('finance.accounting.view')"));
+    expect(review.indexOf("ref.read(appStateProvider).can('finance.accounting.view')"),
+        lessThan(review.indexOf('final api = ref.read(apiClientProvider);')));
     expect(review, contains('ApiPaths.employee360CashControl(widget.employeeId)'));
     expect(review, contains('ApiPaths.employee360Register(widget.employeeId)'));
     expect(review, contains("'type': 'person_ledger'"));
