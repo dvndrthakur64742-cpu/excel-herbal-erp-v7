@@ -24,3 +24,29 @@ Those items remain blocked for financial production release.
 GitHub CI PHP unit tests and disposable real MariaDB regression required.
 Flutter source/widget tests separately required. Live WordPress and physical-device
 validation pending. No deployment/merge/production migration.
+
+## 2026-10-22 — Two-sided warehouse/employee stock custody controls
+
+The original Employee 360 daily check could show `cycle_sources_match` even when
+an employee's stock IN matched issue lines but the original warehouse OUT was
+missing, or when an employee's return OUT had no warehouse receipt IN.
+This is a false-positive for physical stock transfer bookkeeping.
+
+The read-only reconciliation now joins separately aggregated canonical source rows:
+
+- Warehouse `daily_issue OUT` is tied to issued `daily_requests`, the same
+  daily cycle, company and branch, and `custodian_employee_id IS NULL`.
+- Warehouse `daily_return IN` is tied to the same cycle source ID, company,
+  branch and null custodian.
+- Posted cycles must reconcile issued quantity to warehouse OUT and employee
+  IN; returns must reconcile employee OUT and warehouse IN; net warehouse OUT
+  minus returned warehouse IN must equal sold quantity.
+- The existing `type=reconciliation` response adds warehouse movement quantities,
+  net-out PCS and explicit failure flags. Unposted cycles remain awaiting review.
+- PHP regression and isolated real MariaDB tests use a synthetic cycle and
+  savepoint rollback to prove missing warehouse OUT / missing return IN cannot
+  be confused with a valid cycle. No real database or Office staging is changed.
+
+Passing is a source-ledger consistency check, **not** independent physical
+stocktake, cash handover, bank-confirmed UPI, or a verified GL close.
+No table migration, new route, balance posting or production deployment.

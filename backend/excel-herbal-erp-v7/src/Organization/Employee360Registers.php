@@ -75,7 +75,7 @@ final class Employee360Registers {
                 'sales'=>'Cash/UPI are posted settlement totals, not evidence that employee cash was remitted to branch.',
                 'stock'=>'Movements are a stock audit trail, not proof of a matching financial journal or physical stock count.',
                 'requests'=>'Approval does not mean stock was issued. Issued quantity is taken only from V7 Daily Order issue lines.',
-                'reconciliation'=>'Cycle-scoped V7 stock movement checks do NOT verify current physical stock, employee cash handover, UPI bank settlement or GL postings.',
+                'reconciliation'=>'Cycle-scoped employee and warehouse IN/OUT ledger checks do NOT verify physical stock count, employee cash handover, UPI bank settlement or GL postings.',
             },
         ];
     }
@@ -94,7 +94,8 @@ final class Employee360Registers {
 
     private static function reconcileCycle(array $row):array {
         $qty=['issued_quantity','closing_issued_quantity','sold_quantity','returned_quantity',
-            'ledger_issue_in_quantity','ledger_sale_out_quantity','ledger_return_out_quantity'];
+            'ledger_issue_in_quantity','ledger_sale_out_quantity','ledger_return_out_quantity' ,
+            'ledger_warehouse_issue_out_quantity','ledger_warehouse_return_in_quantity'];
         $numbers=[];
         foreach($qty as $k)$numbers[$k]=self::scaled($row[$k]??null,3);
         $posted=($row['cycle_status']??null)==='completed'
@@ -108,6 +109,9 @@ final class Employee360Registers {
                 'issued_equals_closing'=>$numbers['issued_quantity']===$numbers['closing_issued_quantity'],
                 'issued_equals_sold_plus_returned'=>$numbers['issued_quantity']===$numbers['sold_quantity']+$numbers['returned_quantity'],
                 'canonical_issue_in'=>$numbers['issued_quantity']===$numbers['ledger_issue_in_quantity'],
+                'canonical_warehouse_issue_out'=>$numbers['issued_quantity']===$numbers['ledger_warehouse_issue_out_quantity'],
+                'canonical_warehouse_return_in'=>$numbers['returned_quantity']===$numbers['ledger_warehouse_return_in_quantity'],
+                'warehouse_net_out_equals_sold'=>$numbers['ledger_warehouse_issue_out_quantity']-$numbers['ledger_warehouse_return_in_quantity']===$numbers['sold_quantity'],
                 'canonical_sale_out'=>$numbers['sold_quantity']===$numbers['ledger_sale_out_quantity'],
                 'canonical_return_out'=>$numbers['returned_quantity']===$numbers['ledger_return_out_quantity'],
                 'posted_sale_amount'=>$expected===$lines,
@@ -122,6 +126,9 @@ final class Employee360Registers {
         }
         $row['cycle_issued_minus_out_qty']=number_format(
             ($numbers['ledger_issue_in_quantity']-$numbers['ledger_sale_out_quantity']-$numbers['ledger_return_out_quantity'])/1000,
+            3,'.','');
+        $row['cycle_warehouse_net_out_qty']=number_format(
+            ($numbers['ledger_warehouse_issue_out_quantity']-$numbers['ledger_warehouse_return_in_quantity'])/1000,
             3,'.','');
         $row['cash_handover_verified']=false;
         $row['upi_bank_verified']=false;
@@ -205,8 +212,11 @@ final class Employee360WpRegisterReader implements Employee360RegisterReader {
             .'COALESCE(cl.returned_quantity,0) returned_quantity,'
             .'COALESCE(cl.closing_sale_amount,0) closing_sale_amount,'
             .'COALESCE(mi.ledger_issue_in_quantity,0) ledger_issue_in_quantity,'
+            .'COALESCE(wi.ledger_warehouse_issue_out_quantity,0) ledger_warehouse_issue_out_quantity,'
             .'COALESCE(mo.ledger_sale_out_quantity,0) ledger_sale_out_quantity,'
-            .'COALESCE(mo.ledger_return_out_quantity,0) ledger_return_out_quantity '
+            
+            .'COALESCE(mo.ledger_return_out_quantity,0) ledger_return_out_quantity,'
+            .'COALESCE(wr.ledger_warehouse_return_in_quantity,0) ledger_warehouse_return_in_quantity '
             .'FROM '.$cycles.' c '
             .'LEFT JOIN '.$evenings.' es ON es.daily_cycle_id=c.id '
             .'LEFT JOIN (SELECT r.daily_cycle_id,SUM(il.quantity) issued_quantity '
@@ -224,6 +234,13 @@ final class Employee360WpRegisterReader implements Employee360RegisterReader {
             .'GROUP BY r.daily_cycle_id,sl.company_id,sl.branch_id,sl.custodian_employee_id) mi '
             .'ON mi.daily_cycle_id=c.id AND mi.company_id=c.company_id '
             .'AND mi.branch_id=c.branch_id AND mi.custodian_employee_id=c.employee_id '
+            // Warehouse stock issues: exact issued requests, branch and null custodian.
+            .'LEFT JOIN (SELECT r.daily_cycle_id,sl.company_id,sl.branch_id,'
+            .'SUM(sl.quantity) ledger_warehouse_issue_out_quantity FROM '.$ledger.' sl '
+            .'JOIN '.$requests.' r ON r.id=sl.source_id '
+            ."WHERE sl.source_type='daily_issue' AND sl.direction='OUT' AND sl.custodian_employee_id IS NULL "
+            .'GROUP BY r.daily_cycle_id,sl.company_id,sl.branch_id) wi '
+            .'ON wi.daily_cycle_id=c.id AND wi.company_id=c.company_id AND wi.branch_id=c.branch_id '
             .'LEFT JOIN (SELECT sl.company_id,sl.branch_id,sl.custodian_employee_id,sl.source_id,'
             ."SUM(CASE WHEN sl.source_type='daily_sale' THEN sl.quantity ELSE 0 END) ledger_sale_out_quantity,"
             ."SUM(CASE WHEN sl.source_type='daily_return' THEN sl.quantity ELSE 0 END) ledger_return_out_quantity "
@@ -232,6 +249,12 @@ final class Employee360WpRegisterReader implements Employee360RegisterReader {
             .'GROUP BY sl.company_id,sl.branch_id,sl.custodian_employee_id,sl.source_id) mo '
             .'ON mo.source_id=c.id AND mo.company_id=c.company_id '
             .'AND mo.branch_id=c.branch_id AND mo.custodian_employee_id=c.employee_id '
+            // Warehouse receipt: same cycle, company, branch and null custodian.
+            .'LEFT JOIN (SELECT sl.company_id,sl.branch_id,sl.source_id,'
+            .'SUM(sl.quantity) ledger_warehouse_return_in_quantity FROM '.$ledger.' sl '
+            ."WHERE sl.source_type='daily_return' AND sl.direction='IN' AND sl.custodian_employee_id IS NULL "
+            .'GROUP BY sl.company_id,sl.branch_id,sl.source_id) wr '
+            .'ON wr.source_id=c.id AND wr.company_id=c.company_id AND wr.branch_id=c.branch_id '
             .'WHERE c.company_id=%d AND c.employee_id=%d '
             .'AND c.business_date BETWEEN %s AND %s'.$this->scope($branches,'c')
             .' ORDER BY c.business_date DESC,c.id DESC LIMIT %d OFFSET %d';

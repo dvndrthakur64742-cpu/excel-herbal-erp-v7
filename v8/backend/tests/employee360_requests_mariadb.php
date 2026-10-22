@@ -133,13 +133,20 @@ try {
         $issuedRows=$db->query('SELECT id,product_id,batch_id,quantity FROM wp_eh7_daily_issue_lines WHERE daily_request_id='.$issued.' ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
         $closingInsert=$db->prepare('INSERT INTO wp_eh7_evening_lines(evening_settlement_id,issue_line_id,product_id,batch_id,issued_quantity,return_quantity,retail_quantity,wholesale_quantity,retail_rate,wholesale_rate,total_amount) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
         $stockInsert=$db->prepare("INSERT INTO wp_eh7_stock_ledger(company_id,branch_id,product_id,batch_id,custodian_employee_id,direction,quantity,source_type,source_id,occurred_at,created_by) VALUES(?,?,?,?,?,?,?,?,?,'2026-10-20 04:00:00',?)");
+        $warehouseIssueIds=[];$warehouseReturnIds=[];
         foreach($issuedRows as $index=>$part){
             $qty=(int)$part['quantity'];
             $sold=$index===2?0:$qty;
             $returned=$index===2?$qty:0;
             $closingInsert->execute([$eveningId,(int)$part['id'],(int)$part['product_id'],$part['batch_id'],$qty,$returned,$sold,0,100,0,$sold*100]);
+            $stockInsert->execute([$company,$branch,(int)$part['product_id'],$part['batch_id'],null,'OUT',$qty,'daily_issue',$issued,$employee]);
+            $warehouseIssueIds[]=(int)$db->lastInsertId();
             $stockInsert->execute([$company,$branch,(int)$part['product_id'],$part['batch_id'],$employee,'IN',$qty,'daily_issue',$issued,$employee]);
             $stockInsert->execute([$company,$branch,(int)$part['product_id'],$part['batch_id'],$employee,'OUT',$qty,$sold>0?'daily_sale':'daily_return',$first,$employee]);
+            if($returned>0){
+                $stockInsert->execute([$company,$branch,(int)$part['product_id'],$part['batch_id'],null,'IN',$returned,'daily_return',$first,$employee]);
+                $warehouseReturnIds[]=(int)$db->lastInsertId();
+            }
         }
         $reconciled=$reader->reconciliation($company,$employee,'2026-10-01','2026-10-20',[$branch],25,0);
         $assert(count($reconciled)===1,'real reconciliation returns exactly one authorized branch cycle');
@@ -147,6 +154,23 @@ try {
         $assert((float)$good['issued_quantity']===5.0 && (float)$good['closing_issued_quantity']===5.0,'issued and evening line sums agree on real MariaDB');
         $assert((float)$good['sold_quantity']===3.0 && (float)$good['returned_quantity']===2.0,'sold and returned quantities are independent of batch joins');
         $assert((float)$good['ledger_issue_in_quantity']===5.0,'canonical employee daily_issue stock IN equals actual issued');
+        $assert((float)$good['ledger_warehouse_issue_out_quantity']===5.0
+            &&(float)$good['ledger_warehouse_return_in_quantity']===2.0,
+            'warehouse dispatch OUT and return IN reconcile with employee custody');
+        $db->exec('SAVEPOINT warehouse_dispatch_missing');
+        $db->prepare('DELETE FROM wp_eh7_stock_ledger WHERE id=?')->execute([$warehouseIssueIds[0]]);
+        $missingDispatch=$reader->reconciliation($company,$employee,'2026-10-01','2026-10-20',[$branch],25,0);
+        $assert((float)$missingDispatch[0]['ledger_warehouse_issue_out_quantity']===4.0
+            &&(float)$missingDispatch[0]['ledger_issue_in_quantity']===5.0,
+            'real MariaDB detects warehouse dispatch missing while employee issue IN remains correct');
+        $db->exec('ROLLBACK TO SAVEPOINT warehouse_dispatch_missing');
+        $db->exec('SAVEPOINT warehouse_return_missing');
+        $db->prepare('DELETE FROM wp_eh7_stock_ledger WHERE id=?')->execute([$warehouseReturnIds[0]]);
+        $missingReturn=$reader->reconciliation($company,$employee,'2026-10-01','2026-10-20',[$branch],25,0);
+        $assert((float)$missingReturn[0]['ledger_warehouse_return_in_quantity']===0.0
+            &&(float)$missingReturn[0]['ledger_return_out_quantity']===2.0,
+            'real MariaDB detects missing warehouse return despite employee custody return OUT');
+        $db->exec('ROLLBACK TO SAVEPOINT warehouse_return_missing');
         $assert((float)$good['ledger_sale_out_quantity']===3.0 && (float)$good['ledger_return_out_quantity']===2.0,'canonical employee sale/return OUT equals closing');
         $assert((float)$good['expected_amount']===300.0 && (float)$good['cash_amount']+(float)$good['upi_amount']===300.0,'real posted evening Cash/UPI split equals sale');
         $allReconciled=$reader->reconciliation($company,$employee,'2026-10-01','2026-10-20',[],25,0);

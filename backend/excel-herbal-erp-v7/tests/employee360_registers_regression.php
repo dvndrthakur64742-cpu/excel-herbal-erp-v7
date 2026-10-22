@@ -96,7 +96,9 @@ namespace {
         'issued_quantity'=>'5.000','closing_issued_quantity'=>'5.000',
         'sold_quantity'=>'3.000','returned_quantity'=>'2.000',
         'ledger_issue_in_quantity'=>'5.000','ledger_sale_out_quantity'=>'3.000',
-        'ledger_return_out_quantity'=>'2.000','expected_amount'=>'300.00',
+        'ledger_return_out_quantity'=>'2.000',
+        'ledger_warehouse_issue_out_quantity'=>'5.000','ledger_warehouse_return_in_quantity'=>'2.000',
+        'expected_amount'=>'300.00',
         'cash_amount'=>'100.00','upi_amount'=>'200.00','closing_sale_amount'=>'300.00'];
     $reg->fakeRows=[$good];
     $rec=Employee360Registers::view($self,7,'reconciliation','2026-10-01','2026-10-19',1,25,$reg,$profile);
@@ -173,6 +175,10 @@ namespace {
     okay(str_contains($reconSql,'wp_eh7_stock_ledger')&&str_contains($reconSql,'wp_eh7_daily_issue_lines')&&str_contains($reconSql,'wp_eh7_evening_lines'),'reconciliation joins actual V7 issue evening and custody ledger');
     okay(str_contains($reconSql,"sl.source_type='daily_issue'")&&str_contains($reconSql,"sl.source_type='daily_sale'")&&str_contains($reconSql,"sl.source_type='daily_return'"),'exact stock movement sources checked');
     okay(str_contains($reconSql,'mi.custodian_employee_id=c.employee_id')&&str_contains($reconSql,'mo.custodian_employee_id=c.employee_id'),'custody employee and branch linked to cycle');
+    okay(str_contains($reconSql,"sl.direction='OUT' AND sl.custodian_employee_id IS NULL")
+        &&str_contains($reconSql,"sl.direction='IN' AND sl.custodian_employee_id IS NULL")
+        &&str_contains($reconSql,'wi.daily_cycle_id=c.id')&&str_contains($reconSql,'wr.source_id=c.id'),
+        'warehouse dispatch and return must match cycle, company and branch before reconciliation');
     okay(!str_contains($reconSql,'unit_cost')&&!str_contains($reconSql,'purchase_cost_snapshot')&&!str_contains($reconSql,'sale_price_snapshot'),'no commercial cost or price leak in reconciliation');
     okay($stub->q[3][1]===[1,7,'2026-10-01','2026-10-19',2,4,31,50],'reconciliation SQL manager scope and pagination parameterized');
     $testText=file_get_contents(__DIR__.'/../src/Organization/Employee360Registers.php');
@@ -197,6 +203,23 @@ namespace {
     $reg->fakeRows=[array_replace($good,['branch_id'=>99])];
     denied(fn()=>Employee360Registers::view($manager,7,'reconciliation',
         '2026-10-01','2026-10-19',1,25,$reg,$profile),'employee_360_scope_invalid');
+    $reg->fakeRows=[array_replace($good,['ledger_warehouse_issue_out_quantity'=>'4.000'])];
+    $warehouseIssue=Employee360Registers::view($self,7,'reconciliation','2026-10-01','2026-10-19',1,25,$reg,$profile);
+    okay($warehouseIssue['rows'][0]['reconciliation_status']==='mismatch'
+        &&$warehouseIssue['rows'][0]['checks']['canonical_warehouse_issue_out']===false,
+        'missing warehouse dispatch is caught even when employee custody IN matches');
+    $reg->fakeRows=[array_replace($good,['ledger_warehouse_return_in_quantity'=>'1.000'])];
+    $warehouseReturn=Employee360Registers::view($self,7,'reconciliation','2026-10-01','2026-10-19',1,25,$reg,$profile);
+    okay($warehouseReturn['rows'][0]['reconciliation_status']==='mismatch'
+        &&$warehouseReturn['rows'][0]['checks']['canonical_warehouse_return_in']===false,
+        'missing warehouse returned stock is caught even when employee return OUT matches');
+    okay($warehouseReturn['rows'][0]['checks']['warehouse_net_out_equals_sold']===false,
+        'warehouse net stock sold cannot reconcile against missing return IN');
+    $reg->fakeRows=[$good];
+    $warehouseGood=Employee360Registers::view($self,7,'reconciliation','2026-10-01','2026-10-19',1,25,$reg,$profile);
+    okay($warehouseGood['rows'][0]['reconciliation_status']==='cycle_sources_match'
+        &&$warehouseGood['rows'][0]['cycle_warehouse_net_out_qty']==='3.000',
+        'valid warehouse OUT 5 minus warehouse IN 2 equals sold 3, without physical proof');
     $reg->fakeRows=[];
     echo 'PASS '.$GLOBALS['pass'].'/'.$GLOBALS['pass']." Employee360 detailed sales, stock and request registers\n";
 }
