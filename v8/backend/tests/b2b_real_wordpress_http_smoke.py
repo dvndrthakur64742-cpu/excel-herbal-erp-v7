@@ -188,7 +188,7 @@ def gps_role_matrix(url,fse,bm,asm,admin,other):
        "real GPS route stores exactly one correct-branch point with NULL attendance")
     for role,token in [("ASM",asm),("BM",bm),("Admin",admin)]:
         route,_=expect(url,"/workforce/gps/route"+peer,200,token=token)
-        ok(any(r.get("id")==record_id for r in route["data"]),
+        ok(any(int(r.get("id",0))==record_id for r in route["data"]),
            role+" can view permitted employee GPS route in real WordPress")
     attendance,_=expect(url,"/workforce/attendance/today",200,token=fse)
     ok(attendance.get("data") is None,
