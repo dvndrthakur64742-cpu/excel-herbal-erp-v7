@@ -1,0 +1,63 @@
+name: V8 Attendance GPS Real MariaDB UAT (Disposable No Deploy)
+on:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/v8-attendance-gps-real-mariadb-uat.yml'
+      - 'backend/excel-herbal-erp-v7/src/Workforce/**'
+      - 'backend/excel-herbal-erp-v7/src/Recovery/**'
+      - 'backend/excel-herbal-erp-v7/tests/integration_mariadb.php'
+      - 'backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php'
+      - 'backend/excel-herbal-erp-v7/tests/attendance_separate_policy.php'
+      - 'backend/excel-herbal-erp-v7/tests/gps_independent_policy.php'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  genuine-attendance-gps-mariadb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: disposable-root
+          MARIADB_DATABASE: eh8_disposable
+          MARIADB_USER: eh8_tester
+          MARIADB_PASSWORD: disposable-tester
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      EH7_MARIADB_HOST: 127.0.0.1
+      EH7_MARIADB_PORT: '3306'
+      EH7_MARIADB_USER: eh8_tester
+      EH7_MARIADB_PASSWORD: disposable-tester
+      EH7_MARIADB_DATABASE: eh8_disposable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, mbstring
+          coverage: none
+      - name: Verify disposable database identity and PHP syntax
+        run: |
+          php -l backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php
+          php -l backend/excel-herbal-erp-v7/tests/integration_mariadb.php
+          php -l backend/excel-herbal-erp-v7/src/Workforce/ScheduledAttendanceService.php
+          php -l backend/excel-herbal-erp-v7/src/Recovery/RecoveryService.php
+          php -r '$db=new mysqli(getenv("EH7_MARIADB_HOST"),getenv("EH7_MARIADB_USER"),getenv("EH7_MARIADB_PASSWORD"),getenv("EH7_MARIADB_DATABASE"),3306); if($db->connect_errno || $db->query("SELECT DATABASE()")->fetch_row()[0]!=="eh8_disposable")exit(1); echo "PASS disposable MariaDB identity\n";'
+      - name: Real MariaDB employee attendance, branch permissions, automatic GPS and 8 PM closure
+        run: |
+          php backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php
+      - name: Isolated clock and GPS policy boundaries
+        run: |
+          php backend/excel-herbal-erp-v7/tests/attendance_separate_policy.php
+          php backend/excel-herbal-erp-v7/tests/gps_independent_policy.php
+      - name: Fail closed no staging access
+        run: echo 'PASS ephemeral MariaDB database and fake users only; Office WordPress not touched'
