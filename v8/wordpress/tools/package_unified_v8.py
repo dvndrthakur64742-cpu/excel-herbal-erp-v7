@@ -66,6 +66,10 @@ def build(repo: Path, head: str, staging: Path, output: Path) -> None:
         ["php", str(repo / "v8/wordpress/tests/plugin_bootstrap_smoke.php"), str(package)],
         check=True,
     )
+    subprocess.run(
+        ["php", str(repo / "backend/excel-herbal-erp-v7/tests/attendance_separate_policy.php")],
+        check=True,
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists():
         output.unlink()

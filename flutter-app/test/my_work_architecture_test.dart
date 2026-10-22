@@ -39,6 +39,7 @@ void main() {
     expect(main, isNot(contains('Widget _attendance()')));
     expect(main, isNot(contains('Widget _leaveVisit()')));
     expect(main, isNot(contains('Future<void> _attendanceAction(')));
+    expect(attendance, contains('Future<void> _attendanceAction('));
     expect(main, isNot(contains('Future<void> _applyLeave()')));
     expect(main, isNot(contains('Future<void> _startVisit()')));
     expect(main, isNot(contains('Widget _daily()')));

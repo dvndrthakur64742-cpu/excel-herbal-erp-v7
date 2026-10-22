@@ -92,18 +92,22 @@ void main() {
     expect(access, contains('array_column(\$before,\'capability\')'));
   });
 
-  test('attendance duty is server scheduled with no manual attendance writes', () {
-    final attendance = File(
-      'lib/screens/my_work/my_work_attendance.dart',
-    ).readAsStringSync();
-
-    expect(attendance, isNot(contains('Future<void> _attendanceAction(')));
-    expect(attendance, contains('Duty automatically starts at 10:30 AM; no manual check-in is required.'));
-    expect(attendance, contains('Duty is automatic · 10:30 AM–5:00 PM'));
+  test('self attendance writes remain authorised and read-only preview blocks actions', () {
+    final attendance = File('lib/screens/my_work/my_work_attendance.dart').readAsStringSync();
+    final transport = File('lib/core/preview_read_only_policy.dart').readAsStringSync();
+    final backend = File('../backend/excel-herbal-erp-v7/src/Workforce/WorkforceService.php').readAsStringSync();
+    expect(attendance, contains('Future<void> _attendanceAction('));
+    expect(attendance, contains('ApiPaths.checkIn'));
+    expect(attendance, contains('ApiPaths.checkOut'));
+    expect(attendance, contains('PreviewReadOnlyPolicy.enabled'));
+    expect(attendance, contains('GPS Duty: automatic 10:30 AM–5 PM'));
     expect(attendance, contains('ApiPaths.attendanceToday'));
     expect(attendance, contains('ApiPaths.gpsRoute'));
-    expect(attendance, isNot(contains('ApiPaths.checkIn')));
-    expect(attendance, isNot(contains('ApiPaths.checkOut')));
+    expect(backend, contains('Guard::cap(\$a,Capabilities::ATT_SELF)'));
+    expect(backend, contains('AttendancePolicy::assertCheckInTime'));
+    expect(backend, contains('AttendancePolicy::assertCheckOutTime'));
+    expect(transport, contains("'/auth/login', '/auth/refresh', '/auth/logout'"));
+    expect(transport, isNot(contains("'/workforce/attendance/check-in'")));
   });
 
   test('existing accounting and reconciliation reports are exposed by capability', () {

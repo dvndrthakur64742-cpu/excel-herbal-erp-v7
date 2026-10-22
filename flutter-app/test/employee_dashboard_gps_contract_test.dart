@@ -90,7 +90,8 @@ void main() {
     expect(screen, contains("Text('Self Check-Out')"));
     expect(screen, contains('PreviewReadOnlyPolicy.enabled'));
     expect(screen, contains('GPS Duty: automatic 10:30 AM–5 PM'));
-    expect(screen, isNot(contains('manual duty toggle')));
+    expect(screen, isNot(contains("Text('Start GPS Duty')")));
+    expect(screen, isNot(contains("Text('Stop GPS Duty')")));
     expect(scheduler, isNot(contains('GpsDutyPolicy::START')));
   });
 
