@@ -64,6 +64,8 @@ class _EmployeeFinanceReviewPanelState
     ]);
     return EmployeeFinanceReviewSnapshot.fromResponses(
       employeeId: widget.employeeId,
+      from: widget.from,
+      to: widget.to,
       cashResponse: data[0],
       ledgerResponse: data[1],
     );
@@ -110,6 +112,8 @@ class EmployeeFinanceReviewSnapshot {
     required this.mismatches,
     required this.unprovenCash,
     required this.hasMore,
+    required this.ledgerHasMore,
+    required this.ledgerEventPageCount,
     required this.closings,
     required this.accounts,
   });
@@ -119,6 +123,8 @@ class EmployeeFinanceReviewSnapshot {
   final int mismatches;
   final int unprovenCash;
   final bool hasMore;
+  final bool ledgerHasMore;
+  final int ledgerEventPageCount;
   final List<Map<String, dynamic>> closings;
   final List<Map<String, dynamic>> accounts;
 
@@ -144,11 +150,24 @@ class EmployeeFinanceReviewSnapshot {
 
   factory EmployeeFinanceReviewSnapshot.fromResponses({
     required int employeeId,
+    required String from,
+    required String to,
     required dynamic cashResponse,
     required dynamic ledgerResponse,
   }) {
     final cash = _map(cashResponse);
     final ledger = _map(ledgerResponse);
+    // A stale/cross-period response must never be shown as the currently
+    // selected employee accounting period, even if its employee ID matches.
+    final cashPeriod = _map(cash['period']);
+    final ledgerPeriod = _map(ledger['period']);
+    if (DateTime.tryParse(from) == null ||
+        DateTime.tryParse(to) == null ||
+        from.compareTo(to) > 0 ||
+        cashPeriod['from'] != from || cashPeriod['to'] != to ||
+        ledgerPeriod['from'] != from || ledgerPeriod['to'] != to) {
+      throw const FormatException('Finance Review reporting period mismatch.');
+    }
     if (cash['read_only'] != true ||
         cash['scope'] != 'canonical_posted_daily_cycles_only' ||
         cash['cash_remittance_status'] != 'not_available_in_legacy_v7' ||
@@ -164,6 +183,9 @@ class EmployeeFinanceReviewSnapshot {
         ledger['upi_bank_settlement_verified'] != false ||
         unsigned(ledger['employee_id']) != employeeId ||
         unsigned(ledger['page']) != 1 ||
+        unsigned(ledger['page_size']) != 25 ||
+        ledger['has_more'] is! bool ||
+        ledger['rows'] is! List ||
         ledger['financial_accounts'] is! List) {
       throw const FormatException('Employee Finance Review safety contract mismatch.');
     }
@@ -171,7 +193,9 @@ class EmployeeFinanceReviewSnapshot {
     final flags = _map(cash['page_flags']);
     final rawClosings = cash['rows'];
     final rawAccounts = ledger['financial_accounts'] as List;
-    if (rawClosings is! List || rawClosings.length > 25 || rawAccounts.length > 2000) {
+    final rawLedgerEvents = ledger['rows'] as List;
+    if (rawClosings is! List || rawClosings.length > 25 ||
+        rawLedgerEvents.length > 25 || rawAccounts.length > 2000) {
       throw const FormatException('Employee Finance Review response exceeds bounds.');
     }
     final closings = rawClosings.map(_map).toList(growable: false);
@@ -180,6 +204,11 @@ class EmployeeFinanceReviewSnapshot {
       unsigned(row['daily_cycle_id']);
       unsigned(row['reported_cash_paise']);
       unsigned(row['reported_upi_paise']);
+      if (row['business_date'] is! String ||
+          (row['business_date'] as String).compareTo(from) < 0 ||
+          (row['business_date'] as String).compareTo(to) > 0) {
+        throw const FormatException('Cash closure escaped selected period.');
+      }
       if (row['journal_check'] is! String) {
         throw const FormatException('Invalid canonical daily journal status.');
       }
@@ -205,6 +234,8 @@ class EmployeeFinanceReviewSnapshot {
       mismatches: mismatches,
       unprovenCash: unprovenCash,
       hasMore: cash['has_more'] == true,
+      ledgerHasMore: ledger['has_more'] == true,
+      ledgerEventPageCount: rawLedgerEvents.length,
       closings: closings,
       accounts: accounts,
     );
@@ -264,6 +295,18 @@ class EmployeeFinanceReviewView extends StatelessWidget {
             _FinanceMetric(label: 'Cash handovers unproven · first 25', value: snapshot.unprovenCash.toString(), alert: snapshot.unprovenCash > 0),
           ],
         ),
+        if (snapshot.ledgerHasMore)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.library_books_outlined),
+              title: const Text('More Person Ledger transactions exist'),
+              subtitle: Text(
+                'Only ${snapshot.ledgerEventPageCount} transaction events were loaded '
+                'from page 1. Open Person Ledger for all remaining pages. '
+                'Account balances below are separate full-history summaries.',
+              ),
+            ),
+          ),
         if (snapshot.hasMore)
           const Card(
             child: ListTile(

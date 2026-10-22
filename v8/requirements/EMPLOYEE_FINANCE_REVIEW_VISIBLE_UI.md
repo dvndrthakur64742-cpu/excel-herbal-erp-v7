@@ -41,3 +41,34 @@ The server still controls accounting permissions and authorized employees.
   before saying the Office web UI has this feature.
 - Flutter UI unit/widget tests cover actual labels, metric values, finance
   source isolation and forged/mismatched API responses.
+
+## 2026-10-22 — Live Office REST acceptance and selected-period guard
+
+After the certified CanvasKit web deployment, **read-only authenticated
+Office staging V7 REST checks were executed** for an existing employee in
+October 2026, without modifying any business/finance record. The Employee 360
+profile, Cash Control (2 canonical posted-cycle rows) and employee Person
+Ledger endpoints all returned successful, employee-bound read-only responses.
+The person-ledger event page returned 25 records with `has_more=true`; its
+full-history account balances must not be confused with the paged event list.
+All 11 shape/security checks across the two finance contracts passed. No
+private employee identifiers, mobile numbers or amounts are included here.
+
+QA found that the first implementation validated employee identity but
+**did not compare the actual reporting period from Cash Control and Person
+Ledger to the selected UI dates**. This could show an out-of-period finance
+summary if a stale or inconsistent API response were returned. The screen now
+fails closed unless both API period objects have exactly the requested
+`from`/`to`; it also validates every closing business date, exact ledger
+page size and page-1 identity and ledger event-page bounds. A visible notice
+warns finance users when more Person Ledger events exist and directs them to
+the existing paginated Person Ledger tab. This does not imply the account
+balance is page-limited, nor that Cash/UPI was physically settled.
+
+New Flutter regression cases cover mismatched Cash/Ledger dates, wrong ledger
+page and page size, out-of-range closing date, oversized ledger event page,
+and visible continuation wording. This is **development code only** until a
+new separately approved web-only release; no WordPress files, REST handlers,
+real data, payroll or posting rules changed in this QA commit. Full browser
+Admin/Manager interaction, actual device/mobile testing and negative role UAT
+are still pending. Staging remains unsanitized and mobile sessions exist.

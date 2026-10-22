@@ -9,6 +9,7 @@ Map<String, dynamic> cashFixture() => {
   'scope': 'canonical_posted_daily_cycles_only',
   'cash_remittance_status': 'not_available_in_legacy_v7',
   'employee_id': 42,
+  'period': <String, dynamic>{'from': '2026-10-01', 'to': '2026-10-22'},
   'page': 1,
   'page_size': 25,
   'has_more': true,
@@ -39,7 +40,11 @@ Map<String, dynamic> ledgerFixture() => {
   'employee_cash_handover_verified': false,
   'upi_bank_settlement_verified': false,
   'employee_id': 42,
+  'period': <String, dynamic>{'from': '2026-10-01', 'to': '2026-10-22'},
   'page': 1,
+  'page_size': 25,
+  'has_more': true,
+  'rows': [<String, dynamic>{'event_type': 'gl', 'event_id': 555}],
   'financial_accounts': [
     {
       'account_code': 'EMPLOYEE_CASH_IN_TRANSIT',
@@ -53,6 +58,7 @@ Map<String, dynamic> ledgerFixture() => {
 EmployeeFinanceReviewSnapshot validSnapshot() =>
     EmployeeFinanceReviewSnapshot.fromResponses(
       employeeId: 42,
+      from: '2026-10-01', to: '2026-10-22',
       cashResponse: cashFixture(),
       ledgerResponse: ledgerFixture(),
     );
@@ -82,6 +88,8 @@ void main() {
     expect(snapshot.mismatches, 1);
     expect(snapshot.unprovenCash, 1);
     expect(snapshot.hasMore, isTrue);
+    expect(snapshot.ledgerHasMore, isTrue);
+    expect(snapshot.ledgerEventPageCount, 1);
     expect(snapshot.accounts.single['closing_debit_minus_credit'], '200.00');
     expect(EmployeeFinanceReviewSnapshot.inr(snapshot.cashBookedPaise), '₹150.00');
   });
@@ -89,7 +97,7 @@ void main() {
   test('Wrong employee, forged finance proof or unsafe page fails closed', () {
     expect(
       () => EmployeeFinanceReviewSnapshot.fromResponses(
-        employeeId: 99, cashResponse: cashFixture(), ledgerResponse: ledgerFixture()),
+        employeeId: 99, from: '2026-10-01', to: '2026-10-22', cashResponse: cashFixture(), ledgerResponse: ledgerFixture()),
       throwsFormatException,
     );
     final forgedLedger = ledgerFixture()..['employee_cash_handover_verified'] = true;
@@ -136,12 +144,45 @@ void main() {
     );
   });
 
+  test('stale financial period, ledger page or forged closure date fail closed', () {
+    EmployeeFinanceReviewSnapshot parse(
+      Map<String, dynamic> cash, Map<String, dynamic> ledger,
+    ) => EmployeeFinanceReviewSnapshot.fromResponses(
+      employeeId: 42, from: '2026-10-01', to: '2026-10-22',
+      cashResponse: cash, ledgerResponse: ledger,
+    );
+
+    final staleCash = cashFixture();
+    (staleCash['period'] as Map)['from'] = '2026-09-01';
+    expect(() => parse(staleCash, ledgerFixture()), throwsFormatException);
+
+    final staleLedger = ledgerFixture();
+    (staleLedger['period'] as Map)['to'] = '2026-09-30';
+    expect(() => parse(cashFixture(), staleLedger), throwsFormatException);
+
+    final wrongLedgerPage = ledgerFixture()..['page'] = 2;
+    expect(() => parse(cashFixture(), wrongLedgerPage), throwsFormatException);
+
+    final wrongLedgerSize = ledgerFixture()..['page_size'] = 10;
+    expect(() => parse(cashFixture(), wrongLedgerSize), throwsFormatException);
+
+    final shiftedClosing = cashFixture();
+    ((shiftedClosing['rows'] as List).first as Map)['business_date'] =
+        '2026-09-30';
+    expect(() => parse(shiftedClosing, ledgerFixture()), throwsFormatException);
+
+    final forgedLedgerPage = ledgerFixture()
+      ..['rows'] = List.generate(26, (n) => {'event_id': n + 1});
+    expect(() => parse(cashFixture(), forgedLedgerPage), throwsFormatException);
+  });
+
   testWidgets('Finance Review renders live-source figures with unverified warnings',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: EmployeeFinanceReviewView(snapshot: validSnapshot())),
     ));
     expect(find.text('Employee Finance Review'), findsOneWidget);
+    expect(find.text('More Person Ledger transactions exist'), findsWidgets);
     expect(find.text('Cash booked · first 25'), findsOneWidget);
     expect(find.text('₹150.00'), findsOneWidget);
     expect(find.text('UPI booked · first 25'), findsOneWidget);
