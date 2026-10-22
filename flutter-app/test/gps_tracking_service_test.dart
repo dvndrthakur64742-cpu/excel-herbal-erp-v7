@@ -14,7 +14,7 @@ class _FakeGpsApi implements GpsApiTransport {
 
   @override
   Future<dynamic> get(String path) async {
-    if (path == ApiPaths.attendanceToday) {
+    if (path == ApiPaths.gpsDuty) {
       return Map<String, dynamic>.from(attendance);
     }
     throw StateError('Unexpected GET $path');
@@ -191,6 +191,16 @@ void main() {
       expect(api.posts, isEmpty);
     });
 
+    test('independent GPS duty can arm without any attendance record', () async {
+      final api = _FakeGpsApi(_attendance('scheduled'));
+      final service = GpsTrackingService.forTest(
+        api: api, location: _FakeLocation());
+      await service.start();
+      expect(service.dutyStatus, 'scheduled');
+      expect(api.posts, isEmpty);
+      service.dispose();
+    });
+
     test('granted permission sends an immediate high-accuracy point', () async {
       final api = _FakeGpsApi(_attendance('active'));
       final location = _FakeLocation();
@@ -273,8 +283,8 @@ void main() {
       expect(service.dutyStatus, 'auto_stopped');
     });
 
-    test('server checked-out state prevents local tracking', () async {
-      final api = _FakeGpsApi(_attendance('checked_out'));
+    test('server leave/holiday state prevents local tracking', () async {
+      final api = _FakeGpsApi(_attendance('not_scheduled'));
       final service = GpsTrackingService.forTest(
         api: api,
         location: _FakeLocation(),
@@ -283,7 +293,7 @@ void main() {
       await service.start();
 
       expect(service.active, isFalse);
-      expect(service.dutyStatus, 'checked_out');
+      expect(service.dutyStatus, 'not_scheduled');
       expect(api.posts, isEmpty);
     });
 

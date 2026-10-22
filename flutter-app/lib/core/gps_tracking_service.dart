@@ -69,14 +69,12 @@ class GpsTrackingService extends ChangeNotifier {
   bool get permissionBlocked => _dutyStatus == 'permission_blocked';
   bool get locationDisabled => _dutyStatus == 'location_disabled';
 
-  /// Synchronises route tracking with the server-owned attendance/GPS policy.
-  /// There is deliberately no user-controlled route start/stop state: an
-  /// active attendance starts tracking at the duty window and checkout/5 PM
-  /// stops it automatically.
+  /// The GPS duty window is independent of manual attendance and payroll.
+  /// Staff cannot manually start or stop it; the server owns the clock and eligibility.
   Future<void> start() async {
     Map<String, dynamic>? attendance;
     try {
-      final data = await _api.get(ApiPaths.attendanceToday);
+      final data = await _api.get(ApiPaths.gpsDuty);
       if (data is Map) attendance = Map<String, dynamic>.from(data);
     } catch (e) {
       _lastError = UiError.message(e);
@@ -86,7 +84,7 @@ class GpsTrackingService extends ChangeNotifier {
     }
 
     if (attendance == null || attendance.isEmpty) {
-      stop(status: 'not_checked_in');
+      stop(status: 'unavailable');
       return;
     }
 
@@ -101,9 +99,8 @@ class GpsTrackingService extends ChangeNotifier {
       case 'scheduled':
         _armForWindow(attendance);
         return;
-      case 'checked_out':
       case 'auto_stopped':
-      case 'not_checked_in':
+      case 'not_scheduled':
         stop(status: status);
         return;
       default:

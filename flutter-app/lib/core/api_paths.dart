@@ -24,6 +24,7 @@ abstract final class ApiPaths {
       checkIn = '/workforce/attendance/check-in',
       checkOut = '/workforce/attendance/check-out',
       attendanceReport = '/workforce/attendance/report',
+      gpsDuty = '/workforce/gps/duty',
       gpsPoints = '/workforce/gps/points',
       gpsRoute = '/workforce/gps/route',
       gpsTeam = '/workforce/gps/team',
