@@ -70,6 +70,15 @@ if (!defined('EH7_SOURCE_HEAD') || !preg_match('/^[a-f0-9]{40}$/', EH7_SOURCE_HE
 if (!class_exists(\ExcelHerbal\ERP7\Core\Plugin::class)) {
     throw new RuntimeException('Existing canonical ERP business engine not bundled.');
 }
+$shell=\ExcelHerbal\ERP8\FrontendShell::html(
+    'https://office.excelherbal.in/wp-content/uploads/eh7-flutter-web/index.html?eh8v=sample');
+if(!str_contains($shell,'<html lang="en">')
+   ||!str_contains($shell,'<title>Excel Herbal ERP V8</title>')
+   ||!str_contains($shell,'title="Excel Herbal ERP V8 Desktop"')
+   ||str_contains($shell,'ERP v7')
+   ||!str_contains($shell,'eh8v=sample')) {
+    throw new RuntimeException('Versioned V8 accessible homepage shell contract failed.');
+}
 if (!\ExcelHerbal\ERP8\BundledPreviewInstaller::canInstall()) {
     throw new RuntimeException('Bundled read-only Flutter V8 preview missing.');
 }

@@ -49,6 +49,7 @@ def build(repo: Path, head: str, staging: Path, output: Path) -> None:
     required = [
         "excel-herbal-erp-v8.php", "build-meta.php",
         "app/SetupCenter.php", "app/BundledPreviewInstaller.php",
+        "app/FrontendShell.php",
         "src/Core/Autoloader.php", "src/Core/Plugin.php",
         "src/Http/Api.php", "src/Administration/UatWebDeployAdmin.php",
         "bundled-web/SHA256SUMS.txt", "bundled-web/main.dart.js",

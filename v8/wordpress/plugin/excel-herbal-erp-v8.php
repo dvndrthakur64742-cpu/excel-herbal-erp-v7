@@ -14,6 +14,7 @@ if (!defined('EHV8_VERSION')) define('EHV8_VERSION', '8.0.0-dev');
 
 require_once EHV8_ROOT . 'app/SetupCenter.php';
 require_once EHV8_ROOT . 'app/BundledPreviewInstaller.php';
+require_once EHV8_ROOT . 'app/FrontendShell.php';
 
 /** Only one implementation may register the same historical ERP7 routes and attendance cron. */
 function ehv8_legacy_core_active(): bool {
@@ -103,6 +104,7 @@ add_action('plugins_loaded', static function (): void {
         }
         \ExcelHerbal\ERP7\Core\Plugin::boot();
         \ExcelHerbal\ERP8\SetupCenter::boot();
+        \ExcelHerbal\ERP8\FrontendShell::boot();
     } catch (\Throwable $error) {
         add_action('admin_notices', static function () use ($error): void {
             if (current_user_can('manage_options')) {
