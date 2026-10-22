@@ -771,9 +771,19 @@ try{
             $pdo->prepare('UPDATE wp_eh7_b2b_retailer_sale_lines SET quantity_pcs=2 WHERE id=?')
                 ->execute([$b2bLineId]);
         }
+        $databaseDeniedSelfReview=false;
+        try {
+            $pdo->prepare('UPDATE v8_b2b_cross_source_reference_evidence_uat
+                SET reviewer_user_id=witness_user_id WHERE id=?')
+                ->execute([$proofId]);
+        } catch(\PDOException $e) {
+            $databaseDeniedSelfReview=true;
+        }
+        checkUat($databaseDeniedSelfReview,
+            'MariaDB witness/reviewer CHECK blocks self-attestation even before HMAC review');
         try {
             $wrongReviewer=$proof;
-            $wrongReviewer['reviewer_user_id']=$wrongReviewer['witness_user_id'];
+            $wrongReviewer['reviewer_user_id']=8011;
             $newSignature=\ExcelHerbal\ERP8\B2B\V7CrossSourceReferenceReviewUat::signature(
                 $wrongReviewer,$referenceKey);
             $pdo->prepare('UPDATE v8_b2b_cross_source_reference_evidence_uat
@@ -783,7 +793,7 @@ try{
             try{$reviewSource($dailyCycleId,$fieldSale['sale_id'],
                 $reviewAccess,$resolveReferenceKey);}
             catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$selfApproved=true;}
-            checkUat($selfApproved,'even a valid HMAC cannot grant same-person witness and review');
+            checkUat($selfApproved,'even a valid HMAC cannot substitute another independently signed reviewer identity');
         } finally {
             $pdo->prepare('UPDATE v8_b2b_cross_source_reference_evidence_uat
                 SET reviewer_user_id=?,proof_signature=? WHERE id=?')

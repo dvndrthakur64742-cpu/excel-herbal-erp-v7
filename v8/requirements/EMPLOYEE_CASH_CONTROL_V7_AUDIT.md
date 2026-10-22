@@ -208,5 +208,6 @@ WordPress write endpoint has been performed.
 
 Real disposable MariaDB UAT includes a signed original-reference fixture,
 missing evidence, wrong server signing key, altered receipt, 0.01 legacy line
-corruption, cross-cycle stock issue, changed product quantity, valid-HMAC
-self-review and restored records. All test data is synthetic.
+corruption, cross-cycle stock issue, changed product quantity, database
+CHECK rejection of self-review, valid-HMAC substitution of a different
+reviewer, and restored records. All test data is synthetic.
