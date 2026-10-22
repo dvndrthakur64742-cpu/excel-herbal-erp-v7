@@ -47,7 +47,7 @@ void main() {
     expect(policy, contains("public const START='10:30:00'"));
     expect(policy, contains("public const STOP='17:00:00'"));
     expect(policy, contains("'manual_start_allowed'=>false"));
-    expect(policy, isNot(contains("if(!$checkedIn)")));
+    expect(policy, isNot(contains(r"if(!$checkedIn)")));
     final tracker = File('lib/core/gps_tracking_service.dart').readAsStringSync();
     expect(tracker, contains('ApiPaths.gpsDuty'));
     expect(tracker, isNot(contains('_api.get(ApiPaths.attendanceToday)')));
