@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/preview_read_only_policy.dart';
 import '../../core/date_time_text.dart';
 import '../../core/business_format.dart';
 import '../../core/daily_order_math.dart';
@@ -41,6 +42,7 @@ class MyWorkScreen extends ConsumerStatefulWidget {
 
 class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   int refresh = 0;
+  bool attendanceBusy = false;
   String? message;
   bool _handledInitialAction = false;
   bool _dailyOrderOpening = false;

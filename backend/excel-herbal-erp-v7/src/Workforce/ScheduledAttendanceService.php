@@ -4,7 +4,7 @@ namespace ExcelHerbal\ERP7\Workforce;
 use ExcelHerbal\ERP7\Database\Db;
 
 /**
- * Best-effort WordPress-Cron materialization of the server-owned duty window.
+ * Best-effort 8 PM auto-closure of self-checked-in attendance; GPS duty is separate.
  *
  * WordPress-Cron runs when the site receives traffic; production should also
  * invoke wp-cron.php from the host scheduler for dependable timing.
@@ -28,83 +28,23 @@ final class ScheduledAttendanceService {
     public static function cronSchedules(array $schedules): array {
         $schedules[self::INTERVAL] = [
             'interval' => 300,
-            'display' => 'Every five minutes (Excel Herbal ERP duty schedule)',
+            'display' => 'Every five minutes (Excel Herbal ERP attendance closure)',
         ];
         return $schedules;
     }
 
     public static function run(): void {
-        $localTime = current_time('H:i:s');
-        if ($localTime < GpsDutyPolicy::START) {
-            return;
-        }
-
+        // Only close TODAY's attendance that employees themselves opened.
+        // No automatic check-in, no backdating, no historical repair and no GPS modification.
+        if (!AttendancePolicy::autoCheckOutDue(current_time('H:i:s'))) return;
         $db = Db::wpdb();
-        $date = Db::today();
-        $startUtc = get_gmt_from_date($date . ' ' . GpsDutyPolicy::START);
-        $stopUtc = get_gmt_from_date($date . ' ' . GpsDutyPolicy::STOP);
-        $attendance = Db::table('attendance');
-        $employees = Db::table('employees');
-        $branches = Db::table('branches');
-        $leave = Db::table('leave_requests');
-        $holidays = Db::table('holidays');
-
-        // Approved leave and branch/global holidays are excluded.
-        $rows = $db->get_results($db->prepare(
-            "SELECT e.company_id,e.id employee_id,e.assigned_branch_id branch_id
-             FROM {$employees} e
-             JOIN {$branches} b ON b.id=e.assigned_branch_id
-                 AND b.company_id=e.company_id AND b.status='active'
-             WHERE e.status='active'
-               AND NOT EXISTS (
-                   SELECT 1 FROM {$leave} l
-                   WHERE l.company_id=e.company_id AND l.employee_id=e.id
-                     AND l.status='approved' AND l.date_from<=%s AND l.date_to>=%s
-               )
-               AND NOT EXISTS (
-                   SELECT 1 FROM {$holidays} h
-                   WHERE h.company_id=e.company_id AND h.active=1
-                     AND (h.branch_id IS NULL OR h.branch_id=e.assigned_branch_id)
-                     AND h.holiday_date=%s
-               )
-             ORDER BY e.company_id,e.id",
-            $date, $date, $date
-        ), ARRAY_A);
-
-        foreach ((array)$rows as $row) {
-            $companyId = (int)$row['company_id'];
-            $employeeId = (int)$row['employee_id'];
-            $branchId = (int)$row['branch_id'];
-
-            Db::mustQuery($db, $db->prepare(
-                "INSERT INTO {$attendance}
-                    (company_id,branch_id,employee_id,business_date,status,check_in_at,created_at)
-                 VALUES (%d,%d,%d,%s,'present',%s,%s)
-                 ON DUPLICATE KEY UPDATE id=id",
-                $companyId, $branchId, $employeeId, $date, $startUtc, Db::now()
-            ));
-
-            Db::mustUpdate($db, $attendance, [
-                'branch_id' => $branchId,
-                'check_in_at' => $startUtc,
-                'status' => 'present',
-            ], [
-                'company_id' => $companyId,
-                'employee_id' => $employeeId,
-                'business_date' => $date,
-                'check_in_at' => null,
-            ]);
-
-            if ($localTime >= GpsDutyPolicy::STOP) {
-                Db::mustUpdate($db, $attendance, [
-                    'check_out_at' => $stopUtc,
-                ], [
-                    'company_id' => $companyId,
-                    'employee_id' => $employeeId,
-                    'business_date' => $date,
-                    'check_out_at' => null,
-                ]);
-            }
-        }
+        $today = Db::today();
+        $stopUtc = get_gmt_from_date($today . ' ' . AttendancePolicy::AUTO_CHECK_OUT);
+        $table = Db::table('attendance');
+        Db::mustQuery($db, $db->prepare(
+            "UPDATE {$table} SET check_out_at=%s
+             WHERE business_date=%s AND check_in_at IS NOT NULL AND check_out_at IS NULL",
+            $stopUtc, $today
+        ));
     }
 }

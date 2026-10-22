@@ -12,10 +12,74 @@ use ExcelHerbal\ERP7\Security\HierarchyScope;
 use ExcelHerbal\ERP7\Recovery\GpsPointValidator;
 
 final class WorkforceService{
- public static function attendanceToday(Actor $a):?array{Guard::cap($a,Capabilities::ATT_SELF);self::ensureScheduledAttendance($a);$db=Db::wpdb();$r=$db->get_row($db->prepare("SELECT * FROM ".Db::table('attendance')." WHERE company_id=%d AND employee_id=%d AND business_date=%s",$a->companyId,$a->employeeId,Db::today()),ARRAY_A);if(!$r)return null;$r=array_merge($r,GpsDutyPolicy::state($r));$r['latest_gps_at']=$db->get_var($db->prepare("SELECT recorded_at FROM ".Db::table('gps_points')." WHERE company_id=%d AND employee_id=%d AND attendance_id=%d ORDER BY recorded_at DESC,id DESC LIMIT 1",$a->companyId,$a->employeeId,(int)$r['id']));return$r;}
- private static function ensureScheduledAttendance(Actor $a):void{$branch=(int)($a->assignedBranchId??0);if($branch<1||!$a->hasBranch($branch))return;$date=Db::today();$localTime=current_time('H:i:s');if($localTime<GpsDutyPolicy::START)return;$db=Db::wpdb();$leaveCount=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('leave_requests')." WHERE company_id=%d AND employee_id=%d AND status='approved' AND date_from<=%s AND date_to>=%s",$a->companyId,$a->employeeId,$date,$date));$holidayCount=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('holidays')." WHERE company_id=%d AND active=1 AND (branch_id IS NULL OR branch_id=%d) AND holiday_date=%s",$a->companyId,$branch,$date));if($leaveCount>0||$holidayCount>0)return;$t=Db::table('attendance');$startUtc=get_gmt_from_date($date.' '.GpsDutyPolicy::START);$stopUtc=get_gmt_from_date($date.' '.GpsDutyPolicy::STOP);Db::mustQuery($db,$db->prepare("INSERT INTO {$t}(company_id,branch_id,employee_id,business_date,status,check_in_at,created_at) VALUES(%d,%d,%d,%s,'present',%s,%s) ON DUPLICATE KEY UPDATE id=id",$a->companyId,$branch,$a->employeeId,$date,$startUtc,Db::now()));Db::mustUpdate($db,$t,['branch_id'=>$branch,'check_in_at'=>$startUtc,'status'=>'present'],['company_id'=>$a->companyId,'employee_id'=>$a->employeeId,'business_date'=>$date,'check_in_at'=>null]);if($localTime>=GpsDutyPolicy::STOP){Db::mustUpdate($db,$t,['check_out_at'=>$stopUtc],['company_id'=>$a->companyId,'employee_id'=>$a->employeeId,'business_date'=>$date,'check_out_at'=>null]);}}
- public static function checkIn(Actor $a,int $branch,?float $lat,?float $lng):array{throw new DomainException('Duty is automatic from 10:30 AM to 5:00 PM. Manual check-in is disabled.','attendance_manual_disabled',403);}
- public static function checkOut(Actor $a,?float $lat,?float $lng):array{throw new DomainException('Duty is automatic from 10:30 AM to 5:00 PM. Manual check-out is disabled.','attendance_manual_disabled',403);}
+ public static function attendanceToday(Actor $a):?array {
+  Guard::cap($a,Capabilities::ATT_SELF);
+  $db=Db::wpdb();
+  $r=$db->get_row($db->prepare(
+    "SELECT * FROM ".Db::table('attendance')." WHERE company_id=%d AND employee_id=%d AND business_date=%s",
+    $a->companyId,$a->employeeId,Db::today()),ARRAY_A);
+  if(!$r)return null; // A missing record MUST NOT be auto-created by a GET.
+  $r=array_merge($r,GpsDutyPolicy::state($r));
+  $r['latest_gps_at']=$db->get_var($db->prepare(
+    "SELECT recorded_at FROM ".Db::table('gps_points')." WHERE company_id=%d AND employee_id=%d AND attendance_id=%d ORDER BY recorded_at DESC,id DESC LIMIT 1",
+    $a->companyId,$a->employeeId,(int)$r['id']));
+  return $r;
+ }
+ /** Attendance is self-service; GPS has its own automatic 10:30–17:00 duty window. */
+ public static function checkIn(Actor $a,int $branch,?float $lat,?float $lng):array {
+  Guard::cap($a,Capabilities::ATT_SELF);
+  if($branch<1||$branch!==$a->assignedBranchId||!$a->hasBranch($branch))
+   throw new DomainException('Check-in requires your currently assigned branch.','attendance_branch_forbidden',403);
+  AttendancePolicy::assertCheckInTime(current_time('H:i:s'));
+  [$lat,$lng]=self::gpsPair($lat,$lng);
+  return Transaction::run(function()use($a,$branch,$lat,$lng) {
+   $db=Db::wpdb();$date=Db::today();$table=Db::table('attendance');
+   $employee=$db->get_row($db->prepare(
+     "SELECT id FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d AND assigned_branch_id=%d AND status='active' LIMIT 1",
+     $a->employeeId,$a->companyId,$branch),ARRAY_A);
+   if(!$employee)throw new DomainException('Only an active employee may check in to their assigned branch.','attendance_employee_inactive',403);
+   $leave=(int)$db->get_var($db->prepare(
+     "SELECT COUNT(*) FROM ".Db::table('leave_requests')." WHERE company_id=%d AND employee_id=%d AND status='approved' AND date_from<=%s AND date_to>=%s",
+     $a->companyId,$a->employeeId,$date,$date));
+   $holiday=(int)$db->get_var($db->prepare(
+     "SELECT COUNT(*) FROM ".Db::table('holidays')." WHERE company_id=%d AND active=1 AND (branch_id IS NULL OR branch_id=%d) AND holiday_date=%s",
+     $a->companyId,$branch,$date));
+   if($leave||$holiday)throw new DomainException('Check-in is blocked for an approved leave or holiday.','attendance_on_leave',409);
+   $existing=$db->get_row($db->prepare(
+     "SELECT id FROM {$table} WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",
+     $a->companyId,$a->employeeId,$date),ARRAY_A);
+   if($existing)throw new DomainException('Attendance is already recorded for today.','attendance_already_checked_in',409);
+   Db::mustInsert($db,$table,[
+    'company_id'=>$a->companyId,'branch_id'=>$branch,'employee_id'=>$a->employeeId,
+    'business_date'=>$date,'status'=>'present','check_in_at'=>Db::now(),
+    'check_in_lat'=>$lat,'check_in_lng'=>$lng,'created_at'=>Db::now()
+   ],'Attendance is already recorded for today.','attendance_already_checked_in');
+   $id=(int)$db->insert_id;
+   Audit::add($a,'attendance.self_check_in','attendance',$id,['branch_id'=>$branch,'business_date'=>$date]);
+   return ['id'=>$id,'status'=>'present','check_in_at'=>Db::now()];
+  });
+ }
+ public static function checkOut(Actor $a,?float $lat,?float $lng):array {
+  Guard::cap($a,Capabilities::ATT_SELF);
+  AttendancePolicy::assertCheckOutTime(current_time('H:i:s'));
+  [$lat,$lng]=self::gpsPair($lat,$lng);
+  return Transaction::run(function()use($a,$lat,$lng) {
+   $db=Db::wpdb();$date=Db::today();$table=Db::table('attendance');
+   $r=$db->get_row($db->prepare(
+     "SELECT id,branch_id,check_in_at,check_out_at FROM {$table} WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",
+     $a->companyId,$a->employeeId,$date),ARRAY_A);
+   if(!$r||empty($r['check_in_at']))throw new DomainException('Self check-in is required before check-out.','attendance_checkin_required',409);
+   if(!empty($r['check_out_at']))throw new DomainException('You have already checked out.','attendance_already_checked_out',409);
+   $instant=Db::now();
+   $changed=Db::mustUpdate($db,$table,[
+     'check_out_at'=>$instant,'check_out_lat'=>$lat,'check_out_lng'=>$lng,
+   ],['id'=>(int)$r['id'],'company_id'=>$a->companyId,'employee_id'=>$a->employeeId,'check_out_at'=>null]);
+   if($changed!==1)throw new DomainException('Attendance changed while checking out. Retry.','attendance_checkout_conflict',409);
+   Audit::add($a,'attendance.self_check_out','attendance',(int)$r['id'],
+     ['branch_id'=>(int)$r['branch_id'],'business_date'=>$date]);
+   return ['id'=>(int)$r['id'],'status'=>'present','check_out_at'=>$instant];
+  });
+ }
  public static function attendanceReport(Actor $a,int $branch,string $from,string $to):array{Guard::branch($a,$branch,Capabilities::ATT_MANAGE);$ids=HierarchyScope::visibleEmployeeIds($a,$branch);if(!$ids)return[];[$from,$to]=Input::dateRange($from,$to,'Attendance period');$visible=implode(',',array_map('intval',$ids));return(array)Db::wpdb()->get_results(Db::wpdb()->prepare("SELECT a.*,e.employee_code,e.full_name FROM ".Db::table('attendance')." a JOIN ".Db::table('employees')." e ON e.id=a.employee_id WHERE a.company_id=%d AND a.branch_id=%d AND a.employee_id IN ({$visible}) AND a.business_date BETWEEN %s AND %s ORDER BY a.business_date DESC,e.full_name",$a->companyId,$branch,$from,$to),ARRAY_A);}
  public static function currentVisit(Actor $a):?array{Guard::cap($a,Capabilities::FIELD_SELF);$db=Db::wpdb();$r=$db->get_row($db->prepare("SELECT * FROM ".Db::table('field_visits')." WHERE company_id=%d AND employee_id=%d AND status='in_progress' ORDER BY id DESC LIMIT 1",$a->companyId,$a->employeeId),ARRAY_A);return$r?:null;}
  public static function startVisit(Actor $a,int $branch,?int $party,string $purpose,?float $lat,?float $lng):array{[$lat,$lng]=self::gpsPair($lat,$lng);$purpose=trim($purpose);if($purpose===''||strlen($purpose)>255)throw new DomainException('Field Visit purpose is required and must be 255 characters or fewer.','field_visit_purpose_invalid',422);Guard::branch($a,$branch,Capabilities::FIELD_SELF);return Transaction::run(function()use($a,$branch,$party,$purpose,$lat,$lng){$db=Db::wpdb();if($party){$valid=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('parties')." WHERE id=%d AND company_id=%d AND branch_id=%d AND status='active'",$party,$a->companyId,$branch));if(!$valid)throw new DomainException('Selected party is not active in this branch.','field_visit_party_invalid',422);}$t=Db::table('field_visits');$open=$db->get_row($db->prepare("SELECT id FROM {$t} WHERE company_id=%d AND employee_id=%d AND status='in_progress' ORDER BY id DESC LIMIT 1 FOR UPDATE",$a->companyId,$a->employeeId),ARRAY_A);if($open)throw new DomainException('Complete current Field Visit first.','field_visit_open',409);Db::mustInsert($db,$t,['company_id'=>$a->companyId,'branch_id'=>$branch,'employee_id'=>$a->employeeId,'party_id'=>$party,'purpose'=>$purpose,'status'=>'in_progress','start_lat'=>$lat,'start_lng'=>$lng,'started_at'=>Db::now()]);$id=(int)$db->insert_id;Audit::add($a,'field_visit.start','field_visit',$id,['branch_id'=>$branch]);return['id'=>$id,'status'=>'in_progress'];});}

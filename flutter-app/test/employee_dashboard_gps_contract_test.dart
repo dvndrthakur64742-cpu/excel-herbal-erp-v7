@@ -62,7 +62,9 @@ void main() {
     ).readAsStringSync();
     final screen = File('lib/screens/my_work/my_work_attendance.dart').readAsStringSync();
 
-    expect(backend, contains('private static function ensureScheduledAttendance'));
+    expect(backend, contains('AttendancePolicy::assertCheckInTime'));
+    expect(backend, contains('AttendancePolicy::assertCheckOutTime'));
+    expect(backend, isNot(contains('ensureScheduledAttendance')));
     final scheduler = File(
       '../backend/excel-herbal-erp-v7/src/Workforce/ScheduledAttendanceService.php',
     ).readAsStringSync();
@@ -71,21 +73,25 @@ void main() {
     ).readAsStringSync();
     expect(scheduler, contains("public const HOOK = 'eh7_scheduled_attendance_tick'")); 
     expect(scheduler, contains("'interval' => 300"));
-    expect(scheduler, contains("NOT EXISTS"));
+    expect(scheduler, contains('AttendancePolicy::autoCheckOutDue'));
+    expect(scheduler, contains('AttendancePolicy::AUTO_CHECK_OUT'));
+    expect(scheduler, contains('check_in_at IS NOT NULL AND check_out_at IS NULL'));
+    expect(scheduler, isNot(contains('INSERT INTO')));
+    expect(scheduler, isNot(contains('GpsDutyPolicy::STOP')));
     expect(scheduler, contains("check_out_at"));
     expect(plugin, contains('ScheduledAttendanceService::boot()'));
 
-    expect(backend, contains("'attendance_manual_disabled',403"));
+    final policy = File('../backend/excel-herbal-erp-v7/src/Workforce/AttendancePolicy.php').readAsStringSync();
     expect(backend, contains("current_time('H:i:s')"));
-    expect(backend, contains('get_gmt_from_date'));
-    expect(backend, contains('GpsDutyPolicy::START'));
-    expect(backend, contains('GpsDutyPolicy::STOP'));
-    expect(screen, contains('Duty automatically starts at 10:30 AM'));
-    expect(screen, contains('Duty is automatic · 10:30 AM–5:00 PM'));
-    expect(screen, isNot(contains("Text('Check-In')")));
-    expect(screen, isNot(contains("Text('Check-Out')")));
-    expect(screen, isNot(contains('_attendanceAction(true)')));
-    expect(screen, isNot(contains('_attendanceAction(false)')));
+    expect(policy, contains("SELF_CHECK_IN_START = '09:00:00'"));
+    expect(policy, contains("SELF_CHECK_OUT_START = '18:00:00'"));
+    expect(policy, contains("AUTO_CHECK_OUT = '20:00:00'"));
+    expect(screen, contains("Text('Self Check-In')"));
+    expect(screen, contains("Text('Self Check-Out')"));
+    expect(screen, contains('PreviewReadOnlyPolicy.enabled'));
+    expect(screen, contains('GPS Duty: automatic 10:30 AM–5 PM'));
+    expect(screen, isNot(contains('manual duty toggle')));
+    expect(scheduler, isNot(contains('GpsDutyPolicy::START')));
   });
 
   test('route widget overlays recorded points on attributed OpenStreetMap road tiles', () {
