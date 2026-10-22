@@ -49,8 +49,14 @@ namespace {
             $this->calls[]=[$c,$e,$f,$t,$b,$limit,$offset];return $this->rows;
         }
     }
-    function row(int $id,int $branch=2,string $cash='120.25',string $upi='20.00',string $total='140.25',string $glCash='120.25',string $glUpi='20.00',int $journals=1):array{
-       return ['daily_cycle_id'=>$id,'branch_id'=>$branch,'business_date'=>'2026-10-19','cash_amount'=>$cash,'upi_amount'=>$upi,'expected_amount'=>$total,'gl_cash_debit'=>$glCash,'gl_upi_debit'=>$glUpi,'journal_count'=>$journals];
+    function row(int $id,int $branch=2,string $cash='120.25',string $upi='20.00',string $total='140.25',string $glCash='120.25',string $glUpi='20.00',int $journals=1,array $override=[]):array{
+       $base=['daily_cycle_id'=>$id,'branch_id'=>$branch,'business_date'=>'2026-10-19',
+           'cash_amount'=>$cash,'upi_amount'=>$upi,'expected_amount'=>$total,
+           'gl_cash_debit'=>$glCash,'gl_upi_debit'=>$glUpi,'gl_cash_credit'=>'0.00',
+           'gl_upi_credit'=>'0.00','gl_sales_credit'=>$total,
+           'gl_total_debit'=>number_format((float)$glCash+(float)$glUpi,2,'.',''),
+           'gl_total_credit'=>$total,'gl_orphan_account_lines'=>0,'journal_count'=>$journals];
+       return array_replace($base,$override);
     }
     $self=new Actor(12,7,1,2,[2],[Capabilities::ACCOUNTING_VIEW],'FSE');
     $m=new Actor(33,2,1,2,[2],[Capabilities::ACCOUNTING_VIEW,Capabilities::EMP_VIEW],'BM');
@@ -60,7 +66,9 @@ namespace {
     ok($out['read_only']===true,'read-only cash control');
     ok($out['has_more']&&count($out['rows'])===2,'pagination sentinel');
     ok($fake->calls[0] === [1,7,'2026-10-01','2026-10-19',[],3,0],'self all historical branches');
-    ok($out['rows'][0]['journal_check']==='journal_amounts_match','cash and upi journal matched');
+    ok($out['rows'][0]['journal_check']==='journal_amounts_match','cash, UPI, sales and full GL matched');
+    ok($out['rows'][0]['journal_balanced']===true&&$out['rows'][0]['journal_sales_credit_reconcile']===true,
+       'GL debit/credit and SALES credit explicitly validated');
     ok($out['rows'][0]['cash_remittance_proof']==='not_evidenced_in_legacy_v7','no invented cash remittance confirmation');
     ok($out['rows'][0]['legacy_direct_branch_cash_posting']===true,'legacy branch journal disclosed');
     ok($out['rows'][1]['cash_remittance_proof']==='not_applicable','no cash custody if cash is zero');
@@ -79,6 +87,31 @@ namespace {
     $fake->rows=[row(14,2,'120.25','0.00','120.25','120.25','0.00',2)];
     $dup=EmployeeCashControl::view($self,7,'2026-10-01','2026-10-19',1,50,$fake,$profile);
     ok($dup['rows'][0]['journal_check']==='duplicate_journal','duplicate journal flagged');
+    $fake->rows=[row(15,2,'120.25','20.00','140.25','120.25','20.00',1,
+        ['gl_cash_credit'=>'1.00','gl_total_debit'=>'141.25','gl_total_credit'=>'141.25'])];
+    $reverse=EmployeeCashControl::view($self,7,'2026-10-01','2026-10-19',1,50,$fake,$profile);
+    ok($reverse['rows'][0]['journal_check']==='journal_amount_mismatch'
+        &&$reverse['rows'][0]['journal_cash_upi_reconcile']===false
+        &&$reverse['rows'][0]['journal_balanced']===true,
+        'unexpected Cash credit is rejected even when overall GL remains balanced');
+    $fake->rows=[row(16,2,'120.25','20.00','140.25','120.25','20.00',1,
+        ['gl_sales_credit'=>'139.25'])];
+    $salesShort=EmployeeCashControl::view($self,7,'2026-10-01','2026-10-19',1,50,$fake,$profile);
+    ok($salesShort['rows'][0]['journal_check']==='journal_amount_mismatch'
+        &&$salesShort['rows'][0]['journal_sales_credit_reconcile']===false,
+        'understated SALES credit fails even if Cash/UPI and gross journal totals match');
+    $fake->rows=[row(17,2,'120.25','20.00','140.25','120.25','20.00',1,
+        ['gl_total_credit'=>'140.24'])];
+    $unbalanced=EmployeeCashControl::view($self,7,'2026-10-01','2026-10-19',1,50,$fake,$profile);
+    ok($unbalanced['rows'][0]['journal_check']==='journal_amount_mismatch'
+        &&$unbalanced['rows'][0]['journal_balanced']===false,
+        'one-paisa GL imbalance fails despite matching payment debit accounts');
+    $fake->rows=[row(18,2,'120.25','20.00','140.25','120.25','20.00',1,
+        ['gl_orphan_account_lines'=>1])];
+    $orphan=EmployeeCashControl::view($self,7,'2026-10-01','2026-10-19',1,50,$fake,$profile);
+    ok($orphan['rows'][0]['journal_check']==='journal_amount_mismatch'
+        &&$orphan['rows'][0]['journal_orphan_account_lines']===1,
+        'orphan/foreign-company GL account blocks clean reconciliation');
     $noFinance=new Actor(11,7,1,2,[2],[],'FSE');
     $fake->calls=[];
     deny(fn()=>EmployeeCashControl::view($noFinance,7,'2026-10-01','2026-10-19',1,50,$fake,$profile),'permission_denied');
@@ -119,6 +152,14 @@ namespace {
     ok(str_contains($sql,"je.source_type='daily_cycle'")&&str_contains($sql,"je.status='posted'"),'posted journal source only');
     ok(str_contains($sql,'COUNT(DISTINCT je.id)'),'duplicate journal count');
     ok(str_contains($sql,'LOWER(a.subtype)'),'cash/upi account type classification');
+    ok(str_contains($sql,"a.code='SALES' AND a.type='income'"),
+       'sales credit is tied to canonical income SALES account');
+    ok(str_contains($sql,'SUM(jl.debit)')&&str_contains($sql,'SUM(jl.credit)')
+        &&str_contains($sql,'gl_cash_credit')&&str_contains($sql,'gl_upi_credit'),
+       'full posted GL and reverse payment legs are also reconciled');
+    ok(str_contains($sql,'LEFT JOIN wp_eh7_accounts')
+        &&str_contains($sql,'gl_orphan_account_lines'),
+       'foreign or missing account reference cannot be silently excluded from GL totals');
     ok(str_contains($sql,'GROUP BY je.company_id,je.branch_id,je.source_id'),
        'GL source grouped by company branch and daily cycle');
     ok(str_contains($sql,'j.branch_id=c.branch_id'),

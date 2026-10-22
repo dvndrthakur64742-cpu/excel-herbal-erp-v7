@@ -571,6 +571,68 @@ try {
         $db->prepare("UPDATE wp_eh7_evening_settlements SET status='submitted' WHERE id=?")->execute([$eveningId]);
         $pendingReconcile=$reader->reconciliation($company,$employee,'2026-10-20','2026-10-20',[$branch],25,0);
         $assert($pendingReconcile[0]['settlement_status']==='submitted','unposted closing source remains visible as pending');
+        // Real disposable V7 accounting mutation: a separate completed
+        // employee cycle with one balanced Cash/UPI/SALES journal, no fake proof.
+        $cashCycle=$cycle($company,$branch,$employee,'2026-10-18');
+        $db->prepare("UPDATE wp_eh7_daily_cycles SET status='completed' WHERE id=?")
+           ->execute([$cashCycle]);
+        $db->prepare("INSERT INTO wp_eh7_evening_settlements
+          (daily_cycle_id,status,expected_amount,cash_amount,upi_amount,created_at)
+          VALUES(?,'posted',300.00,100.00,200.00,'2026-10-18 12:00:00')")
+           ->execute([$cashCycle]);
+        $cashCoa=[];
+        $newAccount=$db->prepare("INSERT INTO wp_eh7_accounts
+          (company_id,code,name,type,subtype,active) VALUES(?,?,?,?,?,1)");
+        foreach([
+            'BR_CASH'=>['asset','cash'],
+            'BR_UPI'=>['asset','upi'],
+            'SALES'=>['income',null],
+        ] as $code=>[$type,$subtype]){
+            $newAccount->execute([$company,$code,'Synthetic '.$code,$type,$subtype]);
+            $cashCoa[$code]=(int)$db->lastInsertId();
+        }
+        $journal->execute([$company,$branch,'CASH-UAT-'.$cashCycle,
+            '2026-10-18 18:00:00','daily_cycle',$cashCycle,$employee]);
+        $cashJournal=(int)$db->lastInsertId();
+        $gl->execute([$cashJournal,$cashCoa['BR_CASH'],100,0,$employee]);
+        $cashLine=(int)$db->lastInsertId();
+        $gl->execute([$cashJournal,$cashCoa['BR_UPI'],200,0,$employee]);
+        $gl->execute([$cashJournal,$cashCoa['SALES'],0,300,$employee]);
+        $salesLine=(int)$db->lastInsertId();
+        $checkCash=static function()use($cashReader,$company,$employee,$branch,$cashCycle):array{
+            $rows=$cashReader->posted($company,$employee,'2026-10-18','2026-10-18',[$branch],5,0);
+            $matched=array_values(array_filter($rows,static fn($r)=>(int)$r['daily_cycle_id']===$cashCycle));
+            if(count($matched)!==1)throw new RuntimeException('Missing isolated Cash Control cycle');
+            return $matched[0];
+        };
+        $baseline=$checkCash();
+        $assert((int)$baseline['journal_count']===1
+            &&(float)$baseline['gl_cash_debit']===100.0
+            &&(float)$baseline['gl_upi_debit']===200.0
+            &&(float)$baseline['gl_sales_credit']===300.0
+            &&(float)$baseline['gl_total_debit']===(float)$baseline['gl_total_credit']
+            &&(int)$baseline['gl_orphan_account_lines']===0,
+            'actual MariaDB balanced Cash/UPI/SALES journal has all canonical legs');
+        $db->exec('SAVEPOINT reverseCashCredit');
+        $db->prepare('UPDATE wp_eh7_journal_lines SET credit=1.00 WHERE id=?')
+           ->execute([$cashLine]);
+        $bad=$checkCash();
+        $assert((float)$bad['gl_cash_debit']===100.0
+            &&(float)$bad['gl_cash_credit']===1.0
+            &&(float)$bad['gl_total_debit']!==(float)$bad['gl_total_credit'],
+            'real MariaDB rejects reverse Cash credit hidden behind correct Cash debit');
+        $db->exec('ROLLBACK TO SAVEPOINT reverseCashCredit');
+        $db->exec('SAVEPOINT missingSalesCredit');
+        $db->prepare('UPDATE wp_eh7_journal_lines SET credit=299.99 WHERE id=?')
+           ->execute([$salesLine]);
+        $bad=$checkCash();
+        $assert((float)$bad['gl_cash_debit']===100.0
+            &&(float)$bad['gl_upi_debit']===200.0
+            &&(float)$bad['gl_sales_credit']===299.99,
+            'real MariaDB detects understated SALES credit despite correct tender debit');
+        $db->exec('ROLLBACK TO SAVEPOINT missingSalesCredit');
+        $assert((float)$checkCash()['gl_sales_credit']===300.0,
+            'MariaDB savepoint restores original balanced journal before final rollback');
         echo "EMPLOYEE 360 STOCK REQUEST AND DAILY RECONCILIATION REAL MARIADB: {$checks}/{$checks} PASS; v8_test only\n";
     } finally {
         if($db->inTransaction())$db->rollBack();

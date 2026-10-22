@@ -11,7 +11,7 @@ use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Capabilities;
 
 interface EmployeeCashControlReader {
-    /** Returns a page of one row per posted daily cycle with journal cash/UPI debit totals. */
+    /** Returns canonical posted-cycle Cash/UPI and complete GL debit/credit reconciliation. */
     public function posted(int $company,int $employee,string $from,string $to,array $branches,int $limit,int $offset):array;
 }
 
@@ -44,10 +44,20 @@ final class EmployeeCashControl {
             $reportedUpi=self::paise($item['upi_amount']??null);
             $glCash=self::paise($item['gl_cash_debit']??null);
             $glUpi=self::paise($item['gl_upi_debit']??null);
+            $glCashCredit=self::paise($item['gl_cash_credit']??null);
+            $glUpiCredit=self::paise($item['gl_upi_credit']??null);
+            $glSalesCredit=self::paise($item['gl_sales_credit']??null);
+            $glTotalDr=self::paise($item['gl_total_debit']??null);
+            $glTotalCr=self::paise($item['gl_total_credit']??null);
+            $orphanAccounts=$item['gl_orphan_account_lines']??null;
             $journals=$item['journal_count']??null;
-            if(!is_int($journals)||$journals<0||$journals>100||$expected!==$reportedCash+$reportedUpi)
+            if(!is_int($journals)||$journals<0||$journals>100
+                ||!is_int($orphanAccounts)||$orphanAccounts<0||$orphanAccounts>100
+                ||$expected!==$reportedCash+$reportedUpi)
                 throw new DomainException('Posted settlement totals are inconsistent.','cash_control_corrupt',500);
-            $postingOk=$journals===1&&$reportedCash===$glCash&&$reportedUpi===$glUpi;
+            $postingOk=$journals===1&&$reportedCash===$glCash&&$reportedUpi===$glUpi
+                &&$glCashCredit===0&&$glUpiCredit===0&&$glSalesCredit===$expected
+                &&$glTotalDr===$glTotalCr&&$orphanAccounts===0;
             $status=$journals===0?'missing_journal':($journals!==1?'duplicate_journal':($postingOk?'journal_amounts_match':'journal_amount_mismatch'));
             if(!$postingOk)$mismatched++;
             if($reportedCash>0)$unproven++;
@@ -59,6 +69,14 @@ final class EmployeeCashControl {
                 'business_date'=>$item['business_date'],
                 'sale_total_paise'=>$expected,'reported_cash_paise'=>$reportedCash,'reported_upi_paise'=>$reportedUpi,
                 'journal_cash_debit_paise'=>$glCash,'journal_upi_debit_paise'=>$glUpi,
+                'journal_cash_credit_paise'=>$glCashCredit,'journal_upi_credit_paise'=>$glUpiCredit,
+                'journal_sales_credit_paise'=>$glSalesCredit,
+                'journal_total_debit_paise'=>$glTotalDr,'journal_total_credit_paise'=>$glTotalCr,
+                'journal_orphan_account_lines'=>$orphanAccounts,
+                'journal_cash_upi_reconcile'=>$reportedCash===$glCash&&$reportedUpi===$glUpi
+                    &&$glCashCredit===0&&$glUpiCredit===0,
+                'journal_sales_credit_reconcile'=>$glSalesCredit===$expected,
+                'journal_balanced'=>$glTotalDr===$glTotalCr&&$orphanAccounts===0,
                 'posted_journal_count'=>$journals,'journal_check'=>$status,
                 'cash_remittance_proof'=>$reportedCash>0?'not_evidenced_in_legacy_v7':'not_applicable',
                 'upi_bank_settlement_proof'=>$reportedUpi>0?'not_verified_by_this_report':'not_applicable',
@@ -70,7 +88,7 @@ final class EmployeeCashControl {
             'rows'=>$rows,'page_totals'=>['cash_reported_paise'=>$cash,'upi_reported_paise'=>$upi,'cash_ledger_debit_paise'=>$cashPosted,'upi_ledger_debit_paise'=>$upiPosted],
             'page_flags'=>['journal_mismatch_count'=>$mismatched,'cash_remittance_unproven_count'=>$unproven],
             'cash_remittance_status'=>'not_available_in_legacy_v7','scope'=>'canonical_posted_daily_cycles_only',
-            'warning'=>'Ledger debit matching a posted sale does NOT prove physical employee-to-cashier cash handover, bank deposit, or independently verified UPI settlement.',
+            'warning'=>'Cash/UPI, SALES and journal Dr/Cr agreement is internal bookkeeping only. It does NOT prove physical employee cash handover, bank deposit, or independently verified UPI settlement.',
             'read_only'=>true,
         ];
     }
@@ -96,13 +114,23 @@ final class EmployeeCashControlWpReader implements EmployeeCashControlReader {
         // posted journal must not be misattributed as an employee Cash/UPI receipt.
         $j='(SELECT je.company_id,je.branch_id,je.source_id,COUNT(DISTINCT je.id) journal_count,'
           ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='cash' THEN jl.debit ELSE 0 END),0) gl_cash_debit,"
-          ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='upi' THEN jl.debit ELSE 0 END),0) gl_upi_debit "
+          ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='upi' THEN jl.debit ELSE 0 END),0) gl_upi_debit,"
+          ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='cash' THEN jl.credit ELSE 0 END),0) gl_cash_credit,"
+          ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='upi' THEN jl.credit ELSE 0 END),0) gl_upi_credit,"
+          ."COALESCE(SUM(CASE WHEN a.code='SALES' AND a.type='income' THEN jl.credit ELSE 0 END),0) gl_sales_credit,"
+          .'COALESCE(SUM(jl.debit),0) gl_total_debit,COALESCE(SUM(jl.credit),0) gl_total_credit,'
+          .'COALESCE(SUM(CASE WHEN a.id IS NULL THEN 1 ELSE 0 END),0) gl_orphan_account_lines '
           .'FROM '.Db::table('journal_entries').' je JOIN '.Db::table('journal_lines').' jl ON jl.journal_entry_id=je.id '
-          .'JOIN '.Db::table('accounts').' a ON a.id=jl.account_id AND a.company_id=je.company_id '
+          .'LEFT JOIN '.Db::table('accounts').' a ON a.id=jl.account_id AND a.company_id=je.company_id '
           ."WHERE je.company_id=%d AND je.source_type='daily_cycle' AND je.status='posted' GROUP BY je.company_id,je.branch_id,je.source_id)";
         $sql='SELECT c.id daily_cycle_id,c.branch_id,c.business_date,es.expected_amount,es.cash_amount,es.upi_amount,'
             .'COALESCE(j.journal_count,0) journal_count,COALESCE(j.gl_cash_debit,0) gl_cash_debit,'
-            .'COALESCE(j.gl_upi_debit,0) gl_upi_debit FROM '.Db::table('daily_cycles').' c '
+            .'COALESCE(j.gl_upi_debit,0) gl_upi_debit,'
+            .'COALESCE(j.gl_cash_credit,0) gl_cash_credit,COALESCE(j.gl_upi_credit,0) gl_upi_credit,'
+            .'COALESCE(j.gl_sales_credit,0) gl_sales_credit,'
+            .'COALESCE(j.gl_total_debit,0) gl_total_debit,COALESCE(j.gl_total_credit,0) gl_total_credit,'
+            .'COALESCE(j.gl_orphan_account_lines,0) gl_orphan_account_lines '
+            .'FROM '.Db::table('daily_cycles').' c '
             .'JOIN '.Db::table('evening_settlements')." es ON es.daily_cycle_id=c.id AND es.status='posted' "
             .'LEFT JOIN '.$j." j ON j.company_id=c.company_id AND j.branch_id=c.branch_id AND j.source_id=c.id "
             ."WHERE c.company_id=%d AND c.employee_id=%d AND c.status='completed' "
@@ -115,7 +143,7 @@ final class EmployeeCashControlWpReader implements EmployeeCashControlReader {
         if(!is_array($raw))throw new DomainException('Cash-control query failed.','cash_control_query_failed',500);
         // wpdb exposes MySQL integer columns as decimal strings: normalize only known integer columns.
         foreach($raw as &$row){
-            foreach(['daily_cycle_id','branch_id','journal_count'] as $key){
+            foreach(['daily_cycle_id','branch_id','journal_count','gl_orphan_account_lines'] as $key){
                 $v=$row[$key]??null;
                 if(!is_scalar($v)||!preg_match('/^(0|[1-9][0-9]*)$/D',(string)$v))
                     throw new DomainException('Cash-control source integer invalid.','cash_control_corrupt',500);

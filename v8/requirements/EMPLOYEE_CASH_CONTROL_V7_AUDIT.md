@@ -52,3 +52,30 @@ regression when these paths change.
 
 No new schema, posting endpoint, shadow ledger, merge or deployment.
 
+
+## 2026-10-22 — Complete Cash/UPI vs GL Dr/Cr fail-closed reconciliation
+
+The original read-only Employee Cash Control checked only Cash/UPI *debit*
+against the posted evening Cash/UPI split, plus the posted journal count. A
+journal with a matching Cash debit but an unexpected Cash credit, an
+understated SALES credit or an unbalanced total could have been displayed as
+`journal_amounts_match`.
+
+Finance-only `/organization/employees/{id}/360/cash-control` now checks the
+original canonical V7 posted `daily_cycle` journal's **Cash and UPI debit
+and credit**, exact `SALES` income account credit, **whole-journal debit and
+credit totals**, and foreign/missing account-line references (LEFT JOIN).
+A match requires one correct posted journal, Cash and UPI debit equal to the
+settlement split, no Cash/UPI reverse credit, SALES credit equal to expected
+sales, a balanced journal and zero invalid account references. Each check is
+visible separately as a read-only diagnostic; discrepancies produce
+`journal_amount_mismatch` and never silently authorize a cash handover.
+
+Tests add pure PHP examples of balanced yet unexpected Cash credit, understated
+Sales revenue, 0.01 unbalanced journal and orphan account. Disposable MariaDB
+adds a synthetic independently balanced Cash/UPI/SALES journal with savepoint
+mutation of reverse Cash credit and understated SALES, restored before full
+transaction rollback. These are accounting consistency tests only; **cashier
+receipt, physical remittance, bank deposit, real PSP UPI confirmation, and
+salary impact remain unverified**. This scope introduces no schema migration,
+posting endpoint, staging write, production release or data repair.
