@@ -211,3 +211,29 @@ missing evidence, wrong server signing key, altered receipt, 0.01 legacy line
 corruption, cross-cycle stock issue, changed product quantity, database
 CHECK rejection of self-review, valid-HMAC substitution of a different
 reviewer, and restored records. All test data is synthetic.
+
+## 2026-10-23 — End-to-end synthetic MariaDB bug fix: SALES revenue type
+
+The new real MariaDB acceptance test linked an *actual* posted Daily Order
+and mixed Cash/UPI settlement to the Employee 360 monthly profile, issue
+request, stock reconciliation, Cash Control and person ledger. The test found
+that the original canonical V7 fixture creates the `SALES` account with
+`type=revenue` but `EmployeeCashControlWpReader` recognized SALES credits
+only if `type=income`. The valid posted ₹200 Cash + ₹160 UPI settlement was
+therefore classified as `journal_amount_mismatch` despite a balanced
+journal and correct source sales.
+
+The **existing** read-only Cash Control query now recognizes only
+`a.code='SALES'` with `a.type IN ('income','revenue')`; Cash and UPI
+still require separately scoped asset/subtype accounts and debit/credit
+balances. No arbitrary account, payment source, missing Cash/UPI proof,
+cross-source total or employee cash liability is inferred. A SQL regression
+pins both legitimate SALES account-type aliases. The real MariaDB integration
+test verifies the posted ₹360 source, 5 requested and issued PCS, 4 sold,
+1 returned, 8 points, employee 360 monthly summary, Cash Control, person
+ledger and manager-vs-employee finance permissions, with no additional
+GL/stock/performance writes by read-only reports.
+
+This finding is an **account classification/display bug**, not a missing
+transaction or proof of physical cash handover/bank settlement.
+No staging deployment, production DB write or migration accompanies it.

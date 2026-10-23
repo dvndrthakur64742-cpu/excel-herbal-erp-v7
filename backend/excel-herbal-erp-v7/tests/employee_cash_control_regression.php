@@ -152,8 +152,8 @@ namespace {
     ok(str_contains($sql,"je.source_type='daily_cycle'")&&str_contains($sql,"je.status='posted'"),'posted journal source only');
     ok(str_contains($sql,'COUNT(DISTINCT je.id)'),'duplicate journal count');
     ok(str_contains($sql,'LOWER(a.subtype)'),'cash/upi account type classification');
-    ok(str_contains($sql,"a.code='SALES' AND a.type='income'"),
-       'sales credit is tied to canonical income SALES account');
+    ok(str_contains($sql,"a.code='SALES' AND a.type IN ('income','revenue')"),
+       'posted SALES credit accepts canonical revenue and legacy income account types, not arbitrary assets');
     ok(str_contains($sql,'SUM(jl.debit)')&&str_contains($sql,'SUM(jl.credit)')
         &&str_contains($sql,'gl_cash_credit')&&str_contains($sql,'gl_upi_credit'),
        'full posted GL and reverse payment legs are also reconciled');

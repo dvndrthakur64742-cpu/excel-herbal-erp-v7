@@ -117,7 +117,7 @@ final class EmployeeCashControlWpReader implements EmployeeCashControlReader {
           ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='upi' THEN jl.debit ELSE 0 END),0) gl_upi_debit,"
           ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='cash' THEN jl.credit ELSE 0 END),0) gl_cash_credit,"
           ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='upi' THEN jl.credit ELSE 0 END),0) gl_upi_credit,"
-          ."COALESCE(SUM(CASE WHEN a.code='SALES' AND a.type='income' THEN jl.credit ELSE 0 END),0) gl_sales_credit,"
+          ."COALESCE(SUM(CASE WHEN a.code='SALES' AND a.type IN ('income','revenue') THEN jl.credit ELSE 0 END),0) gl_sales_credit,"
           .'COALESCE(SUM(jl.debit),0) gl_total_debit,COALESCE(SUM(jl.credit),0) gl_total_credit,'
           .'COALESCE(SUM(CASE WHEN a.id IS NULL THEN 1 ELSE 0 END),0) gl_orphan_account_lines '
           .'FROM '.Db::table('journal_entries').' je JOIN '.Db::table('journal_lines').' jl ON jl.journal_entry_id=je.id '
