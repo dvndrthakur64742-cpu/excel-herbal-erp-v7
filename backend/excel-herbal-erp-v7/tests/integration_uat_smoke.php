@@ -851,6 +851,133 @@ uat_case('uat_sales_report_consolidates_posted_daily_orders', function () use ($
     ),'Daily Order sales report ignored REPORTS_VIEW capability');
 });
 
+// Critical business-facing acceptance: the SAME posted daily sale must appear
+// in the original employee profile, stock issue history, branch sales, Cash
+// Control and the Tally-style source timeline. No second posting or fake
+// cash handover; synthetic isolated MariaDB only.
+uat_case('uat_posted_field_day_visible_in_employee360_cash_stock_and_ledger', function () use ($self,$wpdb) {
+    $date=(new DateTimeImmutable(uat_date()))->modify('-203 days')->format('Y-m-d');
+    $managerFinance=uat_actor(20,[1,2],[
+        Capabilities::EMP_VIEW,Capabilities::ACCOUNTING_VIEW,Capabilities::REPORTS_VIEW,
+    ],'SYSADMIN');
+    $params=['id'=>10,'from'=>$date,'to'=>$date];
+
+    // The existing full lifecycle fixture posted exactly 5 issued, 4 sold,
+    // 1 returned, ₹200 Cash, ₹160 UPI, 8 points and ₹20 salary fund.
+    $profile=uat_dispatch('org.employee_360',$self,$params);
+    if(($profile['read_only']??null)!==true||($profile['dashboard_unchanged']??null)!==true||
+       ($profile['person_ledger']['visible']??null)!==false||
+       ($profile['cash_reconciliation']??null)!=='not_available_in_canonical_v7_employee_ledger') {
+        throw new RuntimeException('Employee profile leaked finance view or promised Cash proof');
+    }
+    $month=substr($date,0,7);
+    $summary=array_values(array_filter($profile['monthly_summary']??[],static fn($r)=>($r['month']??null)===$month));
+    if(count($summary)!==1||
+       abs((float)($summary[0]['sales_amount']??0)-360)>.005||
+       abs((float)($summary[0]['points']??0)-8)>.005) {
+        throw new RuntimeException('Posted field sale and points missing from employee monthly profile');
+    }
+    $noFinance=static function(string $type)use($self,$date):void {
+        try{
+            uat_dispatch('org.employee_360_register',$self,[
+                'id'=>10,'type'=>$type,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+            ]);
+            throw new RuntimeException('Employee without finance access opened '.$type);
+        }catch(DomainException $e){
+            if($e->codeKey!=='permission_denied'||$e->httpStatus!==403)throw $e;
+        }
+    };
+    $noFinance('person_ledger');
+    try{
+        uat_dispatch('org.employee_360_cash_control',$self,[
+            'id'=>10,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+        ]);
+        throw new RuntimeException('Employee without finance access opened Cash Control');
+    }catch(DomainException $e){
+        if($e->codeKey!=='permission_denied'||$e->httpStatus!==403)throw $e;
+    }
+
+    $before=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('journal_entries'));
+    $beforeStock=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('stock_ledger'));
+    $beforePoints=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('performance_entries'));
+    $register=static function(string $type)use($managerFinance,$date):array{
+        return uat_dispatch('org.employee_360_register',$managerFinance,[
+            'id'=>10,'type'=>$type,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+        ]);
+    };
+
+    $managerProfile=uat_dispatch('org.employee_360',$managerFinance,$params);
+    if(($managerProfile['person_ledger']['visible']??null)!==true||
+       ($managerProfile['read_only']??null)!==true) {
+        throw new RuntimeException('Finance manager cannot inspect employee profile safely');
+    }
+
+    $sales=$register('sales');
+    if(($sales['read_only']??null)!==true||($sales['has_more']??null)!==false||
+       count($sales['rows']??[])!==1)throw new RuntimeException('Employee sales register missing or duplicated settled Daily Order');
+    $sale=$sales['rows'][0];$cycle=(int)$sale['daily_cycle_id'];
+    if($cycle<1||abs((float)$sale['sale_amount']-360)>.005||
+       abs((float)$sale['cash_amount']-200)>.005||
+       abs((float)$sale['upi_amount']-160)>.005||
+       abs((float)$sale['retail_quantity']-2)>.001||
+       abs((float)$sale['wholesale_quantity']-2)>.001||
+       abs((float)$sale['returned_quantity']-1)>.001||
+       abs((float)$sale['incentive_points']-8)>.005){
+        throw new RuntimeException('Employee sales register does not match the actual posted stock/cash/points split');
+    }
+
+    $requests=$register('requests');
+    $requestRows=array_values(array_filter($requests['rows']??[],
+        static fn($r)=>(int)($r['daily_cycle_id']??0)===$cycle));
+    if(count($requestRows)!==1||($requestRows[0]['request_status']??null)!=='issued'||
+       abs((float)$requestRows[0]['requested_quantity']-5)>.001||
+       abs((float)$requestRows[0]['issued_quantity']-5)>.001) {
+        throw new RuntimeException('ASM issued stock absent from employee original request register');
+    }
+
+    $reconciliations=$register('reconciliation');
+    $matching=array_values(array_filter($reconciliations['rows']??[],
+        static fn($r)=>(int)($r['daily_cycle_id']??0)===$cycle));
+    if(count($matching)!==1||($matching[0]['reconciliation_status']??null)!=='cycle_sources_match'||
+       abs((float)$matching[0]['cycle_issued_minus_out_qty'])>.001||
+       abs((float)$matching[0]['cycle_warehouse_net_out_qty']-4)>.001||
+       ($matching[0]['cash_handover_verified']??null)!==false||
+       ($matching[0]['upi_bank_verified']??null)!==false||
+       ($matching[0]['gl_posting_verified']??null)!==false) {
+        throw new RuntimeException('Employee stock closing is inconsistent or implies unproven financial custody');
+    }
+
+    $cash=uat_dispatch('org.employee_360_cash_control',$managerFinance,[
+        'id'=>10,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+    ]);
+    if(($cash['read_only']??null)!==true||($cash['cash_remittance_status']??null)!=='not_available_in_legacy_v7'||
+       count($cash['rows']??[])!==1||
+       (int)$cash['rows'][0]['daily_cycle_id']!==$cycle||
+       (int)$cash['page_totals']['cash_reported_paise']!==20000||
+       (int)$cash['page_totals']['upi_reported_paise']!==16000||
+       ($cash['rows'][0]['journal_check']??null)!=='journal_amounts_match') {
+        throw new RuntimeException('Original Employee Cash Control does not match posted mixed Cash/UPI journal');
+    }
+
+    $ledger=$register('person_ledger');
+    if(($ledger['read_only']??null)!==true||
+       ($ledger['balance_basis']??null)!=='complete_tagged_movement_history_not_visible_page'||
+       ($ledger['employee_cash_handover_verified']??null)!==false||
+       ($ledger['upi_bank_settlement_verified']??null)!==false||
+       !is_array($ledger['rows']??null)||!is_array($ledger['financial_accounts']??null)){
+        throw new RuntimeException('Person Ledger implied unproven Cash deposit or lost source-linked events');
+    }
+    $sourceEvents=array_values(array_filter($ledger['rows'],
+        static fn($r)=>($r['event_type']??null)==='sale'&&(int)($r['source_id']??0)===$cycle));
+    if(!$sourceEvents)throw new RuntimeException('Completed Daily Order not visible in person-wise source ledger timeline');
+
+    $after=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('journal_entries'));
+    $afterStock=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('stock_ledger'));
+    $afterPoints=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('performance_entries'));
+    if($before!==$after||$beforeStock!==$afterStock||$beforePoints!==$afterPoints)
+        throw new RuntimeException('Read-only employee/finance integration test mutated operational or financial source');
+});
+
 uat_case('uat_audit_batch_without_expiry_and_expired_quarantine', function () use ($manager,$wpdb) {
     // F02: batch-required without expiry tracking must remain issueable when expires_on is NULL.
     uat_insert($wpdb,'products',[

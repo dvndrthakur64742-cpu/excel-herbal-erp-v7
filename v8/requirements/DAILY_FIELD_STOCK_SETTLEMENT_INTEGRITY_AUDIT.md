@@ -119,3 +119,33 @@ A matching performance entry is NOT proof of actual payroll disbursement,
 and a matching Cash/UPI journal is NOT proof of cashier handover or bank
 settlement. Source readers remain non-atomic separate queries.
 
+
+## 2026-10-23 — Business-flow Employee 360 end-to-end acceptance gate
+
+The disposable **real MariaDB `integration_uat_smoke.php`** already
+posts a full employee-day business cycle: employee requests 5 units;
+ASM/manager approves and issues; evening returns 1, sells retail 2 and
+wholesale 2; finance checker posts **INR 200 Cash + INR 160 UPI**;
+canonical warehouse/employee custody, Stock Register, 8 performance points
+and INR 20 salary fund are verified. A new *subsequent* case checks that
+this **same original posted cycle** appears consistently in the
+employee's own authorized Employee 360 monthly summary, ASM-issued
+stock request register, sale register, 10-part quantity/amount
+reconciliation, finance-authorized Cash Control and the person-wise
+source-linked Tally-style ledger timeline. The case checks the
+ledger balance source disclosure and that independent physical Cash and
+UPI bank proofs remain false, and asserts all these reads do not
+write additional GL, stock or performance records.
+
+The negative role gate is checked against the real ApiDispatch: the field
+employee has Daily Order self permissions, but no finance permission and
+MUST NOT read Cash Control or the finance-only Person Ledger. This is
+a disposable/synthetic test environment only. It does NOT introduce
+a new payment posting, field Cash acceptance, cross-source Daily/B2B
+deduplication, or production migration. Stock timestamps follow the
+source UTC movement time, unlike the historical business day used in
+this synthetic test; source-based reconciliation uses the cycle date.
+
+A **PASS** demonstrates connected canonical READ/WRITE pathways on
+disposable MariaDB, not actual physical deposits, payroll payouts,
+mobile-device acceptance, or production launch approval.
