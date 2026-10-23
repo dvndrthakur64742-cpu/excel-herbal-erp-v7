@@ -955,7 +955,10 @@ uat_case('uat_posted_field_day_visible_in_employee360_cash_stock_and_ledger', fu
        (int)$cash['rows'][0]['daily_cycle_id']!==$cycle||
        (int)$cash['page_totals']['cash_reported_paise']!==20000||
        (int)$cash['page_totals']['upi_reported_paise']!==16000||
-       ($cash['rows'][0]['journal_check']??null)!=='journal_amounts_match') {
+       ($cash['rows'][0]['journal_check']??null)!=='journal_amounts_match'||
+       ($cash['rows'][0]['cash_remittance_proof']??null)!=='not_evidenced_in_legacy_v7'||
+       ($cash['rows'][0]['upi_bank_settlement_proof']??null)!=='not_verified_by_this_report'||
+       ($cash['rows'][0]['legacy_direct_branch_cash_posting']??null)!==true) {
         throw new RuntimeException('Original Employee Cash Control does not match posted mixed Cash/UPI journal');
     }
 
