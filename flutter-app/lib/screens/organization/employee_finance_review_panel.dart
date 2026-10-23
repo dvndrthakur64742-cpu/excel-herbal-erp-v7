@@ -14,11 +14,16 @@ class EmployeeFinanceReviewPanel extends ConsumerStatefulWidget {
     required this.employeeId,
     required this.from,
     required this.to,
+    this.onOpenCashControl,
+    this.onOpenPersonLedger,
   });
 
   final int employeeId;
   final String from;
   final String to;
+  /// Opens the existing paginated finance register; never posts a transaction.
+  final VoidCallback? onOpenCashControl;
+  final VoidCallback? onOpenPersonLedger;
 
   @override
   ConsumerState<EmployeeFinanceReviewPanel> createState() =>
@@ -103,6 +108,8 @@ class _EmployeeFinanceReviewPanelState
         return EmployeeFinanceReviewView(
           snapshot: snapshot.data!,
           onRefresh: _refresh,
+          onOpenCashControl: widget.onOpenCashControl,
+          onOpenPersonLedger: widget.onOpenPersonLedger,
         );
       },
     );
@@ -253,10 +260,18 @@ class EmployeeFinanceReviewSnapshot {
 
 /// Testable visual summary backed by original V7 read-only response data.
 class EmployeeFinanceReviewView extends StatelessWidget {
-  const EmployeeFinanceReviewView({super.key, required this.snapshot, this.onRefresh});
+  const EmployeeFinanceReviewView({
+    super.key,
+    required this.snapshot,
+    this.onRefresh,
+    this.onOpenCashControl,
+    this.onOpenPersonLedger,
+  });
 
   final EmployeeFinanceReviewSnapshot snapshot;
   final VoidCallback? onRefresh;
+  final VoidCallback? onOpenCashControl;
+  final VoidCallback? onOpenPersonLedger;
 
   @override
   Widget build(BuildContext context) {
@@ -285,6 +300,28 @@ class EmployeeFinanceReviewView extends StatelessWidget {
                 const SizedBox(height: 6),
                 const Text('Booked Cash/UPI is NOT physical cashier handover or bank settlement. '
                     'Account ledger lines are separate accounting evidence; do not add the two views together.'),
+                if (onOpenCashControl != null || onOpenPersonLedger != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (onOpenCashControl != null)
+                          OutlinedButton.icon(
+                            onPressed: onOpenCashControl,
+                            icon: const Icon(Icons.receipt_long_outlined),
+                            label: const Text('Open Cash Control'),
+                          ),
+                        if (onOpenPersonLedger != null)
+                          OutlinedButton.icon(
+                            onPressed: onOpenPersonLedger,
+                            icon: const Icon(Icons.menu_book_outlined),
+                            label: const Text('Open Person Ledger'),
+                          ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),

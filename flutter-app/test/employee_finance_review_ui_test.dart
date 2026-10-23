@@ -179,6 +179,45 @@ void main() {
     expect(() => parse(cashFixture(), forgedLedgerPage), throwsFormatException);
   });
 
+  test('Finance Review links to the existing paginated Employee 360 registers', () {
+    final profile = File('lib/screens/organization/employee_360_screen.dart')
+        .readAsStringSync();
+    final panel = File('lib/screens/organization/employee_finance_review_panel.dart')
+        .readAsStringSync();
+    expect(profile, contains("tabs.indexWhere((tab) => tab.text == 'Cash Control')"));
+    expect(profile, contains("tabs.indexWhere((tab) => tab.text == 'Person Ledger')"));
+    expect(profile, contains('DefaultTabController.of(financeTabContext)'));
+    expect(profile, contains('.animateTo(cashControlIndex)'));
+    expect(profile, contains('.animateTo(personLedgerIndex)'));
+    expect(panel, contains('widget.onOpenCashControl'));
+    expect(panel, contains('widget.onOpenPersonLedger'));
+    expect(panel, isNot(contains('api.post(')));
+    expect(panel, isNot(contains('api.put(')));
+  });
+
+  testWidgets('Finance Review opens original Cash Control and Person Ledger tabs',
+      (tester) async {
+    var cashOpened = 0;
+    var ledgerOpened = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: EmployeeFinanceReviewView(
+          snapshot: validSnapshot(),
+          onOpenCashControl: () => cashOpened++,
+          onOpenPersonLedger: () => ledgerOpened++,
+        ),
+      ),
+    ));
+    expect(find.text('Open Cash Control'), findsOneWidget);
+    expect(find.text('Open Person Ledger'), findsOneWidget);
+    await tester.tap(find.text('Open Cash Control'));
+    await tester.pump();
+    await tester.tap(find.text('Open Person Ledger'));
+    await tester.pump();
+    expect(cashOpened, 1);
+    expect(ledgerOpened, 1);
+  });
+
   testWidgets('Finance Review renders live-source figures with unverified warnings',
       (tester) async {
     await tester.pumpWidget(MaterialApp(

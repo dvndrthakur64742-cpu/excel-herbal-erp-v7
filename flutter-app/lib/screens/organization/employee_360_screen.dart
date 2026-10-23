@@ -155,6 +155,10 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
           ];
           final financeIndex =
               tabs.indexWhere((tab) => tab.text == 'Finance Review');
+          final cashControlIndex =
+              tabs.indexWhere((tab) => tab.text == 'Cash Control');
+          final personLedgerIndex =
+              tabs.indexWhere((tab) => tab.text == 'Person Ledger');
           return DefaultTabController(
             key: ValueKey('employee360-${widget.employeeId}-$financeVisible-$showGps-${widget.openFinanceReview}'),
             length: tabs.length,
@@ -228,10 +232,20 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
                           to: _to,
                         ),
                       if (financeVisible)
-                        EmployeeFinanceReviewPanel(
-                          employeeId: widget.employeeId,
-                          from: _from,
-                          to: _to,
+                        Builder(
+                          builder: (financeTabContext) => EmployeeFinanceReviewPanel(
+                            employeeId: widget.employeeId,
+                            from: _from,
+                            to: _to,
+                            onOpenCashControl: cashControlIndex >= 0
+                                ? () => DefaultTabController.of(financeTabContext)
+                                    .animateTo(cashControlIndex)
+                                : null,
+                            onOpenPersonLedger: personLedgerIndex >= 0
+                                ? () => DefaultTabController.of(financeTabContext)
+                                    .animateTo(personLedgerIndex)
+                                : null,
+                          ),
                         ),
                       if (showGps)
                         _Employee360Gps(

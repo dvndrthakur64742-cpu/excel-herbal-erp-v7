@@ -99,3 +99,22 @@ Test coverage asserts the two-capability shortcut, its original Employee 360
 Navigator route, the finance-tab lookup, Summary fallback and unchanged
 read-only finance APIs. This development change still requires authorized
 interactive browser QA before a separately approved web-only release.
+
+## 2026-10-23 — Direct access to full Cash and Person Ledger pages
+
+In the Employee Finance Review card, authorized managers now have two
+read-only action buttons: **Open Cash Control** and **Open Person Ledger**.
+They navigate to the *existing* paginated Employee 360 tabs using the
+`DefaultTabController`; dynamic index discovery avoids breaking navigation
+when optional GPS or finance tabs differ by role. No separate endpoint,
+journal, cash proof or cross-source combined totals were added. A dedicated
+Flutter widget regression exercises both real button callbacks and source
+tests verify the destination tabs are dynamically resolved.
+
+At this checkpoint, `office.excelherbal.in` remains the previously
+verified `bdcc617` web bundle (SHA `f57e8fe8...`); the new shortcut and
+buttons are still in the development branch pending staging rollout. The
+Windows Desktop Commander is offline, so an authenticated Chrome admin
+walkthrough was not possible. Staging is not sanitized; some mobile sessions
+remain active. No live DB writes, WordPress plugin changes or new deployment
+were performed. WPVibe read-only health and schema verification passed.
