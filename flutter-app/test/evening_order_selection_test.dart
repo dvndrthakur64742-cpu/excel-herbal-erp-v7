@@ -107,4 +107,86 @@ void main() {
     await tester.pumpAndSettle();
     expect(chosen, isNull);
   });
+  testWidgets('picker filters by employee code and exact order ID without selecting others',
+      (tester) async {
+    int? chosen;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: Builder(builder: (context) => ElevatedButton(
+        onPressed: () async {
+          chosen = await showDialog<int>(context: context,
+              builder: (_) => EveningOrderPicker(candidates: [
+                order(12, employee: 101),
+                order(24, employee: 102, status: 'evening_draft'),
+                order(36, employee: 103),
+              ]));
+        },
+        child: const Text('Open chooser'),
+      )),
+    )));
+    await tester.tap(find.text('Open chooser'));
+    await tester.pumpAndSettle();
+    expect(find.text('Showing 3 of 3 eligible orders'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('evening-order-search')), 'EH-102');
+    await tester.pumpAndSettle();
+    expect(find.text('Showing 1 of 3 eligible orders'), findsOneWidget);
+    expect(find.byKey(const ValueKey('evening-order-24')), findsOneWidget);
+    expect(find.byKey(const ValueKey('evening-order-12')), findsNothing);
+    await tester.enterText(
+      find.byKey(const ValueKey('evening-order-search')), 'not-listed');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('evening-order-no-results')), findsOneWidget);
+    expect(chosen, isNull);
+    await tester.tap(find.byTooltip('Clear order search'));
+    await tester.pumpAndSettle();
+    expect(find.text('Showing 3 of 3 eligible orders'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('evening-order-search')), '#24');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Evening Draft'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('evening-order-24')));
+    await tester.pumpAndSettle();
+    expect(chosen, 24);
+  });
+
+  testWidgets('picker remains usable on compact screen and soft keyboard',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 568));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: Builder(builder: (context) => ElevatedButton(
+        onPressed: () => showDialog<int>(context: context,
+          builder: (_) => EveningOrderPicker(candidates: [
+            order(5), order(6, employee: 102), order(7, employee: 103),
+          ])),
+        child: const Text('Pick order'),
+      )),
+    )));
+    await tester.tap(find.text('Pick order'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('v8-evening-order-picker')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.enterText(
+        find.byKey(const ValueKey('evening-order-search')), '103');
+    await tester.pumpAndSettle();
+    expect(find.text('Showing 1 of 3 eligible orders'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  test('filtering and picking never calls server or grants new branch access', () {
+    final selected = select([
+      order(10, employee: 101), order(11, employee: 102),
+      order(12, branch: 2),
+    ]);
+    expect(selected.length, 1);
+    expect(selected.single['id'], 10);
+    expect(EveningOrderSelection.remainsAllowed(
+      selected: selected.single, businessDate: '2026-10-24', branchId: 2,
+      actorEmployeeId: 101, selfAllowed: true, othersAllowed: false,
+    ), isFalse);
+  });
+
 }
