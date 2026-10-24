@@ -3,9 +3,16 @@ import 'package:flutter/material.dart';
 /// Strict read-only contract from isolated v8_test; no live WordPress V7
 /// endpoint currently provides cashier-verified Cash or PSP evidence.
 class CashierEvidenceUatPage {
-  const CashierEvidenceUatPage._({required this.records, required this.hasMore});
+  const CashierEvidenceUatPage._({
+    required this.records,
+    required this.unverified,
+    required this.hasMore,
+  });
 
   final List<CashierEvidenceUatRecord> records;
+  /// Original B2B sources with no independently proven receipt/approval.
+  /// These are review candidates, never employee outstanding balances.
+  final List<UnverifiedCashEvidenceUatRecord> unverified;
   final bool hasMore;
 
   static Map<String, dynamic> map(dynamic raw) {
@@ -57,6 +64,11 @@ class CashierEvidenceUatPage {
         data['combined_employee_cash_outstanding_paise'] != null ||
         data['physical_legacy_daily_cash_verified'] != false ||
         data['external_bank_deposit_verified'] != false ||
+        data['snapshot_isolation_guaranteed'] != false ||
+        data['page_totals_not_a_full_period'] != true ||
+        data['cross_source_duplicate_prevention_active'] != false ||
+        data['verified_transaction_links'] is! List ||
+        (data['verified_transaction_links'] as List).isNotEmpty ||
         id(data['company_id']) != companyId ||
         id(data['branch_id']) != branchId ||
         id(data['employee_id']) != employeeId ||
@@ -81,8 +93,10 @@ class CashierEvidenceUatPage {
       }
     }
     final records = <CashierEvidenceUatRecord>[];
+    final unverified = <UnverifiedCashEvidenceUatRecord>[];
     final sourceSeen = <int>{};
     final receiptSeen = <int>{};
+    final remittanceSeen = <int>{};
     final journalSeen = <int>{};
     for (final raw in cashRows) {
       final row = map(raw);
@@ -108,6 +122,7 @@ class CashierEvidenceUatPage {
         if (row['cash_handover_verified'] != false || rawProof != null) {
           throw const FormatException('Unverified cashier proof is not permitted.');
         }
+        unverified.add(UnverifiedCashEvidenceUatRecord(saleId: saleId, date: date));
         continue;
       }
       final proof = map(rawProof);
@@ -134,7 +149,9 @@ class CashierEvidenceUatPage {
           paise(receipt['amount_paise']) != amount ||
           paise(check['amount_paise']) != amount ||
           cashierUser == checkerUser || cashierEmployee == checkerEmployee ||
-          !receiptSeen.add(receiptId) || !journalSeen.add(journalId)) {
+          cashierEmployee == employeeId || checkerEmployee == employeeId ||
+          !receiptSeen.add(receiptId) || !remittanceSeen.add(remittanceId) ||
+          !journalSeen.add(journalId)) {
         throw const FormatException('Cashier / Finance evidence chain invalid.');
       }
       records.add(CashierEvidenceUatRecord(
@@ -146,6 +163,7 @@ class CashierEvidenceUatPage {
     }
     return CashierEvidenceUatPage._(
       records: List.unmodifiable(records),
+      unverified: List.unmodifiable(unverified),
       hasMore: canonical['has_more'] == true,
     );
   }
@@ -169,6 +187,12 @@ class CashierEvidenceUatRecord {
   final int journalId;
 }
 
+class UnverifiedCashEvidenceUatRecord {
+  const UnverifiedCashEvidenceUatRecord({required this.saleId, required this.date});
+  final int saleId;
+  final String date;
+}
+
 /// Testable UAT-only Finance Review section; never shown without an explicitly
 /// provided, fully verified and scope-validated isolated cross-source page.
 class CashierEvidenceUatSection extends StatelessWidget {
@@ -187,6 +211,9 @@ class CashierEvidenceUatSection extends StatelessWidget {
           const SizedBox(height: 6),
           const Text('Read-only original B2B journal evidence. NOT Office Cash proof, '
               'NOT bank settlement, NOT employee outstanding. Legacy Daily Orders excluded.'),
+          const SizedBox(height: 8),
+          Text('Page 1 · ${page.records.length} verified · '
+              '${page.unverified.length} require evidence review'),
           for (final item in page.records)
             ListTile(
               key: ValueKey('uat-cash-evidence-${item.saleId}'),
@@ -199,6 +226,19 @@ class CashierEvidenceUatSection extends StatelessWidget {
                 'Remittance #${item.remittanceId} → GL journal #${item.journalId}',
               ),
             ),
+          if (page.unverified.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('Unverified original Cash sources',
+                style: Theme.of(context).textTheme.titleSmall),
+            for (final item in page.unverified)
+              ListTile(
+                key: ValueKey('uat-cash-unverified-${item.saleId}'),
+                leading: const Icon(Icons.pending_actions_outlined),
+                title: Text('B2B #${item.saleId} · ${item.date}'),
+                subtitle: const Text('Receipt and independent Finance approval NOT verified. '
+                    'Review source records; do not infer an employee shortage.'),
+              ),
+          ],
           if (page.records.isEmpty)
             const Text('No independently verified B2B Cash handover on this UAT page.'),
           if (page.hasMore)

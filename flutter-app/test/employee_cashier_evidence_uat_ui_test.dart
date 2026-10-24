@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -18,6 +19,10 @@ Map<String, dynamic> uatCashFixture() => {
   'combined_employee_cash_outstanding_paise': null,
   'physical_legacy_daily_cash_verified': false,
   'external_bank_deposit_verified': false,
+  'snapshot_isolation_guaranteed': false,
+  'page_totals_not_a_full_period': true,
+  'cross_source_duplicate_prevention_active': false,
+  'verified_transaction_links': <dynamic>[],
   'source_pages': {
     'legacy_daily_orders': {
       'has_more': false,
@@ -106,6 +111,7 @@ void main() {
   test('Finance-only UAT payload preserves original source and two different actors', () {
     final result = parseUat(uatCashFixture());
     expect(result.records, hasLength(1));
+    expect(result.unverified, isEmpty);
     final chain = result.records.single;
     expect(chain.saleId, 77);
     expect(chain.amountPaise, 20000);
@@ -156,12 +162,54 @@ void main() {
     expect(() => parseUat(duplicate), throwsFormatException);
   });
 
+  test('UAT display rejects forged reconciliation and source-link claims', () {
+    for (final change in <void Function(Map<String, dynamic>)>[
+      (page) => page['snapshot_isolation_guaranteed'] = true,
+      (page) => page['page_totals_not_a_full_period'] = false,
+      (page) => page['cross_source_duplicate_prevention_active'] = true,
+      (page) => page['verified_transaction_links'] = <String>['invented-link'],
+    ]) {
+      final page = uatCashFixture();
+      change(page);
+      expect(() => parseUat(page), throwsFormatException);
+    }
+  });
+
+  test('Sale maker cannot attest or approve own Cash handover', () {
+    final selfCashier = uatCashFixture();
+    receipt(selfCashier)['cashier_employee_id'] = 42;
+    expect(() => parseUat(selfCashier), throwsFormatException);
+    final selfChecker = uatCashFixture();
+    checker(selfChecker)['checker_employee_id'] = 42;
+    expect(() => parseUat(selfChecker), throwsFormatException);
+  });
+
+  test('Same remittance cannot prove multiple Cash receipts', () {
+    final repeated = jsonDecode(jsonEncode(uatCashFixture())) as Map<String, dynamic>;
+    final rows = ((repeated['source_pages'] as Map)['canonical_b2b_field_cash']
+        as Map)['rows'] as List;
+    final second = jsonDecode(jsonEncode(rows.first)) as Map<String, dynamic>;
+    second['source_id'] = 78;
+    second['source_key'] = 'b2b_retailer_sale:78';
+    final proof = second['cashier_finance_evidence'] as Map<String, dynamic>;
+    proof['source_key'] = 'b2b_retailer_sale:78';
+    (proof['cashier_receipt'] as Map)['receipt_id'] = 89;
+    (proof['cashier_receipt'] as Map)['reference'] = 'CI-CASHIER-REF-0002';
+    (proof['finance_check'] as Map)['journal_id'] = 102;
+    // remittance_id intentionally remains 99 from the first source.
+    rows.add(second);
+    expect(() => parseUat(repeated), throwsFormatException);
+  });
+
   test('Unverified B2B and legacy Daily Orders are never receipt evidence', () {
     final unverified = uatCashFixture();
     b2bRow(unverified)['cash_handover_verified'] = false;
     b2bRow(unverified)['cash_custody_state'] = 'pending_cashier_handover';
     b2bRow(unverified)['cashier_finance_evidence'] = null;
-    expect(parseUat(unverified).records, isEmpty);
+    final unresolved = parseUat(unverified);
+    expect(unresolved.records, isEmpty);
+    expect(unresolved.unverified, hasLength(1));
+    expect(unresolved.unverified.single.saleId, 77);
     final forgedPending = uatCashFixture();
     b2bRow(forgedPending)['cash_handover_verified'] = false;
     expect(() => parseUat(forgedPending), throwsFormatException);
@@ -169,6 +217,23 @@ void main() {
     (((fakeDaily['source_pages'] as Map)['legacy_daily_orders'] as Map)
         ['rows'][0] as Map)['cash_handover_verified'] = true;
     expect(() => parseUat(fakeDaily), throwsFormatException);
+  });
+
+  testWidgets('Unverified sale is an actionable review item, not a receipt or debt',
+      (tester) async {
+    final unverified = uatCashFixture();
+    b2bRow(unverified)['cash_handover_verified'] = false;
+    b2bRow(unverified)['cash_custody_state'] = 'pending_cashier_handover';
+    b2bRow(unverified)['cashier_finance_evidence'] = null;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: SingleChildScrollView(
+        child: CashierEvidenceUatSection(page: parseUat(unverified)),
+      )),
+    ));
+    expect(find.text('Page 1 · 0 verified · 1 require evidence review'), findsOneWidget);
+    expect(find.text('B2B #77 · 2026-10-23'), findsOneWidget);
+    expect(find.textContaining('do not infer an employee shortage'), findsOneWidget);
+    expect(find.textContaining('GL journal #101'), findsNothing);
   });
 
   testWidgets('UAT-only authenticated GET adapter renders original receipt and checker',
