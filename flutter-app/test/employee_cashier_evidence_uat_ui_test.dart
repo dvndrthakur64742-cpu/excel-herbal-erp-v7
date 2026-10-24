@@ -20,14 +20,14 @@ Map<String, dynamic> uatCashFixture() => {
   'source_pages': {
     'legacy_daily_orders': {
       'has_more': false,
-      'rows': [
+      'rows': <Map<String, dynamic>>[
         {'source_type': 'daily_cycle', 'source_id': 55,
          'source_key': 'daily_cycle:55', 'cash_handover_verified': false},
       ],
     },
     'canonical_b2b_field_cash': {
       'has_more': false,
-      'rows': [
+      'rows': <Map<String, dynamic>>[
         {
           'source_type': 'b2b_retailer_sale',
           'source_id': 77,
