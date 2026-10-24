@@ -1,5 +1,8 @@
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'package:flutter/services.dart';
+import 'package:excel_herbal_erp/theme/excel_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,6 +48,22 @@ AppState fixture({bool authorised = true}) => AppState(
 );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() async {
+    // Widget tests otherwise paint Ahem blocks, which cannot be visually read.
+    final root = Platform.environment['FLUTTER_ROOT'];
+    final fonts = Directory('$root/bin/cache/artifacts/material_fonts');
+    final roboto = File('${fonts.path}/Roboto-Regular.ttf');
+    final textFont = roboto.existsSync() ? roboto :
+        File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
+    final textLoader = FontLoader('EvidenceSans');
+    textLoader.addFont(Future.value(ByteData.sublistView(textFont.readAsBytesSync())));
+    await textLoader.load();
+    final icons = FontLoader('MaterialIcons');
+    icons.addFont(Future.value(ByteData.sublistView(
+      File('${fonts.path}/MaterialIcons-Regular.otf').readAsBytesSync())));
+    await icons.load();
+  });
   for (final width in [360.0, 390.0, 768.0, 1366.0]) {
     testWidgets('actual shell layout and permission filtering at $width', (tester) async {
       await tester.binding.setSurfaceSize(Size(width, 900));
@@ -54,6 +73,9 @@ void main() {
       await tester.pumpWidget(ProviderScope(
         overrides: [appStateProvider.overrideWith((ref) => controller)],
         child: MaterialApp(
+          theme: ExcelBrand.lightTheme().copyWith(
+            textTheme: ExcelBrand.lightTheme().textTheme.apply(fontFamily: 'EvidenceSans'),
+          ),
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.3)),
             child: child!,
