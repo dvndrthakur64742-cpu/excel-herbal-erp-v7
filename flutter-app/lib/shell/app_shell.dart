@@ -485,10 +485,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ],
               ),
             ),
-            Container(
+            Material(
               color: ExcelBrand.surface,
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: ListTile(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: ListTile(
                 leading: const Icon(
                   Icons.logout_rounded,
                   color: ExcelBrand.danger,
@@ -507,6 +508,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   if (!closed || !mounted) return;
                   ref.read(appStateProvider.notifier).logout();
                 },
+                ),
               ),
             ),
           ],
