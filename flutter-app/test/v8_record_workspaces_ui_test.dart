@@ -84,7 +84,10 @@ void main() {
     expect(expenses, contains('onTap: _expenseAction'));
     expect(expenses, contains('ApiPaths.expenses'));
     expect(finance, contains("app.can('finance.bank_reconcile')"));
-    expect(profile, contains('V8EmployeeIdentityCard(employee: employee)'));
+    expect(profile, contains('V8EmployeeOverview('));
+    final overview = File('lib/widgets/v8_employee_overview.dart')
+        .readAsStringSync();
+    expect(overview, contains('V8EmployeeIdentityCard(employee: employee)'));
     expect(profile, contains('V8RecordWorkspace('));
     expect(profile, contains("ApiPaths.employee360Register(widget.employeeId)"));
     expect(profile, contains("data['read_only'] != true"));
