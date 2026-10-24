@@ -179,8 +179,11 @@ void main() {
     expect(() => read(fakeMatch), throwsFormatException);
 
     final duplicate = cashFixture();
-    (duplicate['rows'] as List).add(
-        Map<String, dynamic>.from((duplicate['rows'] as List).first as Map));
+    final original = (duplicate['rows'] as List).first as Map;
+    duplicate['rows'] = <Map<String, dynamic>>[
+      Map<String, dynamic>.from(original),
+      Map<String, dynamic>.from(original),
+    ];
     expect(() => read(duplicate), throwsFormatException);
   });
 
