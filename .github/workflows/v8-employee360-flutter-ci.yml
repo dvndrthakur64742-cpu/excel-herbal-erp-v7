@@ -27,6 +27,11 @@ on:
       - 'flutter-app/lib/core/evening_order_selection.dart'
       - 'flutter-app/lib/widgets/evening_order_picker.dart'
       - 'flutter-app/lib/screens/my_work/my_work_screen.dart'
+      - 'flutter-app/lib/screens/my_work/my_work_daily_overview.dart'
+      - 'flutter-app/lib/screens/inventory/inventory_screen.dart'
+      - 'flutter-app/lib/widgets/v8_daily_order_board.dart'
+      - 'flutter-app/lib/widgets/v8_inventory_banner.dart'
+      - 'flutter-app/test/v8_daily_inventory_ui_test.dart'
       - 'flutter-app/test/evening_order_selection_test.dart'
       - 'flutter-app/test/gps_tracking_service_test.dart'
       - 'flutter-app/test/branch_daily_control_ui_contract_test.dart'
@@ -103,6 +108,9 @@ jobs:
       - name: Evening Closing scoped order chooser and UX regression
         working-directory: flutter-app
         run: flutter test test/evening_order_selection_test.dart
+      - name: V8 Daily Order stage board and Inventory visual UI regression
+        working-directory: flutter-app
+        run: flutter test test/v8_daily_inventory_ui_test.dart
       - name: Stock allocation regression
         working-directory: flutter-app
         run: flutter test test/stock_allocation_test.dart

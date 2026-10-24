@@ -19,6 +19,7 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/evening_submit_confirmation.dart';
 import '../../widgets/evening_order_picker.dart';
 import '../../widgets/gps_route_view.dart';
+import '../../widgets/v8_daily_order_board.dart';
 
 part 'my_work_attendance.dart';
 part 'my_work_leave_visit.dart';
@@ -48,6 +49,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   String? message;
   bool _handledInitialAction = false;
   bool _dailyOrderOpening = false;
+  String _dailyQueueStage = V8DailyOrderStages.all;
 
   @override
   void initState() {
