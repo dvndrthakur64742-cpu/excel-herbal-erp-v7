@@ -91,7 +91,8 @@ class _AppShellState extends ConsumerState<AppShell> {
         }
 
         final items = _mobileItems(app);
-        final safeIndex = mobileIndex.clamp(0, items.length - 1);
+        final selectedIndex = items.indexWhere((item) => item['id'] == desktopRoute);
+        final safeIndex = selectedIndex >= 0 ? selectedIndex : 0;
         final route = '${items[safeIndex]['id']}';
         return Scaffold(
           drawerEdgeDragWidth: 28,
@@ -536,8 +537,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     required IconData icon,
   }) {
     final items = _mobileItems(app);
-    final safeIndex =
-        items.isEmpty ? -1 : mobileIndex.clamp(0, items.length - 1);
+    final safeIndex = items.indexWhere((item) => item['id'] == desktopRoute);
     final current = safeIndex >= 0 ? '${items[safeIndex]['id']}' : 'home';
     final selected = current == id;
     final scheme = Theme.of(context).colorScheme;

@@ -92,6 +92,7 @@ void main() {
       controller.replace(fixture(authorised: false));
       await tester.pumpAndSettle();
       expect(find.text('Finance Workspace'), findsNothing);
+      expect(find.text('No Authorised Branch'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
   }
