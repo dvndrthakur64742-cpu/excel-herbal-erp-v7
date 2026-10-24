@@ -359,8 +359,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         batchLabel: batchLabel,
                         availableText: '${row['quantity']} ${row['uom'] ?? ''}',
                         salePriceText: '${p['sale_price'] ?? 0}',
-                        batchModeText: BusinessFormat.status(
-                            p['batch_tracking'] ?? 'optional'),
+                        batchModeText: BusinessFormat.status(p['batch_tracking'] ?? 'optional'),
                         quantityController: qty[i]!,
                       );
                     }),
