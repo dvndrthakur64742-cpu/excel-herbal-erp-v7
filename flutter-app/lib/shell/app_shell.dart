@@ -22,6 +22,7 @@ import '../core/overlay_transition.dart';
 import '../state/app_state.dart';
 import '../theme/excel_brand.dart';
 import 'shell_layout.dart';
+import 'workspace_navigation.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -206,58 +207,15 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
               children: [
-                _sectionLabel(context, 'WORK'),
-                _desktopTile('home', 'Home', Icons.home_outlined),
-                if (app.sectionVisible('my_work'))
-                  _desktopTile('my_work', 'My Work', Icons.work_outline),
-                if (app.can('communication.view'))
-                  _desktopTile('tasks', 'My Tasks', Icons.task_alt_outlined),
-                if (_quickActionsVisible(app) ||
-                    _approvalVisible(app) ||
-                    !app.businessAccessBlocked ||
-                    app.erpToolsVisible) ...[
+                for (final group in WorkspaceNavigation.groups(
+                  allowed: (id) => _routeAllowed(app, id),
+                ).entries) ...[
+                  _sectionLabel(context, group.key),
+                  for (final destination in group.value)
+                    _desktopTile(destination.id, destination.label,
+                        _icon(destination.id)),
                   const SizedBox(height: 10),
-                  _sectionLabel(context, 'CONTROL'),
                 ],
-                if (_quickActionsVisible(app))
-                  _desktopTile(
-                    'quick_actions',
-                    'Quick Actions',
-                    Icons.bolt_outlined,
-                  ),
-                if (_approvalVisible(app))
-                  _desktopTile(
-                    'approvals',
-                    'Approvals',
-                    Icons.approval_outlined,
-                  ),
-                if (!app.businessAccessBlocked)
-                  _desktopTile(
-                    'global_search',
-                    'Global Search',
-                    Icons.manage_search_outlined,
-                  ),
-                if (app.can('administration.access.manage'))
-                  _desktopTile(
-                    'administration',
-                    'Manage Permissions',
-                    Icons.admin_panel_settings_outlined,
-                  ),
-                const SizedBox(height: 10),
-                _sectionLabel(context, 'MODULES'),
-                ...app.sections
-                    .where(
-                      (s) => !const {'home', 'my_work'}.contains('${s['id']}') &&
-                          !('${s['id']}' == 'administration' &&
-                              app.can('administration.access.manage')),
-                    )
-                    .map(
-                      (s) => _desktopTile(
-                        '${s['id']}',
-                        '${s['label']}',
-                        _icon('${s['id']}'),
-                      ),
-                    ),
               ],
             ),
           ),
@@ -393,9 +351,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     final designation =
         '${employee['designation_name'] ?? employee['designation_code'] ?? ''}'
             .trim();
-    final moduleSections = app.sections
-        .where((s) => !const {'home', 'my_work'}.contains('${s['id']}'))
-        .toList();
+    final groups = WorkspaceNavigation.groups(
+      allowed: (id) => _routeAllowed(app, id),
+      excluded: {
+        for (final item in app.bottomNav) '${item['id']}',
+        // Mobile creation shortcuts already have their bottom-bar entry.
+        if (app.bottomNav.any((item) => item['id'] == 'actions'))
+          'quick_actions',
+      },
+    );
 
     return Drawer(
       width: width,
@@ -512,36 +476,17 @@ class _AppShellState extends ConsumerState<AppShell> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 14),
                 children: [
-                  if (moduleSections.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _drawerSectionLabel('BUSINESS MODULES'),
-                    for (final section in moduleSections)
+                  for (final group in groups.entries) ...[
+                    _drawerSectionLabel(group.key),
+                    for (final destination in group.value)
                       _drawerTile(
                         app: app,
-                        id: '${section['id']}',
-                        label: '${section['label']}',
-                        icon: _icon('${section['id']}'),
+                        id: destination.id,
+                        label: destination.label,
+                        icon: _icon(destination.id),
                       ),
-                  ],
-                  if (_approvalVisible(app) ||
-                      !app.businessAccessBlocked) ...[
                     const SizedBox(height: 12),
-                    _drawerSectionLabel('WORKSPACE TOOLS'),
                   ],
-                  if (_approvalVisible(app))
-                    _drawerTile(
-                      app: app,
-                      id: 'approvals',
-                      label: 'Approvals',
-                      icon: Icons.approval_outlined,
-                    ),
-                  if (!app.businessAccessBlocked)
-                    _drawerTile(
-                      app: app,
-                      id: 'global_search',
-                      label: 'Global Search',
-                      icon: Icons.manage_search_outlined,
-                    ),
                 ],
               ),
             ),
@@ -895,6 +840,8 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   IconData _icon(String id) => switch (id) {
         'home' => Icons.home_outlined,
+        'quick_actions' => Icons.add_circle_outline,
+        'tasks' => Icons.task_alt_outlined,
         'my_work' => Icons.work_outline,
         'team' => Icons.groups_outlined,
         'sales' => Icons.point_of_sale_outlined,
@@ -919,12 +866,27 @@ class _AppShellState extends ConsumerState<AppShell> {
       _selectDesktopRoute(id);
       return;
     }
-    if (const {'home', 'my_work', 'actions', 'tasks', 'profile'}.contains(id)) {
+    if (const {'home', 'my_work', 'actions', 'tasks', 'profile'}.contains(id) &&
+        app.bottomNav.any((item) => item['id'] == id)) {
       _selectMobileRoute(app, id);
       return;
     }
     Widget? screen;
     switch (id) {
+      case 'home':
+        screen = const HomeScreen();
+        break;
+      case 'my_work':
+        screen = const Scaffold(
+          body: SafeArea(child: MyWorkWorkspaceScreen()),
+        );
+        break;
+      case 'tasks':
+        screen = const TasksScreen();
+        break;
+      case 'quick_actions':
+        _showQuickActions(app);
+        return;
       case 'approvals':
         screen = const EnterpriseHubScreen(initialTab: 0);
         break;

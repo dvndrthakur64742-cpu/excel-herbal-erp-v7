@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - 'flutter-app/lib/shell/**'
+      - 'flutter-app/test/workspace_navigation_test.dart'
       - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
       - 'flutter-app/lib/screens/organization/employee_360_workspace.dart'
       - 'flutter-app/test/employee_360_workspace_test.dart'
@@ -47,6 +49,9 @@ jobs:
       - name: Get Flutter dependencies
         working-directory: flutter-app
         run: flutter pub get
+      - name: Shared workspace navigation and existing routing regression
+        working-directory: flutter-app
+        run: flutter test test/workspace_navigation_test.dart test/frontend_functional_navigation_test.dart test/shell_layout_test.dart
       - name: Employee 360 UI contract test
         working-directory: flutter-app
         run: flutter test test/employee_360_ui_contract_test.dart test/employee_360_workspace_test.dart test/employee_cash_control_ui_test.dart
