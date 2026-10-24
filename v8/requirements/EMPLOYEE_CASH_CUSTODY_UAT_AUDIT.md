@@ -93,3 +93,38 @@ rejection. Pending **authorized** staging API integration, no runtime caller
 passes `cashierEvidenceUat`, so this is a previewable development component,
 not a live Cashier Receipt UI or a production ready workflow. This change
 contains no REST route, financial posting, migration or Office deployment.
+
+## 2026-10-24 — Consolidated read-only Finance GET adapter and UAT UI transport
+
+Added `V7FinanceReviewReadEndpointUat::get`, a server-side **UAT-only GET
+adapter** for the existing original `V7EmployeeCrossSourceCashAuditUat`
+source. This is NOT registered in the canonical WordPress REST RouteRegistry,
+not accessible on Office staging, and not a production cashier approval API.
+The adapter calls the original actual-DB `v8_test` safety gate and accepts
+ONLY exact GET parameters: branch, employee, from/to, page=1, page_size=25.
+It rejects POST, company-id override, impossible dates, oversized pages,
+unauthenticated actor context, missing BOTH employee-view and finance-view
+permissions, other branch or company, and any target denied by independently
+resolved reporting hierarchy. The company's real identity and authorization
+always come from server Actor and policy callback, never client parameters.
+The resulting read-only response preserves independent legacy Daily Order and
+canonical B2B source pages and guarantees no combined total or employee
+outstanding amount and no claimed bank settlement.
+
+Added `FinanceEvidenceUatApiLoader` Flutter UAT transport component. It only
+runs when a caller explicitly injects an authenticated disposable UAT GET
+function; the existing Office `EmployeeFinanceReviewPanel._fetch` continues
+to call ONLY original protected V7 Cash-Control / Person-Ledger routes. The
+UAT transport result is passed through the existing strict finance source
+parser before displaying cashier/independent-checker/original GL references;
+errors and wrong employee/branch/period render **unavailable**, not proof.
+No Office app runtime caller supplies a UAT API function.
+
+One big development batch adds the server-side UAT adapter, disposable real
+MariaDB acceptance/denial/non-mutation cases, UAT Flutter GET loader,
+focused widget tests, and auto-triggered Cash/Flutter CI paths. No live
+payment records, duplicate ledger, payroll calculation, schema migrations,
+production bank/PSP connection, Office/WordPress REST route or staging
+release accompany this work. Actual authorized browser testing must be
+performed on a sanitized isolated environment; the current Office staging
+has non-sanitized data and active mobile sessions.

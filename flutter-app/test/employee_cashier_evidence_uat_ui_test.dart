@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:excel_herbal_erp/screens/organization/employee_cashier_evidence_uat.dart';
+import 'package:excel_herbal_erp/screens/organization/employee_finance_uat_api_loader.dart';
 
 Map<String, dynamic> uatCashFixture() => {
   'read_only': true,
@@ -168,6 +169,55 @@ void main() {
     (((fakeDaily['source_pages'] as Map)['legacy_daily_orders'] as Map)
         ['rows'][0] as Map)['cash_handover_verified'] = true;
     expect(() => parseUat(fakeDaily), throwsFormatException);
+  });
+
+  testWidgets('UAT-only authenticated GET adapter renders original receipt and checker',
+      (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FinanceEvidenceUatApiLoader(
+        getAuthenticatedUatPage: () async {
+          calls++;
+          return uatCashFixture();
+        },
+        companyId: 1, branchId: 2, employeeId: 42,
+        from: '2026-10-01', to: '2026-10-24',
+      )),
+    ));
+    await tester.pumpAndSettle();
+    expect(calls, 1);
+    expect(find.text('Cashier → Finance Checker · UAT ONLY'), findsOneWidget);
+    expect(find.textContaining('CI-CASHIER-REF-0001'), findsOneWidget);
+    expect(find.textContaining('GL journal #101'), findsOneWidget);
+  });
+
+  testWidgets('Wrong-employee UAT response fails closed and displays no fake proof',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FinanceEvidenceUatApiLoader(
+        getAuthenticatedUatPage: () async => uatCashFixture(),
+        companyId: 1, branchId: 2, employeeId: 43,
+        from: '2026-10-01', to: '2026-10-24',
+      )),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('UAT Cashier evidence unavailable'), findsOneWidget);
+    expect(find.textContaining('No Cash receipt or Finance approval'), findsOneWidget);
+    expect(find.textContaining('CI-CASHIER-REF-0001'), findsNothing);
+  });
+
+  testWidgets('Transport failures are not converted into verified Cash receipts',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FinanceEvidenceUatApiLoader(
+        getAuthenticatedUatPage: () async => throw StateError('Authorization denied'),
+        companyId: 1, branchId: 2, employeeId: 42,
+        from: '2026-10-01', to: '2026-10-24',
+      )),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('UAT Cashier evidence unavailable'), findsOneWidget);
+    expect(find.textContaining('Cashier → Finance Checker'), findsNothing);
   });
 
   testWidgets('Read-only Finance Review component shows genuine chain and UAT caveat',

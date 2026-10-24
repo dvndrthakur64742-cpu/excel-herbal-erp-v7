@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/v8-cashier-finance-checker-real-mariadb-uat.yml'
       - 'v8/backend/src/B2B/V7CanonicalCashHandoverUat.php'
+      - 'v8/backend/src/B2B/V7FinanceReviewReadEndpointUat.php'
       - 'v8/backend/src/B2B/V7B2BCrossLedgerAuditUat.php'
       - 'v8/backend/src/B2B/V7EmployeeCrossSourceCashAuditUat.php'
       - 'v8/backend/tests/v7_canonical_real_mariadb.php'
@@ -52,6 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l v8/backend/src/B2B/V7CanonicalCashHandoverUat.php
+          php -l v8/backend/src/B2B/V7FinanceReviewReadEndpointUat.php
           php -l v8/backend/src/B2B/V7B2BCrossLedgerAuditUat.php
           php -l v8/backend/src/B2B/V7EmployeeCrossSourceCashAuditUat.php
           php -l v8/backend/tests/v7_canonical_real_mariadb.php

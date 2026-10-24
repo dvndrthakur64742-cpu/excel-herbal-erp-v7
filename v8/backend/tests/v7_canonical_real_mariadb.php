@@ -103,7 +103,7 @@ spl_autoload_register(static function(string $name)use($legacy):void{
 $src=dirname(__DIR__).'/src/B2B/';
 require_once $legacy.'Organization/Employee360Service.php';
 require_once $legacy.'Organization/EmployeeCashControl.php';
-foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php','V7CrossSourceReferenceReviewUat.php','V7EmployeeCrossSourceCashAuditUat.php','V7B2BBranchDayPreflightUat.php','V7B2BConsistentSnapshotUat.php'] as $name)require_once $src.$name;
+foreach(['RetailerCashSale.php','TrustedTenderIntake.php','PdoTrustedTenderIntakeGateway.php','SignedBankReconciliationLookupUat.php','CanonicalPostingContract.php','CanonicalV7Readiness.php','V7UatCanonicalTenderBridge.php','V7UatLockedCheckoutReader.php','V7CanonicalPostingSinkUat.php','V7CanonicalCashHandoverUat.php','V7B2BCrossLedgerAuditUat.php','V7CrossSourceReferenceReviewUat.php','V7EmployeeCrossSourceCashAuditUat.php','V7FinanceReviewReadEndpointUat.php','V7B2BBranchDayPreflightUat.php','V7B2BConsistentSnapshotUat.php'] as $name)require_once $src.$name;
 
 // Canonical V7 schema definitions, not synthetic stock/accounting structures.
 $canonical=\ExcelHerbal\ERP7\Database\Schema::definitions();
@@ -678,6 +678,68 @@ try{
     checkUat($proofRecovered['source_pages']['canonical_b2b_field_cash']['rows'][0]
         ['cashier_finance_evidence']['finance_check']['journal_id']===$remit['journal_id'],
         'Employee Finance evidence chain recovers without posting another journal');
+    // Server-side GET contract reused by the isolated Finance Review client.
+    // A browser never supplies the authenticated Actor or reviewer hierarchy.
+    $reviewer=new \ExcelHerbal\ERP7\Security\Actor(
+        8010,9010,$company,$branch,[$branch],[
+            \ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW,
+            \ExcelHerbal\ERP7\Security\Capabilities::EMP_VIEW,
+        ],'RM');
+    $getReview=static fn($who,$method,$q,$auth)=>
+        \ExcelHerbal\ERP8\B2B\V7FinanceReviewReadEndpointUat::get(
+            $who,$method,$q,$auth);
+    $query=['branch_id'=>$branch,'employee_id'=>$employee,
+        'from'=>'2026-10-19','to'=>'2026-10-19','page'=>1,'page_size'=>25];
+    $journalsBefore=(int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_journal_entries WHERE company_id=?',[$company]);
+    $stockBefore=(int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_stock_ledger WHERE company_id=?',[$company]);
+    $remitsBefore=(int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_cash_remittances WHERE company_id=?',[$company]);
+    $apiResult=$getReview($reviewer,'GET',$query,$crossAuthority);
+    $apiRows=$apiResult['source_pages']['canonical_b2b_field_cash']['rows'];
+    $apiLegacy=$apiResult['source_pages']['legacy_daily_orders']['rows'];
+    checkUat($apiResult['read_only']===true
+        &&$apiResult['scope']==='disposable_v8_test_finance_review_only'
+        &&count($apiRows)===1&&count($apiLegacy)===1
+        &&$apiRows[0]['cashier_finance_evidence']['finance_check']['journal_id']===$remit['journal_id']
+        &&$apiResult['combined_employee_cash_outstanding_paise']===null
+        &&$apiLegacy[0]['cash_handover_verified']===false,
+        'authenticated GET returns the original Finance Reviewer Cashier/Checker/GL chain, never a global outstanding');
+    $blockedRequest=static function($who,$method,$q,$auth)use($getReview):bool {
+        try{$getReview($who,$method,$q,$auth);return false;}
+        catch(\Throwable $e){return true;}
+    };
+    checkUat($blockedRequest($actor,'GET',$query,$crossAuthority)
+        &&$blockedRequest($auditActor,'GET',$query,$crossAuthority),
+        'original seller and accounting-only actor without employee profile capability cannot open independent Finance evidence');
+    $otherBranchReviewer=new \ExcelHerbal\ERP7\Security\Actor(
+        8022,9022,$company,$branch+1,[$branch+1],[
+            \ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW,
+            \ExcelHerbal\ERP7\Security\Capabilities::EMP_VIEW,
+        ],'RM');
+    checkUat($blockedRequest($otherBranchReviewer,'GET',$query,$crossAuthority)
+        &&$blockedRequest($reviewer,'GET',$query,static fn()=>false),
+        'cross-branch and non-subordinate finance reader fail closed');
+    $wrongTenant=new \ExcelHerbal\ERP7\Security\Actor(
+        8010,9010,$company+1,$branch,[$branch],[
+            \ExcelHerbal\ERP7\Security\Capabilities::ACCOUNTING_VIEW,
+            \ExcelHerbal\ERP7\Security\Capabilities::EMP_VIEW,
+        ],'RM');
+    checkUat($blockedRequest($wrongTenant,'GET',$query,$crossAuthority)
+        &&$blockedRequest($reviewer,'POST',$query,$crossAuthority)
+        &&$blockedRequest($reviewer,'GET',$query+['company_id'=>$company],$crossAuthority),
+        'company switch, financial POST and client-supplied company are rejected');
+    $badPage=$query;$badPage['page']=2;
+    $badDate=$query;$badDate['from']='2026-02-30';
+    $badSize=$query;$badSize['page_size']=100;
+    $badEmployee=$query;$badEmployee['employee_id']=$employee+1;
+    checkUat($blockedRequest($reviewer,'GET',$badPage,$crossAuthority)
+        &&$blockedRequest($reviewer,'GET',$badDate,$crossAuthority)
+        &&$blockedRequest($reviewer,'GET',$badSize,$crossAuthority)
+        &&$blockedRequest($reviewer,'GET',$badEmployee,$crossAuthority),
+        'unbounded pagination, impossible date and unauthorized employee are rejected');
+    checkUat((int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_journal_entries WHERE company_id=?',[$company])===$journalsBefore
+        &&(int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_stock_ledger WHERE company_id=?',[$company])===$stockBefore
+        &&(int)first($pdo,'SELECT COUNT(*) FROM wp_eh7_b2b_cash_remittances WHERE company_id=?',[$company])===$remitsBefore,
+        'Finance-only API GET and denied accesses never create stock, journal or remittance');
     $noAuth=false;
     try{$crossEmployee($auditActor,$branch,$employee,'2026-10-19','2026-10-19',static fn()=>false);}
     catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$noAuth=true;}
