@@ -10,6 +10,8 @@ on:
       - 'v8/backend/schema/011_v7_canonical_cash_handover_DRAFT.sql'
       - 'v8/backend/src/B2B/V7CanonicalPostingSinkUat.php'
       - 'v8/backend/src/B2B/SignedBankReconciliationLookupUat.php'
+      - 'v8/backend/tests/signed_bank_reconciliation_mariadb.php'
+      - 'v8/backend/schema/010_signed_bank_reconciliation_UAT.sql'
       - 'backend/excel-herbal-erp-v7/src/Finance/AccountingService.php'
   workflow_dispatch:
 permissions:
@@ -51,6 +53,7 @@ jobs:
           php -l v8/backend/src/B2B/V7CanonicalCashHandoverUat.php
           php -l v8/backend/src/B2B/V7B2BCrossLedgerAuditUat.php
           php -l v8/backend/tests/v7_canonical_real_mariadb.php
+          php -l v8/backend/tests/signed_bank_reconciliation_mariadb.php
           php -r '$pdo=new PDO(getenv("V8_TEST_DSN"),getenv("V8_TEST_USER"),getenv("V8_TEST_PASSWORD")); if($pdo->query("SELECT DATABASE()")->fetchColumn()!=="v8_test")exit(1); echo "PASS isolated v8_test MariaDB identity\n";'
       - name: Real V7 journal and independent receipt/checker integration
         shell: bash
@@ -58,5 +61,13 @@ jobs:
           set -euo pipefail
           php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/v7_canonical_real_mariadb.php | tee "$RUNNER_TEMP/cashier-finance-checker-uat.log"
           grep -q '^CANONICAL V7 REAL MARIADB UAT: [0-9]*/[0-9]* PASS; v8_test only; no WordPress deployment$' "$RUNNER_TEMP/cashier-finance-checker-uat.log"
+      - name: Signed UPI evidence anti-forgery and replay on the same disposable database
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/signed_bank_reconciliation_mariadb.php | tee "$RUNNER_TEMP/signed-upi-proof-uat.log"
+          grep -q '^SIGNED BANK RECONCILIATION MARIADB UAT: [0-9]*/[0-9]* PASS; synthetic signed feed only
+        run: echo "PASS only runner-local disposable MariaDB; no Office/production secrets, deployments or live payment providers"
+ "$RUNNER_TEMP/signed-upi-proof-uat.log"
       - name: Strict no Office or production write gate
         run: echo "PASS only runner-local disposable MariaDB; no Office/production secrets, deployments or live payment providers"

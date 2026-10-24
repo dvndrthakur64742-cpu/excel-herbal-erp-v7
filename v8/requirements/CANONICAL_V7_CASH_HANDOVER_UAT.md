@@ -106,3 +106,19 @@ runner-local `v8_test` database, has no Office credentials, and cannot mark
 physical money delivered in live V7 Daily Orders. Actual employee Cash
 handover, bank/PSP source, tax/reversal policy, sanitized staging UAT and
 production authorization remain separately gated.
+
+## 2026-10-24 — Signed bank/UPI companion CI gate
+
+The dedicated disposable MariaDB workflow now also executes
+`v8/backend/tests/signed_bank_reconciliation_mariadb.php` immediately after
+the 129-case canonical Cashier/Finance-checker suite, on the SAME runner-local
+`v8_test` service under a distinct company ID. Both suites must print their
+non-SKIP audited PASS summary, and any failure blocks the CI job.
+
+The companion UPI test uses a **synthetic, internally HMAC-signed bank-feed
+record**, not a bank webhook or authenticated production PSP. It verifies
+server-owned signing key, merchant/account binding, exact INR amount and
+order/reference linkage, fresh settled status, duplicate transaction race,
+wrong-company/branch, tampered records and signer revocation; it must not
+fabricate live UPI verification. Neither suite has access to Office credentials
+or posts production journals. This is an automated UAT gate only.
