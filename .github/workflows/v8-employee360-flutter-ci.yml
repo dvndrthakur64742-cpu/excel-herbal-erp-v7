@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
+      - 'flutter-app/lib/screens/organization/employee_360_workspace.dart'
+      - 'flutter-app/test/employee_360_workspace_test.dart'
       - 'flutter-app/lib/screens/organization/employee_finance_review_panel.dart'
       - 'flutter-app/lib/screens/organization/employee_finance_uat_api_loader.dart'
       - 'flutter-app/lib/screens/organization/employee_cashier_evidence_uat.dart'
@@ -47,7 +49,7 @@ jobs:
         run: flutter pub get
       - name: Employee 360 UI contract test
         working-directory: flutter-app
-        run: flutter test test/employee_360_ui_contract_test.dart
+        run: flutter test test/employee_360_ui_contract_test.dart test/employee_360_workspace_test.dart test/employee_cash_control_ui_test.dart
       - name: Employee Finance Review widget, finance scope and actual REST source contracts
         working-directory: flutter-app
         run: flutter test test/employee_finance_review_ui_test.dart test/employee_cashier_evidence_uat_ui_test.dart

@@ -8,6 +8,7 @@ import '../../state/app_state.dart';
 import '../../widgets/gps_route_view.dart';
 import '../../widgets/records_list.dart';
 import 'employee_finance_review_panel.dart';
+import 'employee_360_workspace.dart';
 
 /// Existing V7 canonical employee 360 REST response. No shadow customer,
 /// sales, stock, attendance or ledger state is maintained in the Flutter app.
@@ -178,82 +179,85 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
                     ),
                   ),
                 ),
-                TabBar(isScrollable: true, tabs: tabs),
                 Expanded(
-                  child: TabBarView(
-                    children: [
-                      _Employee360Summary(profile: profile),
-                      _Employee360PagedRegister(
-                        employeeId: widget.employeeId,
-                        type: 'sales',
-                        from: _from,
-                        to: _to,
-                      ),
-                      _Employee360PagedRegister(
-                        employeeId: widget.employeeId,
-                        type: 'stock',
-                        from: _from,
-                        to: _to,
-                      ),
-                      _Employee360PagedRegister(
-                        employeeId: widget.employeeId,
-                        type: 'requests',
-                        from: _from,
-                        to: _to,
-                      ),
-                      _Employee360PagedRegister(
-                        employeeId: widget.employeeId,
-                        type: 'reconciliation',
-                        from: _from,
-                        to: _to,
-                      ),
-                      _Employee360List(
-                        title: 'Attendance by business date',
-                        rows: profile['attendance_history'],
-                      ),
-                      if (financeVisible)
-                        _Employee360List(
-                          title: 'Employee-tagged journal lines (not a full cash ledger)',
-                          rows: ledgerData['entries'],
-                        ),
-                      if (financeVisible)
+                  child: Employee360Workspace(
+                    tabs: tabs,
+                    child: TabBarView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        _Employee360Summary(profile: profile),
                         _Employee360PagedRegister(
                           employeeId: widget.employeeId,
-                          type: 'person_ledger',
+                          type: 'sales',
                           from: _from,
                           to: _to,
                         ),
-                      if (financeVisible)
-                        _Employee360TransitLedger(rows: ledgerData['entries']),
-                      if (financeVisible)
-                        _Employee360CashControl(
+                        _Employee360PagedRegister(
                           employeeId: widget.employeeId,
+                          type: 'stock',
                           from: _from,
                           to: _to,
                         ),
-                      if (financeVisible)
-                        Builder(
-                          builder: (financeTabContext) => EmployeeFinanceReviewPanel(
+                        _Employee360PagedRegister(
+                          employeeId: widget.employeeId,
+                          type: 'requests',
+                          from: _from,
+                          to: _to,
+                        ),
+                        _Employee360PagedRegister(
+                          employeeId: widget.employeeId,
+                          type: 'reconciliation',
+                          from: _from,
+                          to: _to,
+                        ),
+                        _Employee360List(
+                          title: 'Attendance by business date',
+                          rows: profile['attendance_history'],
+                        ),
+                        if (financeVisible)
+                          _Employee360List(
+                            title: 'Employee-tagged journal lines (not a full cash ledger)',
+                            rows: ledgerData['entries'],
+                          ),
+                        if (financeVisible)
+                          _Employee360PagedRegister(
+                            employeeId: widget.employeeId,
+                            type: 'person_ledger',
+                            from: _from,
+                            to: _to,
+                          ),
+                        if (financeVisible)
+                          _Employee360TransitLedger(rows: ledgerData['entries']),
+                        if (financeVisible)
+                          _Employee360CashControl(
                             employeeId: widget.employeeId,
                             from: _from,
                             to: _to,
-                            onOpenCashControl: cashControlIndex >= 0
-                                ? () => DefaultTabController.of(financeTabContext)
-                                    .animateTo(cashControlIndex)
-                                : null,
-                            onOpenPersonLedger: personLedgerIndex >= 0
-                                ? () => DefaultTabController.of(financeTabContext)
-                                    .animateTo(personLedgerIndex)
-                                : null,
                           ),
-                        ),
-                      if (showGps)
-                        _Employee360Gps(
-                          employeeId: widget.employeeId,
-                          from: _from,
-                          to: _to,
-                        ),
-                    ],
+                        if (financeVisible)
+                          Builder(
+                            builder: (financeTabContext) => EmployeeFinanceReviewPanel(
+                              employeeId: widget.employeeId,
+                              from: _from,
+                              to: _to,
+                              onOpenCashControl: cashControlIndex >= 0
+                                  ? () => DefaultTabController.of(financeTabContext)
+                                      .animateTo(cashControlIndex)
+                                  : null,
+                              onOpenPersonLedger: personLedgerIndex >= 0
+                                  ? () => DefaultTabController.of(financeTabContext)
+                                      .animateTo(personLedgerIndex)
+                                  : null,
+                            ),
+                          ),
+                        if (showGps)
+                          _Employee360Gps(
+                            employeeId: widget.employeeId,
+                            from: _from,
+                            to: _to,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ],
