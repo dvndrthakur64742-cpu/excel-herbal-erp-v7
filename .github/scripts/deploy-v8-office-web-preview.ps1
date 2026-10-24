@@ -356,7 +356,7 @@ do {
         $verified=$true
         break
       }
-      if($newHead -cne [string]$env:CURRENT_BACKEND_SHA -or
+      if($newHead -cne [string]$env:OLD_WEB_SOURCE_HEAD -or
          $newHash -cne [string]$env:OLD_WEB_SHA256) {
         throw ('Unexpected independent Office web runtime after upload: '+$lastObserved)
       }
