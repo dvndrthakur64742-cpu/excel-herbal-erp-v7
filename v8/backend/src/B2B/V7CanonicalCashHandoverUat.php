@@ -246,7 +246,10 @@ final class V7CanonicalCashHandoverUat
                 ['consumed_remittance_id'=>$id],['id'=>(int)$receipt['id'],'consumed_remittance_id'=>null]);
             if($updated!==1||$consumed!==1)
                 throw new RetailerSaleError('Atomic Cash handover receipt consumption failed.');
-            $this->existingVerifiedJournal(['id'=>$id,'status'=>'posted','journal_entry_id'=>$journal],
+            $this->existingVerifiedJournal([
+                'id'=>$id,'status'=>'posted','journal_entry_id'=>$journal,
+                'checker_employee_id'=>$this->actor->employeeId
+            ],
                 $branch,$sale['amount_paise'],$sale['employee_id']);
             return ['remittance_id'=>$id,'journal_id'=>$journal,'sale_id'=>$saleId,
                 'employee_id'=>$sale['employee_id'],'amount_paise'=>$sale['amount_paise'],
