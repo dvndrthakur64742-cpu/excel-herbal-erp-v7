@@ -12,6 +12,8 @@ on:
       - 'flutter-app/test/employee_finance_review_ui_test.dart'
       - 'flutter-app/lib/screens/reports/reports_screen.dart'
       - 'flutter-app/lib/core/api_paths.dart'
+      - 'flutter-app/lib/core/gps_tracking_service.dart'
+      - 'flutter-app/test/gps_tracking_service_test.dart'
       - 'flutter-app/test/branch_daily_control_ui_contract_test.dart'
       - 'flutter-app/test/branch_period_control_ui_contract_test.dart'
       - 'flutter-app/test/branch_comparison_csv_ui_contract_test.dart'
@@ -73,3 +75,6 @@ jobs:
       - name: Stock allocation regression
         working-directory: flutter-app
         run: flutter test test/stock_allocation_test.dart
+      - name: Automatic GPS duty fail-closed and old Office backend 404 regression (No Deploy)
+        working-directory: flutter-app
+        run: flutter test test/gps_tracking_service_test.dart
