@@ -955,6 +955,11 @@ uat_case('uat_posted_field_day_visible_in_employee360_cash_stock_and_ledger', fu
        (int)$cash['rows'][0]['daily_cycle_id']!==$cycle||
        (int)$cash['page_totals']['cash_reported_paise']!==20000||
        (int)$cash['page_totals']['upi_reported_paise']!==16000||
+       (int)($cash['page_evidence_gaps']['cash_without_independent_receipt_paise']??-1)!==20000||
+       (int)($cash['page_evidence_gaps']['upi_without_bank_confirmation_paise']??-1)!==16000||
+       ($cash['page_evidence_gaps']['interpretation']??null)!=='booked_tenders_without_independent_proof_not_outstanding'||
+       ($cash['page_evidence_gaps']['basis']??null)!=='canonical_daily_order_page_only'||
+       (int)($cash['page_flags']['upi_bank_unproven_count']??-1)!==1||
        ($cash['rows'][0]['journal_check']??null)!=='journal_amounts_match'||
        ($cash['rows'][0]['journal_cost_of_goods_reconcile']??null)!==true||
        (int)($cash['rows'][0]['journal_cogs_debit_paise']??-1)!==20000||

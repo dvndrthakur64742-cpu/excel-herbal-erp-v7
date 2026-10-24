@@ -28,7 +28,7 @@ final class EmployeeCashControl {
         $items=$source->posted($actor->companyId,$employeeId,$from,$to,$scope['branches'],$pageSize+1,($page-1)*$pageSize);
         if(!is_array($items))throw new DomainException('Cash-control reader returned invalid rows.','cash_control_query_failed',500);
         $more=count($items)>$pageSize;
-        $rows=[];$cash=0;$upi=0;$cashPosted=0;$upiPosted=0;$mismatched=0;$unproven=0;
+        $rows=[];$cash=0;$upi=0;$cashPosted=0;$upiPosted=0;$mismatched=0;$unproven=0;$upiUnproven=0;
         foreach(array_slice($items,0,$pageSize) as $item){
             if(!is_array($item)||!is_int($item['daily_cycle_id']??null)||$item['daily_cycle_id']<1
                 ||!is_int($item['branch_id']??null)||$item['branch_id']<1
@@ -67,6 +67,7 @@ final class EmployeeCashControl {
             $status=$journals===0?'missing_journal':($journals!==1?'duplicate_journal':($postingOk?'journal_amounts_match':'journal_amount_mismatch'));
             if(!$postingOk)$mismatched++;
             if($reportedCash>0)$unproven++;
+            if($reportedUpi>0)$upiUnproven++;
             foreach([[$cash,$reportedCash],[$upi,$reportedUpi],[$cashPosted,$glCash],[$upiPosted,$glUpi]] as [$running,$add])
                 if($running>PHP_INT_MAX-$add)throw new DomainException('Cash-control amount overflow.','cash_control_corrupt',500);
             $cash+=$reportedCash;$upi+=$reportedUpi;$cashPosted+=$glCash;$upiPosted+=$glUpi;
@@ -96,7 +97,16 @@ final class EmployeeCashControl {
         return [
             'employee_id'=>$employeeId,'period'=>['from'=>$from,'to'=>$to],'page'=>$page,'page_size'=>$pageSize,'has_more'=>$more,
             'rows'=>$rows,'page_totals'=>['cash_reported_paise'=>$cash,'upi_reported_paise'=>$upi,'cash_ledger_debit_paise'=>$cashPosted,'upi_ledger_debit_paise'=>$upiPosted],
-            'page_flags'=>['journal_mismatch_count'=>$mismatched,'cash_remittance_unproven_count'=>$unproven],
+            'page_flags'=>['journal_mismatch_count'=>$mismatched,'cash_remittance_unproven_count'=>$unproven,'upi_bank_unproven_count'=>$upiUnproven],
+            // Booked tender values lacking independently sourced receipt/bank proof.
+            // NOT a liability balance, shortage, Cash in Transit or bank outstanding.
+            // Values cover THIS PAGE ONLY; ledger rows and B2B totals are not added.
+            'page_evidence_gaps'=>[
+                'cash_without_independent_receipt_paise'=>$cash,
+                'upi_without_bank_confirmation_paise'=>$upi,
+                'interpretation'=>'booked_tenders_without_independent_proof_not_outstanding',
+                'basis'=>'canonical_daily_order_page_only',
+            ],
             'cash_remittance_status'=>'not_available_in_legacy_v7','scope'=>'canonical_posted_daily_cycles_only',
             'warning'=>'Cash/UPI, SALES and journal Dr/Cr agreement is internal bookkeeping only. It does NOT prove physical employee cash handover, bank deposit, or independently verified UPI settlement.',
             'read_only'=>true,

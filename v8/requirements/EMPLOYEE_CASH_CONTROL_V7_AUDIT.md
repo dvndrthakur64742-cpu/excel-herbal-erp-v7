@@ -264,3 +264,62 @@ pair, compensated extraneous debit/credit, and a one-paisa unexplained leg.
 The disposable MariaDB end-to-end employee sales test now asserts the
 actual ₹200 COGS/INVENTORY closing legs on its ₹360 sale. No DB migration,
 posting mutation, production deployment or staging write is in scope.
+
+
+## 2026-10-24 — Cashier / UPI evidence-pending worklist (NO posting)
+
+**Current canonical V7 limitation:** The posted Daily Order settles the customer's
+sale and books CASH/UPI in the branch journal. It does NOT record a separate,
+independently authenticated employee-to-cashier receipt or PSP/bank reconciliation
+for that employee. Consequently the original Cash Control report cannot safely
+state employee outstanding, employee shortage, physical cash on hand, or bank
+settlement. The independent cashier attestation exists only in V8 disposable
+`v8_test` UAT adapters, not the WordPress canonical writer.
+
+**Read-only enhancement:** Original scoped `EmployeeCashControl::view` now
+returns `page_flags.upi_bank_unproven_count` alongside original cashier
+unproven count, plus `page_evidence_gaps`:
+- `cash_without_independent_receipt_paise` — sum of posted Cash tender on
+  THIS response page with **no independently sourced receipt evidence** in V7.
+- `upi_without_bank_confirmation_paise` — analogous posted UPI tender amount.
+- `interpretation=booked_tenders_without_independent_proof_not_outstanding`.
+- `basis=canonical_daily_order_page_only`.
+
+All amounts are exact paise and derive from the same canonical rows already
+included in `page_totals`. These are **evidence-verification worklist
+amounts**, NOT an accounting write, collectible employee debt, Cash-in-Transit
+GL balance, bank deposit, verified/unverified PSP transaction decision, or
+missing money. No B2B or other source is aggregated or double counted. Page
+two is intentionally not rolled into page one. Authenticated finance viewer,
+employee profile scope, company and branch restrictions are retained.
+
+**Flutter Finance Review:** The first-25-record read-only screen displays the
+two evidence-pending amounts and the count of Cash/UPI-positive closings.
+The prominent notice explicitly denies interpreting them as outstanding.
+A new backend evidence object, if present, must match exact canonical
+page booked amounts, basis, interpretation and row counts; mismatching or
+invented proof/status values fail closed. Until coordinated rollout, an older
+V7 backend response without the additive fields remains supported: the
+page sums its original booked values and labels them as *not evidenced*, not
+verified.
+
+**Future cashier write workflow requiring separate approval:**
+1. Employee reports Cash collected (already in original posted Daily Order).
+2. Independently authenticated branch cashier counts physical tender and
+   submits a unique source-bound receipt; maker != checker, branch RBAC,
+   partial/multiple receipt policy and idempotency must be explicitly agreed.
+3. Finance reviewer accepts/rejects; any reclassification from legacy
+   branch Cash to employee Cash-in-Transit requires signed canonical source,
+   reversal/period-close protection and migration/backout plan.
+4. UPI PSP evidence originates independently from a bank/PSP statement;
+   UTR text entered by an employee cannot count as verified settlement.
+5. Only independently proven events may reduce the correct employee-specific
+   custody exposure. Existing B2B and Daily Order source links must be
+   de-duplicated before a combined outstanding report is possible.
+
+**Acceptance:** synthetic unit + disposable MariaDB UAT cover mixed ₹200 Cash
+and ₹160 UPI, branch scope and finance RBAC, real posted journal and zero
+additional writes; Flutter tests reject forged evidence totals/basis/interpretation,
+wrong count and overpage arithmetic, and preserve older V7 read compatibility.
+No WordPress plugin or web staging deployment, schema change, real cashier
+proof creation, or production posting is authorized by this commit.

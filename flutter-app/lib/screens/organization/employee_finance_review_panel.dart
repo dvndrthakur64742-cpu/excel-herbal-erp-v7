@@ -123,6 +123,9 @@ class EmployeeFinanceReviewSnapshot {
     required this.upiBookedPaise,
     required this.mismatches,
     required this.unprovenCash,
+    required this.unprovenUpi,
+    required this.cashEvidencePendingPaise,
+    required this.upiEvidencePendingPaise,
     required this.hasMore,
     required this.ledgerHasMore,
     required this.ledgerEventPageCount,
@@ -134,6 +137,11 @@ class EmployeeFinanceReviewSnapshot {
   final int upiBookedPaise;
   final int mismatches;
   final int unprovenCash;
+  final int unprovenUpi;
+  /// Booked V7 tender amounts with no independent evidence source.
+  /// These are NOT outstanding employee liabilities or unbanked balances.
+  final int cashEvidencePendingPaise;
+  final int upiEvidencePendingPaise;
   final bool hasMore;
   final bool ledgerHasMore;
   final int ledgerEventPageCount;
@@ -237,14 +245,39 @@ class EmployeeFinanceReviewSnapshot {
     }
     final mismatches = unsigned(flags['journal_mismatch_count']);
     final unprovenCash = unsigned(flags['cash_remittance_unproven_count']);
-    if (mismatches > closings.length || unprovenCash > closings.length) {
+    final unprovenUpi = flags.containsKey('upi_bank_unproven_count')
+        ? unsigned(flags['upi_bank_unproven_count'])
+        : closings.where((c) => unsigned(c['reported_upi_paise']) > 0).length;
+    // New V8 backend adds an explicit evidence-gap projection. The old
+    // V7 backend is still allowed until an approved coordinated release.
+    // In either case, the only safe number is booked tender, not debt.
+    final bookedCash = unsigned(totals['cash_reported_paise']);
+    final bookedUpi = unsigned(totals['upi_reported_paise']);
+    final evidenceRaw = cash['page_evidence_gaps'];
+    if (evidenceRaw != null) {
+      final evidence = _map(evidenceRaw);
+      if (evidence['basis'] != 'canonical_daily_order_page_only' ||
+          evidence['interpretation'] !=
+              'booked_tenders_without_independent_proof_not_outstanding' ||
+          unsigned(evidence['cash_without_independent_receipt_paise']) != bookedCash ||
+          unsigned(evidence['upi_without_bank_confirmation_paise']) != bookedUpi) {
+        throw const FormatException('Independent evidence gap contract mismatch.');
+      }
+    }
+    final cashRows = closings.where((c) => unsigned(c['reported_cash_paise']) > 0).length;
+    final upiRows = closings.where((c) => unsigned(c['reported_upi_paise']) > 0).length;
+    if (mismatches > closings.length || unprovenCash != cashRows ||
+        unprovenUpi != upiRows) {
       throw const FormatException('Cash Control page flags are inconsistent.');
     }
     return EmployeeFinanceReviewSnapshot._(
-      cashBookedPaise: unsigned(totals['cash_reported_paise']),
-      upiBookedPaise: unsigned(totals['upi_reported_paise']),
+      cashBookedPaise: bookedCash,
+      upiBookedPaise: bookedUpi,
       mismatches: mismatches,
       unprovenCash: unprovenCash,
+      unprovenUpi: unprovenUpi,
+      cashEvidencePendingPaise: bookedCash,
+      upiEvidencePendingPaise: bookedUpi,
       hasMore: cash['has_more'] == true,
       ledgerHasMore: ledger['has_more'] == true,
       ledgerEventPageCount: rawLedgerEvents.length,
@@ -298,7 +331,8 @@ class EmployeeFinanceReviewView extends StatelessWidget {
                 ]),
                 const Text('Read-only · Canonical WordPress V7 records · Finance-only'),
                 const SizedBox(height: 6),
-                const Text('Booked Cash/UPI is NOT physical cashier handover or bank settlement. '
+                const Text('EVIDENCE PENDING is NOT employee outstanding, a shortage, or a demand for payment. '
+                    'Booked Cash/UPI is NOT physical cashier handover or bank settlement. '
                     'Account ledger lines are separate accounting evidence; do not add the two views together.'),
                 if (onOpenCashControl != null || onOpenPersonLedger != null)
                   Padding(
@@ -335,6 +369,9 @@ class EmployeeFinanceReviewView extends StatelessWidget {
             _FinanceMetric(label: 'UPI booked · first 25', value: EmployeeFinanceReviewSnapshot.inr(snapshot.upiBookedPaise)),
             _FinanceMetric(label: 'Journal mismatches · first 25', value: snapshot.mismatches.toString(), alert: snapshot.mismatches > 0),
             _FinanceMetric(label: 'Cash handovers unproven · first 25', value: snapshot.unprovenCash.toString(), alert: snapshot.unprovenCash > 0),
+            _FinanceMetric(label: 'UPI confirmations unproven · first 25', value: snapshot.unprovenUpi.toString(), alert: snapshot.unprovenUpi > 0),
+            _FinanceMetric(label: 'Cash booked without receipt proof · first 25', value: EmployeeFinanceReviewSnapshot.inr(snapshot.cashEvidencePendingPaise), alert: snapshot.cashEvidencePendingPaise > 0),
+            _FinanceMetric(label: 'UPI booked without bank proof · first 25', value: EmployeeFinanceReviewSnapshot.inr(snapshot.upiEvidencePendingPaise), alert: snapshot.upiEvidencePendingPaise > 0),
           ],
         ),
         if (snapshot.ledgerHasMore)

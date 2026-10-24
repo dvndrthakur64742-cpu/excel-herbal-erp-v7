@@ -78,6 +78,14 @@ namespace {
     ok($out['page_totals']['cash_reported_paise']===12025&&$out['page_totals']['upi_reported_paise']===6500,'exact money totals');
     ok($out['page_flags']['cash_remittance_unproven_count']===1,'only positive cash flagged');
     ok($out['page_flags']['journal_mismatch_count']===0,'all journal amounts matched');
+    ok($out['page_flags']['upi_bank_unproven_count']===2,
+       'only page-visible UPI-positive closings flagged without independent bank proof');
+    ok($out['page_evidence_gaps']['cash_without_independent_receipt_paise']===12025
+        &&$out['page_evidence_gaps']['upi_without_bank_confirmation_paise']===6500,
+       'independent receipt/UPI proof gaps are booked values only, never double-counted GL');
+    ok($out['page_evidence_gaps']['interpretation']==='booked_tenders_without_independent_proof_not_outstanding'
+       &&$out['page_evidence_gaps']['basis']==='canonical_daily_order_page_only',
+       'no debt, employee liability, physical remittance, PSP deposit or cross-source total inferred');
     $fake->rows=[row(14,2,'120.25','0.00','120.25','90.00','0.00')];
     $mismatch=EmployeeCashControl::view($m,7,'2026-10-01','2026-10-19',2,1,$fake,$profile);
     ok($mismatch['rows'][0]['journal_check']==='journal_amount_mismatch','posted journal mismatch surfaced');

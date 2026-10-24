@@ -17,9 +17,16 @@ Map<String, dynamic> cashFixture() => {
     'cash_reported_paise': 15000,
     'upi_reported_paise': 3000,
   },
+  'page_evidence_gaps': <String, dynamic>{
+    'cash_without_independent_receipt_paise': 15000,
+    'upi_without_bank_confirmation_paise': 3000,
+    'interpretation': 'booked_tenders_without_independent_proof_not_outstanding',
+    'basis': 'canonical_daily_order_page_only',
+  },
   'page_flags': <String, dynamic>{
     'journal_mismatch_count': 1,
     'cash_remittance_unproven_count': 1,
+    'upi_bank_unproven_count': 1,
   },
   'rows': [
     {
@@ -90,6 +97,9 @@ void main() {
     expect(snapshot.upiBookedPaise, 3000);
     expect(snapshot.mismatches, 1);
     expect(snapshot.unprovenCash, 1);
+    expect(snapshot.unprovenUpi, 1);
+    expect(snapshot.cashEvidencePendingPaise, 15000);
+    expect(snapshot.upiEvidencePendingPaise, 3000);
     expect(snapshot.hasMore, isTrue);
     expect(snapshot.ledgerHasMore, isTrue);
     expect(snapshot.ledgerEventPageCount, 1);
@@ -145,6 +155,50 @@ void main() {
         employeeId: 42, from: '2026-10-01', to: '2026-10-22', cashResponse: cashFixture(), ledgerResponse: malformed),
       throwsFormatException,
     );
+  });
+
+  test('Evidence gaps never claim employee debt and must match booked tender', () {
+    EmployeeFinanceReviewSnapshot parse(Map<String, dynamic> cash) =>
+        EmployeeFinanceReviewSnapshot.fromResponses(
+          employeeId: 42,
+          from: '2026-10-01',
+          to: '2026-10-22',
+          cashResponse: cash,
+          ledgerResponse: ledgerFixture(),
+        );
+
+    final fakeDebt = cashFixture();
+    (fakeDebt['page_evidence_gaps'] as Map)['interpretation'] =
+        'employee_cash_outstanding';
+    expect(() => parse(fakeDebt), throwsFormatException);
+
+    final inflatedCash = cashFixture();
+    (inflatedCash['page_evidence_gaps'] as Map)
+        ['cash_without_independent_receipt_paise'] = 20000;
+    expect(() => parse(inflatedCash), throwsFormatException);
+
+    final inflatedUpi = cashFixture();
+    (inflatedUpi['page_evidence_gaps'] as Map)
+        ['upi_without_bank_confirmation_paise'] = 4000;
+    expect(() => parse(inflatedUpi), throwsFormatException);
+
+    final fakePage = cashFixture();
+    (fakePage['page_evidence_gaps'] as Map)['basis'] = 'all_employees';
+    expect(() => parse(fakePage), throwsFormatException);
+
+    final fakeUpiCount = cashFixture();
+    (fakeUpiCount['page_flags'] as Map)['upi_bank_unproven_count'] = 0;
+    expect(() => parse(fakeUpiCount), throwsFormatException);
+
+    final fakeCashCount = cashFixture();
+    (fakeCashCount['page_flags'] as Map)['cash_remittance_unproven_count'] = 0;
+    expect(() => parse(fakeCashCount), throwsFormatException);
+
+    final legacy = cashFixture()
+      ..remove('page_evidence_gaps');
+    (legacy['page_flags'] as Map).remove('upi_bank_unproven_count');
+    expect(parse(legacy).cashEvidencePendingPaise, 15000);
+    expect(parse(legacy).unprovenUpi, 1);
   });
 
   test('stale financial period, ledger page or forged closure date fail closed', () {
@@ -231,6 +285,10 @@ void main() {
     expect(find.text('₹30.00'), findsOneWidget);
     expect(find.text('Journal mismatches · first 25'), findsOneWidget);
     expect(find.text('Cash handovers unproven · first 25'), findsOneWidget);
+    expect(find.text('UPI confirmations unproven · first 25'), findsOneWidget);
+    expect(find.text('Cash booked without receipt proof · first 25'), findsOneWidget);
+    expect(find.text('UPI booked without bank proof · first 25'), findsOneWidget);
+    expect(find.textContaining('EVIDENCE PENDING is NOT employee outstanding'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -650));
     await tester.pumpAndSettle();
     expect(find.text('Cashier handover: NOT VERIFIED'), findsWidgets);
