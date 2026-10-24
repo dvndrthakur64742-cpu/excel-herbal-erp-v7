@@ -64,3 +64,32 @@ actual Office browser, the new scope-limited finance API and authorized
 Flutter screen must be designed, staged on sanitized infrastructure,
 and independently approved. The current live Office backend has no
 canonical cashier receipt action for this source.
+
+## 2026-10-24 — UAT-only Finance Review component; no live API activation
+
+The existing Flutter `EmployeeFinanceReviewView` now optionally renders a
+`CashierEvidenceUatSection` ONLY if the caller explicitly supplies a
+strictly parsed `CashierEvidenceUatPage`. Its parser validates the isolated
+`V7EmployeeCrossSourceCashAuditUat::inspect` payload contract: read-only,
+company, branch, employee, exact period, bounded first page, independence
+of Daily Order and B2B sources, original B2B posted-sale ID / date / amount,
+and original independently authenticated cashier receipt, Finance checker,
+remittance and V7 posted GL journal IDs. Different cashier and checker user
+and employee IDs are mandatory; UAT-only scope, unverified-live flag and
+source-specific evidence stages are required. Duplicate source, receipt and
+journal IDs, tampered amount, altered company/period, fake bank proof and
+employee outstanding assertions fail closed. No totals are aggregated.
+
+The independent component shows the receipt -> cashier -> Finance checker ->
+canonical remittance/GL chain with an unmistakable **UAT ONLY / NOT Office
+Cash proof / NOT bank settlement / NOT employee outstanding** disclaimer.
+The old Daily Order renderer remains unchanged and explicitly lacks physical
+Cash attestation. The existing `EmployeeFinanceReviewPanel._fetch` retains
+ONLY canonical live V7 Cash Control and person ledger REST GET calls; it does
+NOT fetch isolated v8_test data or present synthetic evidence as live fact.
+
+A dedicated Flutter widget/contract suite covers acceptance and tamper
+rejection. Pending **authorized** staging API integration, no runtime caller
+passes `cashierEvidenceUat`, so this is a previewable development component,
+not a live Cashier Receipt UI or a production ready workflow. This change
+contains no REST route, financial posting, migration or Office deployment.

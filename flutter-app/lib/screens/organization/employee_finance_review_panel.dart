@@ -5,6 +5,7 @@ import '../../core/api_paths.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
+import 'employee_cashier_evidence_uat.dart';
 
 /// Finance-only live WordPress V7 read model. No financial writes or fake
 /// cross-source balances; intentionally NOT the employee dashboard.
@@ -299,12 +300,16 @@ class EmployeeFinanceReviewView extends StatelessWidget {
     this.onRefresh,
     this.onOpenCashControl,
     this.onOpenPersonLedger,
+    this.cashierEvidenceUat,
   });
 
   final EmployeeFinanceReviewSnapshot snapshot;
   final VoidCallback? onRefresh;
   final VoidCallback? onOpenCashControl;
   final VoidCallback? onOpenPersonLedger;
+  /// Only an explicit, authenticated disposable v8_test projection can
+  /// populate this; the current live V7 REST request never provides it.
+  final CashierEvidenceUatPage? cashierEvidenceUat;
 
   @override
   Widget build(BuildContext context) {
@@ -360,6 +365,10 @@ class EmployeeFinanceReviewView extends StatelessWidget {
             ),
           ),
         ),
+        if (cashierEvidenceUat != null) ...[
+          const SizedBox(height: 8),
+          CashierEvidenceUatSection(page: cashierEvidenceUat!),
+        ],
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
