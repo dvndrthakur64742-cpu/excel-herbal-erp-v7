@@ -10,8 +10,10 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
-import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/v8_module_banner.dart';
+import '../../widgets/v8_record_workspace.dart';
+import '../../widgets/v8_sale_stock_line.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key, this.initialAction});
@@ -79,11 +81,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-              child: ModuleWorkspaceHeader(
-                title: 'Sales Desk',
-                subtitle: 'Counter billing, customer accounts and collections.',
+              child: V8ModuleBanner(
+                eyebrow: 'Sales operations / ERP V8',
+                title: 'Sales & Customers',
+                description: 'Counter billing, customer accounts and collections.',
                 icon: Icons.point_of_sale_outlined,
-                contextLabel: 'Business date · ${app.businessDate}',
+                context: [
+                  app.currentBranchName,
+                  'Business date ${app.businessDate}',
+                ],
               ),
             ),
             const Padding(
@@ -104,13 +110,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                 child: ModuleMessageBanner(message: message!),
               ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
-              child: ModuleSectionHeader(
-                title: 'Customer Accounts',
-                subtitle: 'Registered customer master for the selected branch.',
-              ),
-            ),
             Expanded(
               child: app.currentBranchId == null
                   ? const Center(child: Text('Select an authorised branch.'))
@@ -121,7 +120,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         query: {'branch_id': app.currentBranchId},
                       ),
                       emptyMessage: 'No customer accounts are available.',
-                      builder: (context, data) => RecordsList(
+                      builder: (context, data) => V8RecordWorkspace(
+                        title: 'Customer Accounts',
+                        subtitle: 'Search and inspect the selected branch customer master.',
+                        contextLabel: app.currentBranchName,
                         recordType: 'customer',
                         rows: (data as List)
                             .map((e) => Map<String, dynamic>.from(e as Map))
@@ -351,46 +353,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       final batchLabel = batchKey == 0
                           ? 'No Batch'
                           : '${row['batch_no'] ?? 'Batch'}';
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${row['product_name']}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall,
-                                    ),
-                                    Text(
-                                      '$batchLabel · Available ${row['quantity']} ${row['uom'] ?? ''}',
-                                    ),
-                                    Text(
-                                      'Sale ₹${p['sale_price'] ?? 0} · Batch mode ${BusinessFormat.status(p['batch_tracking'] ?? 'optional')}',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 110,
-                                child: TextField(
-                                  controller: qty[i],
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: [WholePcs.positiveFormatter],
-                                  decoration: const InputDecoration(
-                                    labelText: 'Qty',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      return V8SaleStockLine(
+                        productName: '${row['product_name'] ?? p['name'] ?? 'Product'}',
+                        batchLabel: batchLabel,
+                        availableText: '${row['quantity']} ${row['uom'] ?? ''}',
+                        salePriceText: '${p['sale_price'] ?? 0}',
+                        batchModeText: BusinessFormat.status(p['batch_tracking'] ?? 'optional'),
+                        quantityController: qty[i]!,
                       );
                     }),
                     if (formError != null) ...[

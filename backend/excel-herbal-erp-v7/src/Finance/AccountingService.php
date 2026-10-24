@@ -29,7 +29,7 @@ final class AccountingService{
  }
 
  private static function sourceTable(string $source):string{
-  $map=['counter_sale'=>'counter_sales','customer_receipt'=>'customer_receipts','daily_cycle'=>'daily_cycles','expense'=>'expenses','payroll'=>'payroll_runs','payroll_payment'=>'payroll_runs','purchase_bill'=>'purchase_bills','supplier_payment'=>'supplier_payments','stock_transfer_dispatch'=>'stock_transfers','stock_transfer_receive'=>'stock_transfers','stock_transfer_cancel'=>'stock_transfers','stock_transfer_variance'=>'stock_transfers','stock_adjustment'=>'stock_adjustments','stock_quarantine_writeoff'=>'stock_quarantine','reversal'=>'reversals'];
+  $map=['counter_sale'=>'counter_sales','b2b_retailer_sale'=>'b2b_retailer_sales','b2b_cash_remittance'=>'b2b_cash_remittances','customer_receipt'=>'customer_receipts','daily_cycle'=>'daily_cycles','expense'=>'expenses','payroll'=>'payroll_runs','payroll_payment'=>'payroll_runs','purchase_bill'=>'purchase_bills','supplier_payment'=>'supplier_payments','stock_transfer_dispatch'=>'stock_transfers','stock_transfer_receive'=>'stock_transfers','stock_transfer_cancel'=>'stock_transfers','stock_transfer_variance'=>'stock_transfers','stock_adjustment'=>'stock_adjustments','stock_quarantine_writeoff'=>'stock_quarantine','reversal'=>'reversals'];
   if(!isset($map[$source]))throw new DomainException('Unsupported journal source.','journal_source_invalid',422);
   return $map[$source];
  }

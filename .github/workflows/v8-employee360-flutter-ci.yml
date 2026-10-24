@@ -1,0 +1,140 @@
+name: Excel Herbal Employee 360 and Branch Reports Flutter UI Tests (No Deploy)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'flutter-app/lib/shell/**'
+      - 'flutter-app/lib/screens/home/home_screen.dart'
+      - 'flutter-app/lib/widgets/v8_home_hero.dart'
+      - 'flutter-app/lib/theme/excel_brand.dart'
+      - 'flutter-app/lib/screens/home/actions_screen.dart'
+      - 'flutter-app/test/workspace_action_catalog_test.dart'
+      - 'flutter-app/test/workspace_navigation_test.dart'
+      - 'flutter-app/test/shell_workspace_widget_test.dart'
+      - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
+      - 'flutter-app/lib/screens/organization/employee_360_workspace.dart'
+      - 'flutter-app/lib/screens/sales/sales_screen.dart'
+      - 'flutter-app/lib/screens/finance/finance_screen.dart'
+      - 'flutter-app/lib/widgets/v8_module_banner.dart'
+      - 'flutter-app/lib/widgets/v8_record_workspace.dart'
+      - 'flutter-app/lib/widgets/v8_sale_stock_line.dart'
+      - 'flutter-app/lib/widgets/v8_employee_overview.dart'
+      - 'flutter-app/lib/screens/finance/finance_books.dart'
+      - 'flutter-app/test/v8_workflow_details_ui_test.dart'
+      - 'flutter-app/lib/widgets/v8_employee_identity_card.dart'
+      - 'flutter-app/lib/screens/finance/finance_expenses.dart'
+      - 'flutter-app/test/v8_record_workspaces_ui_test.dart'
+      - 'flutter-app/test/v8_sales_finance_profile_ui_test.dart'
+      - 'flutter-app/test/employee_360_workspace_test.dart'
+      - 'flutter-app/lib/screens/organization/employee_finance_review_panel.dart'
+      - 'flutter-app/lib/screens/organization/finance_review_evidence_integrity.dart'
+      - 'flutter-app/lib/screens/organization/employee_finance_uat_api_loader.dart'
+      - 'flutter-app/lib/screens/organization/employee_cashier_evidence_uat.dart'
+      - 'flutter-app/test/employee_cashier_evidence_uat_ui_test.dart'
+      - 'flutter-app/test/employee_finance_review_ui_test.dart'
+      - 'flutter-app/lib/screens/reports/reports_screen.dart'
+      - 'flutter-app/lib/core/api_paths.dart'
+      - 'flutter-app/lib/core/gps_tracking_service.dart'
+      - 'flutter-app/lib/core/evening_order_selection.dart'
+      - 'flutter-app/lib/widgets/evening_order_picker.dart'
+      - 'flutter-app/lib/screens/my_work/my_work_screen.dart'
+      - 'flutter-app/lib/screens/my_work/my_work_daily_overview.dart'
+      - 'flutter-app/lib/screens/inventory/inventory_screen.dart'
+      - 'flutter-app/lib/widgets/v8_daily_order_board.dart'
+      - 'flutter-app/lib/widgets/v8_inventory_banner.dart'
+      - 'flutter-app/test/v8_daily_inventory_ui_test.dart'
+      - 'flutter-app/test/evening_order_selection_test.dart'
+      - 'flutter-app/test/gps_tracking_service_test.dart'
+      - 'flutter-app/test/branch_daily_control_ui_contract_test.dart'
+      - 'flutter-app/test/branch_period_control_ui_contract_test.dart'
+      - 'flutter-app/test/branch_comparison_csv_ui_contract_test.dart'
+      - 'flutter-app/lib/screens/reports/report_submissions_panel.dart'
+      - 'flutter-app/test/report_submissions_ui_contract_test.dart'
+      - 'flutter-app/test/watch_submission_ui_contract_test.dart'
+      - 'flutter-app/lib/screens/reports/manager_notification_center_panel.dart'
+      - 'flutter-app/test/manager_notification_center_contract_test.dart'
+      - 'flutter-app/lib/screens/reports/branch_reporting_watch_panel.dart'
+      - 'flutter-app/test/branch_reporting_watch_ui_test.dart'
+      - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
+      - 'flutter-app/test/employee_360_ui_contract_test.dart'
+      - 'flutter-app/pubspec.yaml'
+      - '.github/workflows/v8-employee360-flutter-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  employee360-flutter-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Get Flutter dependencies
+        working-directory: flutter-app
+        run: flutter pub get
+      - name: Shared workspace navigation and existing routing regression
+        working-directory: flutter-app
+        run: flutter test test/workspace_navigation_test.dart test/workspace_action_catalog_test.dart test/frontend_functional_navigation_test.dart test/shell_layout_test.dart
+      - name: Render actual shell at phone tablet and desktop widths (synthetic data)
+        working-directory: flutter-app
+        run: flutter test test/shell_workspace_widget_test.dart
+      - name: Upload synthetic shell screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v8-shell-ui-evidence
+          path: flutter-app/build/ui-evidence/
+          if-no-files-found: warn
+      - name: V8 Sales Finance and Employee profile UI regression
+        working-directory: flutter-app
+        run: flutter test test/v8_sales_finance_profile_ui_test.dart
+      - name: V8 responsive Sales stock entry, Finance books and Employee monthly overview
+        working-directory: flutter-app
+        run: flutter test test/v8_workflow_details_ui_test.dart
+      - name: V8 Sales customer Finance expense and Employee 360 record workspace UI
+        working-directory: flutter-app
+        run: flutter test test/v8_record_workspaces_ui_test.dart
+      - name: Employee 360 UI contract test
+        working-directory: flutter-app
+        run: flutter test test/employee_360_ui_contract_test.dart test/employee_360_workspace_test.dart test/employee_cash_control_ui_test.dart
+      - name: Employee Finance Review widget, finance scope and actual REST source contracts
+        working-directory: flutter-app
+        run: flutter test test/employee_finance_review_ui_test.dart test/employee_cashier_evidence_uat_ui_test.dart
+      - name: Branch Daily Control report Flutter UI contract and compile
+        working-directory: flutter-app
+        run: flutter test test/branch_daily_control_ui_contract_test.dart
+      - name: Branch Weekly Monthly Control Flutter UI contract and compile
+        working-directory: flutter-app
+        run: flutter test test/branch_period_control_ui_contract_test.dart
+      - name: Regional multi branch comparison and CSV export Flutter contract
+        working-directory: flutter-app
+        run: flutter test test/branch_comparison_csv_ui_contract_test.dart
+      - name: Manager Reporting Watch widget, date, scope and evidence tests
+        working-directory: flutter-app
+        run: flutter test test/branch_reporting_watch_ui_test.dart
+      - name: Manager report submission and regional approval Flutter UI contract and compile
+        working-directory: flutter-app
+        run: flutter test test/report_submissions_ui_contract_test.dart
+      - name: Manager Watch live status and unsent outbox Flutter contract
+        working-directory: flutter-app
+        run: flutter test test/watch_submission_ui_contract_test.dart
+      - name: Manager Notification Center reviewer-only drafts Flutter contract and compile
+        working-directory: flutter-app
+        run: flutter test test/manager_notification_center_contract_test.dart
+      - name: Evening Closing scoped order chooser and UX regression
+        working-directory: flutter-app
+        run: flutter test test/evening_order_selection_test.dart
+      - name: V8 Daily Order stage board and Inventory visual UI regression
+        working-directory: flutter-app
+        run: flutter test test/v8_daily_inventory_ui_test.dart
+      - name: Stock allocation regression
+        working-directory: flutter-app
+        run: flutter test test/stock_allocation_test.dart
+      - name: Automatic GPS duty fail-closed and old Office backend 404 regression (No Deploy)
+        working-directory: flutter-app
+        run: flutter test test/gps_tracking_service_test.dart

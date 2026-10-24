@@ -1,0 +1,247 @@
+name: Excel Herbal V8 B2B Development Checks (No Deploy)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'v8/**'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/BranchDailyControlReport.php'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/BranchPeriodControlReport.php'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/BranchComparisonReport.php'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/ReportingWatchSubmissionProjection.php'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/ReportReminderDrafts.php'
+      - 'backend/excel-herbal-erp-v7/tests/manager_notification_center_regression.php'
+      - 'flutter-app/lib/screens/reports/manager_notification_center_panel.dart'
+      - 'flutter-app/test/manager_notification_center_contract_test.dart'
+      - 'backend/excel-herbal-erp-v7/tests/reporting_watch_submission_projection_regression.php'
+      - 'flutter-app/test/watch_submission_ui_contract_test.dart'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/ReportingSubmissionService.php'
+      - 'backend/excel-herbal-erp-v7/tests/reporting_submissions_regression.php'
+      - 'backend/excel-herbal-erp-v7/src/Database/Schema.php'
+      - 'backend/excel-herbal-erp-v7/src/Security/Capabilities.php'
+      - 'backend/excel-herbal-erp-v7/src/Security/DesignationDefaults.php'
+      - 'flutter-app/lib/screens/reports/report_submissions_panel.dart'
+      - 'flutter-app/test/report_submissions_ui_contract_test.dart'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/BranchReportingWatch.php'
+      - 'backend/excel-herbal-erp-v7/tests/branch_reporting_watch_regression.php'
+      - 'flutter-app/lib/screens/reports/branch_reporting_watch_panel.dart'
+      - 'flutter-app/test/branch_reporting_watch_ui_test.dart'
+      - 'backend/excel-herbal-erp-v7/tests/branch_comparison_regression.php'
+      - 'flutter-app/test/branch_comparison_csv_ui_contract_test.dart'
+      - 'backend/excel-herbal-erp-v7/tests/branch_period_control_regression.php'
+      - 'flutter-app/test/branch_period_control_ui_contract_test.dart'
+      - 'v8/backend/tests/b2b_wordpress_http_smoke.py'
+      - 'v8/backend/tests/b2b_wordpress_http_router.php'
+      - '.github/scripts/b2b-dev-http-role-uat.ps1'
+      - 'backend/excel-herbal-erp-v7/src/Reporting/B2BStagingRestProbe.php'
+      - 'backend/excel-herbal-erp-v7/tests/b2b_staging_rest_probe_regression.php'
+      - 'backend/excel-herbal-erp-v7/src/Http/Api.php'
+      - 'backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php'
+      - 'backend/excel-herbal-erp-v7/src/Http/ApiDispatch.php'
+      - 'backend/excel-herbal-erp-v7/src/Http/ApiContract.php'
+      - 'backend/excel-herbal-erp-v7/tests/branch_daily_control_regression.php'
+      - 'flutter-app/lib/screens/reports/reports_screen.dart'
+      - 'flutter-app/lib/core/api_paths.dart'
+      - 'flutter-app/test/branch_daily_control_ui_contract_test.dart'
+      - 'backend/excel-herbal-erp-v7/src/DailyOrder/DailyFieldStockAudit.php'
+      - 'backend/excel-herbal-erp-v7/tests/daily_field_stock_audit_regression.php'
+      - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Registers.php'
+      - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
+      - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Service.php'
+      - 'backend/excel-herbal-erp-v7/src/Organization/EmployeeCashControl.php'
+      - 'backend/excel-herbal-erp-v7/tests/employee_cash_control_regression.php'
+      - 'backend/excel-herbal-erp-v7/tests/employee360_regression.php'
+      - 'backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php'
+      - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
+      - 'flutter-app/test/employee_360_ui_contract_test.dart'
+      - '.github/workflows/v8-foundation-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  b2b-php-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint all isolated V8 PHP sources
+        run: find v8/backend -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Lint canonical V7 Person Ledger projection
+        run: php -l backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php
+      - name: Lint Branch Daily Control V7 source
+        run: php -l backend/excel-herbal-erp-v7/src/Reporting/BranchDailyControlReport.php
+      - name: Lint canonical Branch Week Month report
+        run: php -l backend/excel-herbal-erp-v7/src/Reporting/BranchPeriodControlReport.php
+      - name: Lint Branch Comparison and CSV report
+        run: php -l backend/excel-herbal-erp-v7/src/Reporting/BranchComparisonReport.php
+      - name: Lint Manager Reporting Watch
+        run: php -l backend/excel-herbal-erp-v7/src/Reporting/BranchReportingWatch.php
+      - name: Lint durable manager report attestation service and canonical migration
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/Reporting/ReportingSubmissionService.php
+          php -l backend/excel-herbal-erp-v7/src/Reporting/ReportingWatchSubmissionProjection.php
+          php -l backend/excel-herbal-erp-v7/src/Reporting/ReportReminderDrafts.php
+          php -l backend/excel-herbal-erp-v7/src/Database/Schema.php
+      - name: Domain regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/run.php
+      - name: Read-only Daily Field Stock Ledger and Evening Settlement integrity regression
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/DailyOrder/DailyFieldStockAudit.php
+          php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/daily_field_stock_audit_regression.php
+      - name: Canonical V7 Employee 360 Stock Request History regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_registers_regression.php
+      - name: Lint Employee 360 profile and detailed register projections
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/Organization/Employee360Service.php
+          php -l backend/excel-herbal-erp-v7/src/Organization/Employee360Registers.php
+      - name: Tally Employee 360 Person Ledger complete-history regression
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee360_regression.php
+      - name: Employee 360 Cash Control GL branch attribution and role regression
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/Organization/EmployeeCashControl.php
+          php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/employee_cash_control_regression.php
+      - name: Branch Daily Control read-only summaries, payment caveats and access regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_daily_control_regression.php
+      - name: Branch weekly monthly reports, comparators, finance and branch scope
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_period_control_regression.php
+      - name: Multi branch manager comparison, exact totals, authorization and CSV formula injection
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_comparison_regression.php
+      - name: Manager reporting schedule, closing evidence, branch authorization and no-notification claims
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/branch_reporting_watch_regression.php
+      - name: Manager maker checker reports submission revision history and permission regression
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/reporting_submissions_regression.php
+      - name: Branch watch live approval evidence, overdue discipline and finance privacy
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/reporting_watch_submission_projection_regression.php
+      - name: Manager Notification Center draft-only review, maker-checker and guarded state transition
+        run: php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/manager_notification_center_regression.php
+      - name: Retailer master and boundary regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/retailer_flow.php
+      - name: Employee cash custody regression checks
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/cash_remittance.php
+      - name: Canonical V7 read-only mapping checks
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_readiness.php
+      - name: Canonical atomic posting choreography checks (fake transaction only)
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_atomic_posting.php
+      - name: Immutable sale intent to verified tender reservation checks (fake gateway)
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/sale_tender_binding.php
+      - name: Retailer to V7 customer identity and credit-policy checks
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_retailer_identity.php
+      - name: Trusted Cash custody and bank-verified UPI evidence regressions (fake gateway)
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/trusted_tender_intake.php
+
+      - name: Canonical retailer checkout read-only identity and price/stock composition
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_checkout_preview.php
+      - name: Immutable B2B sale/payment intent issuance regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_issuance.php
+
+      - name: Canonical immutable quote versus stock and verified tender regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/canonical_quote_revalidation.php
+
+      - name: Independent signed cashier receipts and Cash-in-Transit authority regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/independent_cashier_receipt.php
+
+      - name: Disposable WordPress staging REST registration, role isolation, metadata and API smoke
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/Reporting/B2BStagingRestProbe.php
+          php -l backend/excel-herbal-erp-v7/src/Http/Api.php
+          php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/b2b_staging_rest_probe_regression.php
+      - name: Real loopback HTTP transport for V7 REST role guard and B2B staging probe (synthetic WP, no deploy)
+        run: |
+          php -l v8/backend/tests/b2b_wordpress_http_router.php
+          python3 v8/backend/tests/b2b_wordpress_http_smoke.py
+      - name: UAT B2B branch-day preflight fail-closed accounting role, incomplete batch and custody checks
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/b2b_branch_preflight_unit.php
+      - name: V7 canonical StockService AccountingService same-connection UAT writer isolated regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/v7_canonical_writer_uat.php
+
+      - name: Same-database V7 row-locked payment evidence and fresh stock regressions
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/v7_locked_reader_uat.php
+
+  b2b-mariadb-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: dev-only-root
+          MARIADB_DATABASE: v8_test
+          MARIADB_USER: v8
+          MARIADB_PASSWORD: v8
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Branch report submission and regional maker-checker REAL MariaDB UAT
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/report_submissions_mariadb.php
+      - name: Real canonical V7 sale stock GL tender Cash/UPI cross-ledger reconciliation and remittance UAT
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/v7_canonical_real_mariadb.php
+      - name: Isolated MariaDB sale + ledger integration
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/mariadb_integration.php
+      - name: Issued intent to Cash tender binding UAT
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/immutable_intent_mariadb.php
+      - name: Real MariaDB Daily Issue Custody OUT-IN, Evening Sale Return and GL presence audit (rollback-only)
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/daily_field_stock_audit_mariadb.php
+      - name: Canonical V7 Employee Stock Request History on real disposable MariaDB
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/employee360_requests_mariadb.php
+      - name: Signed internal bank-reconciliation UPI intake and tampering MariaDB UAT
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/signed_bank_reconciliation_mariadb.php
+      - name: Disposable MariaDB trusted tender intake evidence checks
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/trusted_tender_mariadb.php
+      - name: Disposable MariaDB one-sale-one-tender binding UAT
+        env:
+          V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+          V8_TEST_USER: v8
+          V8_TEST_PASSWORD: v8
+        run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/sale_tender_mariadb.php

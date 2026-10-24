@@ -18,6 +18,7 @@ import '../../widgets/business_date_field.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../common/record_detail_screen.dart';
+import 'employee_360_screen.dart';
 import 'hr_lifecycle_screen.dart';
 
 part 'organization_branches.dart';

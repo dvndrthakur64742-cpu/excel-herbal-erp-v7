@@ -13,6 +13,7 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/v8_inventory_banner.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({
@@ -187,12 +188,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                child: ModuleWorkspaceHeader(
-                  title: 'Inventory Control',
-                  subtitle:
-                      'Branch stock, transfers, adjustments and quarantine control.',
-                  icon: Icons.inventory_2_outlined,
-                  contextLabel: 'Business date · ${app.businessDate}',
+                child: V8InventoryBanner(
+                  branch: app.currentBranchName,
+                  businessDate: app.businessDate,
                 ),
               ),
               const Padding(

@@ -39,6 +39,12 @@ if (!function_exists('get_date_from_gmt')) {
         return $instant->setTimezone(wp_timezone())->format((string)$format);
     }
 }
+if (!function_exists('get_gmt_from_date')) {
+    function get_gmt_from_date($local, $format='Y-m-d H:i:s'): string {
+        return (new DateTimeImmutable((string)$local,wp_timezone()))
+            ->setTimezone(new DateTimeZone('UTC'))->format($format);
+    }
+}
 
 final class Eh7UatRequest implements ArrayAccess {
     public function __construct(private array $params = [], private array $json = []) {}
@@ -201,34 +207,90 @@ uat_case('uat_bootstrap_contract_metadata', function () use ($self) {
     }
 });
 
-uat_case('uat_manual_attendance_disabled_cross_branch', function () use ($self, $wpdb) {
+uat_case('uat_gps_post_without_attendance_real_mariadb_and_route', function () use ($self,$wpdb) {
+    // Isolated disposable synthetic data and fake server clock, no Office writes.
+    $table=Db::table('gps_points');
+    $GLOBALS['eh7_uat_clock_override']='11:00:00';
     try {
-        uat_dispatch('work.check_in', $self, ['branch_id'=>2,'lat'=>31.9579,'lng'=>77.1095]);
-    } catch (DomainException $e) {
-        if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) throw $e;
-        $count = (int)$wpdb->get_var($wpdb->prepare(
-            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
-            1, 10, uat_date()
-        ));
-        if ($count !== 0) throw new RuntimeException('disabled cross-branch check-in created attendance');
-        return;
+        $duty=uat_dispatch('work.gps_duty',$self);
+        if(($duty['gps_status']??'')!=='active')
+            throw new RuntimeException('GPS not active at 11:00 despite independent duty window');
+        $point=uat_dispatch('work.gps_point',$self,[],[
+            'lat'=>31.9579,'lng'=>77.1095,'accuracy'=>5.6,'source'=>'duty_web'
+        ]);
+        if((int)($point['id']??0)<1)throw new RuntimeException('GPS point insert not confirmed');
+        $row=$wpdb->get_row($wpdb->prepare(
+            "SELECT id,company_id,branch_id,employee_id,attendance_id,source,recorded_at FROM {$table} WHERE id=%d",
+            (int)$point['id']),ARRAY_A);
+        if(!$row||(int)$row['company_id']!==1||(int)$row['branch_id']!==1
+           ||(int)$row['employee_id']!==10||$row['attendance_id']!==null
+           ||$row['source']!=='duty_web'||substr((string)$row['recorded_at'],-8)!=='11:00:00')
+            throw new RuntimeException('Independent GPS point corrupted identity, branch, source, time or attendance nullable link');
+        $attendanceCount=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE employee_id=%d AND business_date=%s',
+            10,uat_date()));
+        if($attendanceCount!==0)throw new RuntimeException('GPS posting invented a payroll attendance row');
+        $date=uat_date();
+        $route=uat_dispatch('work.gps_route',$self,[
+            'from'=>$date.'T10:30:00Z','to'=>$date.'T17:00:00Z'
+        ]);
+        if(count($route)!==1||(int)$route[0]['id']!==(int)$point['id']||$route[0]['attendance_id']!==null)
+            throw new RuntimeException('GPS route read omits points with nullable attendance reference');
+        $GLOBALS['eh7_uat_clock_override']='17:00:00';
+        try{uat_dispatch('work.gps_point',$self,[],[
+            'lat'=>31.9579,'lng'=>77.1095,'source'=>'duty_web'
+        ]);}catch(DomainException $error){
+            if($error->codeKey!=='gps_duty_inactive'||$error->httpStatus!==409)throw $error;
+            $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+            if($count!==1)throw new RuntimeException('Late GPS duty rejection wrote a second point');
+            return;
+        }
+        throw new RuntimeException('GPS point accepted after automatic 5 PM cutoff');
+    }finally{
+        unset($GLOBALS['eh7_uat_clock_override']);
     }
-    throw new RuntimeException('manual cross-branch check-in was not disabled');
 });
 
-uat_case('uat_attendance_manual_checkin_disabled', function () use ($self, $wpdb) {
-    try {
-        uat_dispatch('work.check_in', $self, ['branch_id'=>1]);
-    } catch (DomainException $e) {
-        if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) throw $e;
-        $count = (int)$wpdb->get_var($wpdb->prepare(
-            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
-            1, 10, uat_date()
-        ));
-        if ($count !== 0) throw new RuntimeException('manual check-in created attendance');
-        return;
+uat_case('uat_attendance_self_branch_security_and_independent_gps', function () use ($self,$wpdb) {
+    // Genuine synthetic MariaDB with a deterministic 9:15 AM UAT-only clock.
+    // Server GPS state must exist before employee attendance does.
+    $countBefore=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+        1,10,uat_date()));
+    if($countBefore!==0)throw new RuntimeException('Synthetic attendance fixture not clean');
+    $duty=uat_dispatch('work.gps_duty',$self);
+    if(!in_array($duty['gps_status']??'', ['scheduled','active','auto_stopped'],true))
+        throw new RuntimeException('Automatic GPS requires manual attendance');
+    if((int)$duty['branch_id']!==1)
+        throw new RuntimeException('GPS authority returned wrong assigned branch');
+    $countAfter=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+        1,10,uat_date()));
+    if($countAfter!==0)throw new RuntimeException('GET GPS duty manufactured attendance');
+    $GLOBALS['eh7_uat_clock_override']='09:15:00';
+    try{
+        try{uat_dispatch('work.check_in',$self,['branch_id'=>2]);}
+        catch(DomainException $e){
+            if($e->codeKey!=='attendance_branch_forbidden'||$e->httpStatus!==403)throw $e;
+            $record=uat_dispatch('work.check_in',$self,['branch_id'=>1]);
+            if((int)($record['id']??0)<1)throw new RuntimeException('Valid manual check-in did not insert');
+            $saved=$wpdb->get_row($wpdb->prepare(
+                'SELECT check_in_at,check_out_at,branch_id FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+                1,10,uat_date()),ARRAY_A);
+            if(!$saved||$saved['check_out_at']!==null||(int)$saved['branch_id']!==1
+                ||substr((string)$saved['check_in_at'],-8)!=='09:15:00')
+                throw new RuntimeException('Manual check-in database time/branch mismatch');
+            try{uat_dispatch('work.check_in',$self,['branch_id'=>1]);}
+            catch(DomainException $dup){
+                if($dup->codeKey!=='attendance_already_checked_in'||$dup->httpStatus!==409)throw $dup;
+                return;
+            }
+            throw new RuntimeException('Duplicate same-day check-in accepted');
+        }
+        throw new RuntimeException('Cross-branch self check-in accepted');
+    }finally{
+        unset($GLOBALS['eh7_uat_clock_override']);
     }
-    throw new RuntimeException('manual check-in was accepted');
 });
 
 uat_case('uat_sales_capability_fail_closed', function () use ($self) {
@@ -248,23 +310,60 @@ uat_case('uat_sales_capability_fail_closed', function () use ($self) {
     throw new RuntimeException('actor without SALES_CREATE capability posted a sale');
 });
 
-uat_case('uat_attendance_manual_start_stop_disabled', function () use ($self, $wpdb) {
-    foreach (['work.check_in', 'work.check_out'] as $handler) {
-        try {
-            uat_dispatch($handler, $self, ['branch_id'=>1,'lat'=>31.9579,'lng'=>77.1095]);
-        } catch (DomainException $e) {
-            if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) {
-                throw $e;
-            }
-            continue;
+uat_case('uat_attendance_self_checkout_real_sql_and_8pm_cron', function () use ($self,$wpdb) {
+    $table=Db::table('attendance');
+    $GLOBALS['eh7_uat_clock_override']='18:05:00';
+    try {
+        $out=uat_dispatch('work.check_out',$self);
+        if((int)($out['id']??0)<1)throw new RuntimeException('Employee self checkout failed');
+        $checkOut=$wpdb->get_var($wpdb->prepare(
+            "SELECT check_out_at FROM {$table} WHERE company_id=%d AND employee_id=%d AND business_date=%s",
+            1,10,uat_date()));
+        if(substr((string)$checkOut,-8)!=='18:05:00')
+            throw new RuntimeException('Actual 6 PM checkout time not stored');
+        try{uat_dispatch('work.check_out',$self);}
+        catch(DomainException $error){
+            if($error->codeKey!=='attendance_already_checked_out'||$error->httpStatus!==409)throw $error;
+            // Disconnected GPS route rows must never be manufactured by attendance.
+            $existing=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('gps_points'));
+            if($existing!==1)throw new RuntimeException('Attendance modified GPS points saved independently before check-in');
+            // Employee 30 intentionally lacks attendance; create synthetic open
+            // attendance only in this disposable isolated database.
+            uat_insert($wpdb,'attendance',[
+                'company_id'=>1,'branch_id'=>2,'employee_id'=>30,
+                'business_date'=>uat_date(),'status'=>'present',
+                'check_in_at'=>uat_date().' 09:30:00',
+                'created_at'=>uat_date().' 09:30:00'
+            ]);
+            // Historical open attendance must NOT be altered by today's auto-close.
+            uat_insert($wpdb,'attendance',[
+                'company_id'=>1,'branch_id'=>2,'employee_id'=>20,
+                'business_date'=>(new DateTimeImmutable(uat_date()))->modify('-1 day')->format('Y-m-d'),
+                'status'=>'present','check_in_at'=>uat_date().' 09:30:00',
+                'created_at'=>uat_date().' 09:30:00'
+            ]);
+            $GLOBALS['eh7_uat_clock_override']='19:59:59';
+            \ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService::run();
+            if($wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=30")!==null)
+                throw new RuntimeException('Auto-checkout fired before 8 PM');
+            $GLOBALS['eh7_uat_clock_override']='20:05:00';
+            \ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService::run();
+            $auto=$wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=30");
+            if(substr((string)$auto,-8)!=='20:00:00')
+                throw new RuntimeException('Automatic checkout not anchored at 8 PM');
+            if($wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=20")!==null)
+                throw new RuntimeException('Auto checkout modified historical attendance');
+            $manual=$wpdb->get_var($wpdb->prepare(
+                "SELECT check_out_at FROM {$table} WHERE employee_id=%d AND business_date=%s",
+                10,uat_date()));
+            if(substr((string)$manual,-8)!=='18:05:00')
+                throw new RuntimeException('Auto checkout overwrote employee manual checkout');
+            return;
         }
-        throw new RuntimeException('manual attendance action was accepted: '.$handler);
+        throw new RuntimeException('Duplicate manual checkout accepted');
+    }finally{
+        unset($GLOBALS['eh7_uat_clock_override']);
     }
-    $count = (int)$wpdb->get_var($wpdb->prepare(
-        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
-        1, 10, uat_date()
-    ));
-    if ($count !== 0) throw new RuntimeException('manual attendance action created an attendance record');
 });
 
 uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) {
@@ -750,6 +849,145 @@ uat_case('uat_sales_report_consolidates_posted_daily_orders', function () use ($
         uat_actor(10,[1],[Capabilities::DAILY_SELF],'FE'),
         ['branch_id'=>1,'from'=>$today,'to'=>$today]
     ),'Daily Order sales report ignored REPORTS_VIEW capability');
+});
+
+// Critical business-facing acceptance: the SAME posted daily sale must appear
+// in the original employee profile, stock issue history, branch sales, Cash
+// Control and the Tally-style source timeline. No second posting or fake
+// cash handover; synthetic isolated MariaDB only.
+uat_case('uat_posted_field_day_visible_in_employee360_cash_stock_and_ledger', function () use ($self,$wpdb) {
+    $date=(new DateTimeImmutable(uat_date()))->modify('-203 days')->format('Y-m-d');
+    $managerFinance=uat_actor(20,[1,2],[
+        Capabilities::EMP_VIEW,Capabilities::ACCOUNTING_VIEW,Capabilities::REPORTS_VIEW,
+    ],'SYSADMIN');
+    $params=['id'=>10,'from'=>$date,'to'=>$date];
+
+    // The existing full lifecycle fixture posted exactly 5 issued, 4 sold,
+    // 1 returned, ₹200 Cash, ₹160 UPI, 8 points and ₹20 salary fund.
+    $profile=uat_dispatch('org.employee_360',$self,$params);
+    if(($profile['read_only']??null)!==true||($profile['dashboard_unchanged']??null)!==true||
+       ($profile['person_ledger']['visible']??null)!==false||
+       ($profile['cash_reconciliation']??null)!=='not_available_in_canonical_v7_employee_ledger') {
+        throw new RuntimeException('Employee profile leaked finance view or promised Cash proof');
+    }
+    $month=substr($date,0,7);
+    $summary=array_values(array_filter($profile['monthly_summary']??[],static fn($r)=>($r['month']??null)===$month));
+    if(count($summary)!==1||
+       abs((float)($summary[0]['sales_amount']??0)-360)>.005||
+       abs((float)($summary[0]['points']??0)-8)>.005) {
+        throw new RuntimeException('Posted field sale and points missing from employee monthly profile');
+    }
+    $noFinance=static function(string $type)use($self,$date):void {
+        try{
+            uat_dispatch('org.employee_360_register',$self,[
+                'id'=>10,'type'=>$type,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+            ]);
+            throw new RuntimeException('Employee without finance access opened '.$type);
+        }catch(DomainException $e){
+            if($e->codeKey!=='permission_denied'||$e->httpStatus!==403)throw $e;
+        }
+    };
+    $noFinance('person_ledger');
+    try{
+        uat_dispatch('org.employee_360_cash_control',$self,[
+            'id'=>10,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+        ]);
+        throw new RuntimeException('Employee without finance access opened Cash Control');
+    }catch(DomainException $e){
+        if($e->codeKey!=='permission_denied'||$e->httpStatus!==403)throw $e;
+    }
+
+    $before=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('journal_entries'));
+    $beforeStock=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('stock_ledger'));
+    $beforePoints=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('performance_entries'));
+    $register=static function(string $type)use($managerFinance,$date):array{
+        return uat_dispatch('org.employee_360_register',$managerFinance,[
+            'id'=>10,'type'=>$type,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+        ]);
+    };
+
+    $managerProfile=uat_dispatch('org.employee_360',$managerFinance,$params);
+    if(($managerProfile['person_ledger']['visible']??null)!==true||
+       ($managerProfile['read_only']??null)!==true) {
+        throw new RuntimeException('Finance manager cannot inspect employee profile safely');
+    }
+
+    $sales=$register('sales');
+    if(($sales['read_only']??null)!==true||($sales['has_more']??null)!==false||
+       count($sales['rows']??[])!==1)throw new RuntimeException('Employee sales register missing or duplicated settled Daily Order');
+    $sale=$sales['rows'][0];$cycle=(int)$sale['daily_cycle_id'];
+    if($cycle<1||abs((float)$sale['sale_amount']-360)>.005||
+       abs((float)$sale['cash_amount']-200)>.005||
+       abs((float)$sale['upi_amount']-160)>.005||
+       abs((float)$sale['retail_quantity']-2)>.001||
+       abs((float)$sale['wholesale_quantity']-2)>.001||
+       abs((float)$sale['returned_quantity']-1)>.001||
+       abs((float)$sale['incentive_points']-8)>.005){
+        throw new RuntimeException('Employee sales register does not match the actual posted stock/cash/points split');
+    }
+
+    $requests=$register('requests');
+    $requestRows=array_values(array_filter($requests['rows']??[],
+        static fn($r)=>(int)($r['daily_cycle_id']??0)===$cycle));
+    if(count($requestRows)!==1||($requestRows[0]['request_status']??null)!=='issued'||
+       abs((float)$requestRows[0]['requested_quantity']-5)>.001||
+       abs((float)$requestRows[0]['issued_quantity']-5)>.001) {
+        throw new RuntimeException('ASM issued stock absent from employee original request register');
+    }
+
+    $reconciliations=$register('reconciliation');
+    $matching=array_values(array_filter($reconciliations['rows']??[],
+        static fn($r)=>(int)($r['daily_cycle_id']??0)===$cycle));
+    if(count($matching)!==1||($matching[0]['reconciliation_status']??null)!=='cycle_sources_match'||
+       abs((float)$matching[0]['cycle_issued_minus_out_qty'])>.001||
+       abs((float)$matching[0]['cycle_warehouse_net_out_qty']-4)>.001||
+       ($matching[0]['cash_handover_verified']??null)!==false||
+       ($matching[0]['upi_bank_verified']??null)!==false||
+       ($matching[0]['gl_posting_verified']??null)!==false) {
+        throw new RuntimeException('Employee stock closing is inconsistent or implies unproven financial custody');
+    }
+
+    $cash=uat_dispatch('org.employee_360_cash_control',$managerFinance,[
+        'id'=>10,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+    ]);
+    if(($cash['read_only']??null)!==true||($cash['cash_remittance_status']??null)!=='not_available_in_legacy_v7'||
+       count($cash['rows']??[])!==1||
+       (int)$cash['rows'][0]['daily_cycle_id']!==$cycle||
+       (int)$cash['page_totals']['cash_reported_paise']!==20000||
+       (int)$cash['page_totals']['upi_reported_paise']!==16000||
+       (int)($cash['page_evidence_gaps']['cash_without_independent_receipt_paise']??-1)!==20000||
+       (int)($cash['page_evidence_gaps']['upi_without_bank_confirmation_paise']??-1)!==16000||
+       ($cash['page_evidence_gaps']['interpretation']??null)!=='booked_tenders_without_independent_proof_not_outstanding'||
+       ($cash['page_evidence_gaps']['basis']??null)!=='canonical_daily_order_page_only'||
+       (int)($cash['page_flags']['upi_bank_unproven_count']??-1)!==1||
+       ($cash['rows'][0]['journal_check']??null)!=='journal_amounts_match'||
+       ($cash['rows'][0]['journal_cost_of_goods_reconcile']??null)!==true||
+       (int)($cash['rows'][0]['journal_cogs_debit_paise']??-1)!==20000||
+       (int)($cash['rows'][0]['journal_inventory_credit_paise']??-1)!==20000||
+       (int)($cash['rows'][0]['journal_unexpected_legs_paise']??-1)!==0||
+       ($cash['rows'][0]['cash_remittance_proof']??null)!=='not_evidenced_in_legacy_v7'||
+       ($cash['rows'][0]['upi_bank_settlement_proof']??null)!=='not_verified_by_this_report'||
+       ($cash['rows'][0]['legacy_direct_branch_cash_posting']??null)!==true) {
+        throw new RuntimeException('Original Employee Cash Control does not match posted mixed Cash/UPI journal');
+    }
+
+    $ledger=$register('person_ledger');
+    if(($ledger['read_only']??null)!==true||
+       ($ledger['balance_basis']??null)!=='complete_tagged_movement_history_not_visible_page'||
+       ($ledger['employee_cash_handover_verified']??null)!==false||
+       ($ledger['upi_bank_settlement_verified']??null)!==false||
+       !is_array($ledger['rows']??null)||!is_array($ledger['financial_accounts']??null)){
+        throw new RuntimeException('Person Ledger implied unproven Cash deposit or lost source-linked events');
+    }
+    $sourceEvents=array_values(array_filter($ledger['rows'],
+        static fn($r)=>($r['event_type']??null)==='sale'&&(int)($r['source_id']??0)===$cycle));
+    if(!$sourceEvents)throw new RuntimeException('Completed Daily Order not visible in person-wise source ledger timeline');
+
+    $after=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('journal_entries'));
+    $afterStock=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('stock_ledger'));
+    $afterPoints=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('performance_entries'));
+    if($before!==$after||$beforeStock!==$afterStock||$beforePoints!==$afterPoints)
+        throw new RuntimeException('Read-only employee/finance integration test mutated operational or financial source');
 });
 
 uat_case('uat_audit_batch_without_expiry_and_expired_quarantine', function () use ($manager,$wpdb) {

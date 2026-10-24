@@ -24,6 +24,7 @@ abstract final class ApiPaths {
       checkIn = '/workforce/attendance/check-in',
       checkOut = '/workforce/attendance/check-out',
       attendanceReport = '/workforce/attendance/report',
+      gpsDuty = '/workforce/gps/duty',
       gpsPoints = '/workforce/gps/points',
       gpsRoute = '/workforce/gps/route',
       gpsTeam = '/workforce/gps/team',
@@ -76,7 +77,13 @@ abstract final class ApiPaths {
       performanceRewards = '/performance/rewards',
       performancePromotions = '/performance/promotions';
 
-  static const reportsSales = '/reports/sales',
+  static const reportReminderDrafts = '/reports/reminder-drafts',
+      reportSubmissions = '/reports/submissions',
+      managerReportingWatch = '/reports/manager-watch',
+      branchCompare = '/reports/branch-compare',
+      branchPeriodControl = '/reports/branch-period',
+      branchDailyControl = '/reports/branch-daily',
+      reportsSales = '/reports/sales',
       reportsPurchase = '/reports/purchase',
       reportsStock = '/reports/stock',
       stockReconciliation = '/reports/stock-reconciliation',
@@ -134,6 +141,12 @@ abstract final class ApiPaths {
       '/organization/employees/$id/designations';
   static String employeeDesignationDeactivate(int id, int assignmentId) =>
       '/organization/employees/$id/designations/$assignmentId/deactivate';
+  static String employee360(int id) =>
+      '/organization/employees/$id/360';
+  static String employee360CashControl(int id) =>
+      '/organization/employees/$id/360/cash-control';
+  static String employee360Register(int id) =>
+      '/organization/employees/$id/360/register';
   static String employeeHistory(int id) =>
       '/organization/employees/$id/branch-history';
   static String employeeTransfer(int id) =>

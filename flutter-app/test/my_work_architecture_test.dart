@@ -39,6 +39,7 @@ void main() {
     expect(main, isNot(contains('Widget _attendance()')));
     expect(main, isNot(contains('Widget _leaveVisit()')));
     expect(main, isNot(contains('Future<void> _attendanceAction(')));
+    expect(attendance, contains('Future<void> _attendanceAction('));
     expect(main, isNot(contains('Future<void> _applyLeave()')));
     expect(main, isNot(contains('Future<void> _startVisit()')));
     expect(main, isNot(contains('Widget _daily()')));
@@ -48,12 +49,12 @@ void main() {
 
     expect(attendance, contains('extension _MyWorkAttendance'));
     expect(attendance, contains('Widget _attendance()'));
-    expect(attendance, isNot(contains('Future<void> _attendanceAction(')));
-    expect(
-      attendance,
-      contains('Duty automatically starts at 10:30 AM; no manual check-in is required.'),
-    );
-    expect(attendance, contains('Duty is automatic · 10:30 AM–5:00 PM'));
+    expect(attendance, contains('Future<void> _attendanceAction('));
+    expect(attendance, contains("ApiPaths.checkIn"));
+    expect(attendance, contains("ApiPaths.checkOut"));
+    expect(attendance, contains('PreviewReadOnlyPolicy.enabled'));
+    expect(attendance, contains('Attendance: 9 AM Check-In · 6 PM Check-Out · 8 PM Auto Close'));
+    expect(attendance, contains('GPS Duty: automatic 10:30 AM–5 PM'));
 
     expect(leaveVisit, contains('extension _MyWorkLeaveVisit'));
     expect(leaveVisit, contains('Widget _leaveVisit()'));

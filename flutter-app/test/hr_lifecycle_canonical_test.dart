@@ -12,7 +12,10 @@ void main() {
         File('lib/screens/home/actions_screen.dart').readAsStringSync();
 
     expect(organization, contains('const HrLifecycleScreen(embedded: true)'));
-    expect(actions, contains('const HrLifecycleScreen()'));
+    final shell = File('lib/shell/app_shell.dart').readAsStringSync();
+    expect(actions, contains('openConnectedAction(action.id)'));
+    expect(shell, contains("case 'hr_lifecycle':"));
+    expect(shell, contains('screen = const HrLifecycleScreen();'));
     expect(hr, contains('final bool embedded'));
     expect(hr, contains('ApiPaths.hrCandidates'));
     expect(hr, contains('ApiPaths.hrSeparations'));

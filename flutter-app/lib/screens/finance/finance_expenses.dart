@@ -26,7 +26,10 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
               query: {'branch_id': app.currentBranchId},
             ),
             emptyMessage: 'Koi expense record nahi hai.',
-            builder: (context, data) => RecordsList(
+            builder: (context, data) => V8RecordWorkspace(
+              title: 'Expense Register',
+              subtitle: 'Original branch expense entries and approval status.',
+              contextLabel: 'Authorised branch records',
               recordType: 'expense',
               rows: _rows(data),
               onTap: _expenseAction,
@@ -60,6 +63,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
           )
           .toList();
       int? head, account;
+      String? formError;
       final amount = TextEditingController();
       final desc = TextEditingController();
       final ok = await showDialog<bool>(
@@ -85,7 +89,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => setLocal(() => head = v),
+                    onChanged: (v) => setLocal(() { head = v; formError = null; }),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int>(
@@ -101,7 +105,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => setLocal(() => account = v),
+                    onChanged: (v) => setLocal(() { account = v; formError = null; }),
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -109,7 +113,11 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(labelText: 'Amount'),
+                    onChanged: (_) => setLocal(() => formError = null),
+                    decoration: InputDecoration(
+                      labelText: 'Amount',
+                      errorText: formError,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -125,8 +133,23 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, head != null && account != null),
+                onPressed: () {
+                  // Validate inside the form. Never discard an invalid
+                  // expense draft by closing before the user sees the error.
+                  final parsed = double.tryParse(amount.text.trim());
+                  final error = parsed == null
+                      ? 'Expense amount valid number me enter karein.'
+                      : TransactionGuardrails.expense(
+                          expenseHeadId: head,
+                          paymentAccountId: account,
+                          amount: parsed,
+                        );
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Submit'),
               ),
             ],

@@ -9,12 +9,14 @@ class _FakeGpsApi implements GpsApiTransport {
   _FakeGpsApi(this.attendance);
 
   Map<String, dynamic> attendance;
+  Object? gpsDutyError;
   Object? gpsPointError;
   final posts = <({String path, Map<String, dynamic>? data})>[];
 
   @override
   Future<dynamic> get(String path) async {
-    if (path == ApiPaths.attendanceToday) {
+    if (path == ApiPaths.gpsDuty) {
+      if (gpsDutyError != null) throw gpsDutyError!;
       return Map<String, dynamic>.from(attendance);
     }
     throw StateError('Unexpected GET $path');
@@ -96,6 +98,80 @@ Map<String, dynamic> _attendance(String status) => {
 
 void main() {
   group('GpsTrackingService Android policy', () {
+    test('Office old backend missing GPS duty route fails closed without location access', () async {
+      final api = _FakeGpsApi(_attendance('active'))
+        ..gpsDutyError = const ApiException(
+          'rest_no_route',
+          'No route was found matching the URL and request method.',
+          404,
+        );
+      final location = _FakeLocation();
+      final service = GpsTrackingService.forTest(
+        api: api, location: location,
+      );
+
+      await service.start();
+
+      expect(service.active, isFalse);
+      expect(service.armed, isFalse);
+      expect(service.dutyStatus, 'unavailable');
+      expect(service.lastError, contains('ERP server does not support'));
+      expect(service.lastError, contains('No GPS point was sent'));
+      expect(location.fixRequests, 0);
+      expect(location.watchRequests, 0);
+      expect(location.permissionRequests, 0);
+      expect(api.posts, isEmpty);
+
+      // Backend upgrade may restore the route; an explicit sync then
+      // resumes only from a fresh, authoritative server duty decision.
+      api.gpsDutyError = null;
+      await service.sync();
+      expect(service.active, isTrue);
+      expect(api.posts, hasLength(1));
+      expect(service.lastError, isNull);
+      service.stop(status: 'signed_out');
+      service.dispose();
+    });
+
+    test('GPS duty API permission denial does not impersonate a missing route', () async {
+      final api = _FakeGpsApi(_attendance('active'))
+        ..gpsDutyError = const ApiException(
+          'permission_denied', 'Access denied.', 403,
+        );
+      final location = _FakeLocation();
+      final service = GpsTrackingService.forTest(
+        api: api, location: location,
+      );
+
+      await service.start();
+      expect(service.active, isFalse);
+      expect(service.dutyStatus, 'unavailable');
+      expect(service.lastError, contains('not authorised'));
+      expect(service.lastError, isNot(contains('does not support')));
+      expect(location.fixRequests, 0);
+      expect(api.posts, isEmpty);
+      service.dispose();
+    });
+
+    test('a business-specific 404 is not mistaken for a missing REST route', () async {
+      final api = _FakeGpsApi(_attendance('active'))
+        ..gpsDutyError = const ApiException(
+          'gps_employee_missing', 'Employee is not configured.', 404,
+        );
+      final location = _FakeLocation();
+      final service = GpsTrackingService.forTest(
+        api: api, location: location,
+      );
+
+      await service.start();
+      expect(service.active, isFalse);
+      expect(service.dutyStatus, 'unavailable');
+      expect(service.lastError, 'Employee is not configured.');
+      expect(location.fixRequests, 0);
+      expect(api.posts, isEmpty);
+      service.dispose();
+    });
+
     test('blocks tracking when device location service is off', () async {
       final api = _FakeGpsApi(_attendance('active'));
       final location = _FakeLocation()..enabled = false;
@@ -191,6 +267,16 @@ void main() {
       expect(api.posts, isEmpty);
     });
 
+    test('independent GPS duty can arm without any attendance record', () async {
+      final api = _FakeGpsApi(_attendance('scheduled'));
+      final service = GpsTrackingService.forTest(
+        api: api, location: _FakeLocation());
+      await service.start();
+      expect(service.dutyStatus, 'scheduled');
+      expect(api.posts, isEmpty);
+      service.dispose();
+    });
+
     test('granted permission sends an immediate high-accuracy point', () async {
       final api = _FakeGpsApi(_attendance('active'));
       final location = _FakeLocation();
@@ -273,8 +359,40 @@ void main() {
       expect(service.dutyStatus, 'auto_stopped');
     });
 
-    test('server checked-out state prevents local tracking', () async {
-      final api = _FakeGpsApi(_attendance('checked_out'));
+    test('server revokes GPS duty during upload and cancels sampling', () async {
+      final api = _FakeGpsApi(_attendance('active'))
+        ..gpsPointError = const ApiException(
+          'gps_duty_inactive', 'Approved leave stops GPS duty.', 409,
+        );
+      final location = _FakeLocation()..backgroundTracking = true;
+      final service = GpsTrackingService.forTest(
+        api: api, location: location);
+      await service.start();
+      expect(service.active, isFalse);
+      expect(service.armed, isFalse);
+      expect(service.dutyStatus, 'not_scheduled');
+      expect(service.lastError, contains('Approved leave'));
+      expect(location.watchRequests, 0);
+      expect(api.posts, hasLength(1));
+      service.dispose();
+    });
+
+    test('failed server duty refresh closes existing local GPS collection', () async {
+      final api = _FakeGpsApi(_attendance('active'));
+      final service = GpsTrackingService.forTest(
+        api: api, location: _FakeLocation());
+      await service.start();
+      expect(service.active, isTrue);
+      api.attendance = <String, dynamic>{'gps_status': 'not_scheduled'};
+      await service.sync();
+      expect(service.active, isFalse);
+      expect(service.armed, isFalse);
+      expect(service.dutyStatus, 'not_scheduled');
+      service.dispose();
+    });
+
+    test('server leave/holiday state prevents local tracking', () async {
+      final api = _FakeGpsApi(_attendance('not_scheduled'));
       final service = GpsTrackingService.forTest(
         api: api,
         location: _FakeLocation(),
@@ -283,7 +401,7 @@ void main() {
       await service.start();
 
       expect(service.active, isFalse);
-      expect(service.dutyStatus, 'checked_out');
+      expect(service.dutyStatus, 'not_scheduled');
       expect(api.posts, isEmpty);
     });
 

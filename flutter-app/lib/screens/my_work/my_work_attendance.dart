@@ -47,9 +47,9 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                             children: [
                               Text(
                                 checkedOut
-                                    ? 'Duty completed for today'
+                                    ? 'Attendance completed for today'
                                     : checkedIn
-                                        ? 'Duty in progress'
+                                        ? 'Attendance checked in'
                                         : 'Attendance pending',
                                 style: Theme.of(context)
                                     .textTheme
@@ -62,9 +62,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                                   'Check-In: ${DateTimeText.local(r['check_in_at'])}',
                                 )
                               else
-                                const Text(
-                                  'Duty automatically starts at 10:30 AM; no manual check-in is required.',
-                                ),
+                                const Text('Self check-in is available from 9 AM. Your real arrival time is recorded.'),
                               if (checkedIn) ...[
                                 const SizedBox(height: 2),
                                 Text(
@@ -81,59 +79,117 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                   ),
                 ),
                 const SizedBox(height: 10),
+                if (!PreviewReadOnlyPolicy.enabled && !checkedOut)
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      if (!checkedIn)
+                        FilledButton.icon(
+                          onPressed: attendanceBusy
+                              ? null
+                              : () => _attendanceAction(
+                                  checkIn: true, branchId: app.currentBranchId),
+                          icon: const Icon(Icons.login_rounded),
+                          label: const Text('Self Check-In'),
+                        )
+                      else
+                        FilledButton.icon(
+                          onPressed: attendanceBusy
+                              ? null
+                              : () => _attendanceAction(checkIn: false),
+                          icon: const Icon(Icons.logout_rounded),
+                          label: const Text('Self Check-Out'),
+                        ),
+                    ],
+                  ),
+                if (PreviewReadOnlyPolicy.enabled)
+                  const Text('Read-only V8 preview: attendance actions are disabled.'),
+                const SizedBox(height: 10),
                 const Chip(
                   avatar: Icon(Icons.schedule_outlined, size: 18),
-                  label: Text('Duty is automatic · 10:30 AM–5:00 PM'),
+                  label: Text('Attendance: 9 AM Check-In · 6 PM Check-Out · 8 PM Auto Close'),
+                ),
+                const SizedBox(height: 8),
+                const Chip(
+                  avatar: Icon(Icons.route_outlined, size: 18),
+                  label: Text('GPS Duty: automatic 10:30 AM–5 PM · no manual controls'),
                 ),
               ],
             );
           },
         ),
         const SizedBox(height: 10),
-        Card(
-          child: ListTile(
-            leading: Icon(
-              tracker.active
-                  ? Icons.location_searching_rounded
-                  : Icons.location_off_outlined,
-            ),
-            title: const Text('Duty GPS'),
-            subtitle: Text(
-              [
-                BusinessFormat.status(tracker.dutyStatus),
-                if (tracker.lastSentAt != null)
-                  'Last sync ${BusinessFormat.dateTime(tracker.lastSentAt!.toIso8601String())}',
-                if (tracker.lastError != null) tracker.lastError!,
-              ].join(' · '),
-            ),
-            trailing: IconButton(
-              tooltip: 'Refresh duty GPS status',
-              onPressed: tracker.sending
-                  ? null
-                  : () async {
-                      await ref.read(gpsTrackingProvider).sync();
-                      if (mounted) {
-                        _setFeatureState(
-                          () => message = 'Duty GPS status refreshed.',
-                        );
-                      }
-                    },
-              icon: tracker.sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync_rounded),
+        if (PreviewReadOnlyPolicy.enabled)
+          AsyncPanel(
+            key: ValueKey('gps-duty-readonly-$refresh'),
+            future: api.get(ApiPaths.gpsDuty),
+            emptyMessage: 'GPS duty schedule is unavailable.',
+            builder: (context, data) {
+              final state = data is Map
+                  ? Map<String, dynamic>.from(data)
+                  : <String, dynamic>{};
+              final status = '${state['gps_status'] ?? 'unavailable'}';
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.route_outlined),
+                  title: const Text('Duty GPS · Server Status'),
+                  subtitle: Text(
+                    '${BusinessFormat.status(status)} · '
+                    'Read-only preview: no device location or GPS uploads.',
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Refresh read-only GPS duty status',
+                    onPressed: () => _setFeatureState(() => refresh++),
+                    icon: const Icon(Icons.sync_rounded),
+                  ),
+                ),
+              );
+            },
+          )
+        else
+          Card(
+            child: ListTile(
+              leading: Icon(
+                tracker.active
+                    ? Icons.location_searching_rounded
+                    : Icons.location_off_outlined,
+              ),
+              title: const Text('Duty GPS'),
+              subtitle: Text(
+                [
+                  BusinessFormat.status(tracker.dutyStatus),
+                  if (tracker.lastSentAt != null)
+                    'Last sync ${BusinessFormat.dateTime(tracker.lastSentAt!.toIso8601String())}',
+                  if (tracker.lastError != null) tracker.lastError!,
+                ].join(' · '),
+              ),
+              trailing: IconButton(
+                tooltip: 'Refresh duty GPS status',
+                onPressed: tracker.sending
+                    ? null
+                    : () async {
+                        await ref.read(gpsTrackingProvider).sync();
+                        if (mounted) {
+                          _setFeatureState(() => message = 'Duty GPS status refreshed.');
+                        }
+                      },
+                icon: tracker.sending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync_rounded),
+              ),
             ),
           ),
-        ),
         Card(
           child: ListTile(
             leading: const Icon(Icons.route_outlined),
             title: const Text('Today’s GPS Route'),
             subtitle: const Text(
-              'Check-in duty ke dauran server par record hue GPS points, route trace aur distance.',
+              'Automatic 10:30 AM–5 PM GPS duty ke recorded points, route trace aur distance. Attendance se alag.',
             ),
             trailing: IconButton(
               tooltip: 'Refresh today’s route',
@@ -171,4 +227,33 @@ extension _MyWorkAttendance on _MyWorkScreenState {
     );
   }
 
+  Future<void> _attendanceAction({required bool checkIn, int? branchId}) async {
+    if (attendanceBusy || PreviewReadOnlyPolicy.enabled) return;
+    if (checkIn && (branchId == null || branchId < 1)) {
+      _setFeatureState(() => message = 'Select your assigned branch before check-in.');
+      return;
+    }
+    _setFeatureState(() => attendanceBusy = true);
+    try {
+      await ref.read(apiClientProvider).post(
+        checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
+        data: checkIn ? {'branch_id': branchId} : <String, dynamic>{},
+      );
+      if (!mounted) return;
+      _setFeatureState(() {
+        message = checkIn
+            ? 'Attendance check-in saved with actual time.'
+            : 'Attendance check-out saved with actual time.';
+        refresh++;
+      });
+      if (checkIn) {
+        // GPS follows its separate 10:30–17:00 policy; no manual duty toggle.
+        await ref.read(gpsTrackingProvider).sync();
+      }
+    } catch (error) {
+      if (mounted) _setFeatureState(() => message = UiError.message(error));
+    } finally {
+      if (mounted) _setFeatureState(() => attendanceBusy = false);
+    }
+  }
 }
