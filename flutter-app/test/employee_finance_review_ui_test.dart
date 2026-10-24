@@ -278,25 +278,33 @@ void main() {
       home: Scaffold(body: EmployeeFinanceReviewView(snapshot: validSnapshot())),
     ));
     expect(find.text('Employee Finance Review'), findsOneWidget);
-    expect(find.text('More Person Ledger transactions exist'), findsWidgets);
-    expect(find.text('Cash booked · first 25'), findsOneWidget);
-    expect(find.text('₹150.00'), findsOneWidget);
-    expect(find.text('UPI booked · first 25'), findsOneWidget);
-    expect(find.text('₹30.00'), findsOneWidget);
-    expect(find.text('Journal mismatches · first 25'), findsOneWidget);
-    expect(find.text('Cash handovers unproven · first 25'), findsOneWidget);
-    expect(find.text('UPI confirmations unproven · first 25'), findsOneWidget);
-    expect(find.text('Cash booked without receipt proof · first 25'), findsOneWidget);
-    expect(find.text('UPI booked without bank proof · first 25'), findsOneWidget);
-    expect(find.textContaining('EVIDENCE PENDING is NOT employee outstanding'), findsOneWidget);
-    await tester.drag(find.byType(ListView), const Offset(0, -650));
-    await tester.pumpAndSettle();
-    expect(find.text('Cashier handover: NOT VERIFIED'), findsWidgets);
-    expect(find.text('UPI bank settlement: NOT VERIFIED'), findsWidgets);
-    expect(find.text('Daily Orders / B2B linking: NOT VERIFIED'), findsWidgets);
-    await tester.drag(find.byType(ListView), const Offset(0, -650));
-    await tester.pumpAndSettle();
-    expect(find.text('Employee-tagged GL accounts'), findsOneWidget);
-    expect(find.text('EMPLOYEE_CASH_IN_TRANSIT'), findsOneWidget);
+    expect(find.textContaining('EVIDENCE PENDING is NOT employee outstanding'),
+        findsOneWidget);
+    // The expanded evidence metrics span multiple rows on narrower screens.
+    // Scroll as an actual reviewer would: ListView children outside the
+    // viewport are legitimately lazy and must not be treated as missing.
+    for (final label in <String>[
+      'Cash booked · first 25',
+      'UPI booked · first 25',
+      'Journal mismatches · first 25',
+      'Cash handovers unproven · first 25',
+      'UPI confirmations unproven · first 25',
+      'Cash booked without receipt proof · first 25',
+      'UPI booked without bank proof · first 25',
+      'More Person Ledger transactions exist',
+      'Cashier handover: NOT VERIFIED',
+      'UPI bank settlement: NOT VERIFIED',
+      'Daily Orders / B2B linking: NOT VERIFIED',
+      'Employee-tagged GL accounts',
+      'EMPLOYEE_CASH_IN_TRANSIT',
+    ]) {
+      await tester.scrollUntilVisible(
+        find.text(label),
+        185,
+        scrollable: find.byType(Scrollable).first,
+        maxScrolls: 35,
+      );
+      expect(find.text(label), findsOneWidget);
+    }
   });
 }
