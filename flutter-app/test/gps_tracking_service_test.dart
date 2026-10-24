@@ -9,12 +9,14 @@ class _FakeGpsApi implements GpsApiTransport {
   _FakeGpsApi(this.attendance);
 
   Map<String, dynamic> attendance;
+  Object? gpsDutyError;
   Object? gpsPointError;
   final posts = <({String path, Map<String, dynamic>? data})>[];
 
   @override
   Future<dynamic> get(String path) async {
     if (path == ApiPaths.gpsDuty) {
+      if (gpsDutyError != null) throw gpsDutyError!;
       return Map<String, dynamic>.from(attendance);
     }
     throw StateError('Unexpected GET $path');
@@ -96,6 +98,80 @@ Map<String, dynamic> _attendance(String status) => {
 
 void main() {
   group('GpsTrackingService Android policy', () {
+    test('Office old backend missing GPS duty route fails closed without location access', () async {
+      final api = _FakeGpsApi(_attendance('active'))
+        ..gpsDutyError = const ApiException(
+          'rest_no_route',
+          'No route was found matching the URL and request method.',
+          404,
+        );
+      final location = _FakeLocation();
+      final service = GpsTrackingService.forTest(
+        api: api, location: location,
+      );
+
+      await service.start();
+
+      expect(service.active, isFalse);
+      expect(service.armed, isFalse);
+      expect(service.dutyStatus, 'unavailable');
+      expect(service.lastError, contains('ERP server does not support'));
+      expect(service.lastError, contains('No GPS point was sent'));
+      expect(location.fixRequests, 0);
+      expect(location.watchRequests, 0);
+      expect(location.permissionRequests, 0);
+      expect(api.posts, isEmpty);
+
+      // Backend upgrade may restore the route; an explicit sync then
+      // resumes only from a fresh, authoritative server duty decision.
+      api.gpsDutyError = null;
+      await service.sync();
+      expect(service.active, isTrue);
+      expect(api.posts, hasLength(1));
+      expect(service.lastError, isNull);
+      service.stop(status: 'signed_out');
+      service.dispose();
+    });
+
+    test('GPS duty API permission denial does not impersonate a missing route', () async {
+      final api = _FakeGpsApi(_attendance('active'))
+        ..gpsDutyError = const ApiException(
+          'permission_denied', 'Access denied.', 403,
+        );
+      final location = _FakeLocation();
+      final service = GpsTrackingService.forTest(
+        api: api, location: location,
+      );
+
+      await service.start();
+      expect(service.active, isFalse);
+      expect(service.dutyStatus, 'unavailable');
+      expect(service.lastError, contains('not authorised'));
+      expect(service.lastError, isNot(contains('does not support')));
+      expect(location.fixRequests, 0);
+      expect(api.posts, isEmpty);
+      service.dispose();
+    });
+
+    test('a business-specific 404 is not mistaken for a missing REST route', () async {
+      final api = _FakeGpsApi(_attendance('active'))
+        ..gpsDutyError = const ApiException(
+          'gps_employee_missing', 'Employee is not configured.', 404,
+        );
+      final location = _FakeLocation();
+      final service = GpsTrackingService.forTest(
+        api: api, location: location,
+      );
+
+      await service.start();
+      expect(service.active, isFalse);
+      expect(service.dutyStatus, 'unavailable');
+      expect(service.lastError, 'Employee is not configured.');
+      expect(location.fixRequests, 0);
+      expect(api.posts, isEmpty);
+      service.dispose();
+    });
+
     test('blocks tracking when device location service is off', () async {
       final api = _FakeGpsApi(_attendance('active'));
       final location = _FakeLocation()..enabled = false;

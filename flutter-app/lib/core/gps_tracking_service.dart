@@ -77,8 +77,17 @@ class GpsTrackingService extends ChangeNotifier {
       final data = await _api.get(ApiPaths.gpsDuty);
       if (data is Map) attendance = Map<String, dynamic>.from(data);
     } catch (e) {
+      // A newer Flutter UI can temporarily run against an older Office V7
+      // backend. Never infer duty state from device time or start sampling
+      // when the server does not expose the required GPS duty policy.
       stop(status: 'unavailable');
-      _lastError = UiError.message(e);
+      _lastError = e is ApiException &&
+              e.statusCode == 404 &&
+              e.code == 'rest_no_route'
+          ? 'Duty GPS is unavailable: the ERP server does not support the '
+              'required GPS duty-status API. Please contact your administrator. '
+              'No GPS point was sent.'
+          : UiError.message(e);
       notifyListeners();
       return;
     }
