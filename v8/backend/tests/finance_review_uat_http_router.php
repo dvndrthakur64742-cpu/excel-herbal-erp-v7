@@ -15,7 +15,8 @@ $fail=static function(int $status,string $code):never {
     exit;
 };
 if(($_SERVER['REMOTE_ADDR']??'')!=='127.0.0.1'
-    ||($_SERVER['SERVER_ADDR']??'')!=='127.0.0.1'
+    ||($_SERVER['SERVER_NAME']??'')!=='127.0.0.1'
+    ||(string)($_SERVER['SERVER_PORT']??'')!=='18746'
     ||getenv('V8_FINANCE_HTTP_CI_ONLY')!=='1'
     ||!getenv('V8_TEST_DSN')) $fail(403,'outside_disposable_ci');
 
@@ -134,6 +135,8 @@ try{
 }catch(\ExcelHerbal\ERP7\Domain\DomainException $e){
     $fail(403,'finance_permission_denied');
 }catch(Throwable $e){
+    // Diagnostics remain only in the disposable runner's server log.
+    error_log('FINANCE UAT loopback error '.get_class($e).': '.$e->getMessage());
     // No SQL, stack trace, personal data, financial proof or auth context in
     // error output. These failures are expected negative-role UAT outcomes.
     $fail(422,'finance_evidence_not_authorized_or_invalid');

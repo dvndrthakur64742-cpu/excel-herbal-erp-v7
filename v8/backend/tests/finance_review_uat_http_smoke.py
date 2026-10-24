@@ -44,6 +44,8 @@ def denied(token, query=None, method="GET", path=ROUTE):
     )
 
 status, headers, result = probe()
+if status != 200:
+    print("FINANCE UAT initial HTTP response", status, "safe code", result.get("code"))
 check(status == 200 and result.get("read_only") is True, "Authenticated finance GET returns a read-only source")
 check("no-store" in headers.get("Cache-Control", ""), "Cache headers prevent exposure of financial evidence")
 check(result.get("scope") == "disposable_v8_test_finance_review_only", "Isolated source cannot masquerade as Office")
