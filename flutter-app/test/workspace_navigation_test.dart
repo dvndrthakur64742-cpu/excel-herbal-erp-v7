@@ -3,6 +3,19 @@ import 'package:excel_herbal_erp/shell/app_shell.dart';
 import 'package:excel_herbal_erp/shell/workspace_navigation.dart';
 
 void main() {
+  test('mobile rejects stale permissions duplicate and unsupported routes', () {
+    final items = WorkspaceNavigation.mobileItems([
+      {'id': 'home'}, {'id': 'home'}, {'id': 'approvals'},
+      {'id': 'finance'}, {'id': 'unknown'}, {'id': 'profile'},
+    ], allowed: (id) => id != 'approvals');
+    expect(items.map((item) => item['id']), ['home', 'profile']);
+  });
+  test('empty or single mobile projection has safe usable fallback', () {
+    for (final source in <List<Map<String, dynamic>>>[[], [{'id': 'home'}]]) {
+      final items = WorkspaceNavigation.mobileItems(source, allowed: (_) => false);
+      expect(items.map((item) => item['id']), ['home', 'profile']);
+    }
+  });
   test('shell compiles with shared navigation', () {
     expect(const AppShell(), isA<AppShell>());
   });

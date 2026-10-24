@@ -8,6 +8,31 @@ class WorkspaceDestination {
 }
 
 class WorkspaceNavigation {
+  /// A stale bootstrap must not keep revoked tools in the mobile bar.
+  /// Only routes that the shell can render are accepted; duplicates collapse.
+  static List<Map<String, dynamic>> mobileItems(
+    List<Map<String, dynamic>> projected, {
+    required bool Function(String) allowed,
+  }) {
+    const supported = {'home', 'my_work', 'actions', 'tasks', 'profile',
+      'approvals', 'global_search', 'erp_tools'};
+    final seen = <String>{};
+    final result = <Map<String, dynamic>>[];
+    for (final item in projected) {
+      final id = '${item['id']}';
+      if (supported.contains(id) && allowed(id) && seen.add(id)) {
+        result.add(item);
+      }
+    }
+    // Material NavigationBar requires at least two destinations.
+    for (final id in ['home', 'profile']) {
+      if (result.length < 2 && seen.add(id)) {
+        result.add({'id': id, 'label': id == 'home' ? 'Home' : 'Profile'});
+      }
+    }
+    return result;
+  }
+
   static const destinations = <WorkspaceDestination>[
     WorkspaceDestination('home', 'Overview', 'Daily Work'),
     WorkspaceDestination('my_work', 'My Work', 'Daily Work'),

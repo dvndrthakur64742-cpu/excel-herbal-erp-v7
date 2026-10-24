@@ -90,12 +90,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           );
         }
 
-        final items = app.bottomNav.isNotEmpty
-            ? app.bottomNav
-            : const [
-                {'id': 'home', 'label': 'Home'},
-                {'id': 'profile', 'label': 'Profile'},
-              ];
+        final items = _mobileItems(app);
         final safeIndex = mobileIndex.clamp(0, items.length - 1);
         final route = '${items[safeIndex]['id']}';
         return Scaffold(
@@ -354,9 +349,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final groups = WorkspaceNavigation.groups(
       allowed: (id) => _routeAllowed(app, id),
       excluded: {
-        for (final item in app.bottomNav) '${item['id']}',
+        for (final item in _mobileItems(app)) '${item['id']}',
         // Mobile creation shortcuts already have their bottom-bar entry.
-        if (app.bottomNav.any((item) => item['id'] == 'actions'))
+        if (_mobileItems(app).any((item) => item['id'] == 'actions'))
           'quick_actions',
       },
     );
@@ -538,7 +533,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     required String label,
     required IconData icon,
   }) {
-    final items = app.bottomNav;
+    final items = _mobileItems(app);
     final safeIndex =
         items.isEmpty ? -1 : mobileIndex.clamp(0, items.length - 1);
     final current = safeIndex >= 0 ? '${items[safeIndex]['id']}' : 'home';
@@ -820,7 +815,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   void _selectDesktopRoute(String id) {
     final app = ref.read(appStateProvider);
-    final index = app.bottomNav.indexWhere((item) => '${item['id']}' == id);
+    final index = _mobileItems(app).indexWhere((item) => '${item['id']}' == id);
     setState(() {
       desktopRoute = id;
       if (index >= 0) mobileIndex = index;
@@ -828,7 +823,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _selectMobileRoute(AppState app, String id) {
-    final items = app.bottomNav;
+    final items = _mobileItems(app);
     final index = items.indexWhere((item) => '${item['id']}' == id);
     if (index >= 0) {
       setState(() {
@@ -867,7 +862,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       return;
     }
     if (const {'home', 'my_work', 'actions', 'tasks', 'profile'}.contains(id) &&
-        app.bottomNav.any((item) => item['id'] == id)) {
+        _mobileItems(app).any((item) => item['id'] == id)) {
       _selectMobileRoute(app, id);
       return;
     }
@@ -931,6 +926,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen!));
     }
   }
+
+  List<Map<String, dynamic>> _mobileItems(AppState app) =>
+      WorkspaceNavigation.mobileItems(
+        app.bottomNav,
+        allowed: (id) => _routeAllowed(app, id),
+      );
 
   bool _quickActionsVisible(AppState app) => app.canAny(const [
         'workforce.attendance.self',
