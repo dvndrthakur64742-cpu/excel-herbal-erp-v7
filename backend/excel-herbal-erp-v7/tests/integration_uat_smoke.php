@@ -956,6 +956,10 @@ uat_case('uat_posted_field_day_visible_in_employee360_cash_stock_and_ledger', fu
        (int)$cash['page_totals']['cash_reported_paise']!==20000||
        (int)$cash['page_totals']['upi_reported_paise']!==16000||
        ($cash['rows'][0]['journal_check']??null)!=='journal_amounts_match'||
+       ($cash['rows'][0]['journal_cost_of_goods_reconcile']??null)!==true||
+       (int)($cash['rows'][0]['journal_cogs_debit_paise']??-1)!==20000||
+       (int)($cash['rows'][0]['journal_inventory_credit_paise']??-1)!==20000||
+       (int)($cash['rows'][0]['journal_unexpected_legs_paise']??-1)!==0||
        ($cash['rows'][0]['cash_remittance_proof']??null)!=='not_evidenced_in_legacy_v7'||
        ($cash['rows'][0]['upi_bank_settlement_proof']??null)!=='not_verified_by_this_report'||
        ($cash['rows'][0]['legacy_direct_branch_cash_posting']??null)!==true) {

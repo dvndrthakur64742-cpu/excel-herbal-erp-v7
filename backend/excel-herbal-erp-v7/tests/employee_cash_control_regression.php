@@ -54,6 +54,8 @@ namespace {
            'cash_amount'=>$cash,'upi_amount'=>$upi,'expected_amount'=>$total,
            'gl_cash_debit'=>$glCash,'gl_upi_debit'=>$glUpi,'gl_cash_credit'=>'0.00',
            'gl_upi_credit'=>'0.00','gl_sales_credit'=>$total,
+           'gl_cogs_debit'=>'0.00','gl_inventory_credit'=>'0.00',
+           'gl_unexpected_amount'=>'0.00',
            'gl_total_debit'=>number_format((float)$glCash+(float)$glUpi,2,'.',''),
            'gl_total_credit'=>$total,'gl_orphan_account_lines'=>0,'journal_count'=>$journals];
        return array_replace($base,$override);
@@ -112,6 +114,40 @@ namespace {
     ok($orphan['rows'][0]['journal_check']==='journal_amount_mismatch'
         &&$orphan['rows'][0]['journal_orphan_account_lines']===1,
         'orphan/foreign-company GL account blocks clean reconciliation');
+    // Legitimate posted Daily Order journals contain balanced COGS/inventory
+    // legs as well as tender debit and SALES credit.
+    $fake->rows=[row(19,2,'120.25','20.00','140.25','120.25','20.00',1,
+        ['gl_cogs_debit'=>'75.00','gl_inventory_credit'=>'75.00',
+         'gl_total_debit'=>'215.25','gl_total_credit'=>'215.25'])];
+    $withCost=EmployeeCashControl::view($self,7,'2026-10-01','2026-10-19',1,50,$fake,$profile);
+    ok($withCost['rows'][0]['journal_check']==='journal_amounts_match'
+       &&$withCost['rows'][0]['journal_cost_of_goods_reconcile']===true
+       &&$withCost['rows'][0]['journal_cogs_debit_paise']===7500,
+       'balanced canonical COGS/INVENTORY are part of a valid sale journal');
+
+    $fake->rows=[row(20,2,'120.25','20.00','140.25','120.25','20.00',1,
+        ['gl_cogs_debit'=>'75.00','gl_inventory_credit'=>'74.00',
+         'gl_total_debit'=>'215.25','gl_total_credit'=>'215.25'])];
+    $badCost=EmployeeCashControl::view($self,7,'2026-10-01','2026-10-19',1,50,$fake,$profile);
+    ok($badCost['rows'][0]['journal_check']==='journal_amount_mismatch'
+       &&$badCost['rows'][0]['journal_cost_of_goods_reconcile']===false,
+       'balanced but unequal COGS/INVENTORY is not a clean posting');
+
+    $fake->rows=[row(21,2,'120.25','20.00','140.25','120.25','20.00',1,
+        ['gl_unexpected_amount'=>'10.00',
+         'gl_total_debit'=>'145.25','gl_total_credit'=>'145.25'])];
+    $extra=EmployeeCashControl::view($self,7,'2026-10-01','2026-10-19',1,50,$fake,$profile);
+    ok($extra['rows'][0]['journal_check']==='journal_amount_mismatch'
+       &&$extra['rows'][0]['journal_unexpected_legs_paise']===1000,
+       'offsetting unrelated Dr/Cr legs cannot forge a clean reconciliation');
+
+    $fake->rows=[row(22,2,'120.25','20.00','140.25','120.25','20.00',1,
+        ['gl_cogs_debit'=>'75.00','gl_inventory_credit'=>'75.00',
+         'gl_unexpected_amount'=>'0.01','gl_total_debit'=>'215.26',
+         'gl_total_credit'=>'215.26'])];
+    $penny=EmployeeCashControl::view($self,7,'2026-10-01','2026-10-19',1,50,$fake,$profile);
+    ok($penny['rows'][0]['journal_check']==='journal_amount_mismatch',
+       'unclassified penny is a mismatch even with matching totals');
     $noFinance=new Actor(11,7,1,2,[2],[],'FSE');
     $fake->calls=[];
     deny(fn()=>EmployeeCashControl::view($noFinance,7,'2026-10-01','2026-10-19',1,50,$fake,$profile),'permission_denied');
@@ -154,6 +190,11 @@ namespace {
     ok(str_contains($sql,'LOWER(a.subtype)'),'cash/upi account type classification');
     ok(str_contains($sql,"a.code='SALES' AND a.type IN ('income','revenue')"),
        'posted SALES credit accepts canonical revenue and legacy income account types, not arbitrary assets');
+    ok(str_contains($sql,"a.code='COGS' AND a.type='expense'")
+       &&str_contains($sql,"a.code='INVENTORY' AND a.type='asset'"),
+       'only legitimate COGS and INVENTORY ledger classifications recognized');
+    ok(str_contains($sql,'gl_unexpected_amount')&&str_contains($sql,'THEN jl.debit+jl.credit'),
+       'unknown accounts and wrong-side legs cannot disappear in balanced totals');
     ok(str_contains($sql,'SUM(jl.debit)')&&str_contains($sql,'SUM(jl.credit)')
         &&str_contains($sql,'gl_cash_credit')&&str_contains($sql,'gl_upi_credit'),
        'full posted GL and reverse payment legs are also reconciled');

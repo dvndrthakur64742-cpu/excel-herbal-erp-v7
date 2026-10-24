@@ -237,3 +237,30 @@ GL/stock/performance writes by read-only reports.
 This finding is an **account classification/display bug**, not a missing
 transaction or proof of physical cash handover/bank settlement.
 No staging deployment, production DB write or migration accompanies it.
+
+## 2026-10-24 — Complete V7 Daily Order journal legs (development-only)
+
+Cash Control was comparing posted CASH/UPI debits, SALES credit, total GL
+Dr/Cr balance and orphan-account count. A journal could still be classified
+`journal_amounts_match` with a mismatched COGS/INVENTORY pair or with
+unrelated, balanced debit/credit entries. Canonical `DailyOrder::finalPost`
+actually posts CASH and/or UPI debit, SALES credit, and, if sold stock has
+cost, COGS debit and INVENTORY credit. A journal with extra offsetting lines
+is not proof of a clean Daily Order settlement.
+
+The reader now counts only legitimate `COGS/expense` debit and
+`INVENTORY/asset` credit, verifies that these amounts balance, and measures
+ALL unclassified/wrong-side debit/credit values in paise. A clean journal
+requires that unexpected amount to equal zero, alongside all existing
+payment, SALES, posted-journal-count and full Dr/Cr checks. Original
+per-page Cash/UPI totals remain unchanged; there are new read-only
+per-cycle GL cost-pair and unexpected-leg fields. Neither physical Cash
+handover nor independent UPI bank receipt is thereby verified. Monetary
+value parsing is exact to two decimal places and other tenant/branch
+permissions remain intact.
+
+Regression checks cover valid additional COGS/INVENTORY pair, mismatched
+pair, compensated extraneous debit/credit, and a one-paisa unexplained leg.
+The disposable MariaDB end-to-end employee sales test now asserts the
+actual ₹200 COGS/INVENTORY closing legs on its ₹360 sale. No DB migration,
+posting mutation, production deployment or staging write is in scope.

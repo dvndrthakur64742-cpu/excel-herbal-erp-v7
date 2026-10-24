@@ -47,6 +47,9 @@ final class EmployeeCashControl {
             $glCashCredit=self::paise($item['gl_cash_credit']??null);
             $glUpiCredit=self::paise($item['gl_upi_credit']??null);
             $glSalesCredit=self::paise($item['gl_sales_credit']??null);
+            $glCogsDebit=self::paise($item['gl_cogs_debit']??null);
+            $glInventoryCredit=self::paise($item['gl_inventory_credit']??null);
+            $glUnexpected=self::paise($item['gl_unexpected_amount']??null);
             $glTotalDr=self::paise($item['gl_total_debit']??null);
             $glTotalCr=self::paise($item['gl_total_credit']??null);
             $orphanAccounts=$item['gl_orphan_account_lines']??null;
@@ -57,6 +60,9 @@ final class EmployeeCashControl {
                 throw new DomainException('Posted settlement totals are inconsistent.','cash_control_corrupt',500);
             $postingOk=$journals===1&&$reportedCash===$glCash&&$reportedUpi===$glUpi
                 &&$glCashCredit===0&&$glUpiCredit===0&&$glSalesCredit===$expected
+                // V7 finalPost also posts COGS debit / INVENTORY credit.
+                // Equal Dr/Cr totals alone cannot clear unexpected journal legs.
+                &&$glCogsDebit===$glInventoryCredit&&$glUnexpected===0
                 &&$glTotalDr===$glTotalCr&&$orphanAccounts===0;
             $status=$journals===0?'missing_journal':($journals!==1?'duplicate_journal':($postingOk?'journal_amounts_match':'journal_amount_mismatch'));
             if(!$postingOk)$mismatched++;
@@ -71,6 +77,10 @@ final class EmployeeCashControl {
                 'journal_cash_debit_paise'=>$glCash,'journal_upi_debit_paise'=>$glUpi,
                 'journal_cash_credit_paise'=>$glCashCredit,'journal_upi_credit_paise'=>$glUpiCredit,
                 'journal_sales_credit_paise'=>$glSalesCredit,
+                'journal_cogs_debit_paise'=>$glCogsDebit,
+                'journal_inventory_credit_paise'=>$glInventoryCredit,
+                'journal_unexpected_legs_paise'=>$glUnexpected,
+                'journal_cost_of_goods_reconcile'=>$glCogsDebit===$glInventoryCredit&&$glUnexpected===0,
                 'journal_total_debit_paise'=>$glTotalDr,'journal_total_credit_paise'=>$glTotalCr,
                 'journal_orphan_account_lines'=>$orphanAccounts,
                 'journal_cash_upi_reconcile'=>$reportedCash===$glCash&&$reportedUpi===$glUpi
@@ -118,6 +128,16 @@ final class EmployeeCashControlWpReader implements EmployeeCashControlReader {
           ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='cash' THEN jl.credit ELSE 0 END),0) gl_cash_credit,"
           ."COALESCE(SUM(CASE WHEN a.type='asset' AND LOWER(a.subtype)='upi' THEN jl.credit ELSE 0 END),0) gl_upi_credit,"
           ."COALESCE(SUM(CASE WHEN a.code='SALES' AND a.type IN ('income','revenue') THEN jl.credit ELSE 0 END),0) gl_sales_credit,"
+          ."COALESCE(SUM(CASE WHEN a.code='COGS' AND a.type='expense' THEN jl.debit ELSE 0 END),0) gl_cogs_debit,"
+          ."COALESCE(SUM(CASE WHEN a.code='INVENTORY' AND a.type='asset' THEN jl.credit ELSE 0 END),0) gl_inventory_credit,"
+          // Reject unrelated accounts and wrong-side entries, even if
+          // extra debits and credits perfectly offset one another.
+          ."COALESCE(SUM(CASE WHEN a.id IS NULL THEN jl.debit+jl.credit ELSE "
+          ." (CASE WHEN (a.type='asset' AND LOWER(a.subtype) IN ('cash','upi')) "
+          ."OR (a.code='COGS' AND a.type='expense') THEN 0 ELSE jl.debit END)"
+          ." + (CASE WHEN (a.code='SALES' AND a.type IN ('income','revenue')) "
+          ."OR (a.code='INVENTORY' AND a.type='asset') THEN 0 ELSE jl.credit END)"
+          ." END),0) gl_unexpected_amount,"
           .'COALESCE(SUM(jl.debit),0) gl_total_debit,COALESCE(SUM(jl.credit),0) gl_total_credit,'
           .'COALESCE(SUM(CASE WHEN a.id IS NULL THEN 1 ELSE 0 END),0) gl_orphan_account_lines '
           .'FROM '.Db::table('journal_entries').' je JOIN '.Db::table('journal_lines').' jl ON jl.journal_entry_id=je.id '
@@ -128,6 +148,9 @@ final class EmployeeCashControlWpReader implements EmployeeCashControlReader {
             .'COALESCE(j.gl_upi_debit,0) gl_upi_debit,'
             .'COALESCE(j.gl_cash_credit,0) gl_cash_credit,COALESCE(j.gl_upi_credit,0) gl_upi_credit,'
             .'COALESCE(j.gl_sales_credit,0) gl_sales_credit,'
+            .'COALESCE(j.gl_cogs_debit,0) gl_cogs_debit,'
+            .'COALESCE(j.gl_inventory_credit,0) gl_inventory_credit,'
+            .'COALESCE(j.gl_unexpected_amount,0) gl_unexpected_amount,'
             .'COALESCE(j.gl_total_debit,0) gl_total_debit,COALESCE(j.gl_total_credit,0) gl_total_credit,'
             .'COALESCE(j.gl_orphan_account_lines,0) gl_orphan_account_lines '
             .'FROM '.Db::table('daily_cycles').' c '
