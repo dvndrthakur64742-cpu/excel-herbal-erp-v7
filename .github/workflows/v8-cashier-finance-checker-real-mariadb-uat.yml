@@ -87,8 +87,6 @@ jobs:
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           sleep 2
           python3 v8/backend/tests/finance_review_uat_http_smoke.py | tee "$RUNNER_TEMP/finance-uat-http-smoke.log"
-          grep -Eq '^FINANCE UAT HTTP SMOKE: [0-9]+/[0-9]+ PASS; 127.0.0.1 and v8_test only; no Office or WordPress writes
-        run: echo "PASS only runner-local disposable MariaDB; no Office/production secrets, deployments or live payment providers"
- "$RUNNER_TEMP/finance-uat-http-smoke.log"
+          grep -Eq '^FINANCE UAT HTTP SMOKE: [0-9]+/[0-9]+ PASS; 127.0.0.1 and v8_test only; no Office or WordPress writes$' "$RUNNER_TEMP/finance-uat-http-smoke.log"
       - name: Strict no Office or production write gate
         run: echo "PASS only runner-local disposable MariaDB; no Office/production secrets, deployments or live payment providers"
