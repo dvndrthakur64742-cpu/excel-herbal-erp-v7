@@ -187,3 +187,43 @@ maintenance commit **does not trigger another Office deployment**.
 **Acceptance status:** Flutter tests and compiled web PASS; deployed web
 HTTP hash verified. A full authenticated human Admin/Manager Employee 360
 interaction is still pending and must not be represented as completed.
+
+## 2026-10-24 — Owner-approved staging read-only V8 UI refresh request
+
+The owner explicitly requested "real percentage" and "deploy" in the
+ERP project's current chat. For safety this deployment is constrained to
+the existing `v8-office-web-preview-deploy.yml` owner-approved
+**web-only, read-only** workflow, not the unified backend plugin, MariaDB
+migration, new financial routes or live Cash/UPI settlement postings.
+
+Preflight observations, independently checked before requesting release:
+- Office host reports `environment=staging` and hardening passed.
+- Canonical installed backend source is
+  `95a9e2806edef95257cd6b6aee6f1d56ca632d6b`.
+- Existing web runtime is
+  `bdcc617e41ace10d44422a7d914a38eb459ea300`, main JS SHA-256
+  `f57e8fe8aafb29c3cef450fa4a94ea35f685dad745ff82fd5fd1f2d20be926de`.
+- Staging `sanitized=false`; active mobile sessions exist. **Therefore
+  deploying the new backend, canonical cashier/PSP writer or financial
+  schema is explicitly NOT approved by this release.**
+- V8 unified plugin remains active; previous V7 versions remain inactive.
+- Self-hosted Windows runner is online in interactive Session 1 with
+  visible Chrome. Browser admin login and upload MUST be separately
+  verified by the pinned workflow before a single upload.
+
+Release controls: build exact HEAD, rerun full Flutter suite, compile with
+`EH7_PREVIEW_READ_ONLY=true`, certify every asset with SHA-256 and stage a
+web-only WordPress ZIP. Before upload validate expected OLD backend hash and
+OLD web hash. Authenticate via the current WordPress UAT Setup Assistant,
+retain the web rollback, and independently fetch actual Office health and
+main.dart.js SHA after upload. Stop if ANY mismatch, login issue, missing
+backup or noninteractive runner. Do not attempt a backend/database deploy as
+fallback; on interrupted multipart upload re-read health before retrying.
+
+**Progress accounting:** module code and tests passing are not equivalent to
+business-production acceptance. Cashier/UPI release scope remains **3 of 5
+confirmed checkpoints (60%)**, with authorized human browser UAT and safe
+staging backend rollout outstanding. The **total ERP completion percentage is
+not verified** until all module checklists and acceptance criteria are audited.
+A read-only web-only preview changes the staging-visualization status, not
+the Cashier/UPI production-readiness numerator.
