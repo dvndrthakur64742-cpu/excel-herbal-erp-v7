@@ -217,7 +217,12 @@ void main() {
     expect(communication, isNot(contains('Due At (optional ISO date/time)')));
     expect(appState, isNot(contains("'communication.view',")));
     expect(navigation, contains("['id'=>'tasks','label'=>'My Tasks']"));
-    expect(shell, contains("_desktopTile('tasks', 'My Tasks'"));
+    final destinations = File(
+      'lib/shell/workspace_navigation.dart',
+    ).readAsStringSync();
+    expect(destinations, contains("WorkspaceDestination('tasks', 'My Tasks'"));
+    expect(shell, contains('_desktopTile(destination.id, destination.label,'));
+    expect(shell, contains("'tasks' => const TasksScreen()"));
   });
 
   test('management dashboard loads independent summaries concurrently', () {

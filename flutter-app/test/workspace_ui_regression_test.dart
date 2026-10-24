@@ -69,11 +69,12 @@ void main() {
     final source = File('lib/shell/app_shell.dart').readAsStringSync();
 
     expect(source, isNot(contains('_desktopWorkspaceHeader')));
-    expect(source, contains('SizedBox(width: 248'));
+    expect(source, contains('SizedBox(width: 264'));
     expect(source, isNot(contains('ModuleWorkspaceHeader(')));
-    expect(source, contains("_sectionLabel(context, 'WORK')"));
-    expect(source, contains("_sectionLabel(context, 'CONTROL')"));
-    expect(source, contains("_sectionLabel(context, 'MODULES')"));
+    expect(source, contains('V8WorkspaceContextBar('));
+    expect(source, contains('WorkspaceNavigation.groups('));
+    expect(source, contains('_sectionLabel(context, group.key)'));
+    expect(source, contains('_desktopTile(destination.id, destination.label,'));
   });
 
   test('business module page titles match shell navigation labels', () {
