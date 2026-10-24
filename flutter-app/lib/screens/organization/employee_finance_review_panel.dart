@@ -6,6 +6,7 @@ import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import 'employee_cashier_evidence_uat.dart';
+import 'finance_review_evidence_integrity.dart';
 
 /// Finance-only live WordPress V7 read model. No financial writes or fake
 /// cross-source balances; intentionally NOT the employee dashboard.
@@ -182,8 +183,8 @@ class EmployeeFinanceReviewSnapshot {
     // selected employee accounting period, even if its employee ID matches.
     final cashPeriod = _map(cash['period']);
     final ledgerPeriod = _map(ledger['period']);
-    if (DateTime.tryParse(from) == null ||
-        DateTime.tryParse(to) == null ||
+    if (!FinanceReviewEvidenceIntegrity.validDay(from) ||
+        !FinanceReviewEvidenceIntegrity.validDay(to) ||
         from.compareTo(to) > 0 ||
         cashPeriod['from'] != from || cashPeriod['to'] != to ||
         ledgerPeriod['from'] != from || ledgerPeriod['to'] != to) {
@@ -221,6 +222,12 @@ class EmployeeFinanceReviewSnapshot {
     }
     final closings = rawClosings.map(_map).toList(growable: false);
     final accounts = rawAccounts.map(_map).toList(growable: false);
+    FinanceReviewEvidenceIntegrity.validate(
+      rows: closings, from: from, to: to,
+      pageCash: totals['cash_reported_paise'],
+      pageUpi: totals['upi_reported_paise'],
+      pageMismatches: flags['journal_mismatch_count'],
+    );
     for (final row in closings) {
       unsigned(row['daily_cycle_id']);
       unsigned(row['reported_cash_paise']);
@@ -425,7 +432,7 @@ class EmployeeFinanceReviewView extends StatelessWidget {
           ]),
         ),
         const SizedBox(height: 12),
-        Text('Daily Order journal checks', style: textTheme.titleMedium),
+        Text('Daily Order evidence worklist · page 1', style: textTheme.titleMedium),
         if (snapshot.closings.isEmpty)
           const Card(child: ListTile(title: Text('No posted daily closings on this page.'))),
         for (final row in snapshot.closings)
@@ -443,7 +450,14 @@ class EmployeeFinanceReviewView extends StatelessWidget {
                   EmployeeFinanceReviewSnapshot.unsigned(row['reported_cash_paise'])) +
                   ' · UPI ' + EmployeeFinanceReviewSnapshot.inr(
                   EmployeeFinanceReviewSnapshot.unsigned(row['reported_upi_paise'])) +
-                  '\nJournal: ' + row['journal_check'].toString()),
+                  '\nJournal: ' + row['journal_check'].toString() +
+                  '\nCash receipt: ' +
+                  (EmployeeFinanceReviewSnapshot.unsigned(row['reported_cash_paise']) > 0
+                    ? 'EVIDENCE PENDING' : 'not applicable') +
+                  ' · UPI bank: ' +
+                  (EmployeeFinanceReviewSnapshot.unsigned(row['reported_upi_paise']) > 0
+                    ? 'EVIDENCE PENDING' : 'not applicable') +
+                  '\nNot an employee outstanding balance.'),
             ),
           ),
         const SizedBox(height: 12),

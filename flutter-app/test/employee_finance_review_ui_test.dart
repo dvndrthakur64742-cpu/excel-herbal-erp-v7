@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:excel_herbal_erp/screens/organization/employee_finance_review_panel.dart';
+import 'package:excel_herbal_erp/screens/organization/finance_review_evidence_integrity.dart';
 
 Map<String, dynamic> cashFixture() => {
   'read_only': true,
@@ -157,6 +158,53 @@ void main() {
     );
   });
 
+  test('Cash UPI totals, journal mismatch flags and duplicate IDs reconcile exactly', () {
+    void read(Map<String, dynamic> cash) =>
+        EmployeeFinanceReviewSnapshot.fromResponses(
+          employeeId: 42, from: '2026-10-01', to: '2026-10-22',
+          cashResponse: cash, ledgerResponse: ledgerFixture());
+
+    final alteredTotal = cashFixture();
+    (alteredTotal['page_totals'] as Map)['cash_reported_paise'] = 17000;
+    (alteredTotal['page_evidence_gaps'] as Map)
+        ['cash_without_independent_receipt_paise'] = 17000;
+    expect(() => read(alteredTotal), throwsFormatException);
+
+    final changedRow = cashFixture();
+    (changedRow['rows'] as List).first['reported_upi_paise'] = 7000;
+    expect(() => read(changedRow), throwsFormatException);
+
+    final fakeMatch = cashFixture();
+    (fakeMatch['rows'] as List).first['journal_check'] = 'journal_amounts_match';
+    expect(() => read(fakeMatch), throwsFormatException);
+
+    final duplicate = cashFixture();
+    (duplicate['rows'] as List).add(
+        Map<String, dynamic>.from((duplicate['rows'] as List).first as Map));
+    expect(() => read(duplicate), throwsFormatException);
+  });
+
+  test('Cash and UPI proof cannot be invented from posted bookkeeping', () {
+    void read(Map<String, dynamic> cash) =>
+        EmployeeFinanceReviewSnapshot.fromResponses(
+          employeeId: 42, from: '2026-10-01', to: '2026-10-22',
+          cashResponse: cash, ledgerResponse: ledgerFixture());
+    final receipt = cashFixture();
+    (receipt['rows'] as List).first['cash_remittance_proof'] = 'verified';
+    expect(() => read(receipt), throwsFormatException);
+
+    final bank = cashFixture();
+    (bank['rows'] as List).first['upi_bank_settlement_proof'] = 'verified';
+    expect(() => read(bank), throwsFormatException);
+  });
+
+  test('Invalid calendar date and imprecise web money fail closed', () {
+    expect(FinanceReviewEvidenceIntegrity.validDay('2026-02-30'), isFalse);
+    expect(FinanceReviewEvidenceIntegrity.validDay('2026-02-28'), isTrue);
+    expect(() => FinanceReviewEvidenceIntegrity.money('9007199254740992'),
+        throwsFormatException);
+  });
+
   test('Evidence gaps never claim employee debt and must match booked tender', () {
     EmployeeFinanceReviewSnapshot parse(Map<String, dynamic> cash) =>
         EmployeeFinanceReviewSnapshot.fromResponses(
@@ -295,6 +343,7 @@ void main() {
       'Cashier handover: NOT VERIFIED',
       'UPI bank settlement: NOT VERIFIED',
       'Daily Orders / B2B linking: NOT VERIFIED',
+      'Daily Order evidence worklist · page 1',
       'Employee-tagged GL accounts',
       'EMPLOYEE_CASH_IN_TRANSIT',
     ]) {

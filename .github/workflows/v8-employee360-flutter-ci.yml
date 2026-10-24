@@ -13,6 +13,7 @@ on:
       - 'flutter-app/lib/screens/organization/employee_360_workspace.dart'
       - 'flutter-app/test/employee_360_workspace_test.dart'
       - 'flutter-app/lib/screens/organization/employee_finance_review_panel.dart'
+      - 'flutter-app/lib/screens/organization/finance_review_evidence_integrity.dart'
       - 'flutter-app/lib/screens/organization/employee_finance_uat_api_loader.dart'
       - 'flutter-app/lib/screens/organization/employee_cashier_evidence_uat.dart'
       - 'flutter-app/test/employee_cashier_evidence_uat_ui_test.dart'
