@@ -6,6 +6,7 @@ on:
       - '.github/workflows/v8-cashier-finance-checker-real-mariadb-uat.yml'
       - 'v8/backend/src/B2B/V7CanonicalCashHandoverUat.php'
       - 'v8/backend/src/B2B/V7B2BCrossLedgerAuditUat.php'
+      - 'v8/backend/src/B2B/V7EmployeeCrossSourceCashAuditUat.php'
       - 'v8/backend/tests/v7_canonical_real_mariadb.php'
       - 'v8/backend/schema/011_v7_canonical_cash_handover_DRAFT.sql'
       - 'v8/backend/src/B2B/V7CanonicalPostingSinkUat.php'
@@ -52,6 +53,7 @@ jobs:
           set -euo pipefail
           php -l v8/backend/src/B2B/V7CanonicalCashHandoverUat.php
           php -l v8/backend/src/B2B/V7B2BCrossLedgerAuditUat.php
+          php -l v8/backend/src/B2B/V7EmployeeCrossSourceCashAuditUat.php
           php -l v8/backend/tests/v7_canonical_real_mariadb.php
           php -l v8/backend/tests/signed_bank_reconciliation_mariadb.php
           php -r '$pdo=new PDO(getenv("V8_TEST_DSN"),getenv("V8_TEST_USER"),getenv("V8_TEST_PASSWORD")); if($pdo->query("SELECT DATABASE()")->fetchColumn()!=="v8_test")exit(1); echo "PASS isolated v8_test MariaDB identity\n";'

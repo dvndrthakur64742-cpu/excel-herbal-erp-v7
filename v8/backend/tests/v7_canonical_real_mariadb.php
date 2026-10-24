@@ -640,6 +640,44 @@ try{
         &&$cross['same_sale_across_sources_not_proven']===true
         &&$cross['physical_legacy_daily_cash_verified']===false,
         'overlapping Daily and B2B sales cannot be automatically combined, netted or called cash proof');
+    // Employee-facing Finance reviewer gets the original receipt -> checker
+    // -> posted canonical journal chain, but never a global employee shortage.
+    $chain=$newB2B[0]['cashier_finance_evidence']??null;
+    checkUat(is_array($chain)
+        &&$chain['source_key']==='b2b_retailer_sale:'.$fieldSale['sale_id']
+        &&$chain['evidence_scope']==='disposable_v8_test_verified_canonical_b2b_only'
+        &&$chain['cashier_receipt']['receipt_id']===$receipt['receipt_id']
+        &&$chain['cashier_receipt']['reference']==='CI-CASHIER-REF-001'
+        &&$chain['cashier_receipt']['cashier_employee_id']===$financeActor->employeeId
+        &&$chain['cashier_receipt']['cashier_user_id']===$financeActor->userId
+        &&$chain['cashier_receipt']['amount_paise']===20000
+        &&$chain['finance_check']['remittance_id']===$remit['remittance_id']
+        &&$chain['finance_check']['journal_id']===$remit['journal_id']
+        &&$chain['finance_check']['checker_employee_id']===$checkerActor->employeeId
+        &&$chain['finance_check']['checker_user_id']===$checkerActor->userId
+        &&$chain['finance_check']['amount_paise']===20000
+        &&$chain['cash_transit_reclassification_verified_uat']===true
+        &&$chain['physical_cash_confirmed_on_office_staging']===false
+        &&$chain['production_financial_status']==='not_certified'
+        &&!isset($daily[0]['cashier_finance_evidence']),
+        'Finance-only Employee 360 UAT shows original source-bound cashier and checker journal, never legacy proof');
+    // Invalid reference is NOT a payment voucher. Fail closed if a valid
+    // canonical posting is joined to a forged cashier reference value.
+    $pdo->prepare('UPDATE wp_eh7_b2b_cashier_receipts_uat SET receipt_reference=? WHERE id=?')
+        ->execute(['X',$receipt['receipt_id']]);
+    try {
+        $forgedReferenceDenied=false;
+        try{$crossEmployee($auditActor,$branch,$employee,'2026-10-19','2026-10-19',$crossAuthority);}
+        catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$forgedReferenceDenied=true;}
+        checkUat($forgedReferenceDenied,'Employee Finance evidence chain fails closed on forged cashier reference');
+    } finally {
+        $pdo->prepare('UPDATE wp_eh7_b2b_cashier_receipts_uat SET receipt_reference=? WHERE id=?')
+            ->execute(['CI-CASHIER-REF-001',$receipt['receipt_id']]);
+    }
+    $proofRecovered=$crossEmployee($auditActor,$branch,$employee,'2026-10-19','2026-10-19',$crossAuthority);
+    checkUat($proofRecovered['source_pages']['canonical_b2b_field_cash']['rows'][0]
+        ['cashier_finance_evidence']['finance_check']['journal_id']===$remit['journal_id'],
+        'Employee Finance evidence chain recovers without posting another journal');
     $noAuth=false;
     try{$crossEmployee($auditActor,$branch,$employee,'2026-10-19','2026-10-19',static fn()=>false);}
     catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$noAuth=true;}
