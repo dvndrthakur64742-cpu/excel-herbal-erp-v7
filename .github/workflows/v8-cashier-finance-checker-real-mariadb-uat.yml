@@ -1,0 +1,62 @@
+name: V8 Cashier Finance Checker Canonical Real MariaDB UAT (No Deploy)
+on:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/v8-cashier-finance-checker-real-mariadb-uat.yml'
+      - 'v8/backend/src/B2B/V7CanonicalCashHandoverUat.php'
+      - 'v8/backend/src/B2B/V7B2BCrossLedgerAuditUat.php'
+      - 'v8/backend/tests/v7_canonical_real_mariadb.php'
+      - 'v8/backend/schema/011_v7_canonical_cash_handover_DRAFT.sql'
+      - 'v8/backend/src/B2B/V7CanonicalPostingSinkUat.php'
+      - 'v8/backend/src/B2B/SignedBankReconciliationLookupUat.php'
+      - 'backend/excel-herbal-erp-v7/src/Finance/AccountingService.php'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cashier-maker-checker-v7-real-mariadb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    services:
+      disposable-mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ephemeral-root-only
+          MARIADB_DATABASE: v8_test
+          MARIADB_USER: v8
+          MARIADB_PASSWORD: ephemeral-v8-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      V8_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4'
+      V8_TEST_USER: v8
+      V8_TEST_PASSWORD: ephemeral-v8-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, mysqli, mbstring
+          coverage: none
+      - name: Refuse non-disposable MariaDB and lint isolated cashier implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l v8/backend/src/B2B/V7CanonicalCashHandoverUat.php
+          php -l v8/backend/src/B2B/V7B2BCrossLedgerAuditUat.php
+          php -l v8/backend/tests/v7_canonical_real_mariadb.php
+          php -r '$pdo=new PDO(getenv("V8_TEST_DSN"),getenv("V8_TEST_USER"),getenv("V8_TEST_PASSWORD")); if($pdo->query("SELECT DATABASE()")->fetchColumn()!=="v8_test")exit(1); echo "PASS isolated v8_test MariaDB identity\n";'
+      - name: Real V7 journal and independent receipt/checker integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/v7_canonical_real_mariadb.php | tee "$RUNNER_TEMP/cashier-finance-checker-uat.log"
+          grep -q '^CANONICAL V7 REAL MARIADB UAT: [0-9]*/[0-9]* PASS; v8_test only; no WordPress deployment$' "$RUNNER_TEMP/cashier-finance-checker-uat.log"
+      - name: Strict no Office or production write gate
+        run: echo "PASS only runner-local disposable MariaDB; no Office/production secrets, deployments or live payment providers"

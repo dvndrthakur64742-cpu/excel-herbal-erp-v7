@@ -63,3 +63,46 @@ referenced the current poster rather than proving the original attester.
 **Not production-certified:** this is in isolated `v8_test` UAT only, not
 physical Cash proof on the Office staging or production ERP. No new HTTP route,
 financial writer, migration, deployment or changed real customer records.
+
+## 2026-10-24 — UAT-only separate cashier and finance checker
+
+**Risk found during canonical rollout audit:** the previous isolated `v8_test`
+flow allowed the same authenticated cashier who created the physical receipt
+to post its GL remittance. Cashier-vs-field-seller separation alone does not
+establish independent maker-checker approval.
+
+**Implemented inside disposable UAT only:**
+- Original authenticated cashier still uniquely attests the full exact-amount
+  posted B2B field Cash sale. Only this human owns the receipt reference;
+  self-attestation by original field seller remains forbidden.
+- A **different** authenticated Finance checker must independently execute
+  `cash_remittance.post` with the authorized branch capability. It is rejected
+  when either checker user ID or employee ID equals the original cashier,
+  seller or original maker. A cashier holding both privileges still cannot
+  approve their own receipt.
+- UAT draft remittance source stores `checker_user_id` and
+  `checker_employee_id` separately from original
+  `cashier_employee_id`/the receipt's `cashier_user_id`. The unique
+  source and receipt constraints, exact amount, posted original Cash-in-
+  Transit debit, account custody, closed period and atomic V7 journal remain
+  unchanged.
+- Remittance idempotency hash and replay validation bind source company,
+  branch, sale ID, cashier receipt/actor and Finance checker identities;
+  a second approved checker cannot adopt the first checker's posted journal.
+- The read-only cross-ledger audit rejects a forged checker-as-cashier record
+  or altered identity before treating Cash handover as reconciled. Duplicate
+  Cash postings, stock movements, performance points, remittances or Cash
+  proof consumption remain prohibited.
+- Real MariaDB UAT asserts no receipt -> no journal, cashier self-approval
+  blocked, unauthorized/second cashier denied, a genuinely independent
+  checker posts exactly one debit BRANCH_CASH / credit employee-tagged
+  EMPLOYEE_CASH_IN_TRANSIT entry, GL insert failure fully rolls back,
+  tampered checker identity fails audit/replay and exact retry is idempotent.
+
+Dedicated disposable GitHub Actions workflow:
+`.github/workflows/v8-cashier-finance-checker-real-mariadb-uat.yml`.
+This is **not** a production writer or schema migration. It uses only the
+runner-local `v8_test` database, has no Office credentials, and cannot mark
+physical money delivered in live V7 Daily Orders. Actual employee Cash
+handover, bank/PSP source, tax/reversal policy, sanitized staging UAT and
+production authorization remain separately gated.

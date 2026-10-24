@@ -158,7 +158,9 @@ final class V7CanonicalCashHandoverUat
         return $journal;
     }
 
-    /** Post ONE canonical V7 journal: Dr BRANCH_CASH / Cr EMPLOYEE_CASH_IN_TRANSIT. */
+    /** Post ONE canonical journal: independent FINANCE checker authorizes
+     * an actual cashier's receipt. Checker must never be the receipt maker,
+     * field seller or evening maker. These are distinct server Actor users. */
     public function post(int $branch,int $saleId,string $key):array
     {
         if($saleId<1||!preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/D',$key))
@@ -173,16 +175,21 @@ final class V7CanonicalCashHandoverUat
             $db=Db::wpdb();$company=$this->actor->companyId;
             $receipt=self::receipt($company,$branch,$saleId);
             if(!$receipt||$receipt['status']!=='confirmed'
-                ||(int)$receipt['cashier_user_id']!==$this->actor->userId
-                ||(int)$receipt['cashier_employee_id']!==$this->actor->employeeId
+                ||(int)$receipt['cashier_user_id']<1
+                ||(int)$receipt['cashier_employee_id']<1
+                // An independent Finance checker must not post their own
+                // physical cashier attestation under another role.
+                ||(int)$receipt['cashier_user_id']===$this->actor->userId
+                ||(int)$receipt['cashier_employee_id']===$this->actor->employeeId
                 ||(int)$receipt['amount_paise']!==$sale['amount_paise']
                 ||(int)$receipt['employee_id']!==$sale['employee_id']
                 ||(int)$receipt['cashier_employee_id']===$sale['employee_id']
-                ||(int)$receipt['cashier_employee_id']===(int)$sale['created_by']
-                ||(int)$receipt['cashier_user_id']<1)
+                ||(int)$receipt['cashier_employee_id']===(int)$sale['created_by'])
                 throw new RetailerSaleError('Independent exact-amount cashier receipt missing.');
             $fingerprint=hash('sha256',json_encode([
-                $company,$branch,$saleId,(int)$receipt['id'],$this->actor->userId,$key
+                $company,$branch,$saleId,(int)$receipt['id'],
+                (int)$receipt['cashier_user_id'],(int)$receipt['cashier_employee_id'],
+                $this->actor->userId,$this->actor->employeeId,$key
             ],JSON_THROW_ON_ERROR));
             $prior=$db->get_row($db->prepare('SELECT * FROM '.Db::table('b2b_cash_remittances').
                 ' WHERE company_id=%d AND sale_id=%d FOR UPDATE',$company,$saleId),ARRAY_A);
@@ -191,7 +198,9 @@ final class V7CanonicalCashHandoverUat
                     ||!hash_equals((string)$prior['request_fingerprint'],$fingerprint)
                     ||(int)$prior['branch_id']!==$branch
                     ||(int)$prior['employee_id']!==$sale['employee_id']
-                    ||(int)$prior['cashier_employee_id']!==$this->actor->employeeId
+                    ||(int)$prior['cashier_employee_id']!==(int)$receipt['cashier_employee_id']
+                    ||(int)$prior['checker_employee_id']!==$this->actor->employeeId
+                    ||(int)$prior['checker_user_id']!==$this->actor->userId
                     ||(int)$prior['receipt_id']!==(int)$receipt['id']
                     ||(int)$prior['amount_paise']!==$sale['amount_paise']
                     ||(int)$receipt['consumed_remittance_id']!==(int)$prior['id'])
@@ -206,7 +215,9 @@ final class V7CanonicalCashHandoverUat
             Db::mustInsert($db,Db::table('b2b_cash_remittances'),[
                 'company_id'=>$company,'branch_id'=>$branch,'sale_id'=>$saleId,
                 'employee_id'=>$sale['employee_id'],'receipt_id'=>(int)$receipt['id'],
-                'cashier_employee_id'=>$this->actor->employeeId,
+                'cashier_employee_id'=>(int)$receipt['cashier_employee_id'],
+                'checker_employee_id'=>$this->actor->employeeId,
+                'checker_user_id'=>$this->actor->userId,
                 'amount_paise'=>$sale['amount_paise'],'request_key'=>$key,
                 'request_fingerprint'=>$fingerprint,'journal_entry_id'=>null,
                 'status'=>'pending','created_at'=>Db::now()

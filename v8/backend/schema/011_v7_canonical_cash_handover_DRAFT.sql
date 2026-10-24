@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS wp_eh7_b2b_cash_remittances (
  company_id BIGINT UNSIGNED NOT NULL,branch_id BIGINT UNSIGNED NOT NULL,
  sale_id BIGINT UNSIGNED NOT NULL,employee_id BIGINT UNSIGNED NOT NULL,
  receipt_id BIGINT UNSIGNED NOT NULL,cashier_employee_id BIGINT UNSIGNED NOT NULL,
+ checker_user_id BIGINT UNSIGNED NOT NULL,checker_employee_id BIGINT UNSIGNED NOT NULL,
  amount_paise BIGINT NOT NULL,request_key VARCHAR(128) NOT NULL,
  request_fingerprint CHAR(64) NOT NULL,journal_entry_id BIGINT UNSIGNED NULL,
  status VARCHAR(20) NOT NULL DEFAULT 'pending',created_at DATETIME NOT NULL,
