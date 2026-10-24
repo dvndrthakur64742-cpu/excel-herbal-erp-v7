@@ -12,6 +12,7 @@ import '../screens/home/profile_screen.dart';
 import '../screens/inventory/inventory_screen.dart';
 import '../screens/my_work/my_work_workspace_screen.dart';
 import '../screens/organization/organization_screen.dart';
+import '../screens/organization/hr_lifecycle_screen.dart';
 import '../screens/organization/team_screen.dart';
 import '../screens/performance/performance_screen.dart';
 import '../screens/purchase/purchase_screen.dart';
@@ -23,6 +24,7 @@ import '../state/app_state.dart';
 import '../theme/excel_brand.dart';
 import 'shell_layout.dart';
 import 'workspace_navigation.dart';
+import 'workspace_action_catalog.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -604,68 +606,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       };
 
   Future<void> _showQuickActions(AppState app) async {
-    final actions = <({String id, String label, IconData icon})>[];
-    if (app.can('workforce.attendance.self')) {
-      actions.add((
-        id: 'attendance',
-        label: 'Check-In / Out',
-        icon: Icons.location_on_outlined,
-      ));
-    }
-    if (app.canAny(const ['daily_order.self', 'daily_order.others'])) {
-      actions.add((
-        id: 'daily_create',
-        label: 'Create Daily Order',
-        icon: Icons.shopping_cart_checkout,
-      ));
-      actions.add((
-        id: 'evening',
-        label: 'Evening Closing',
-        icon: Icons.nightlight_outlined,
-      ));
-    }
-    if (app.can('workforce.field_visit.self')) {
-      actions.add((
-        id: 'field_visit',
-        label: 'Field Visit',
-        icon: Icons.route_outlined,
-      ));
-    }
-    if (app.can('workforce.leave.self')) {
-      actions.add((
-        id: 'leave',
-        label: 'Apply Leave',
-        icon: Icons.event_available_outlined,
-      ));
-    }
-    if (app.can('sales.create')) {
-      actions.add((
-        id: 'counter_sale',
-        label: 'Counter Sale',
-        icon: Icons.point_of_sale,
-      ));
-    }
-    if (app.can('inventory.transfer.create')) {
-      actions.add((
-        id: 'stock_transfer',
-        label: 'Stock Transfer',
-        icon: Icons.swap_horiz,
-      ));
-    }
-    if (app.can('purchase.create')) {
-      actions.add((
-        id: 'purchase_entry',
-        label: 'Purchase Entry',
-        icon: Icons.local_shipping_outlined,
-      ));
-    }
-    if (app.can('finance.expense.create')) {
-      actions.add((
-        id: 'expense_entry',
-        label: 'Expense Entry',
-        icon: Icons.receipt_long_outlined,
-      ));
-    }
+    final actions = WorkspaceActionCatalog.visible(app.can);
     if (actions.isEmpty || !mounted) return;
     final selected = await showModalBottomSheet<String>(
       context: context,
@@ -696,10 +637,18 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
     if (selected == null || !mounted) return;
+    // The sheet captured a former bootstrap/branch. Never honor that stale
+    // action after the server-authorized capability projection changes.
+    if (!WorkspaceActionCatalog.allows(
+        selected, ref.read(appStateProvider).can)) return;
     _openConnectedAction(selected);
   }
 
   void _openConnectedAction(String id) {
+    // Defense in depth for BOTH full Actions screen and mobile action sheet.
+    // The backend separately validates every original ERP mutation.
+    if (!WorkspaceActionCatalog.allows(
+        id, ref.read(appStateProvider).can)) return;
     Widget? screen;
     switch (id) {
       case 'attendance':
@@ -738,6 +687,12 @@ class _AppShellState extends ConsumerState<AppShell> {
           initialAction: 'new_transfer',
         );
         break;
+      case 'stock_adjustment':
+        screen = const InventoryScreen(
+          initialSection: 'adjustments',
+          initialAction: 'adjustment',
+        );
+        break;
       case 'purchase_entry':
         screen = const PurchaseScreen(initialAction: 'new_bill');
         break;
@@ -746,6 +701,9 @@ class _AppShellState extends ConsumerState<AppShell> {
           initialSection: 'expenses',
           initialAction: 'expense',
         );
+        break;
+      case 'hr_lifecycle':
+        screen = const HrLifecycleScreen();
         break;
     }
     if (screen != null) {
@@ -935,18 +893,8 @@ class _AppShellState extends ConsumerState<AppShell> {
         allowed: (id) => _routeAllowed(app, id),
       );
 
-  bool _quickActionsVisible(AppState app) => app.canAny(const [
-        'workforce.attendance.self',
-        'workforce.field_visit.self',
-        'workforce.leave.self',
-        'daily_order.self',
-        'daily_order.others',
-        'sales.create',
-        'inventory.transfer.create',
-        'inventory.adjustment.create',
-        'purchase.create',
-        'finance.expense.create',
-      ]);
+  bool _quickActionsVisible(AppState app) =>
+      WorkspaceActionCatalog.visible(app.can).isNotEmpty;
 
   bool _routeAllowed(AppState app, String id) {
     if (const {'home', 'profile'}.contains(id)) return true;

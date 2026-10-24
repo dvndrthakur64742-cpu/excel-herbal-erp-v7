@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - 'flutter-app/lib/shell/**'
+      - 'flutter-app/lib/screens/home/actions_screen.dart'
+      - 'flutter-app/test/workspace_action_catalog_test.dart'
       - 'flutter-app/test/workspace_navigation_test.dart'
       - 'flutter-app/test/shell_workspace_widget_test.dart'
       - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
@@ -52,7 +54,7 @@ jobs:
         run: flutter pub get
       - name: Shared workspace navigation and existing routing regression
         working-directory: flutter-app
-        run: flutter test test/workspace_navigation_test.dart test/frontend_functional_navigation_test.dart test/shell_layout_test.dart
+        run: flutter test test/workspace_navigation_test.dart test/workspace_action_catalog_test.dart test/frontend_functional_navigation_test.dart test/shell_layout_test.dart
       - name: Render actual shell at phone tablet and desktop widths (synthetic data)
         working-directory: flutter-app
         run: flutter test test/shell_workspace_widget_test.dart
