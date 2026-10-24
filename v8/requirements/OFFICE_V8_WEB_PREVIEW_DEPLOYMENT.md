@@ -227,3 +227,12 @@ staging backend rollout outstanding. The **total ERP completion percentage is
 not verified** until all module checklists and acceptance criteria are audited.
 A read-only web-only preview changes the staging-visualization status, not
 the Cashier/UPI production-readiness numerator.
+
+## 2026-10-24 — Latest V8 UI read-only preview release request
+
+- Owner explicitly requested deployment of latest V8 UI to existing `office.excelherbal.in` **staging** after exact-head CI passed at `29811ac545165bf7ef2466e39df345f5ceaf36d6`.
+- Only certified Flutter web frontend with `EH7_PREVIEW_READ_ONLY=true`; no production merge, backend plugin, database migration, Cash/UPI settlement, stock or payroll posting.
+- Authenticated health preflight: staging and host hardening pass; original PHP backend source `95a9e2806edef95257cd6b6aee6f1d56ca632d6b`, currently installed web source `7b6448fccdb170228877e0c70e789a2a942f2583` and main SHA256 `ed31edc1576f1e4a74df3d15b0a5e0159c220eebf9bfab064b5b3a5887745ce6`.
+- Old web hash pin `f57e8fe8aafb29c3cef450fa4a94ea35f685dad745ff82fd5fd1f2d20be926de` is now stale. The workflow and uploader use **exact verified installed old web source and SHA**; both must match before upload. Never bypass mismatch.
+- `sanitized=false` and `active_mobile_sessions_zero=false`: no backend/DB mutations allowed. This is a web-only read-only preview, not full staging readiness or production signoff.
+- Prior owner-reported Hostinger backup exists, but its restore has not been machine-verified. Fail closed if certified build, authorized browser session, upload control, checksum or backend status differs. A workflow trigger does not prove deployment.

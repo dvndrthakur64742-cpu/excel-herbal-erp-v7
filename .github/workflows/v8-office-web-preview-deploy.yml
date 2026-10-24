@@ -169,7 +169,8 @@ jobs:
     env:
       OFFICE_UAT_SITE: https://office.excelherbal.in
       CURRENT_BACKEND_SHA: 95a9e2806edef95257cd6b6aee6f1d56ca632d6b
-      OLD_WEB_SHA256: f57e8fe8aafb29c3cef450fa4a94ea35f685dad745ff82fd5fd1f2d20be926de
+      OLD_WEB_SHA256: ed31edc1576f1e4a74df3d15b0a5e0159c220eebf9bfab064b5b3a5887745ce6
+      OLD_WEB_SOURCE_HEAD: 7b6448fccdb170228877e0c70e789a2a942f2583
     steps:
       - uses: actions/checkout@v4
       - name: Require owner-approved web-only branch and immutable published baseline
@@ -181,7 +182,7 @@ jobs:
           $raw=& curl.exe --fail --silent --show-error --max-time 25 $url
           if($LASTEXITCODE -ne 0){throw 'Cannot attest actual Office WordPress staging health'}
           $h=($raw -join [Environment]::NewLine)|ConvertFrom-Json
-          if(($h.ok -ne $true) -or ($h.data.environment -ne 'staging') -or ($h.data.source_head -ne $env:CURRENT_BACKEND_SHA) -or ($h.data.web_runtime.main_sha256 -ne $env:OLD_WEB_SHA256) -or ($h.data.schema_installed -ne $true) -or ($h.data.host_hardening.status -ne 'passed')){
+          if(($h.ok -ne $true) -or ($h.data.environment -ne 'staging') -or ($h.data.source_head -ne $env:CURRENT_BACKEND_SHA) -or ($h.data.web_runtime.main_sha256 -ne $env:OLD_WEB_SHA256) -or ($h.data.web_runtime.source_head -ne $env:OLD_WEB_SOURCE_HEAD) -or ($h.data.schema_installed -ne $true) -or ($h.data.host_hardening.status -ne 'passed')){
             throw 'Existing installed Office backend/web or staging host differs from preapproved baseline. No deploy.'
           }
           Write-Host 'PASS no-change preflight: current WordPress backend and web match exact authorized hashes'
