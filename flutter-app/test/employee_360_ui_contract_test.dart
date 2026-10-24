@@ -28,7 +28,10 @@ void main() {
     expect(profile, contains("type: 'requests'"));
     expect(profile, contains("const Tab(text: 'Daily Reconciliation')"));
     expect(profile, contains("type: 'reconciliation'"));
-    expect(profile, contains('RecordsList(rows: rows)'));
+    expect(profile, contains('V8RecordWorkspace('));
+    expect(profile, contains('rows: rows,'));
+    expect(profile, contains("'page_size': _pageSize"));
+    expect(profile, contains("data['read_only'] != true"));
     expect(profile, contains('showDateRangePicker('));
   });
 

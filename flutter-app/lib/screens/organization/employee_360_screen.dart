@@ -8,6 +8,8 @@ import '../../state/app_state.dart';
 import '../../widgets/gps_route_view.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/v8_module_banner.dart';
+import '../../widgets/v8_record_workspace.dart';
+import '../../widgets/v8_employee_identity_card.dart';
 import 'employee_finance_review_panel.dart';
 import 'employee_360_workspace.dart';
 
@@ -315,13 +317,7 @@ class _Employee360Summary extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          '${employee['full_name'] ?? ''} · ${employee['employee_code'] ?? ''}',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 6),
-        Text('Designation: ${employee['designation_code'] ?? '-'}'
-            '   •   Status: ${employee['status'] ?? '-'}'),
+        V8EmployeeIdentityCard(employee: employee),
         const SizedBox(height: 14),
         Text('Monthly sales, performance points and attendance',
             style: Theme.of(context).textTheme.titleMedium),
@@ -554,7 +550,19 @@ class _Employee360PagedRegisterState extends ConsumerState<_Employee360PagedRegi
                     ],
                   ),
                 ),
-              Expanded(child: RecordsList(rows: rows)),
+              Expanded(child: V8RecordWorkspace(
+                title: switch (widget.type) {
+                  'sales' => 'Sales & Points Register',
+                  'stock' => 'Stock Movement Register',
+                  'requests' => 'Stock Requests',
+                  'reconciliation' => 'Daily Reconciliation',
+                  'person_ledger' => 'Person Ledger',
+                  _ => 'Employee Records',
+                },
+                subtitle: 'Original server-paginated employee records. Read-only.',
+                contextLabel: 'Page $_page · verified employee scope',
+                rows: rows,
+              )),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

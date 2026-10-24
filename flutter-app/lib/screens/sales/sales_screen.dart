@@ -13,6 +13,7 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/v8_module_banner.dart';
+import '../../widgets/v8_record_workspace.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key, this.initialAction});
@@ -109,13 +110,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                 child: ModuleMessageBanner(message: message!),
               ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
-              child: ModuleSectionHeader(
-                title: 'Customer Accounts',
-                subtitle: 'Registered customer master for the selected branch.',
-              ),
-            ),
             Expanded(
               child: app.currentBranchId == null
                   ? const Center(child: Text('Select an authorised branch.'))
@@ -126,7 +120,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         query: {'branch_id': app.currentBranchId},
                       ),
                       emptyMessage: 'No customer accounts are available.',
-                      builder: (context, data) => RecordsList(
+                      builder: (context, data) => V8RecordWorkspace(
+                        title: 'Customer Accounts',
+                        subtitle: 'Search and inspect the selected branch customer master.',
+                        contextLabel: app.currentBranchName,
                         recordType: 'customer',
                         rows: (data as List)
                             .map((e) => Map<String, dynamic>.from(e as Map))
