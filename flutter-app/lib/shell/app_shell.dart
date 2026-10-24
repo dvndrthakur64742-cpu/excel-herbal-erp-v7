@@ -247,7 +247,9 @@ class _AppShellState extends ConsumerState<AppShell> {
               ? const Border(left: BorderSide(color: ExcelBrand.accent, width: 3))
               : null,
         ),
-        child: ListTile(
+        child: Material(
+          type: MaterialType.transparency,
+          child: ListTile(
           dense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
           leading: Icon(icon, size: 21,
@@ -257,6 +259,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               color: selected ? Colors.white : ExcelBrand.navText,
               fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
           onTap: () => _selectDesktopRoute(id),
+          ),
         ),
       ),
     );

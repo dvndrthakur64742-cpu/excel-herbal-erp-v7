@@ -33,6 +33,15 @@ class HomeScreen extends ConsumerWidget {
           V8HomeHero(app: app),
           const SizedBox(height: 12),
           const BranchSelector(),
+          // Keep the explicit no-branch state while avoiding V7's duplicate
+          // profile/authority card. This is also visible on denied sessions.
+          if (branch == null)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text('No Authorised Branch',
+                  style: TextStyle(fontWeight: FontWeight.w800,
+                      color: ExcelBrand.danger)),
+            ),
           // No redundant authority card: BranchSelector owns branch context.
           if (app.businessAccessBlocked) ...[
             const SizedBox(height: 16),
