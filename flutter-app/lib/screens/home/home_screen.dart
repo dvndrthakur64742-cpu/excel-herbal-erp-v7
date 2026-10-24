@@ -7,6 +7,7 @@ import '../../core/date_time_text.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
+import '../../widgets/v8_home_hero.dart';
 import '../../widgets/branch_selector.dart';
 import '../my_work/my_work_workspace_screen.dart';
 
@@ -27,13 +28,12 @@ class HomeScreen extends ConsumerWidget {
       },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
         children: [
-          _IdentityHero(app: app),
+          V8HomeHero(app: app),
           const SizedBox(height: 12),
           const BranchSelector(),
-          const SizedBox(height: 12),
-          _AuthorityCard(app: app),
+          // No redundant authority card: BranchSelector owns branch context.
           if (app.businessAccessBlocked) ...[
             const SizedBox(height: 16),
             const _InfoNotice(

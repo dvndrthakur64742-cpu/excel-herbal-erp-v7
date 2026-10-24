@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - 'flutter-app/lib/shell/**'
+      - 'flutter-app/lib/screens/home/home_screen.dart'
+      - 'flutter-app/lib/widgets/v8_home_hero.dart'
+      - 'flutter-app/lib/theme/excel_brand.dart'
       - 'flutter-app/lib/screens/home/actions_screen.dart'
       - 'flutter-app/test/workspace_action_catalog_test.dart'
       - 'flutter-app/test/workspace_navigation_test.dart'

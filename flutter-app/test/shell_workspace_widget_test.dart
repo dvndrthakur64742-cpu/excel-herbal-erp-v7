@@ -86,6 +86,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(find.text('Duplicate Home'), findsNothing);
+      expect(find.byKey(const ValueKey('v8-home-hero')), findsOneWidget);
+      if (width >= 960) {
+        expect(find.byKey(const ValueKey('v8-desktop-sidebar-brand')), findsOneWidget);
+        expect(find.byKey(const ValueKey('v8-workspace-context-bar')), findsOneWidget);
+      } else {
+        expect(find.byKey(const ValueKey('v8-mobile-brand')), findsOneWidget);
+      }
       expect(find.text('Approvals'), findsNothing);
       expect(find.text('Create'), findsNothing);
       expect(find.text('Finance Workspace'), findsNothing);

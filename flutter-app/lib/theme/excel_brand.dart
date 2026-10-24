@@ -9,9 +9,14 @@ class ExcelBrand {
   static const primarySoftStrong = Color(0xFFD8EFE1);
   static const ink = Color(0xFF171A18);
   static const muted = Color(0xFF657069);
-  static const canvas = Color(0xFFF7F8F7);
+  static const canvas = Color(0xFFF3F6FA);
+  static const navDark = Color(0xFF12283E);
+  static const navRaised = Color(0xFF25425C);
+  static const navText = Color(0xFFDAE6EF);
+  static const navMuted = Color(0xFFA4B9C9);
+  static const accent = Color(0xFF5AE0B5);
   static const surface = Color(0xFFFFFFFF);
-  static const border = Color(0xFFDDE5E0);
+  static const border = Color(0xFFE2EAF0);
   static const warning = Color(0xFFF2A33A);
   static const danger = Color(0xFFD64545);
 
@@ -112,7 +117,7 @@ class ExcelBrand {
         surfaceTintColor: Colors.transparent,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: border),
         ),
       ),

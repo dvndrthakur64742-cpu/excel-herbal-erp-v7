@@ -25,6 +25,7 @@ import '../theme/excel_brand.dart';
 import 'shell_layout.dart';
 import 'workspace_navigation.dart';
 import 'workspace_action_catalog.dart';
+import 'v8_workspace_chrome.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -77,13 +78,19 @@ class _AppShellState extends ConsumerState<AppShell> {
             body: SafeArea(
               child: Row(
                 children: [
-                  SizedBox(width: 248, child: _desktopSidebar(context, app)),
-                  const VerticalDivider(width: 1),
+                  SizedBox(width: 264, child: _desktopSidebar(context, app)),
                   Expanded(
                     child: ColoredBox(
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerLowest,
-                      child: _desktopContent(app),
+                      color: ExcelBrand.canvas,
+                      child: Column(children: [
+                        V8WorkspaceContextBar(
+                          branch: _currentBranchLabel(app),
+                          activeRoute: _activeRouteTitle(app),
+                          onOpenActions: _quickActionsVisible(app)
+                            ? () => _openModule('quick_actions') : null,
+                        ),
+                        Expanded(child: _desktopContent(app)),
+                      ]),
                     ),
                   ),
                 ],
@@ -99,7 +106,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         return Scaffold(
           drawerEdgeDragWidth: 28,
           appBar: AppBar(
-            title: Text('${items[safeIndex]['label']}'),
+            title: V8MobileTitle(title: '${items[safeIndex]['label']}'),
             actions: [
               if (app.sectionVisible('communication'))
                 IconButton(
@@ -150,57 +157,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       (app.me['employee'] as Map?) ?? const {},
     );
     return Material(
-      color: Theme.of(context).colorScheme.surface,
+      color: ExcelBrand.navDark,
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 20, 16, 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 116,
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
-                  ),
-                  child: Image.asset(
-                    'assets/branding/excel-herbal-logo.webp',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ERP Workspace',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Secure business access',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
+          const V8SidebarBrand(),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
@@ -217,13 +177,15 @@ class _AppShellState extends ConsumerState<AppShell> {
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: ExcelBrand.navRaised),
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 19,
+                  backgroundColor: ExcelBrand.navRaised,
+                  foregroundColor: Colors.white,
                   child: Text(_initials('${employee['full_name'] ?? 'U'}')),
                 ),
                 const SizedBox(width: 10),
@@ -235,13 +197,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                         '${employee['full_name'] ?? 'Employee'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelLarge,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
                       ),
                       Text(
                         '${employee['employee_code'] ?? ''} · ${employee['designation_code'] ?? ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: ExcelBrand.navMuted),
                       ),
                     ],
                   ),
@@ -249,7 +211,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 IconButton(
                   tooltip: 'Logout',
                   onPressed: () => ref.read(appStateProvider.notifier).logout(),
-                  icon: const Icon(Icons.logout, size: 20),
+                  icon: const Icon(Icons.logout, size: 20, color: ExcelBrand.navMuted),
                 ),
               ],
             ),
@@ -266,7 +228,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 letterSpacing: .9,
                 fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: ExcelBrand.navMuted,
               ),
         ),
       );
@@ -274,17 +236,38 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget _desktopTile(String id, String label, IconData icon) {
     final selected = desktopRoute == id;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: ListTile(
-        selected: selected,
-        selectedTileColor: ExcelBrand.primarySoft,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        dense: true,
-        leading: Icon(icon, size: 21),
-        title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-        onTap: () => _selectDesktopRoute(id),
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: AnimatedContainer(
+        key: ValueKey('v8-nav-$id'),
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          color: selected ? ExcelBrand.navRaised : Colors.transparent,
+          borderRadius: BorderRadius.circular(13),
+          border: selected
+              ? const Border(left: BorderSide(color: ExcelBrand.accent, width: 3))
+              : null,
+        ),
+        child: ListTile(
+          dense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
+          leading: Icon(icon, size: 21,
+            color: selected ? ExcelBrand.accent : ExcelBrand.navMuted),
+          title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: selected ? Colors.white : ExcelBrand.navText,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
+          onTap: () => _selectDesktopRoute(id),
+        ),
       ),
     );
+  }
+
+  String _activeRouteTitle(AppState app) {
+    final id = _routeAllowed(app, desktopRoute) ? desktopRoute : 'home';
+    for (final item in WorkspaceNavigation.destinations) {
+      if (item.id == id) return item.label;
+    }
+    return 'Overview';
   }
 
   Widget _desktopContent(AppState app) {
@@ -329,9 +312,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     // second workspace header here created competing page hierarchies and
     // reduced the usable data area, especially on record-heavy ERP screens.
     return Padding(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         child: Material(
           color: Theme.of(context).colorScheme.surface,
           child: child,
