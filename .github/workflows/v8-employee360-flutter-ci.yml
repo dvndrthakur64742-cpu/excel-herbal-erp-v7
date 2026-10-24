@@ -14,6 +14,10 @@ on:
       - 'flutter-app/test/shell_workspace_widget_test.dart'
       - 'flutter-app/lib/screens/organization/employee_360_screen.dart'
       - 'flutter-app/lib/screens/organization/employee_360_workspace.dart'
+      - 'flutter-app/lib/screens/sales/sales_screen.dart'
+      - 'flutter-app/lib/screens/finance/finance_screen.dart'
+      - 'flutter-app/lib/widgets/v8_module_banner.dart'
+      - 'flutter-app/test/v8_sales_finance_profile_ui_test.dart'
       - 'flutter-app/test/employee_360_workspace_test.dart'
       - 'flutter-app/lib/screens/organization/employee_finance_review_panel.dart'
       - 'flutter-app/lib/screens/organization/finance_review_evidence_integrity.dart'
@@ -78,6 +82,9 @@ jobs:
           name: v8-shell-ui-evidence
           path: flutter-app/build/ui-evidence/
           if-no-files-found: warn
+      - name: V8 Sales Finance and Employee profile UI regression
+        working-directory: flutter-app
+        run: flutter test test/v8_sales_finance_profile_ui_test.dart
       - name: Employee 360 UI contract test
         working-directory: flutter-app
         run: flutter test test/employee_360_ui_contract_test.dart test/employee_360_workspace_test.dart test/employee_cash_control_ui_test.dart

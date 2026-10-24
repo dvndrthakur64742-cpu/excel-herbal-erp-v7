@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/excel_brand.dart';
 
 /// Navigation only: destinations are supplied AFTER the profile permission
 /// checks. All records still belong to the original Employee 360 controllers.
@@ -69,23 +70,33 @@ class Employee360Workspace extends StatelessWidget {
                   SizedBox(
                     width: 224,
                     child: Material(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      color: ExcelBrand.canvas,
                       child: ListView(
                         padding: const EdgeInsets.all(12),
                         children: [
                           Padding(
                             padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
                             child: Text(
-                              'PROFILE WORKSPACE',
-                              style: Theme.of(context).textTheme.labelMedium,
+                              'PROFILE WORKSPACE / V8',
+                              key: const ValueKey('v8-profile-navigation'),
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: ExcelBrand.primaryDark,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: .65,
+                              ),
                             ),
                           ),
                           for (final group in visible.keys) ...[
                             ListTile(
                               key: ValueKey('employee360-group-$group'),
-                              leading: Icon(_icons[group]),
-                              title: Text(group),
+                              leading: Icon(_icons[group],
+                                color: group == selected
+                                    ? ExcelBrand.primaryDark : ExcelBrand.muted),
+                              title: Text(group, style: TextStyle(
+                                fontWeight: group == selected
+                                    ? FontWeight.w900 : FontWeight.w600)),
                               selected: group == selected,
+                              selectedTileColor: ExcelBrand.primarySoft,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -101,6 +112,9 @@ class Employee360Workspace extends StatelessWidget {
                                   ),
                                   title: Text(label(index)),
                                   selected: controller.index == index,
+                                  selectedTileColor: ExcelBrand.primarySoft,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
                                   onTap: () => controller.animateTo(index),
                                 ),
                           ],

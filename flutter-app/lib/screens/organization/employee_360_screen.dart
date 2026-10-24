@@ -7,6 +7,7 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/gps_route_view.dart';
 import '../../widgets/records_list.dart';
+import '../../widgets/v8_module_banner.dart';
 import 'employee_finance_review_panel.dart';
 import 'employee_360_workspace.dart';
 
@@ -170,13 +171,18 @@ class _Employee360ScreenState extends ConsumerState<Employee360Screen> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '$_from to $_to · Posted records only · Read-only',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 7),
+                  child: V8ModuleBanner(
+                    eyebrow: 'Employee 360 / ERP V8',
+                    title: '${(profile['employee'] as Map)['full_name'] ?? widget.employeeName}',
+                    description: 'Linked work records from the original ERP profile. Read-only.',
+                    icon: Icons.badge_outlined,
+                    context: [
+                      '$_from to $_to',
+                      'Posted records only',
+                      if (financeVisible) 'Finance access',
+                      if (showGps) 'GPS route',
+                    ],
                   ),
                 ),
                 Expanded(

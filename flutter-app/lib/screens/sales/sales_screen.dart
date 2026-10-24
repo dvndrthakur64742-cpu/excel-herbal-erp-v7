@@ -12,6 +12,7 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/v8_module_banner.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key, this.initialAction});
@@ -79,11 +80,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-              child: ModuleWorkspaceHeader(
-                title: 'Sales Desk',
-                subtitle: 'Counter billing, customer accounts and collections.',
+              child: V8ModuleBanner(
+                eyebrow: 'Sales operations / ERP V8',
+                title: 'Sales & Customers',
+                description: 'Counter billing, customer accounts and collections.',
                 icon: Icons.point_of_sale_outlined,
-                contextLabel: 'Business date · ${app.businessDate}',
+                context: [
+                  app.currentBranchName,
+                  'Business date ${app.businessDate}',
+                ],
               ),
             ),
             const Padding(
