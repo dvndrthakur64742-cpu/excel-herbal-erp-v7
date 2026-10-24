@@ -9,7 +9,6 @@ import '../../widgets/gps_route_view.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/v8_module_banner.dart';
 import '../../widgets/v8_record_workspace.dart';
-import '../../widgets/v8_employee_identity_card.dart';
 import '../../widgets/v8_employee_overview.dart';
 import 'employee_finance_review_panel.dart';
 import 'employee_360_workspace.dart';

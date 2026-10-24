@@ -10,7 +10,6 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
-import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/v8_module_banner.dart';
 import '../../widgets/v8_record_workspace.dart';
