@@ -80,7 +80,11 @@ void main() {
     expect(profile, contains("data['read_only'] != true"));
     expect(profile, contains("data['dashboard_unchanged'] != true"));
     expect(profile, contains("int.tryParse('\${employee['id']}')"));
-    expect(profile, contains('cash was deposited'));
+    final overview = File('lib/widgets/v8_employee_overview.dart')
+        .readAsStringSync();
+    expect(profile, contains('V8EmployeeOverview('));
+    expect(overview, contains('cash was deposited'));
+    expect(overview, contains('No employee outstanding balance is inferred.'));
     expect(profile, isNot(contains('paymentAccountId')));
     expect(dashboard.existsSync(), isTrue);
     expect(selfProfile, contains("import '../organization/employee_360_screen.dart';"));

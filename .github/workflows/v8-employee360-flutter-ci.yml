@@ -18,6 +18,10 @@ on:
       - 'flutter-app/lib/screens/finance/finance_screen.dart'
       - 'flutter-app/lib/widgets/v8_module_banner.dart'
       - 'flutter-app/lib/widgets/v8_record_workspace.dart'
+      - 'flutter-app/lib/widgets/v8_sale_stock_line.dart'
+      - 'flutter-app/lib/widgets/v8_employee_overview.dart'
+      - 'flutter-app/lib/screens/finance/finance_books.dart'
+      - 'flutter-app/test/v8_workflow_details_ui_test.dart'
       - 'flutter-app/lib/widgets/v8_employee_identity_card.dart'
       - 'flutter-app/lib/screens/finance/finance_expenses.dart'
       - 'flutter-app/test/v8_record_workspaces_ui_test.dart'
@@ -89,6 +93,9 @@ jobs:
       - name: V8 Sales Finance and Employee profile UI regression
         working-directory: flutter-app
         run: flutter test test/v8_sales_finance_profile_ui_test.dart
+      - name: V8 responsive Sales stock entry, Finance books and Employee monthly overview
+        working-directory: flutter-app
+        run: flutter test test/v8_workflow_details_ui_test.dart
       - name: V8 Sales customer Finance expense and Employee 360 record workspace UI
         working-directory: flutter-app
         run: flutter test test/v8_record_workspaces_ui_test.dart

@@ -10,6 +10,7 @@ import '../../widgets/records_list.dart';
 import '../../widgets/v8_module_banner.dart';
 import '../../widgets/v8_record_workspace.dart';
 import '../../widgets/v8_employee_identity_card.dart';
+import '../../widgets/v8_employee_overview.dart';
 import 'employee_finance_review_panel.dart';
 import 'employee_360_workspace.dart';
 
@@ -312,60 +313,11 @@ class _Employee360Summary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final employee = Map<String, dynamic>.from(profile['employee'] as Map);
-    final months = _recordRows(profile['monthly_summary']);
-    final stock = _recordRows(profile['employee_stock']);
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        V8EmployeeIdentityCard(employee: employee),
-        const SizedBox(height: 14),
-        Text('Monthly sales, performance points and attendance',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (months.isEmpty)
-          const ListTile(title: Text('No posted monthly activity in this period.'))
-        else
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Month')),
-                DataColumn(label: Text('Sale ₹')),
-                DataColumn(label: Text('Points')),
-                DataColumn(label: Text('Days present')),
-              ],
-              rows: months.map((m) => DataRow(cells: [
-                DataCell(Text('${m['month'] ?? ''}')),
-                DataCell(Text('${m['sales_amount'] ?? '0.00'}')),
-                DataCell(Text('${m['points'] ?? '0.00'}')),
-                DataCell(Text('${m['days_present'] ?? 0}')),
-              ])).toList(),
-            ),
-          ),
-        const SizedBox(height: 16),
-        Text('Employee stock currently held',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 6),
-        if (stock.isEmpty)
-          const ListTile(title: Text('No positive employee-custodied stock.'))
-        else
-          ...stock.take(15).map((r) => ListTile(
-                dense: true,
-                title: Text('${r['product_name'] ?? r['sku'] ?? ''}'),
-                subtitle: Text('Branch ${r['branch_id'] ?? ''} · Batch ${r['batch_key'] ?? 0}'),
-                trailing: Text('${r['quantity'] ?? 0} PCS'),
-              )),
-        if (stock.length > 15)
-          Text('Showing 15 of ${stock.length} stock balances.'),
-        const SizedBox(height: 12),
-        const ListTile(
-          leading: Icon(Icons.info_outline),
-          title: Text('Cash remittance is not yet reconciled here'),
-          subtitle: Text(
-            'Sales and Cash/UPI settlements do not prove that field cash was deposited with the branch. No outstanding is inferred.',
-          ),
-        ),
-      ],
+    // Preserve original read-only source totals; never sum across pages.
+    return V8EmployeeOverview(
+      employee: employee,
+      months: _recordRows(profile['monthly_summary']),
+      stock: _recordRows(profile['employee_stock']),
     );
   }
 }

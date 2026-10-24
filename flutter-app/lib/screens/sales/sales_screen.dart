@@ -14,6 +14,7 @@ import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/v8_module_banner.dart';
 import '../../widgets/v8_record_workspace.dart';
+import '../../widgets/v8_sale_stock_line.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key, this.initialAction});
@@ -353,46 +354,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       final batchLabel = batchKey == 0
                           ? 'No Batch'
                           : '${row['batch_no'] ?? 'Batch'}';
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${row['product_name']}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall,
-                                    ),
-                                    Text(
-                                      '$batchLabel · Available ${row['quantity']} ${row['uom'] ?? ''}',
-                                    ),
-                                    Text(
-                                      'Sale ₹${p['sale_price'] ?? 0} · Batch mode ${BusinessFormat.status(p['batch_tracking'] ?? 'optional')}',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 110,
-                                child: TextField(
-                                  controller: qty[i],
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: [WholePcs.positiveFormatter],
-                                  decoration: const InputDecoration(
-                                    labelText: 'Qty',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      return V8SaleStockLine(
+                        productName: '${row['product_name'] ?? p['name'] ?? 'Product'}',
+                        batchLabel: batchLabel,
+                        availableText: '${row['quantity']} ${row['uom'] ?? ''}',
+                        salePriceText: '${p['sale_price'] ?? 0}',
+                        batchModeText: BusinessFormat.status(
+                            p['batch_tracking'] ?? 'optional'),
+                        quantityController: qty[i]!,
                       );
                     }),
                     if (formError != null) ...[
