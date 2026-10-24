@@ -133,7 +133,7 @@ final class V7CanonicalCashHandoverUat
         $db=Db::wpdb();$journal=(int)($row['journal_entry_id']??0);
         if(($row['status']??null)!=='posted'||$journal<1)
             throw new RetailerSaleError('Previously posted Cash remittance is incomplete.');
-        $h=$db->get_row($db->prepare('SELECT id FROM '.Db::table('journal_entries').
+        $h=$db->get_row($db->prepare('SELECT id,created_by FROM '.Db::table('journal_entries').
             " WHERE id=%d AND company_id=%d AND branch_id=%d AND source_type='b2b_cash_remittance' ".
             "AND source_id=%d AND status='posted' FOR UPDATE",
             $journal,$this->actor->companyId,$branch,(int)$row['id']),ARRAY_A);
@@ -143,7 +143,10 @@ final class V7CanonicalCashHandoverUat
             ' a ON a.id=jl.account_id AND a.company_id=%d WHERE jl.journal_entry_id=%d ORDER BY jl.id',
             $this->actor->companyId,$journal
         ),ARRAY_A);
-        if(!$h||!is_array($lines)||count($lines)!==2)throw new RetailerSaleError('Cash remittance GL replay cannot be verified.');
+        if(!$h||!is_array($lines)||count($lines)!==2
+            ||(int)($row['checker_employee_id']??0)<1
+            ||(int)($h['created_by']??0)!==(int)$row['checker_employee_id'])
+            throw new RetailerSaleError('Cash remittance GL replay or Finance checker attribution cannot be verified.');
         $found=[];
         foreach($lines as $l)$found[(string)$l['code']]=$l;
         $branch=$found['BRANCH_CASH']??null;$transit=$found['EMPLOYEE_CASH_IN_TRANSIT']??null;

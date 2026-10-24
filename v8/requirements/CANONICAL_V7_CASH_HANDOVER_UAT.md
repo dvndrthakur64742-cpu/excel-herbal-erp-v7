@@ -122,3 +122,26 @@ order/reference linkage, fresh settled status, duplicate transaction race,
 wrong-company/branch, tampered records and signer revocation; it must not
 fabricate live UPI verification. Neither suite has access to Office credentials
 or posts production journals. This is an automated UAT gate only.
+
+## 2026-10-24 — Finance checker must match AUTHOR of actual GL journal
+
+Review identified a second identity-integrity gap in the isolated UAT:
+`checker_employee_id` on the cashier remittance was checked against the
+receipt and stored source, but the existing `journal_entries.created_by`
+field from the real V7 `AccountingService::post` was not compared. An
+altered journal header could therefore remain fully debits/credits-balanced
+without attribution to its true Finance checker.
+
+**Fail-closed checks:** the remittance idempotency replay now selects
+`journal_entries.id, created_by` and requires the author ID to match the
+independent authenticated `checker_employee_id` stored on that remittance.
+The read-only cross-ledger auditor independently applies this check to the
+same ORIGINAL canonical journal, returning
+`canonical_handover_journal_header_mismatch` on a discrepancy. No custom
+shadow-GL, user-supplied checker flag or new posting is introduced.
+
+The real disposable MariaDB UAT asserts the valid checker is the GL author,
+then deliberately changes `created_by` to the original cashier while
+leaving the two journal lines balanced, verifies the audit and replay both
+reject it, and restores the original synthetic journal. This is *UAT only*.
+No WordPress schema, real user, Office ledger or financial record is changed.

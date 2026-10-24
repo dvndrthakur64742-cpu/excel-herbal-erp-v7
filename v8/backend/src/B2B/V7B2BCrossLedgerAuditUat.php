@@ -235,7 +235,11 @@ final class V7B2BCrossLedgerAuditUat
                 [(int)($r['journal_entry_id']??0),$company,$branch]);
             if(!$cashGlHeader||($cashGlHeader['status']??null)!=='posted'
                 ||($cashGlHeader['source_type']??null)!=='b2b_cash_remittance'
-                ||$int($cashGlHeader['source_id']??null)!==$int($r['id']??null))
+                ||$int($cashGlHeader['source_id']??null)!==$int($r['id']??null)
+                // V7 AccountingService::post records authenticated creator as
+                // employee ID. Remittance checker's stored identity must
+                // match the REAL canonical GL author, not just other UAT rows.
+                ||$int($cashGlHeader['created_by']??null)!==$int($r['checker_employee_id']??null))
                 $fail('canonical_handover_journal_header_mismatch');
             $cashLines=$all('SELECT a.code,jl.debit,jl.credit,jl.party_type,jl.party_id FROM '.
                 Db::table('journal_lines').' jl LEFT JOIN '.Db::table('accounts').

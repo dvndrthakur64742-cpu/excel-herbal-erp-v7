@@ -455,6 +455,10 @@ try{
        &&(int)first($pdo,'SELECT checker_employee_id FROM wp_eh7_b2b_cash_remittances WHERE id=?',[$remit['remittance_id']])===$checkerActor->employeeId
        &&(int)first($pdo,'SELECT cashier_employee_id FROM wp_eh7_b2b_cash_remittances WHERE id=?',[$remit['remittance_id']])===$financeActor->employeeId,
        'cashier and independent Finance checker retained as distinct immutable GL remittance identities');
+    checkUat((int)first($pdo,
+        'SELECT created_by FROM wp_eh7_journal_entries WHERE id=?',
+        [$remit['journal_id']])===$checkerActor->employeeId,
+        'posted V7 Cash handover GL must identify the authenticated Finance checker');
     $clearedPreflight=$dayPreflight(substr($mainDay,0,10));
     checkUat($clearedPreflight['state']==='uat_books_consistent_not_production_certified'
        &&$clearedPreflight['counts']['sales_checked']===2
@@ -485,6 +489,25 @@ try{
       'Cash handover does not create another sale or subtract employee stock twice');
     checkUat((int)first($pdo,'SELECT consumed_remittance_id FROM wp_eh7_b2b_cashier_receipts_uat WHERE id=?',[$receipt['receipt_id']])===$remit['remittance_id'],
       'single original cashier attestation consumed once by canonical remittance');
+    // A balanced original journal is insufficient if its creator was forged:
+    // independently test both the read-only audit and idempotent writer replay.
+    $pdo->prepare('UPDATE wp_eh7_journal_entries SET created_by=? WHERE id=?')
+        ->execute([$financeActor->employeeId,$remit['journal_id']]);
+    try{
+        $forgedAuthor=$crossAudit($fieldSale['sale_id']);
+        checkUat($forgedAuthor['cross_ledger_consistent']===false
+            &&in_array('canonical_handover_journal_header_mismatch',
+                $forgedAuthor['mismatch_codes'],true),
+            'cross-ledger audit detects canonical journal created by receipt cashier, not checker');
+        $forgedAuthorReplayRejected=false;
+        try{$checker->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
+        catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$forgedAuthorReplayRejected=true;}
+        checkUat($forgedAuthorReplayRejected,
+            'Cash remittance replay fails closed on forged journal author');
+    }finally{
+        $pdo->prepare('UPDATE wp_eh7_journal_entries SET created_by=? WHERE id=?')
+            ->execute([$checkerActor->employeeId,$remit['journal_id']]);
+    }
     $otherReplayDenied=false;
     try{$otherCashier->post($branch,$fieldSale['sale_id'],'CI-CASH-HANDOVER-001');}
     catch(\ExcelHerbal\ERP8\B2B\RetailerSaleError $e){$otherReplayDenied=true;}
