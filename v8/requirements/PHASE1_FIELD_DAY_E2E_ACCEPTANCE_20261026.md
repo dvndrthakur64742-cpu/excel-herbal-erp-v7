@@ -55,3 +55,10 @@ The original mixed Cash/UPI canonical Daily Order case now checks **three additi
 For each test, the original `daily.final_post` API must deny with HTTP 403. MariaDB before/after snapshots must be identical for the original Daily Order state, submitted Evening Settlement, Daily Sale/Return stock-issue postings, source financial journal, employee performance entries and Final Post audit event. The authorised separate Finance Checker must still post exactly once and retain balanced journal totals.
 
 Scope: synthetic data on isolated CI MariaDB. Real Office staging remains unsanitized; no role simulation or financial mutation is authorized there. **A green synthetic UAT is not a verified Cashier handover receipt, external bank proof, or live role/device sign-off**.
+
+## 2026-10-26 — Fail-closed Final Post for non-finite amounts
+
+- Observed in canonical `DailyOrderService::finalPost`: the existing `$cash < 0` and `$upi < 0` checks are not sufficient for PHP `NAN` because comparisons are false. Route adapters cast incoming amounts to floats and the service may also be called internally. An invalid number must never reach StockService or AccountingService.
+- Original Final Post now explicitly rejects `!is_finite($cash)`, `!is_finite($upi)` or negative tender amounts as `payment_amount_invalid` HTTP 422 **before** stock/GL/performance writes. Canonical business amounts, accounting service, maker/checker, bank-proof semantics and other workflows remain unchanged.
+- Real disposable MariaDB UAT tests cash/UPI mismatch, negative tender, `NAN` on each component, plus positive and negative `INF`. For every rejection, before/after snapshots of cycle, settlement, source stock ledger, journal entries, performance and Final Post audit count must be identical. Then the legitimate ₹200 reported cash + ₹160 reported UPI final post and double-post denial must still pass.
+- This provides synthetic service-level financial safety evidence only. It does **not** prove physical cash custody, independent UPI bank settlement or Office acceptance. No Office deployment or staging data mutation is authorized.

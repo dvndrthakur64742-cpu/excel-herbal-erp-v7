@@ -773,25 +773,34 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
                 ' Final Post changed cycle, settlement, stock, GL, performance or audit');
         }
     }
+    // An internal/REST caller can pass PHP NAN or INF even when ordinary
+    // Flutter text fields cannot. Such values must never bypass <0 or
+    // total-mismatch comparisons, contaminate GL or complete the cycle.
     $failureCases=[
-        ['cash'=>201,'upi'=>160],
-        ['cash'=>200,'upi'=>-1],
+        ['name'=>'cash_upi_total_mismatch','cash'=>201,'upi'=>160,'key'=>'payment_mismatch','http'=>409],
+        ['name'=>'negative_upi','cash'=>200,'upi'=>-1,'key'=>'payment_amount_invalid','http'=>422],
+        ['name'=>'nan_cash','cash'=>NAN,'upi'=>160,'key'=>'payment_amount_invalid','http'=>422],
+        ['name'=>'nan_upi','cash'=>200,'upi'=>NAN,'key'=>'payment_amount_invalid','http'=>422],
+        ['name'=>'infinite_cash','cash'=>INF,'upi'=>160,'key'=>'payment_amount_invalid','http'=>422],
+        ['name'=>'negative_infinite_upi','cash'=>200,'upi'=>-INF,'key'=>'payment_amount_invalid','http'=>422],
     ];
     foreach($failureCases as$bad) {
-        $rejected=false;
+        $before=$snapshotRejectedFinalPost();
+        if($before['cycle']!=='evening_submitted'||$before['settlement']!=='submitted') {
+            throw new RuntimeException('Non-finite payment fixture must remain pending');
+        }
         try {
             uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>$bad['cash'],'upi'=>$bad['upi']]);
+            throw new RuntimeException('Invalid Final Post was accepted: '.$bad['name']);
         } catch(DomainException $e) {
-            if($e->httpStatus!==409 && $e->httpStatus!==422) throw $e;
-            $rejected=true;
+            if($e->httpStatus!==$bad['http']||$e->codeKey!==$bad['key']) {
+                throw new RuntimeException('Wrong Final Post denial for '.$bad['name'].
+                    ' ('.$e->codeKey.': '.$e->httpStatus.')',0,$e);
+            }
         }
-        if(!$rejected) throw new RuntimeException('Non-reconciled cash/UPI payment was accepted');
-        $status=(string)$wpdb->get_var($wpdb->prepare('SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle));
-        $movements=(int)$wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM ".Db::table('stock_ledger')." WHERE source_id=%d AND source_type IN ('daily_return','daily_sale')",$cycle
-        ));
-        if($status!=='evening_submitted'||$movements!==0) {
-            throw new RuntimeException('Rejected Final Post mutated order or stock');
+        if($snapshotRejectedFinalPost()!==$before) {
+            throw new RuntimeException('Rejected '.$bad['name'].
+                ' Final Post changed cycle, settlement, stock, GL, performance or audit');
         }
     }
     $posted=uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>160]);
