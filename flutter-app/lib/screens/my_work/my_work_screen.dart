@@ -8,6 +8,7 @@ import '../../core/date_time_text.dart';
 import '../../core/business_format.dart';
 import '../../core/daily_order_math.dart';
 import '../../core/daily_order_workflow.dart';
+import '../../core/daily_order_action_target.dart';
 import '../../core/evening_order_selection.dart';
 import '../../core/providers.dart';
 import '../../core/whole_pcs.dart';
@@ -270,16 +271,5 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
 
 
 
-  Map<String, dynamic>? _requestWithStatus(
-    Map<String, dynamic> detail,
-    String status,
-  ) {
-    final rows = ((detail['requests'] as List?) ?? const []).map(
-      (e) => Map<String, dynamic>.from(e as Map),
-    );
-    for (final r in rows) {
-      if ('${r['status']}' == status) return r;
-    }
-    return null;
-  }
+
 }

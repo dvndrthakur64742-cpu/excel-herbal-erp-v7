@@ -716,15 +716,21 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         message = 'Daily Order cancelled. Use Reopen Draft if you need to correct it.';
       } else if (action == 'reject' || action == 'cancel_additional') {
         final detail = await _MyWorkDaily(this)._dailyDetail(id);
-        final requests = ((detail['requests'] as List?) ?? const [])
-            .whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
-        final candidates = requests.where((r) =>
-            action == 'reject'
-                ? '${r['status']}' == 'submitted'
-                : '${r['type']}' == 'additional' &&
-                  const {'draft', 'submitted', 'approved'}.contains('${r['status']}')).toList();
-        if (candidates.isEmpty) throw Exception('No pending request for this action.');
-        final pending = candidates.last;
+        final actorEmployeeId = int.tryParse(
+          '${((app.me['employee'] as Map?) ?? const {})['id'] ?? ''}',
+        );
+        final pending = DailyOrderActionTarget.select(
+          detail: detail,
+          action: action,
+          capabilities: app.capabilities,
+          actorEmployeeId: actorEmployeeId,
+        );
+        if (pending == null) {
+          throw Exception(
+            'No uniquely authorised pending request. Refresh Daily Order '
+            'and check actor, request type, branch, and status.',
+          );
+        }
         final controller = TextEditingController();
         final reason = await showDialog<String>(
           context: context,
@@ -762,8 +768,20 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         message = 'Daily Order submitted for approval.';
       } else if (action == 'approve') {
         final d = await _MyWorkDaily(this)._dailyDetail(id);
-        final r = _requestWithStatus(d, 'submitted');
-        if (r == null) throw Exception('Submitted request not found.');
+        final r = DailyOrderActionTarget.select(
+          detail: d,
+          action: 'approve',
+          capabilities: app.capabilities,
+          actorEmployeeId: int.tryParse(
+            '${((app.me['employee'] as Map?) ?? const {})['id'] ?? ''}',
+          ),
+        );
+        if (r == null) {
+          throw Exception(
+            'Submitted request not uniquely approved for this actor and '
+            'cycle. Refresh the Daily Order before approval.',
+          );
+        }
         await api.post(
           ApiPaths.dailyApprove(int.parse('${r['id']}')),
           data: const {},
@@ -985,8 +1003,21 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
   Future<void> _issueDailyImpl(int id) async {
     final api = ref.read(apiClientProvider);
     final d = await _MyWorkDaily(this)._dailyDetail(id);
-    final r = _requestWithStatus(d, 'approved');
-    if (r == null) throw Exception('Approved request not found.');
+    final app = ref.read(appStateProvider);
+    final r = DailyOrderActionTarget.select(
+      detail: d,
+      action: 'issue',
+      capabilities: app.capabilities,
+      actorEmployeeId: int.tryParse(
+        '${((app.me['employee'] as Map?) ?? const {})['id'] ?? ''}',
+      ),
+    );
+    if (r == null) {
+      throw Exception(
+        'Approved request not uniquely issuable for this actor and '
+        'cycle. Refresh the Daily Order before stock issue.',
+      );
+    }
     final isAdditional = '${r['type'] ?? ''}' == 'additional';
 
     final lines = ((r['lines'] as List?) ?? const [])

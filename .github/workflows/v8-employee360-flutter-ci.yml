@@ -47,6 +47,9 @@ on:
       - 'flutter-app/lib/screens/my_work/my_work_daily_overview.dart'
       - 'flutter-app/lib/screens/inventory/inventory_screen.dart'
       - 'flutter-app/lib/core/daily_order_workflow.dart'
+      - 'flutter-app/lib/core/daily_order_action_target.dart'
+      - 'flutter-app/test/daily_order_action_target_test.dart'
+      - 'flutter-app/lib/screens/my_work/my_work_daily_order.dart'
       - 'flutter-app/lib/widgets/v8_daily_order_board.dart'
       - 'flutter-app/lib/widgets/v8_inventory_banner.dart'
       - 'flutter-app/test/v8_daily_inventory_ui_test.dart'
@@ -141,6 +144,9 @@ jobs:
       - name: Evening Closing scoped order chooser and UX regression
         working-directory: flutter-app
         run: flutter test test/evening_order_selection_test.dart
+      - name: V8 Daily Order actor hierarchy initial and additional request target fail-closed UX
+        working-directory: flutter-app
+        run: flutter test test/daily_order_action_target_test.dart
       - name: V8 Daily Order stage board and Inventory visual UI regression
         working-directory: flutter-app
         run: flutter test test/v8_daily_inventory_ui_test.dart

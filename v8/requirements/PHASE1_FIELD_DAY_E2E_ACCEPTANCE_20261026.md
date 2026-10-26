@@ -37,3 +37,10 @@ Inherited UAT already covers: out-of-hierarchy operations, no self approval, sto
 - The new GitHub job uses only the disposable MariaDB container. The test seeds synthetic data and never connects to staging or production.
 - Cash/UPI recorded in existing canonical financial journal is **reported/tally evidence**, not actual physical handover or bank verification. Full financial release stays blocked.
 - Any test failure holds Phase 1 `CI_VERIFIED` status until repaired and green on the exact PR head. Never infer overall ERP percent from CI pass.
+
+## 2026-10-26 — UI fail-closed request targeting and actor separation
+
+- Root cause: the pre-existing Daily Order UI could select the first request matching only a `submitted` or `approved` status, irrespective of initial/additional request type, cycle stage or actor identity; reject/cancel used an independent `candidates.last` heuristic. REST still had canonical effective-role and state checks, but an ambiguous UI request could be sent to the wrong endpoint.
+- New pure `DailyOrderActionTarget.select` resolves only **one** matching request, requiring a positive cycle/request ID, correct parent cycle, expected initial/additional type and lifecycle state, appropriate approval/issue capability, and a known distinct requester/checker for approve/issue/reject. Invalid or duplicate entries fail closed.
+- `my_work_daily_order.dart` now re-fetches detail before approve, reject, cancel-additional and issue, then uses this selector. The canonical `dailyApprove`, `dailyReject`, `dailyCancelAdditional`, and `dailyIssuePreflight`/stock issue endpoints remain the sole writers and separately recheck actual database state.
+- Negative test matrix includes old cancelled additional request, mismatched cycle, duplicate pending targets, self-approval/issue, missing actor/requester IDs, unpermitted roles and wrong lifecycle action. Pure Dart tests cannot establish live WordPress/field-role acceptance; keep user-facing UAT and financial release gates open.
