@@ -57,16 +57,19 @@ class V8ReportedTenderDisclosure extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          CheckboxListTile(
-            key: const ValueKey('v8-tender-proof-ack'),
+          Material(
+            color: Colors.transparent,
+            child: CheckboxListTile(
+              key: const ValueKey('v8-tender-proof-ack'),
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
             dense: true,
             value: acknowledged,
             onChanged: (value) => onChanged(value == true),
-            title: const Text(
-              'I checked the source amounts and understand that separate '
-              'cashier receipt and bank evidence are still required.',
+              title: const Text(
+                'I checked the source amounts and understand that separate '
+                'cashier receipt and bank evidence are still required.',
+              ),
             ),
           ),
         ],
