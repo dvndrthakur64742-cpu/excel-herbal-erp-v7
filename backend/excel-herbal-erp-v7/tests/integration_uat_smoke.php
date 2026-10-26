@@ -546,64 +546,6 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) 
         throw new RuntimeException('Rejected direct submit changed Daily Order state');
     }
 
-    // Malformed or non-finite numeric input must fail *before* updating
-    // the submitted-for-save closing, GL, stock or audit. PHP NAN evades
-    // ordinary <, > and abs comparisons; evaluate both rates independently.
-    $beforeInvalidRates=static function()use($wpdb,$cycle,$eveningId):array {
-        return [
-            'cycle'=>(string)$wpdb->get_var($wpdb->prepare(
-                'SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle)),
-            'closing'=>$wpdb->get_row($wpdb->prepare(
-                'SELECT status,expected_amount,wholesale_customer_name FROM '.Db::table('evening_settlements').
-                ' WHERE id=%d',$eveningId
-            ),ARRAY_A),
-            'lines'=>$wpdb->get_results($wpdb->prepare(
-                'SELECT * FROM '.Db::table('evening_lines').
-                ' WHERE evening_settlement_id=%d ORDER BY id',$eveningId
-            ),ARRAY_A),
-            'movement_count'=>(int)$wpdb->get_var($wpdb->prepare(
-                'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
-                " WHERE source_id=%d AND source_type IN ('daily_sale','daily_return')",$cycle)),
-            'journal_count'=>(int)$wpdb->get_var($wpdb->prepare(
-                'SELECT COUNT(*) FROM '.Db::table('journal_entries').
-                " WHERE source_type='daily_cycle' AND source_id=%d",$cycle)),
-            'audit_count'=>(int)$wpdb->get_var($wpdb->prepare(
-                'SELECT COUNT(*) FROM '.Db::table('audit_log').
-                " WHERE action='daily_order.evening_save' AND entity_id=%d",$cycle)),
-        ];
-    };
-    foreach([
-        ['name'=>'nan_retail','rr'=>NAN,'wr'=>80],
-        ['name'=>'infinite_retail','rr'=>INF,'wr'=>80],
-        ['name'=>'negative_infinite_retail','rr'=>-INF,'wr'=>80],
-        ['name'=>'nan_wholesale','rr'=>100,'wr'=>NAN],
-        ['name'=>'infinite_wholesale','rr'=>100,'wr'=>INF],
-        ['name'=>'negative_infinite_wholesale','rr'=>100,'wr'=>-INF],
-        ['name'=>'nan_unused_wholesale_rate','rr'=>100,'wr'=>NAN,'wh'=>0],
-    ] as $invalidRate) {
-        $before=$beforeInvalidRates();
-        try {
-            uat_dispatch('daily.evening_save',$self,[
-                'id'=>$cycle,
-                'lines'=>[[
-                    'issue_line_id'=>$issuedLineId,
-                    'return_quantity'=>1,
-                    'wholesale_quantity'=>$invalidRate['wh']??2,
-                    'retail_rate'=>$invalidRate['rr'],
-                    'wholesale_rate'=>$invalidRate['wr'],
-                ]],
-                'wholesale_details'=>['wholesale_customer_name'=>'Synthetic Wholesale Buyer'],
-                'price_reason'=>'Invalid nonfinite rate should not persist',
-            ]);
-            throw new RuntimeException('Nonfinite Evening Save succeeded: '.$invalidRate['name']);
-        }catch(DomainException $error){
-            if($error->codeKey!=='evening_rate_invalid'||$error->httpStatus!==422)
-                throw new RuntimeException('Incorrect Evening rate denial: '.$invalidRate['name'].
-                    ' '.$error->codeKey.' '.$error->httpStatus,0,$error);
-        }
-        if($beforeInvalidRates()!==$before)
-            throw new RuntimeException('Invalid Evening Save changed bill, stock, GL, closing or audit: '.$invalidRate['name']);
-    }
     $saved=uat_dispatch('daily.evening_save',$self,[
         'id'=>$cycle,'lines'=>[['issue_line_id'=>$issueLineId,'return_quantity'=>0,'wholesale_quantity'=>0,'retail_rate'=>100,'wholesale_rate'=>0]],
         'wholesale_details'=>[],'price_reason'=>'',
@@ -727,6 +669,64 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
         throw new RuntimeException('Wholesale discount exceeded salary allocation but was saved');
     } catch(DomainException $err) {
         if($err->codeKey!=='wholesale_discount_exceeds_allocation')throw $err;
+    }
+    // Malformed or non-finite numeric input must fail *before* updating
+    // the submitted-for-save closing, GL, stock or audit. PHP NAN evades
+    // ordinary <, > and abs comparisons; evaluate both rates independently.
+    $beforeInvalidRates=static function()use($wpdb,$cycle,$eveningId):array {
+        return [
+            'cycle'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle)),
+            'closing'=>$wpdb->get_row($wpdb->prepare(
+                'SELECT status,expected_amount,wholesale_customer_name FROM '.Db::table('evening_settlements').
+                ' WHERE id=%d',$eveningId
+            ),ARRAY_A),
+            'lines'=>$wpdb->get_results($wpdb->prepare(
+                'SELECT * FROM '.Db::table('evening_lines').
+                ' WHERE evening_settlement_id=%d ORDER BY id',$eveningId
+            ),ARRAY_A),
+            'movement_count'=>(int)$wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+                " WHERE source_id=%d AND source_type IN ('daily_sale','daily_return')",$cycle)),
+            'journal_count'=>(int)$wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM '.Db::table('journal_entries').
+                " WHERE source_type='daily_cycle' AND source_id=%d",$cycle)),
+            'audit_count'=>(int)$wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM '.Db::table('audit_log').
+                " WHERE action='daily_order.evening_save' AND entity_id=%d",$cycle)),
+        ];
+    };
+    foreach([
+        ['name'=>'nan_retail','rr'=>NAN,'wr'=>80],
+        ['name'=>'infinite_retail','rr'=>INF,'wr'=>80],
+        ['name'=>'negative_infinite_retail','rr'=>-INF,'wr'=>80],
+        ['name'=>'nan_wholesale','rr'=>100,'wr'=>NAN],
+        ['name'=>'infinite_wholesale','rr'=>100,'wr'=>INF],
+        ['name'=>'negative_infinite_wholesale','rr'=>100,'wr'=>-INF],
+        ['name'=>'nan_unused_wholesale_rate','rr'=>100,'wr'=>NAN,'wh'=>0],
+    ] as $invalidRate) {
+        $before=$beforeInvalidRates();
+        try {
+            uat_dispatch('daily.evening_save',$self,[
+                'id'=>$cycle,
+                'lines'=>[[
+                    'issue_line_id'=>$issuedLineId,
+                    'return_quantity'=>1,
+                    'wholesale_quantity'=>$invalidRate['wh']??2,
+                    'retail_rate'=>$invalidRate['rr'],
+                    'wholesale_rate'=>$invalidRate['wr'],
+                ]],
+                'wholesale_details'=>['wholesale_customer_name'=>'Synthetic Wholesale Buyer'],
+                'price_reason'=>'Invalid nonfinite rate should not persist',
+            ]);
+            throw new RuntimeException('Nonfinite Evening Save succeeded: '.$invalidRate['name']);
+        }catch(DomainException $error){
+            if($error->codeKey!=='evening_rate_invalid'||$error->httpStatus!==422)
+                throw new RuntimeException('Incorrect Evening rate denial: '.$invalidRate['name'].
+                    ' '.$error->codeKey.' '.$error->httpStatus,0,$error);
+        }
+        if($beforeInvalidRates()!==$before)
+            throw new RuntimeException('Invalid Evening Save changed bill, stock, GL, closing or audit: '.$invalidRate['name']);
     }
     $saved=uat_dispatch('daily.evening_save',$self,[
         'id'=>$cycle,
