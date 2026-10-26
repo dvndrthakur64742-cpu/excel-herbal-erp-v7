@@ -1092,12 +1092,68 @@ uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($mak
     // earlier disposable Daily Order tests may add completed sales.
     $sourceBefore=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     $destBefore=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    // Fail closed: invalid transfer quantities may not create headers,
+    // detail lines, stock movements, journals or audit events.
+    $transferSnapshot=static function()use($wpdb):array{return [
+        'transfers'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_transfers')),
+        'lines'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_transfer_lines')),
+        'stock'=>(int)$wpdb->get_var(
+            "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+            " WHERE source_type LIKE 'stock_transfer_%'"),
+        'journals'=>(int)$wpdb->get_var(
+            "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+            " WHERE source_type LIKE 'stock_transfer_%'"),
+        'audit'=>(int)$wpdb->get_var(
+            "SELECT COUNT(*) FROM ".Db::table('audit_log').
+            " WHERE action LIKE 'stock_transfer.%'"),
+    ];};
+    foreach([['nan',NAN],['infinite',INF],['negative_infinite',-INF]] as [$name,$quantity]) {
+        $before=$transferSnapshot();
+        try {
+            uat_dispatch('inventory.transfer_create',$maker,[
+                'source_branch_id'=>1,'destination_branch_id'=>2,
+                'lines'=>[['product_id'=>100,'quantity'=>$quantity]],
+                'notes'=>'UAT invalid '.$name,
+            ]);
+            throw new RuntimeException('Invalid stock transfer '.$name.' was created');
+        } catch(DomainException $e) {
+            if($e->codeKey!=='transfer_quantity_invalid'||$e->httpStatus!==422)throw $e;
+        }
+        if($transferSnapshot()!==$before)
+            throw new RuntimeException('Rejected '.$name.' created transfer, stock, journal or audit');
+    }
     $created=uat_dispatch('inventory.transfer_create',$maker,[
         'source_branch_id'=>1,'destination_branch_id'=>2,'lines'=>[['product_id'=>100,'quantity'=>5]],'notes'=>'UAT transfer',
     ]);
     $id=(int)$created['id']; uat_dispatch('inventory.transfer_pack',$maker,['id'=>$id]);
     if((uat_dispatch('inventory.transfer_dispatch',$maker,['id'=>$id])['status']??'')!=='in_transit') throw new RuntimeException('transfer dispatch failed');
     $lineId=(int)$wpdb->get_var($wpdb->prepare('SELECT id FROM '.Db::table('stock_transfer_lines').' WHERE transfer_id=%d LIMIT 1',$id));
+    // A dispatched transfer must remain in transit with no receiving
+    // stock or GL postings after NaN/Infinity receipt attempts.
+    foreach([['nan',NAN],['infinite',INF],['negative_infinite',-INF]] as [$name,$quantity]) {
+        $before=$transferSnapshot();
+        $statusBefore=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('stock_transfers').' WHERE id=%d',$id));
+        $destQtyBefore=(float)$wpdb->get_var(
+            'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+            ' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND custodian_key=0');
+        try {
+            uat_dispatch('inventory.transfer_receive',$manager,[
+                'id'=>$id,'lines'=>[['transfer_line_id'=>$lineId,'received_quantity'=>$quantity]],
+            ]);
+            throw new RuntimeException('Invalid stock transfer receipt '.$name.' was posted');
+        }catch(DomainException $e){
+            if($e->codeKey!=='transfer_receive_quantity_invalid'||$e->httpStatus!==422)throw $e;
+        }
+        $statusAfter=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('stock_transfers').' WHERE id=%d',$id));
+        $destQtyAfter=(float)$wpdb->get_var(
+            'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+            ' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND custodian_key=0');
+        if($transferSnapshot()!==$before||$statusBefore!=='in_transit'||
+           $statusAfter!==$statusBefore||abs($destQtyAfter-$destQtyBefore)>.001)
+            throw new RuntimeException('Rejected receipt '.$name.' mutated transfer, stock, GL or audit');
+    }
     uat_expect_forbidden(
         fn()=>uat_dispatch('inventory.transfer_receive',$maker,['id'=>$id,'lines'=>[['transfer_line_id'=>$lineId,'received_quantity'=>5]]]),
         'transfer creator received own transfer without TRANSFER_RECEIVE'
@@ -1107,6 +1163,56 @@ uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($mak
     $dest=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     if(abs($source-($sourceBefore-5.0))>0.001||abs($dest-($destBefore+5.0))>0.001) {
         throw new RuntimeException("transfer delta mismatch source={$sourceBefore}->{$source} destination={$destBefore}->{$dest}");
+    }
+});
+
+uat_case('uat_inventory_adjustment_quarantine_nonfinite_zero_mutation', function () use ($wpdb) {
+    $creator=uat_actor(30,[1,2],[Capabilities::ADJ_CREATE,Capabilities::INVENTORY_VIEW],'SYSADMIN');
+    $snapshot=static function()use($wpdb):array{return [
+        'adjustments'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_adjustments')),
+        'adjustment_lines'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_adjustment_lines')),
+        'quarantine'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_quarantine')),
+        'stock_moves'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger')),
+        'journals'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries')),
+        'audit'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('audit_log')),
+        'stock'=>(float)$wpdb->get_var(
+            'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+            ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND custodian_key=0'),
+    ];};
+    foreach([
+        ['nan_delta',NAN,50.0,'adjustment_quantity_invalid'],
+        ['infinite_delta',INF,50.0,'adjustment_quantity_invalid'],
+        ['negative_inf_delta',-INF,50.0,'adjustment_quantity_invalid'],
+        ['nan_cost',1.0,NAN,'adjustment_cost_invalid'],
+        ['infinite_cost',1.0,INF,'adjustment_cost_invalid'],
+        ['negative_inf_cost',1.0,-INF,'adjustment_cost_invalid'],
+    ] as [$name,$delta,$cost,$key]) {
+        $before=$snapshot();
+        try {
+            uat_dispatch('inventory.adjustment',$creator,[
+                'branch_id'=>1,'reason'=>'UAT invalid '.$name,
+                'lines'=>[['product_id'=>100,'quantity_delta'=>$delta,'unit_cost'=>$cost]],
+            ]);
+            throw new RuntimeException('Invalid stock adjustment '.$name.' was created');
+        }catch(DomainException $e){
+            if($e->codeKey!==$key||$e->httpStatus!==422)throw $e;
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Rejected adjustment '.$name.' changed stock or GL');
+    }
+    foreach([['nan',NAN],['infinite',INF],['negative_inf',-INF]] as [$name,$quantity]) {
+        $before=$snapshot();
+        try {
+            uat_dispatch('inventory.quarantine_hold',$creator,[
+                'branch_id'=>1,'product_id'=>100,
+                'quantity'=>$quantity,'reason'=>'UAT reject invalid quarantine '.$name,
+            ]);
+            throw new RuntimeException('Invalid quarantine '.$name.' was created');
+        }catch(DomainException $e){
+            if($e->codeKey!=='quarantine_fields_invalid'||$e->httpStatus!==422)throw $e;
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Rejected quarantine '.$name.' changed stock or GL');
     }
 });
 
