@@ -38,6 +38,9 @@ on:
       - 'flutter-app/lib/core/gps_tracking_service.dart'
       - 'flutter-app/lib/core/evening_order_selection.dart'
       - 'flutter-app/lib/widgets/evening_order_picker.dart'
+      - 'flutter-app/lib/widgets/v8_evening_closing_line.dart'
+      - 'flutter-app/lib/screens/my_work/my_work_daily_closing.dart'
+      - 'flutter-app/test/v8_evening_settlement_ui_test.dart'
       - 'flutter-app/lib/screens/my_work/my_work_screen.dart'
       - 'flutter-app/lib/screens/my_work/my_work_daily_overview.dart'
       - 'flutter-app/lib/screens/inventory/inventory_screen.dart'
@@ -126,6 +129,9 @@ jobs:
       - name: Manager Notification Center reviewer-only drafts Flutter contract and compile
         working-directory: flutter-app
         run: flutter test test/manager_notification_center_contract_test.dart
+      - name: V8 Evening Closing wholesale and return line responsive UI
+        working-directory: flutter-app
+        run: flutter test test/v8_evening_settlement_ui_test.dart
       - name: Evening Closing scoped order chooser and UX regression
         working-directory: flutter-app
         run: flutter test test/evening_order_selection_test.dart

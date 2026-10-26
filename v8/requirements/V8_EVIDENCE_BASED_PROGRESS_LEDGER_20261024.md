@@ -48,3 +48,10 @@
 - Every new development batch updates the relevant row's evidence and blockers; no percent claim until approved weight/acceptance case inventory has been enumerated, executed and counted.
 - UI-only work does not alter canonical posting, payroll, GPS duty automation, DB schema, privilege scopes or cash/UPI proof.
 - Keep PR #25 Draft until the full signoff protocol is satisfied.
+
+## 2026-10-26 — Live read-only preview verified; mobile closing inputs implementation
+
+- Staging Office web confirmed by authenticated health, `web_runtime.source_head=54b791a327ceccabce9008916fb41b077a89de4f`, SHA-256 `937150f36db3ac154a8437059e15c903bc4648d38d4140ff3d83b9820806e663`. Backend remains `95a9e2806edef95257cd6b6aee6f1d56ca632d6b`. GitHub web deployment run `40096043676` succeeded. **Only read-only web-preview installation is verified, not human business UAT.**
+- Current development enhancement: mobile-friendly per-product Return/Wholesale Qty/Rate cards in Evening Closing. This is presentation-only. Original whole-PCS parsing, issued-stock checks, retailer rate constraints, unsaved-draft exit, and canonical Save/Submit REST endpoints are unchanged.
+- Flutter widget coverage targets widths 320, 360, 390, 768 and 1366. Exact new commit/run ID and acceptance outcome to be verified before promoting this implementation to `CI_VERIFIED`.
+- Office is not sanitized and active mobile sessions are not confirmed zero; therefore **do not auto-deploy this next build**. Actual authenticated Employee/ASM/Manager staging acceptance and cashier/stock reconciliation still require an isolated safe UAT procedure.
