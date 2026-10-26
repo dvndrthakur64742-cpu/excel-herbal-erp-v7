@@ -873,6 +873,51 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
                 [$corrupt['column']=>$corrupt['restore']],['id'=>$corrupt['id']]);
         }
     }
+    // Line totals alone cannot prove custody, batch, valuation or employee
+    // performance. Mutate one synthetic submitted line at a time; the
+    // finance checker must reject before any stock/GL/performance/audit write.
+    $sourceSnapshot=$wpdb->get_row($wpdb->prepare(
+        'SELECT product_id,batch_id,quantity,purchase_cost_snapshot,points_snapshot,salary_fund_snapshot'.
+        ' FROM '.Db::table('daily_issue_lines').' WHERE id=%d',$issuedLineId
+    ),ARRAY_A);
+    $closingSnapshot=$wpdb->get_row($wpdb->prepare(
+        'SELECT issue_line_id,product_id,batch_id,issued_quantity,purchase_cost_snapshot,points,salary_fund'.
+        ' FROM '.Db::table('evening_lines').' WHERE id=%d',$closingLineId
+    ),ARRAY_A);
+    foreach([
+        ['name'=>'foreign_issue_line','column'=>'issue_line_id','corrupt'=>987654321,
+            'code'=>'evening_issue_lineage_mismatch'],
+        ['name'=>'wrong_product','column'=>'product_id','corrupt'=>999999,
+            'code'=>'evening_issue_lineage_mismatch'],
+        ['name'=>'wrong_batch','column'=>'batch_id','corrupt'=>999999,
+            'code'=>'evening_issue_lineage_mismatch'],
+        ['name'=>'wrong_purchase_cost','column'=>'purchase_cost_snapshot','corrupt'=>999.99,
+            'code'=>'evening_issue_valuation_mismatch'],
+        ['name'=>'forged_points','column'=>'points','corrupt'=>999,
+            'code'=>'evening_issue_performance_mismatch'],
+    ] as $corrupt) {
+        $column=$corrupt['column'];
+        if($wpdb->update(Db::table('evening_lines'),
+            [$column=>$corrupt['corrupt']],['id'=>$closingLineId])!==1)
+            throw new RuntimeException('Cannot set synthetic closing corruption '.$corrupt['name']);
+        try {
+            $before=$snapshotRejectedFinalPost();
+            try {
+                uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>160]);
+                throw new RuntimeException('Finance posted corrupted original stock source '.$corrupt['name']);
+            }catch(DomainException $error){
+                if($error->httpStatus!==409||$error->codeKey!==$corrupt['code'])
+                    throw new RuntimeException('Wrong rejection for '.$corrupt['name'].': '.$error->codeKey,0,$error);
+            }
+            if($before!==$snapshotRejectedFinalPost())
+                throw new RuntimeException('Corrupted issue lineage changed source stock, journal, performance or audit '.$corrupt['name']);
+        } finally {
+            $wpdb->update(Db::table('evening_lines'),
+                [$column=>$closingSnapshot[$column]],['id'=>$closingLineId]);
+        }
+    }
+    if(!$sourceSnapshot||!$closingSnapshot)
+        throw new RuntimeException('Missing source snapshots for Phase 1 Final Post UAT');
     // An internal/REST caller can pass PHP NAN or INF even when ordinary
     // Flutter text fields cannot. Such values must never bypass <0 or
     // total-mismatch comparisons, contaminate GL or complete the cycle.

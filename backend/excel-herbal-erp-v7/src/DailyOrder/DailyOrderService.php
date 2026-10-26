@@ -235,7 +235,69 @@ final class DailyOrderService{
    return['id'=>$id,'status'=>'evening_submitted','expected_amount'=>(float)$e['expected_amount']];
   });
  }
- public static function finalPost(Actor $a,int $id,float $cash,float $upi):array{return Transaction::run(function()use($a,$id,$cash,$upi){$c=self::cycle($a,$id,true);BranchDayGuard::assertOpen($a,(int)$c['branch_id'],(string)$c['business_date']);if($c['status']!=='evening_submitted')throw new DomainException('Daily Order not ready for final post.');$db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT * FROM ".Db::table('evening_settlements')." WHERE daily_cycle_id=%d FOR UPDATE",$id),ARRAY_A);if(!$e||$e['status']!=='submitted')throw new DomainException('Submitted Evening Settlement not found.','evening_state_invalid',409);$authority=ActingDutyService::assertAction($a,(int)$c['branch_id'],'daily.final_post',(int)$e['submitted_by']);if($authority['mode']==='permanent'&&(int)$c['employee_id']!==$a->employeeId)HierarchyScope::assertCanViewEmployee($a,(int)$c['employee_id']);$expected=round((float)$e['expected_amount'],2);if((int)$e['submitted_by']===$a->employeeId)throw new DomainException('Evening maker cannot final-post own settlement.','maker_checker_required',409);if(!is_finite($cash)||!is_finite($upi)||$cash<0||$upi<0)throw new DomainException('Cash and UPI must be finite, nonnegative amounts.','payment_amount_invalid',422);if(abs(($cash+$upi)-$expected)>.005)throw new DomainException('Cash + UPI must equal expected amount.','payment_mismatch',409);$lines=(array)$db->get_results($db->prepare("SELECT * FROM ".Db::table('evening_lines')." WHERE evening_settlement_id=%d FOR UPDATE",(int)$e['id']),ARRAY_A);self::assertFinalPostClosingReconciles($lines,$expected);$points=0.0;$salary=0.0;$cogs=0.0;foreach($lines as$l){self::assertEveningDistribution($l);$batch=$l['batch_id']!==null?(int)$l['batch_id']:null;$ret=(float)$l['return_quantity'];$sold=(float)$l['retail_quantity']+(float)$l['wholesale_quantity'];$cost=(float)$l['purchase_cost_snapshot'];if($ret>0){StockService::move($a,(int)$c['branch_id'],(int)$l['product_id'],$batch,(int)$c['employee_id'],'OUT',$ret,$cost,'daily_return',$id);StockService::move($a,(int)$c['branch_id'],(int)$l['product_id'],$batch,null,'IN',$ret,$cost,'daily_return',$id);}if($sold>0)StockService::move($a,(int)$c['branch_id'],(int)$l['product_id'],$batch,(int)$c['employee_id'],'OUT',$sold,$cost,'daily_sale',$id);$points+=(float)$l['points'];$salary+=(float)$l['salary_fund'];$cogs+=round($sold*$cost,2);} $settings=(array)$db->get_results($db->prepare("SELECT setting_key,setting_value FROM ".Db::table('settings')." WHERE company_id=%d AND setting_key IN ('daily_cash_account_id','daily_upi_account_id')",$a->companyId),ARRAY_A);$map=[];foreach($settings as$s)$map[$s['setting_key']]=(int)$s['setting_value'];if(($cash>0&&!isset($map['daily_cash_account_id']))||($upi>0&&!isset($map['daily_upi_account_id'])))throw new DomainException('Daily payment accounts not configured.','payment_accounts_missing',409);if($cash>0){$cashAcc=AccountingService::paymentAccount($a,(int)$map['daily_cash_account_id']);if(strtolower((string)$cashAcc['subtype'])!=='cash')throw new DomainException('Daily Cash account must be Cash ledger.','payment_account_invalid',409);}if($upi>0){$upiAcc=AccountingService::paymentAccount($a,(int)$map['daily_upi_account_id']);if(strtolower((string)$upiAcc['subtype'])!=='upi')throw new DomainException('Daily UPI account must be UPI ledger.','payment_account_invalid',409);}$sales=AccountingService::accountByCode($a,'SALES');$cogsA=AccountingService::accountByCode($a,'COGS');$inv=AccountingService::accountByCode($a,'INVENTORY');$jl=[];if($cash>0)$jl[]=['account_id'=>$map['daily_cash_account_id'],'debit'=>$cash];if($upi>0)$jl[]=['account_id'=>$map['daily_upi_account_id'],'debit'=>$upi];$jl[]=['account_id'=>(int)$sales['id'],'credit'=>$expected];if($cogs>0){$jl[]=['account_id'=>(int)$cogsA['id'],'debit'=>$cogs];$jl[]=['account_id'=>(int)$inv['id'],'credit'=>$cogs];}$journal=AccountingService::post($a,(int)$c['branch_id'],'daily_cycle',$id,$c['business_date'].' 23:59:59',$jl,'Daily Order final post');Db::mustInsert($db,Db::table('performance_entries'),['company_id'=>$a->companyId,'branch_id'=>(int)$c['branch_id'],'employee_id'=>(int)$c['employee_id'],'business_date'=>$c['business_date'],'source_type'=>'daily_cycle','source_id'=>$id,'points'=>round($points,2),'salary_fund'=>round($salary,2),'created_at'=>Db::now()]);Db::mustUpdate($db,Db::table('evening_settlements'),['status'=>'posted','cash_amount'=>$cash,'upi_amount'=>$upi,'reviewed_by'=>$a->employeeId,'reviewed_at'=>Db::now()],['id'=>(int)$e['id']]);Db::mustUpdate($db,Db::table('daily_cycles'),['status'=>'completed','completed_at'=>Db::now()],['id'=>$id]);Audit::add($a,'daily_order.final_post','daily_cycle',$id,['branch_id'=>(int)$c['branch_id'],'amount'=>$expected,'journal_id'=>$journal]);return['id'=>$id,'status'=>'completed','amount'=>$expected,'points'=>round($points,2),'salary_fund'=>round($salary,2)];});}
+ public static function finalPost(Actor $a,int $id,float $cash,float $upi):array{return Transaction::run(function()use($a,$id,$cash,$upi){$c=self::cycle($a,$id,true);BranchDayGuard::assertOpen($a,(int)$c['branch_id'],(string)$c['business_date']);if($c['status']!=='evening_submitted')throw new DomainException('Daily Order not ready for final post.');$db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT * FROM ".Db::table('evening_settlements')." WHERE daily_cycle_id=%d FOR UPDATE",$id),ARRAY_A);if(!$e||$e['status']!=='submitted')throw new DomainException('Submitted Evening Settlement not found.','evening_state_invalid',409);$authority=ActingDutyService::assertAction($a,(int)$c['branch_id'],'daily.final_post',(int)$e['submitted_by']);if($authority['mode']==='permanent'&&(int)$c['employee_id']!==$a->employeeId)HierarchyScope::assertCanViewEmployee($a,(int)$c['employee_id']);$expected=round((float)$e['expected_amount'],2);if((int)$e['submitted_by']===$a->employeeId)throw new DomainException('Evening maker cannot final-post own settlement.','maker_checker_required',409);if(!is_finite($cash)||!is_finite($upi)||$cash<0||$upi<0)throw new DomainException('Cash and UPI must be finite, nonnegative amounts.','payment_amount_invalid',422);if(abs(($cash+$upi)-$expected)>.005)throw new DomainException('Cash + UPI must equal expected amount.','payment_mismatch',409);$lines=(array)$db->get_results($db->prepare("SELECT * FROM ".Db::table('evening_lines')." WHERE evening_settlement_id=%d FOR UPDATE",(int)$e['id']),ARRAY_A);self::assertFinalPostClosingReconciles($lines,$expected);self::assertFinalPostIssuedLineage($id,$lines);$points=0.0;$salary=0.0;$cogs=0.0;foreach($lines as$l){self::assertEveningDistribution($l);$batch=$l['batch_id']!==null?(int)$l['batch_id']:null;$ret=(float)$l['return_quantity'];$sold=(float)$l['retail_quantity']+(float)$l['wholesale_quantity'];$cost=(float)$l['purchase_cost_snapshot'];if($ret>0){StockService::move($a,(int)$c['branch_id'],(int)$l['product_id'],$batch,(int)$c['employee_id'],'OUT',$ret,$cost,'daily_return',$id);StockService::move($a,(int)$c['branch_id'],(int)$l['product_id'],$batch,null,'IN',$ret,$cost,'daily_return',$id);}if($sold>0)StockService::move($a,(int)$c['branch_id'],(int)$l['product_id'],$batch,(int)$c['employee_id'],'OUT',$sold,$cost,'daily_sale',$id);$points+=(float)$l['points'];$salary+=(float)$l['salary_fund'];$cogs+=round($sold*$cost,2);} $settings=(array)$db->get_results($db->prepare("SELECT setting_key,setting_value FROM ".Db::table('settings')." WHERE company_id=%d AND setting_key IN ('daily_cash_account_id','daily_upi_account_id')",$a->companyId),ARRAY_A);$map=[];foreach($settings as$s)$map[$s['setting_key']]=(int)$s['setting_value'];if(($cash>0&&!isset($map['daily_cash_account_id']))||($upi>0&&!isset($map['daily_upi_account_id'])))throw new DomainException('Daily payment accounts not configured.','payment_accounts_missing',409);if($cash>0){$cashAcc=AccountingService::paymentAccount($a,(int)$map['daily_cash_account_id']);if(strtolower((string)$cashAcc['subtype'])!=='cash')throw new DomainException('Daily Cash account must be Cash ledger.','payment_account_invalid',409);}if($upi>0){$upiAcc=AccountingService::paymentAccount($a,(int)$map['daily_upi_account_id']);if(strtolower((string)$upiAcc['subtype'])!=='upi')throw new DomainException('Daily UPI account must be UPI ledger.','payment_account_invalid',409);}$sales=AccountingService::accountByCode($a,'SALES');$cogsA=AccountingService::accountByCode($a,'COGS');$inv=AccountingService::accountByCode($a,'INVENTORY');$jl=[];if($cash>0)$jl[]=['account_id'=>$map['daily_cash_account_id'],'debit'=>$cash];if($upi>0)$jl[]=['account_id'=>$map['daily_upi_account_id'],'debit'=>$upi];$jl[]=['account_id'=>(int)$sales['id'],'credit'=>$expected];if($cogs>0){$jl[]=['account_id'=>(int)$cogsA['id'],'debit'=>$cogs];$jl[]=['account_id'=>(int)$inv['id'],'credit'=>$cogs];}$journal=AccountingService::post($a,(int)$c['branch_id'],'daily_cycle',$id,$c['business_date'].' 23:59:59',$jl,'Daily Order final post');Db::mustInsert($db,Db::table('performance_entries'),['company_id'=>$a->companyId,'branch_id'=>(int)$c['branch_id'],'employee_id'=>(int)$c['employee_id'],'business_date'=>$c['business_date'],'source_type'=>'daily_cycle','source_id'=>$id,'points'=>round($points,2),'salary_fund'=>round($salary,2),'created_at'=>Db::now()]);Db::mustUpdate($db,Db::table('evening_settlements'),['status'=>'posted','cash_amount'=>$cash,'upi_amount'=>$upi,'reviewed_by'=>$a->employeeId,'reviewed_at'=>Db::now()],['id'=>(int)$e['id']]);Db::mustUpdate($db,Db::table('daily_cycles'),['status'=>'completed','completed_at'=>Db::now()],['id'=>$id]);Audit::add($a,'daily_order.final_post','daily_cycle',$id,['branch_id'=>(int)$c['branch_id'],'amount'=>$expected,'journal_id'=>$journal]);return['id'=>$id,'status'=>'completed','amount'=>$expected,'points'=>round($points,2),'salary_fund'=>round($salary,2)];});}
+ /**
+  * Final posting must consume only the same immutable issued stock lines
+  * which the employee actually received. Verify lineage, valuation and
+  * performance snapshots independently of the saved closing amounts.
+  * No stock/GL writer is called until every source line is reconciled.
+  */
+ private static function assertFinalPostIssuedLineage(int $cycleId,array $lines):void {
+  $db=Db::wpdb();
+  $issued=(array)$db->get_results($db->prepare(
+   "SELECT il.id,il.product_id,il.batch_id,il.quantity,il.sale_price_snapshot,".
+   "il.purchase_cost_snapshot,il.points_snapshot,il.salary_fund_snapshot ".
+   "FROM ".Db::table('daily_issue_lines')." il JOIN ".Db::table('daily_requests').
+   " dr ON dr.id=il.daily_request_id WHERE dr.daily_cycle_id=%d",$cycleId
+  ),ARRAY_A);
+  if(!$issued||count($issued)!==count($lines))
+   throw new DomainException('Evening lines do not match issued stock records.','evening_issue_lineage_mismatch',409);
+  $sources=[];
+  foreach($issued as$row) {
+   $sourceId=(int)$row['id'];
+   if($sourceId<1||isset($sources[$sourceId]))
+    throw new DomainException('Duplicate issued stock line.','evening_issue_lineage_mismatch',409);
+   $sources[$sourceId]=$row;
+  }
+  $seen=[];
+  foreach($lines as$line) {
+   $sourceId=(int)$line['issue_line_id'];
+   if($sourceId<1||isset($seen[$sourceId])||!isset($sources[$sourceId]))
+    throw new DomainException('Closing line has no unique issued stock source.','evening_issue_lineage_mismatch',409);
+   $seen[$sourceId]=true;
+   $original=$sources[$sourceId];
+   $batchOriginal=$original['batch_id']===null?null:(int)$original['batch_id'];
+   $batchClosing=$line['batch_id']===null?null:(int)$line['batch_id'];
+   if((int)$line['product_id']!==(int)$original['product_id']||
+      $batchClosing!==$batchOriginal||
+      abs((float)$line['issued_quantity']-(float)$original['quantity'])>.0001)
+    throw new DomainException('Closing product, batch or quantity differs from issue.','evening_issue_lineage_mismatch',409);
+   $rr=(float)$line['retail_rate'];
+   $wr=(float)$line['wholesale_rate'];
+   $cost=(float)$line['purchase_cost_snapshot'];
+   $issuedCost=(float)$original['purchase_cost_snapshot'];
+   $approvedRetail=(float)$original['sale_price_snapshot'];
+   if(!is_finite($cost)||!is_finite($issuedCost)||$cost<0||$issuedCost<0||
+      !is_finite($approvedRetail)||abs($rr-$approvedRetail)>.005||
+      abs($cost-$issuedCost)>.005)
+    throw new DomainException('Closing valuation differs from original issued stock.','evening_issue_valuation_mismatch',409);
+   $sold=(float)$line['retail_quantity']+(float)$line['wholesale_quantity'];
+   $pointsUnit=(float)$original['points_snapshot'];
+   $salaryUnit=(float)$original['salary_fund_snapshot'];
+   $discount=round((float)$line['wholesale_quantity']*max(0.0,$rr-$wr),2);
+   $salaryDiscount=round($discount-round($discount/2,2),2);
+   $pointsExpected=round($sold*$pointsUnit,2);
+   $salaryExpected=round($sold*$salaryUnit-$salaryDiscount,2);
+   $pointsActual=(float)$line['points'];
+   $salaryActual=(float)$line['salary_fund'];
+   if(!is_finite($pointsUnit)||!is_finite($salaryUnit)||
+      !is_finite($discount)||!is_finite($pointsExpected)||!is_finite($salaryExpected)||
+      !is_finite($pointsActual)||!is_finite($salaryActual)||
+      abs($pointsActual-$pointsExpected)>.005||
+      abs($salaryActual-$salaryExpected)>.005)
+    throw new DomainException('Closing points or salary differ from issued snapshots.','evening_issue_performance_mismatch',409);
+  }
+ }
  /**
   * Recheck the complete submitted closing *at posting time*, not only at
   * employee submission. A stale/corrupt line or header must never produce
