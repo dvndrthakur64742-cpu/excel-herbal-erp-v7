@@ -1,4 +1,6 @@
 <?php
+use ExcelHerbal\ERP7\Database\Db;
+use ExcelHerbal\ERP7\Domain\DomainException;
 /**
  * Fail-closed service-level whole PCS: ApiDispatch bypasses REST payload guard.
  * Runs on disposable synthetic MariaDB only. Never touches Office.
