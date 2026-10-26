@@ -52,7 +52,8 @@ void main() {
       expect(find.text('Return Qty'), findsOneWidget);
       expect(find.text('Wholesale Qty'), findsOneWidget);
       expect(find.text('Wholesale Rate ₹'), findsOneWidget);
-      expect(find.text('12 PCS'), findsOneWidget);
+      // Issued and initially calculated Retail Sold both start at 12 PCS.
+      expect(find.text('12 PCS'), findsNWidgets(2));
       expect(tester.takeException(), isNull);
       final fields = find.byType(TextField);
       expect(fields, findsNWidgets(3));
