@@ -2469,6 +2469,7 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
 });
 
 require __DIR__.'/integration_purchase_return_preflight.php';
+require __DIR__.'/integration_daily_positive_whole_pcs.php';
 
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
