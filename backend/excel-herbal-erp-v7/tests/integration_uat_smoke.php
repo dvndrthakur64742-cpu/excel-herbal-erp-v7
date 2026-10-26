@@ -2042,5 +2042,199 @@ uat_case('uat_purchase_supplier_bill_payment_finite_and_ledger_atomicity', funct
         throw new RuntimeException('Legitimate supplier payment AP/GL/stock split mismatch');
 });
 
+
+uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', function () use ($wpdb) {
+    // Whole-bill cancellation is NOT a partial supplier credit-note/return.
+    // This suite runs only with synthetic data in disposable MariaDB CI.
+    $buyer=uat_actor(30,[1,2],[
+        Capabilities::PURCHASE_CREATE,Capabilities::REVERSAL_CREATE,
+    ],'SYSADMIN');
+    $payer=uat_actor(20,[1,2],[
+        Capabilities::SUPPLIER_PAYMENT,Capabilities::REVERSAL_APPROVE,
+    ],'SYSADMIN');
+    $otherBranch=uat_actor(20,[2],[Capabilities::REVERSAL_APPROVE],'SYSADMIN');
+    $supplier=uat_dispatch('purchase.supplier_create',$buyer,[
+        'name'=>'Synthetic Full Bill Reversal Supplier','mobile'=>'9000000909',
+    ]);
+    // A separate stock SKU prevents other UAT stock movements from hiding
+    // a missing warehouse item during the actual full-bill reversal.
+    uat_insert($wpdb,'products',[
+        'id'=>1099,'company_id'=>1,'sku'=>'UAT-REV-P1099',
+        'name'=>'Unique Reversal Fixture Product','uom'=>'PCS',
+        'batch_tracking'=>'off','expiry_tracking'=>0,'status'=>'active',
+        'created_at'=>'2026-01-01 00:00:00',
+    ]);
+    $apId=(int)$wpdb->get_var(
+        "SELECT id FROM ".Db::table('accounts')." WHERE company_id=1 AND code='AP'");
+    if(!$apId)uat_insert($wpdb,'accounts',[
+        'id'=>11,'company_id'=>1,'code'=>'AP','name'=>'Accounts Payable',
+        'type'=>'liability','subtype'=>null,'active'=>1,
+    ]);
+    $bill=uat_dispatch('purchase.bill',$buyer,[
+        'branch_id'=>1,'supplier_id'=>(int)$supplier['id'],
+        'bill_no'=>'UAT-REV-FULL-1099','bill_date'=>uat_date(),
+        'lines'=>[['product_id'=>1099,'quantity'=>3,'unit_cost'=>40]],
+    ]);
+    $billId=(int)$bill['id'];
+    $payment=uat_dispatch('purchase.payment',$payer,[
+        'purchase_bill_id'=>$billId,'amount'=>50,'payment_account_id'=>1,
+    ]);
+    $paymentId=(int)$payment['id'];
+    $request=uat_dispatch('finance.reversal_request',$buyer,[
+        'source_type'=>'purchase_bill','source_id'=>$billId,
+        'reason'=>'Synthetic full bill cancellation after supplier return',
+    ]);
+    $rid=(int)$request['id'];
+    try {
+        uat_dispatch('finance.reversal_decision',$buyer,[
+            'id'=>$rid,'approve'=>true,
+        ]);
+        throw new RuntimeException('Purchase cancellation maker approved own request');
+    }catch(DomainException $e){
+        if($e->codeKey!=='maker_checker_required'||$e->httpStatus!==409)throw $e;
+    }
+    try {
+        uat_dispatch('finance.reversal_decision',$otherBranch,[
+            'id'=>$rid,'approve'=>true,
+        ]);
+        throw new RuntimeException('Wrong branch reviewer approved purchase reversal');
+    }catch(DomainException $e){
+        if($e->codeKey!=='branch_forbidden'||$e->httpStatus!==403)throw $e;
+    }
+    $review=uat_dispatch('finance.reversal_decision',$payer,[
+        'id'=>$rid,'approve'=>true,
+    ]);
+    if(($review['status']??'')!=='approved')
+        throw new RuntimeException('Independent bill reversal approval missing');
+    $snapshot=static function()use($wpdb,$billId,$paymentId,$rid):array {
+        return [
+            'bill'=>$wpdb->get_row($wpdb->prepare(
+                'SELECT status,paid_amount,outstanding_amount FROM '.
+                Db::table('purchase_bills').' WHERE id=%d',$billId),ARRAY_A),
+            'payment_status'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('supplier_payments').
+                ' WHERE id=%d',$paymentId)),
+            'request_status'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('reversals').' WHERE id=%d',$rid)),
+            'stock'=>(float)$wpdb->get_var(
+                'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+                ' WHERE company_id=1 AND branch_id=1 AND product_id=1099 AND custodian_key=0'),
+            'purchase_reversal_moves'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type='purchase_bill_reversal' AND source_id=%d",$billId)),
+            'journals'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries')),
+            'journal_lines'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('journal_lines')),
+            'audit'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action='reversal.execute'"),
+        ];
+    };
+    $expectDenial=static function(string $label,string $expected)use($payer,$rid,$snapshot):void {
+        $before=$snapshot();
+        try {
+            uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
+            throw new RuntimeException('Unsafe purchase reversal succeeded: '.$label);
+        }catch(DomainException $e){
+            if($e->codeKey!==$expected||$e->httpStatus!==409)
+                throw new RuntimeException('Unexpected purchase reversal denial '.$label.
+                    ': '.$e->codeKey.' '.$e->httpStatus,0,$e);
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Rejected '.$label.' changed supplier, stock, GL or audit');
+    };
+    $expectDenial('posted_supplier_payment','dependent_payment_exists');
+
+    // Synthetic corruption simulation: even if the bill's cached paid
+    // amount is zeroed, an actual posted supplier payment must block reversal.
+    $wpdb->update(Db::table('purchase_bills'),[
+        'paid_amount'=>0,'outstanding_amount'=>120,
+    ],['id'=>$billId]);
+    try {
+        $expectDenial('posted_payment_despite_cached_paid_zero','dependent_payment_exists');
+    }finally{
+        $wpdb->update(Db::table('purchase_bills'),[
+            'paid_amount'=>50,'outstanding_amount'=>70,
+        ],['id'=>$billId]);
+    }
+
+    $paymentRequest=uat_dispatch('finance.reversal_request',$buyer,[
+        'source_type'=>'supplier_payment','source_id'=>$paymentId,
+        'reason'=>'Reverse original supplier payment before full bill',
+    ]);
+    $paymentRevId=(int)$paymentRequest['id'];
+    uat_dispatch('finance.reversal_decision',$payer,[
+        'id'=>$paymentRevId,'approve'=>true,
+    ]);
+    $paymentReversed=uat_dispatch('finance.reversal_execute',$payer,[
+        'id'=>$paymentRevId,
+    ]);
+    if(($paymentReversed['status']??'')!=='executed')
+        throw new RuntimeException('Supplier payment reversal failed');
+    $afterPayment=$snapshot();
+    if($afterPayment['payment_status']!=='reversed'||
+       abs((float)$afterPayment['bill']['paid_amount'])>.005||
+       abs((float)$afterPayment['bill']['outstanding_amount']-120)>.005)
+        throw new RuntimeException('Supplier AP not restored after payment reversal');
+
+    // A synthetic residual mismatch must block full bill reversal even if
+    // there is no longer any posted supplier payment.
+    $wpdb->update(Db::table('purchase_bills'),[
+        'paid_amount'=>0,'outstanding_amount'=>110,
+    ],['id'=>$billId]);
+    try {
+        $expectDenial('purchase_AP_outstanding_drift','purchase_bill_settlement_mismatch');
+    }finally{
+        $wpdb->update(Db::table('purchase_bills'),[
+            'paid_amount'=>0,'outstanding_amount'=>120,
+        ],['id'=>$billId]);
+    }
+
+    // One unit has left the warehouse: no full bill cancellation is allowed
+    // until all original quantity becomes physically available to reverse.
+    StockService::move($buyer,1,1099,null,null,'OUT',1,40,
+        'uat_purchase_return_unavailable',1099);
+    $beforeShortage=$snapshot();
+    try {
+        uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
+        throw new RuntimeException('Unreturnable stock full purchase reversal succeeded');
+    }catch(DomainException $e){
+        if($e->codeKey!=='insufficient_stock'||$e->httpStatus!==409)throw $e;
+    }
+    if($snapshot()!==$beforeShortage)
+        throw new RuntimeException('Failed stock reversal partially mutated GL, stock, bill or audit');
+
+    StockService::move($buyer,1,1099,null,null,'IN',1,40,
+        'uat_purchase_return_restored',1099);
+    $beforeSuccess=$snapshot();
+    $result=uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
+    $afterSuccess=$snapshot();
+    if(($result['status']??'')!=='executed'||
+       (int)($result['reversal_journal_id']??0)<1||
+       $afterSuccess['bill']['status']!=='reversed'||
+       $afterSuccess['request_status']!=='executed'||
+       $afterSuccess['payment_status']!=='reversed'||
+       $afterSuccess['purchase_reversal_moves']!==$beforeSuccess['purchase_reversal_moves']+1||
+       $afterSuccess['journals']!==$beforeSuccess['journals']+1||
+       $afterSuccess['audit']!==$beforeSuccess['audit']+1||
+       abs($afterSuccess['stock'])>.001)
+        throw new RuntimeException('Full bill reversal did not restore original warehouse and AP/GL state');
+    $journalId=(int)$result['reversal_journal_id'];
+    $debit=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(debit),0) FROM '.Db::table('journal_lines').
+        ' WHERE journal_entry_id=%d',$journalId));
+    $credit=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(credit),0) FROM '.Db::table('journal_lines').
+        ' WHERE journal_entry_id=%d',$journalId));
+    if(abs($debit-120)>.005||abs($credit-120)>.005)
+        throw new RuntimeException('Purchase bill reversal is not Dr AP / Cr Inventory 120');
+    try {
+        uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
+        throw new RuntimeException('Duplicate full bill reversal accepted');
+    }catch(DomainException $e){
+        if($snapshot()!==$afterSuccess)
+            throw new RuntimeException('Duplicate reversal added stock/GL/audit');
+    }
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
