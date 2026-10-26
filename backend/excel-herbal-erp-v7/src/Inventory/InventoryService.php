@@ -60,7 +60,7 @@ final class InventoryService{
     $status=$diff?'difference_reported':'received';
     $updated=$db->update($h,['status'=>$status,'received_by'=>$a->employeeId,'received_at'=>Db::now()],['id'=>$id]);if($updated===false)throw new DomainException('Transfer receipt update failed.','transfer_receive_store_failed',500);
    }elseif($action==='approve-correction'){
-    Guard::branch($a,$source,Capabilities::ADJ_APPROVE);BranchDayGuard::assertOpen($a,$source,Db::today());BranchDayGuard::assertOpen($a,$dest,Db::today());
+    Guard::branch($a,$source,Capabilities::ADJ_APPROVE);if(!$a->hasBranch($dest))throw new DomainException('Destination branch is outside transfer correction authority.','branch_forbidden',403);BranchDayGuard::assertOpen($a,$source,Db::today());BranchDayGuard::assertOpen($a,$dest,Db::today());
     if($r['status']!=='difference_reported')throw new DomainException('No transfer difference to approve.');
     if((int)$r['created_by']===$a->employeeId)throw new DomainException('Transfer maker cannot approve discrepancy correction.','maker_checker_required',409);
     $note=trim((string)($payload['note']??''));if(strlen($note)<5)throw new DomainException('Transfer discrepancy resolution note is required.','transfer_resolution_note_required',422);

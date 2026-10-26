@@ -1216,6 +1216,131 @@ uat_case('uat_inventory_adjustment_quarantine_nonfinite_zero_mutation', function
     }
 });
 
+
+uat_case('uat_inventory_transfer_discrepancy_separate_checker_and_balanced_gl', function () use ($maker,$manager,$wpdb) {
+    // Disposable MariaDB, genuine REST services: transfer shortage must be
+    // reconciled once by a distinct checker authorized for BOTH branches.
+    $created=uat_dispatch('inventory.transfer_create',$maker,[
+        'source_branch_id'=>1,'destination_branch_id'=>2,
+        'lines'=>[['product_id'=>100,'quantity'=>4]],
+        'notes'=>'Synthetic UAT shortage reconciliation',
+    ]);
+    $id=(int)$created['id'];
+    $sourceQty=static fn():float=>(float)$wpdb->get_var(
+        'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    $destQty=static fn():float=>(float)$wpdb->get_var(
+        'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    $sourceBefore=$sourceQty();$destBefore=$destQty();
+    $snapshot=static function()use($wpdb,$id,$sourceQty,$destQty):array {
+        return [
+            'status'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('stock_transfers').' WHERE id=%d',$id)),
+            'received'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT COALESCE(received_quantity,-1) FROM '.
+                Db::table('stock_transfer_lines').' WHERE transfer_id=%d LIMIT 1',$id)),
+            'stock_movements'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type LIKE 'stock_transfer_%' AND source_id=%d",$id)),
+            'journals'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type LIKE 'stock_transfer_%' AND source_id=%d",$id)),
+            'audits'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE entity_type='stock_transfer' AND entity_id=%d",$id)),
+            'source_qty'=>$sourceQty(),
+            'dest_qty'=>$destQty(),
+        ];
+    };
+    uat_dispatch('inventory.transfer_pack',$maker,['id'=>$id]);
+    $dispatched=uat_dispatch('inventory.transfer_dispatch',$maker,['id'=>$id]);
+    if(($dispatched['status']??'')!=='in_transit')
+        throw new RuntimeException('Shortage fixture never reached transit state');
+    $line=$wpdb->get_row($wpdb->prepare(
+        'SELECT id,unit_cost_snapshot FROM '.Db::table('stock_transfer_lines').
+        ' WHERE transfer_id=%d LIMIT 1',$id),ARRAY_A);
+    if(!$line)throw new RuntimeException('Transfer line missing in shortage UAT');
+    $receipt=uat_dispatch('inventory.transfer_receive',$manager,[
+        'id'=>$id,'lines'=>[['transfer_line_id'=>(int)$line['id'],'received_quantity'=>3]],
+    ]);
+    if(($receipt['status']??'')!=='difference_reported')
+        throw new RuntimeException('1 PCS shortage was not reported');
+    $pending=$snapshot();
+    if($pending['status']!=='difference_reported'||
+       abs($sourceQty()-($sourceBefore-4))>.001||
+       abs($destQty()-($destBefore+3))>.001)
+        throw new RuntimeException('Reported transfer shortage stock or status mismatch');
+
+    $checker=uat_actor(20,[1,2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $sourceOnly=uat_actor(20,[1],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $destOnly=uat_actor(20,[2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $selfChecker=uat_actor(30,[1,2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $noCapability=uat_actor(20,[1,2],[Capabilities::INVENTORY_VIEW],'SYSADMIN');
+    foreach([
+        ['source_only',$sourceOnly,'branch_forbidden',403,'Both branch scopes needed'],
+        ['dest_only',$destOnly,'branch_forbidden',403,'Source branch scope required'],
+        ['missing_capability',$noCapability,'permission_denied',403,'Approval permission required'],
+        ['maker_as_checker',$selfChecker,'maker_checker_required',409,'Self correction forbidden'],
+        ['short_note',$checker,'transfer_resolution_note_required',422,'bad'],
+    ] as [$case,$actor,$expectedCode,$expectedStatus,$note]) {
+        $before=$snapshot();
+        try {
+            uat_dispatch('inventory.transfer_correct',$actor,['id'=>$id,'note'=>$note]);
+            throw new RuntimeException('Unauthorised transfer correction accepted: '.$case);
+        }catch(DomainException $error){
+            if($error->codeKey!==$expectedCode||$error->httpStatus!==$expectedStatus)
+                throw new RuntimeException('Wrong discrepancy denial '.$case.': '.
+                    $error->codeKey.' '.$error->httpStatus,0,$error);
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Rejected transfer correction '.$case.
+                ' changed custody, journal, stock or audit');
+    }
+
+    $variance=round((float)$line['unit_cost_snapshot'],2);
+    $corrected=uat_dispatch('inventory.transfer_correct',$checker,[
+        'id'=>$id,'note'=>'Independent shortage verified from destination count',
+    ]);
+    if(($corrected['status']??'')!=='received'||
+       abs((float)($corrected['variance_amount']??-1)-$variance)>.005)
+        throw new RuntimeException('Valid transfer correction variance mismatch');
+    $after=$snapshot();
+    if($after['status']!=='received'||$after['journals']!==$pending['journals']+1||
+       $after['audits']!==$pending['audits']+1||
+       $after['stock_movements']!==$pending['stock_movements']||
+       abs($after['source_qty']-$pending['source_qty'])>.001||
+       abs($after['dest_qty']-$pending['dest_qty'])>.001)
+        throw new RuntimeException('Transfer correction changed custody or did not create exactly one GL/audit');
+    $journal=$wpdb->get_row($wpdb->prepare(
+        "SELECT id FROM ".Db::table('journal_entries').
+        " WHERE source_type='stock_transfer_variance' AND source_id=%d",$id),ARRAY_A);
+    if(!$journal)throw new RuntimeException('Stock shortage variance journal missing');
+    $dr=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(debit),0) FROM '.Db::table('journal_lines').
+        ' WHERE journal_entry_id=%d',(int)$journal['id']));
+    $cr=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(credit),0) FROM '.Db::table('journal_lines').
+        ' WHERE journal_entry_id=%d',(int)$journal['id']));
+    $clearing=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(jl.debit-jl.credit),0) FROM '.Db::table('journal_lines').' jl JOIN '.
+        Db::table('journal_entries')." je ON je.id=jl.journal_entry_id
+        WHERE je.source_id=%d AND je.source_type IN
+        ('stock_transfer_dispatch','stock_transfer_receive','stock_transfer_variance')
+        AND jl.account_id=%d",$id,6));
+    if(abs($dr-$variance)>.005||abs($cr-$variance)>.005||abs($clearing)>.005)
+        throw new RuntimeException('Transfer shortage variance or inter-branch clearing GL not balanced');
+    try {
+        uat_dispatch('inventory.transfer_correct',$checker,[
+            'id'=>$id,'note'=>'Repeated checker must be denied',
+        ]);
+        throw new RuntimeException('Duplicate transfer shortage GL post accepted');
+    }catch(DomainException $error) {
+        if($snapshot()!==$after)
+            throw new RuntimeException('Rejected duplicate correction changed stock, GL or audit');
+    }
+});
+
 uat_case('uat_finance_expense_maker_checker', function () use ($maker,$manager,$wpdb) {
     $expense=uat_dispatch('finance.expense',$maker,[
         'branch_id'=>1,'expense_head_id'=>1,'amount'=>75,'payment_account_id'=>1,'expense_date'=>uat_date(),'description'=>'UAT controlled expense',
