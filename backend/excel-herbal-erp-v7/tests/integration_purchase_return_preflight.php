@@ -40,6 +40,14 @@ uat_case('purchase_return_read_only_preflight_tenant_branch_batch_payment_zero_w
         'batch_tracking'=>'required', 'expiry_tracking'=>1, 'status'=>'active',
         'created_at'=>'2026-01-01 00:00:00',
     ]);
+    // Preseed a batch explicitly in disposable MariaDB; this adapter does not
+    // propagate insert_id from raw INSERT ... ON DUPLICATE KEY UPDATE queries.
+    $batchId = (int)$wpdb->get_var('SELECT COALESCE(MAX(id),0)+1 FROM '.Db::table('batches'));
+    uat_insert($wpdb, 'batches', [
+        'id'=>$batchId, 'company_id'=>1, 'product_id'=>$productId,
+        'batch_no'=>'UAT-RETURN-BATCH-'.$productId, 'expires_on'=>'2035-01-01',
+        'status'=>'active', 'created_at'=>'2026-01-01 00:00:00',
+    ]);
     $supplier = uat_dispatch('purchase.supplier_create', $buyer, [
         'name'=>'UAT Preflight Supplier', 'mobile'=>'9000000777',
     ]);
@@ -47,8 +55,8 @@ uat_case('purchase_return_read_only_preflight_tenant_branch_batch_payment_zero_w
         'branch_id'=>1, 'supplier_id'=>(int)$supplier['id'],
         'bill_no'=>'UAT-RETURN-PREFLIGHT-'.$productId, 'bill_date'=>uat_date(),
         'lines'=>[[
-            'product_id'=>$productId, 'batch_no'=>'UAT-RETURN-BATCH-'.$productId,
-            'expires_on'=>'2035-01-01', 'quantity'=>4, 'unit_cost'=>42.5,
+            'product_id'=>$productId, 'batch_id'=>$batchId,
+            'quantity'=>4, 'unit_cost'=>42.5,
         ]],
     ]);
     $billId = (int)$bill['id'];
