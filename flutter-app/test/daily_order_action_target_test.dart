@@ -9,7 +9,7 @@ Map<String, dynamic> order(String status, List<Map<String, dynamic>> requests,
 
 Map<String, dynamic> req(
   int id, String type, String status,
-  {int cycle = 41, int? requester = 10},
+  {int cycle = 41, int? requester = 10}
 ) => {
   'id': id,
   'daily_cycle_id': cycle,
