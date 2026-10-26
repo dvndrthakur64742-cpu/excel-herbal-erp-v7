@@ -2058,8 +2058,9 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
     ]);
     // A separate stock SKU prevents other UAT stock movements from hiding
     // a missing warehouse item during the actual full-bill reversal.
+    $productId=(int)$wpdb->get_var('SELECT COALESCE(MAX(id),0)+1 FROM '.Db::table('products'));
     uat_insert($wpdb,'products',[
-        'id'=>1099,'company_id'=>1,'sku'=>'UAT-REV-P1099',
+        'id'=>$productId,'company_id'=>1,'sku'=>'UAT-REV-P1099',
         'name'=>'Unique Reversal Fixture Product','uom'=>'PCS',
         'batch_tracking'=>'off','expiry_tracking'=>0,'status'=>'active',
         'created_at'=>'2026-01-01 00:00:00',
@@ -2073,7 +2074,7 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
     $bill=uat_dispatch('purchase.bill',$buyer,[
         'branch_id'=>1,'supplier_id'=>(int)$supplier['id'],
         'bill_no'=>'UAT-REV-FULL-1099','bill_date'=>uat_date(),
-        'lines'=>[['product_id'=>1099,'quantity'=>3,'unit_cost'=>40]],
+        'lines'=>[['product_id'=>$productId,'quantity'=>3,'unit_cost'=>40]],
     ]);
     $billId=(int)$bill['id'];
     $payment=uat_dispatch('purchase.payment',$payer,[
@@ -2106,7 +2107,7 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
     ]);
     if(($review['status']??'')!=='approved')
         throw new RuntimeException('Independent bill reversal approval missing');
-    $snapshot=static function()use($wpdb,$billId,$paymentId,$rid):array {
+    $snapshot=static function()use($wpdb,$billId,$paymentId,$rid,$productId):array {
         return [
             'bill'=>$wpdb->get_row($wpdb->prepare(
                 'SELECT status,paid_amount,outstanding_amount FROM '.
@@ -2118,7 +2119,7 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
                 'SELECT status FROM '.Db::table('reversals').' WHERE id=%d',$rid)),
             'stock'=>(float)$wpdb->get_var(
                 'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
-                ' WHERE company_id=1 AND branch_id=1 AND product_id=1099 AND custodian_key=0'),
+                ' WHERE company_id=1 AND branch_id=1 AND product_id='.(int)$productId.' AND custodian_key=0'),
             'purchase_reversal_moves'=>(int)$wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
                 " WHERE source_type='purchase_bill_reversal' AND source_id=%d",$billId)),
@@ -2191,8 +2192,8 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
 
     // One unit has left the warehouse: no full bill cancellation is allowed
     // until all original quantity becomes physically available to reverse.
-    StockService::move($buyer,1,1099,null,null,'OUT',1,40,
-        'uat_purchase_return_unavailable',1099);
+    StockService::move($buyer,1,$productId,null,null,'OUT',1,40,
+        'uat_purchase_return_unavailable',$productId);
     $beforeShortage=$snapshot();
     try {
         uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
@@ -2203,8 +2204,8 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
     if($snapshot()!==$beforeShortage)
         throw new RuntimeException('Failed stock reversal partially mutated GL, stock, bill or audit');
 
-    StockService::move($buyer,1,1099,null,null,'IN',1,40,
-        'uat_purchase_return_restored',1099);
+    StockService::move($buyer,1,$productId,null,null,'IN',1,40,
+        'uat_purchase_return_restored',$productId);
     $beforeSuccess=$snapshot();
     $result=uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
     $afterSuccess=$snapshot();
