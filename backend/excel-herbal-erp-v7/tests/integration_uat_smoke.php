@@ -1511,5 +1511,133 @@ uat_case('uat_finance_reversal_capability_and_branch_scope', function () use ($w
     if($state!=='approved')throw new RuntimeException('Denied reversal modified source state');
 });
 
+
+uat_case('uat_purchase_supplier_bill_payment_finite_and_ledger_atomicity', function () use ($wpdb) {
+    // Synthetic, disposable CI MariaDB only. Guard direct API/service callers
+    // from NAN/INF quantities, costs and payments before stock/GL mutations.
+    $buyer=uat_actor(20,[1,2],[
+        Capabilities::PURCHASE_CREATE,Capabilities::SUPPLIER_PAYMENT,
+    ],'SYSADMIN');
+    $supplier=uat_dispatch('purchase.supplier_create',$buyer,[
+        'name'=>'Synthetic Purchase Finance Guard Supplier',
+        'mobile'=>'9000000920',
+    ]);
+    $sid=(int)$supplier['id'];
+    // Original UAT accounting fixture lacks AP; this isolated last case
+    // adds the canonical payable account without touching live Office.
+    uat_insert($wpdb,'accounts',[
+        'id'=>11,'company_id'=>1,'code'=>'AP','name'=>'Accounts Payable',
+        'type'=>'liability','subtype'=>null,'active'=>1,
+    ]);
+    $snapshot=static function()use($wpdb):array {
+        return [
+            'purchase_bills'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('purchase_bills')),
+            'purchase_bill_lines'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('purchase_bill_lines')),
+            'supplier_payments'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('supplier_payments')),
+            'purchase_moves'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type='purchase_bill'"),
+            'purchase_journals'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type='purchase_bill'"),
+            'payment_journals'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type='supplier_payment'"),
+            'purchase_audits'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action='purchase_bill.post'"),
+            'payment_audits'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action='supplier_payment.post'"),
+            'warehouse'=>(float)$wpdb->get_var(
+                'SELECT quantity FROM '.Db::table('stock_balances').
+                ' WHERE company_id=1 AND branch_id=1 AND product_id=100'.
+                ' AND batch_key=0 AND custodian_key=0'),
+        ];
+    };
+    foreach([
+        ['nan_qty',NAN,40.0],
+        ['inf_qty',INF,40.0],
+        ['negative_inf_qty',-INF,40.0],
+        ['nan_cost',2.0,NAN],
+        ['inf_cost',2.0,INF],
+        ['negative_inf_cost',2.0,-INF],
+        ['overflow_total',1.0e308,2.0],
+    ] as [$case,$qty,$cost]) {
+        $before=$snapshot();
+        try {
+            uat_dispatch('purchase.bill',$buyer,[
+                'branch_id'=>1,'supplier_id'=>$sid,
+                'bill_no'=>'UAT-PURCHASE-INVALID-'.$case,
+                'bill_date'=>uat_date(),
+                'lines'=>[['product_id'=>100,'quantity'=>$qty,'unit_cost'=>$cost]],
+            ]);
+            throw new RuntimeException('Invalid supplier purchase was posted: '.$case);
+        }catch(DomainException $err){
+            if($err->codeKey!=='purchase_amount_invalid'||$err->httpStatus!==422)
+                throw new RuntimeException('Unexpected purchase denial: '.$case.
+                    ' ('.$err->codeKey.': '.$err->httpStatus.')',0,$err);
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Invalid '.$case.' changed stock, purchase, GL or audit');
+    }
+    $beforeValid=$snapshot();
+    $bill=uat_dispatch('purchase.bill',$buyer,[
+        'branch_id'=>1,'supplier_id'=>$sid,'bill_no'=>'UAT-PURCHASE-FINITE-001',
+        'bill_date'=>uat_date(),
+        'lines'=>[['product_id'=>100,'quantity'=>2,'unit_cost'=>40]],
+    ]);
+    $billId=(int)$bill['id'];
+    $afterValid=$snapshot();
+    if(abs((float)$bill['total_amount']-80)>.005||
+       abs((float)$bill['outstanding_amount']-80)>.005||
+       $afterValid['purchase_bills']!==$beforeValid['purchase_bills']+1||
+       $afterValid['purchase_bill_lines']!==$beforeValid['purchase_bill_lines']+1||
+       $afterValid['purchase_moves']!==$beforeValid['purchase_moves']+1||
+       $afterValid['purchase_journals']!==$beforeValid['purchase_journals']+1||
+       abs($afterValid['warehouse']-$beforeValid['warehouse']-2)>.001)
+        throw new RuntimeException('Legitimate Purchase bill stock and AP posting mismatch');
+    foreach([
+        ['nan',NAN],['inf',INF],['negative_inf',-INF],
+        ['zero',0.0],['negative',-1.0],['rounds_to_zero',0.001],
+    ] as [$case,$amount]) {
+        $before=$snapshot();
+        $outstanding=(float)$wpdb->get_var($wpdb->prepare(
+            'SELECT outstanding_amount FROM '.Db::table('purchase_bills').
+            ' WHERE id=%d',$billId));
+        try {
+            uat_dispatch('purchase.payment',$buyer,[
+                'purchase_bill_id'=>$billId,'amount'=>$amount,
+                'payment_account_id'=>1,
+            ]);
+            throw new RuntimeException('Invalid supplier payment posted: '.$case);
+        }catch(DomainException $err){
+            if($err->codeKey!=='supplier_payment_amount_invalid'||$err->httpStatus!==422)
+                throw new RuntimeException('Unexpected supplier payment denial: '.$case.
+                    ' ('.$err->codeKey.': '.$err->httpStatus.')',0,$err);
+        }
+        $still=(float)$wpdb->get_var($wpdb->prepare(
+            'SELECT outstanding_amount FROM '.Db::table('purchase_bills').
+            ' WHERE id=%d',$billId));
+        if($snapshot()!==$before||abs($still-$outstanding)>.005)
+            throw new RuntimeException('Rejected supplier '.$case.
+                ' payment changed AP, stock, GL or audit');
+    }
+    $paid=uat_dispatch('purchase.payment',$buyer,[
+        'purchase_bill_id'=>$billId,'amount'=>30,'payment_account_id'=>1,
+    ]);
+    $outstanding=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT outstanding_amount FROM '.Db::table('purchase_bills').
+        ' WHERE id=%d',$billId));
+    $afterPaid=$snapshot();
+    if(($paid['status']??'')!=='posted'||abs((float)$paid['amount']-30)>.005||
+       abs($outstanding-50)>.005||
+       $afterPaid['supplier_payments']!==$afterValid['supplier_payments']+1||
+       $afterPaid['payment_journals']!==$afterValid['payment_journals']+1||
+       $afterPaid['payment_audits']!==$afterValid['payment_audits']+1||
+       abs($afterPaid['warehouse']-$afterValid['warehouse'])>.001)
+        throw new RuntimeException('Legitimate supplier payment AP/GL/stock split mismatch');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
