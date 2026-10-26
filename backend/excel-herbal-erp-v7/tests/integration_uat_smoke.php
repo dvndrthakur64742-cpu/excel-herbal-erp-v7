@@ -773,6 +773,48 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
                 ' Final Post changed cycle, settlement, stock, GL, performance or audit');
         }
     }
+    // Final Post must revalidate the submitted snapshot, even when the
+    // employee's Evening Submit originally passed. Synthetic direct SQL
+    // represents a stale/tampered line/header between maker and checker.
+    $closingLineId=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT id FROM '.Db::table('evening_lines').
+        ' WHERE evening_settlement_id=%d LIMIT 1',$eveningId));
+    foreach([
+        ['name'=>'quantity_drift','table'=>'evening_lines','id'=>$closingLineId,
+            'column'=>'retail_quantity','corrupt'=>3,'restore'=>2,
+            'code'=>'evening_quantities_mismatch','cash'=>200,'upi'=>160],
+        ['name'=>'extended_price_drift','table'=>'evening_lines','id'=>$closingLineId,
+            'column'=>'total_amount','corrupt'=>350,'restore'=>360,
+            'code'=>'evening_totals_mismatch','cash'=>200,'upi'=>160],
+        ['name'=>'rate_drift','table'=>'evening_lines','id'=>$closingLineId,
+            'column'=>'retail_rate','corrupt'=>95,'restore'=>100,
+            'code'=>'evening_totals_mismatch','cash'=>200,'upi'=>160],
+        ['name'=>'header_drift','table'=>'evening_settlements','id'=>$eveningId,
+            'column'=>'expected_amount','corrupt'=>350,'restore'=>360,
+            'code'=>'evening_totals_mismatch','cash'=>190,'upi'=>160],
+    ] as $corrupt) {
+        if($wpdb->update(Db::table($corrupt['table']),
+            [$corrupt['column']=>$corrupt['corrupt']],['id'=>$corrupt['id']])!==1)
+            throw new RuntimeException('Could not corrupt disposable UAT fixture '.$corrupt['name']);
+        try {
+            $before=$snapshotRejectedFinalPost();
+            try {
+                uat_dispatch('daily.final_post',$manager,[
+                    'id'=>$cycle,'cash'=>$corrupt['cash'],'upi'=>$corrupt['upi'],
+                ]);
+                throw new RuntimeException('Stale submitted closing final-posted: '.$corrupt['name']);
+            }catch(DomainException $error){
+                if($error->codeKey!==$corrupt['code']||$error->httpStatus!==409)
+                    throw new RuntimeException('Unexpected denial for '.$corrupt['name'].': '.$error->codeKey,0,$error);
+            }
+            if($snapshotRejectedFinalPost()!==$before)
+                throw new RuntimeException('Stale '.$corrupt['name'].
+                    ' Final Post wrote stock, journal, points, audit or changed settlement state');
+        } finally {
+            $wpdb->update(Db::table($corrupt['table']),
+                [$corrupt['column']=>$corrupt['restore']],['id'=>$corrupt['id']]);
+        }
+    }
     // An internal/REST caller can pass PHP NAN or INF even when ordinary
     // Flutter text fields cannot. Such values must never bypass <0 or
     // total-mismatch comparisons, contaminate GL or complete the cycle.
