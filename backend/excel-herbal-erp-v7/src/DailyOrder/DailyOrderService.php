@@ -246,7 +246,8 @@ final class DailyOrderService{
   $db=Db::wpdb();
   $issued=(array)$db->get_results($db->prepare(
    "SELECT il.id,il.product_id,il.batch_id,il.quantity,il.sale_price_snapshot,".
-   "il.purchase_cost_snapshot,il.points_snapshot,il.salary_fund_snapshot ".
+   "il.purchase_cost_snapshot,il.points_snapshot,il.salary_fund_snapshot,".
+   "il.ho_amount_snapshot,il.bm_profit_snapshot,il.office_expense_snapshot ".
    "FROM ".Db::table('daily_issue_lines')." il JOIN ".Db::table('daily_requests').
    " dr ON dr.id=il.daily_request_id WHERE dr.daily_cycle_id=%d",$cycleId
   ),ARRAY_A);
@@ -288,6 +289,20 @@ final class DailyOrderService{
    $salaryDiscount=round($discount-round($discount/2,2),2);
    $pointsExpected=round($sold*$pointsUnit,2);
    $salaryExpected=round($sold*$salaryUnit-$salaryDiscount,2);
+   // Preserve the existing approved wholesale-discount split: BM takes
+   // rounded half, Salary Fund receives the exact remaining paise.
+   $bmDiscount=round($discount/2,2);
+   $hoExpected=round($sold*(float)$original['ho_amount_snapshot'],2);
+   $bmExpected=round($sold*(float)$original['bm_profit_snapshot']-$bmDiscount,2);
+   $officeExpected=round($sold*(float)$original['office_expense_snapshot'],2);
+   $hoActual=(float)$line['ho_amount'];
+   $bmActual=(float)$line['bm_profit'];
+   $officeActual=(float)$line['office_expense'];
+   foreach([$hoExpected,$bmExpected,$officeExpected,$hoActual,$bmActual,$officeActual] as$value) {
+    if(!is_finite($value))throw new DomainException('Closing allocations are non-finite.','evening_issue_allocation_mismatch',409);
+   }
+   if(abs($hoActual-$hoExpected)>.005||abs($bmActual-$bmExpected)>.005||abs($officeActual-$officeExpected)>.005)
+    throw new DomainException('Closing HO, BM or Office allocation differs from issue.','evening_issue_allocation_mismatch',409);
    $pointsActual=(float)$line['points'];
    $salaryActual=(float)$line['salary_fund'];
    if(!is_finite($pointsUnit)||!is_finite($salaryUnit)||

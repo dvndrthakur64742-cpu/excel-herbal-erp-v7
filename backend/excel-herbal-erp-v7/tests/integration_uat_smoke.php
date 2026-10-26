@@ -918,6 +918,45 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
     }
     if(!$sourceSnapshot||!$closingSnapshot)
         throw new RuntimeException('Missing source snapshots for Phase 1 Final Post UAT');
+    // Compensating allocations can preserve the header and line sales
+    // total while silently moving money between HO/BM/Office. The maker's
+    // stored amounts must equal the immutable source allocation snapshots.
+    $allocationOriginal=$wpdb->get_row($wpdb->prepare(
+        'SELECT ho_amount,bm_profit,office_expense FROM '.Db::table('evening_lines').
+        ' WHERE id=%d',$closingLineId
+    ),ARRAY_A);
+    if(!$allocationOriginal)throw new RuntimeException('Closing allocation fixture missing');
+    foreach([
+        ['name'=>'ho_to_bm_shift','changes'=>[
+            'ho_amount'=>((float)$allocationOriginal['ho_amount'])+1,
+            'bm_profit'=>((float)$allocationOriginal['bm_profit'])-1,
+        ]],
+        ['name'=>'office_to_bm_shift','changes'=>[
+            'office_expense'=>((float)$allocationOriginal['office_expense'])+1,
+            'bm_profit'=>((float)$allocationOriginal['bm_profit'])-1,
+        ]],
+    ] as $invalidAllocation) {
+        $change=$invalidAllocation['changes'];
+        if($wpdb->update(Db::table('evening_lines'),$change,['id'=>$closingLineId])!==1)
+            throw new RuntimeException('Unable to seed compensated allocation '.$invalidAllocation['name']);
+        try {
+            $before=$snapshotRejectedFinalPost();
+            try {
+                uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>160]);
+                throw new RuntimeException('Compensating allocation posted: '.$invalidAllocation['name']);
+            } catch(DomainException $error) {
+                if($error->httpStatus!==409||$error->codeKey!=='evening_issue_allocation_mismatch')
+                    throw new RuntimeException('Wrong allocation denial '.$invalidAllocation['name'].
+                        ': '.$error->codeKey,0,$error);
+            }
+            if($snapshotRejectedFinalPost()!==$before)
+                throw new RuntimeException('Compensating allocation altered stock, GL, performance or audit');
+        } finally {
+            $restore=[];
+            foreach(array_keys($change) as $column)$restore[$column]=$allocationOriginal[$column];
+            $wpdb->update(Db::table('evening_lines'),$restore,['id'=>$closingLineId]);
+        }
+    }
     // An internal/REST caller can pass PHP NAN or INF even when ordinary
     // Flutter text fields cannot. Such values must never bypass <0 or
     // total-mismatch comparisons, contaminate GL or complete the cycle.
