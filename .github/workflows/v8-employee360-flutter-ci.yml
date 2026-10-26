@@ -41,6 +41,8 @@ on:
       - 'flutter-app/lib/widgets/v8_evening_closing_line.dart'
       - 'flutter-app/lib/screens/my_work/my_work_daily_closing.dart'
       - 'flutter-app/test/v8_evening_settlement_ui_test.dart'
+      - 'flutter-app/lib/widgets/v8_reported_tender_disclosure.dart'
+      - 'flutter-app/test/v8_reported_tender_review_ui_test.dart'
       - 'flutter-app/lib/screens/my_work/my_work_screen.dart'
       - 'flutter-app/lib/screens/my_work/my_work_daily_overview.dart'
       - 'flutter-app/lib/screens/inventory/inventory_screen.dart'
@@ -129,6 +131,9 @@ jobs:
       - name: Manager Notification Center reviewer-only drafts Flutter contract and compile
         working-directory: flutter-app
         run: flutter test test/manager_notification_center_contract_test.dart
+      - name: V8 Finance Final Post reported Cash UPI proof disclosure mobile UI
+        working-directory: flutter-app
+        run: flutter test test/v8_reported_tender_review_ui_test.dart
       - name: V8 Evening Closing wholesale and return line responsive UI
         working-directory: flutter-app
         run: flutter test test/v8_evening_settlement_ui_test.dart

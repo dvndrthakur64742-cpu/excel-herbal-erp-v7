@@ -21,6 +21,7 @@ import '../../widgets/evening_order_picker.dart';
 import '../../widgets/gps_route_view.dart';
 import '../../widgets/v8_daily_order_board.dart';
 import '../../widgets/v8_evening_closing_line.dart';
+import '../../widgets/v8_reported_tender_disclosure.dart';
 
 part 'my_work_attendance.dart';
 part 'my_work_leave_visit.dart';

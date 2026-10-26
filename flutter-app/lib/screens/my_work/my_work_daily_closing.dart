@@ -579,8 +579,10 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
           calculatedExpected,
         );
 
-    final cash = TextEditingController(text: expected.toStringAsFixed(2));
-    final upi = TextEditingController(text: '0');
+    // Deliberate reported tender classification, never an all-Cash default.
+    final cash = TextEditingController();
+    final upi = TextEditingController();
+    var proofAcknowledged = false;
     bool? confirmed;
 
     try {
@@ -589,13 +591,21 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, setLocal) {
-            final cashValue = BusinessFormat.number(cash.text)?.toDouble() ?? 0;
-            final upiValue = BusinessFormat.number(upi.text)?.toDouble() ?? 0;
-            final deposit = cashValue + upiValue;
-            final matched =
+            final parsedCash = BusinessFormat.number(cash.text);
+            final parsedUpi = BusinessFormat.number(upi.text);
+            final cashValue = parsedCash?.toDouble() ?? 0;
+            final upiValue = parsedUpi?.toDouble() ?? 0;
+            final reportedTotal = cashValue + upiValue;
+            final matched = parsedCash != null && parsedUpi != null &&
                 DailyOrderMath.paymentComponentsValid(cashValue, upiValue) &&
-                    reconciliationOk &&
-                    DailyOrderMath.depositMatches(deposit, expected);
+                reconciliationOk &&
+                DailyOrderMath.depositMatches(reportedTotal, expected);
+            final canConfirm = V8ReportedTenderGuard.canConfirm(
+              cashText: cash.text,
+              upiText: upi.text,
+              amountsValid: matched,
+              acknowledged: proofAcknowledged,
+            );
 
             Widget paymentField({
               required TextEditingController controller,
@@ -722,7 +732,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               children: [
                                 const Expanded(
                                   child: Text(
-                                    'Expected Deposit',
+                                    'Expected Reported Sales',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -749,7 +759,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'Deposit Breakdown',
+                        'Reported Cash / UPI Breakdown',
                         style: Theme.of(context)
                             .textTheme
                             .titleMedium
@@ -763,13 +773,13 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               children: [
                                 paymentField(
                                   controller: cash,
-                                  label: 'Cash Deposit',
+                                  label: 'Reported Cash Amount',
                                   icon: Icons.payments_outlined,
                                 ),
                                 const SizedBox(height: 10),
                                 paymentField(
                                   controller: upi,
-                                  label: 'Online / UPI',
+                                  label: 'Reported Online / UPI',
                                   icon: Icons.account_balance_outlined,
                                 ),
                               ],
@@ -780,7 +790,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               Expanded(
                                 child: paymentField(
                                   controller: cash,
-                                  label: 'Cash Deposit',
+                                  label: 'Reported Cash Amount',
                                   icon: Icons.payments_outlined,
                                 ),
                               ),
@@ -788,13 +798,19 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               Expanded(
                                 child: paymentField(
                                   controller: upi,
-                                  label: 'Online / UPI',
+                                  label: 'Reported Online / UPI',
                                   icon: Icons.account_balance_outlined,
                                 ),
                               ),
                             ],
                           );
                         },
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Enter BOTH amounts manually (use 0 where applicable). '
+                        'Cash handover and bank verification are not inferred.',
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 12),
                       Container(
@@ -819,7 +835,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Total Cash Deposit = Cash + Online = ${BusinessFormat.money(deposit)}\nRequired ${BusinessFormat.money(expected)}',
+                                'Reported Cash + UPI = ${BusinessFormat.money(reportedTotal)}\nExpected ${BusinessFormat.money(expected)}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   color: matched
@@ -829,6 +845,13 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      V8ReportedTenderDisclosure(
+                        acknowledged: proofAcknowledged,
+                        onChanged: (value) => setLocal(
+                          () => proofAcknowledged = value,
                         ),
                       ),
                     ],
@@ -841,8 +864,9 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                   child: const Text('Cancel'),
                 ),
                 FilledButton.icon(
-                  onPressed:
-                      matched ? () => Navigator.pop(dialogContext, true) : null,
+                  onPressed: canConfirm
+                      ? () => Navigator.pop(dialogContext, true)
+                      : null,
                   icon: const Icon(Icons.post_add_outlined),
                   label: const Text('Final Post'),
                 ),
@@ -853,8 +877,22 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
       );
 
       if (confirmed == true) {
-        final c = BusinessFormat.number(cash.text)?.toDouble() ?? 0;
-        final u = BusinessFormat.number(upi.text)?.toDouble() ?? 0;
+        final cAmount = BusinessFormat.number(cash.text);
+        final uAmount = BusinessFormat.number(upi.text);
+        if (cAmount == null || uAmount == null ||
+            !V8ReportedTenderGuard.canConfirm(
+              cashText: cash.text,
+              upiText: upi.text,
+              amountsValid: true,
+              acknowledged: proofAcknowledged,
+            )) {
+          throw Exception(
+            'Final Post requires entered Cash/UPI and acknowledgement '
+            'that cashier and independent bank proof remain pending.',
+          );
+        }
+        final c = cAmount.toDouble();
+        final u = uAmount.toDouble();
         if (!DailyOrderMath.finalPostAllowed(
           cash: c,
           online: u,
@@ -863,14 +901,14 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
           serverExpected: backendExpected,
         )) {
           throw Exception(
-            'Final Post blocked: payment components aur product/server reconciliation verify karein.',
+            'Final Post blocked: reported Cash/UPI and product/server totals must reconcile.',
           );
         }
         await api.post(ApiPaths.finalPost(id), data: {'cash': c, 'upi': u});
         if (mounted) {
           _setFeatureState(() {
             refresh++;
-            message = 'Daily Order completed and posted.';
+            message = 'Daily Order posted to ledger. Cashier handover and bank UPI proof remain unverified.';
           });
         }
       }

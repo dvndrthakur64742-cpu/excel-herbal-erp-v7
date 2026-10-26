@@ -55,3 +55,11 @@
 - Current development enhancement: mobile-friendly per-product Return/Wholesale Qty/Rate cards in Evening Closing. This is presentation-only. Original whole-PCS parsing, issued-stock checks, retailer rate constraints, unsaved-draft exit, and canonical Save/Submit REST endpoints are unchanged.
 - Flutter widget coverage targets widths 320, 360, 390, 768 and 1366. Exact new commit/run ID and acceptance outcome to be verified before promoting this implementation to `CI_VERIFIED`.
 - Office is not sanitized and active mobile sessions are not confirmed zero; therefore **do not auto-deploy this next build**. Actual authenticated Employee/ASM/Manager staging acceptance and cashier/stock reconciliation still require an isolated safe UAT procedure.
+
+## 2026-10-26 — Phase 1 Finance Checker final-post proof-labeling hardening
+
+- Corrected the critical UX distinction between **reported Cash/UPI entries** and **independently verified custody or bank settlement**. The current canonical V7 Final Post records GL/stock/performance but is not evidence that cash was handed to an independent cashier or UPI settled at a bank.
+- The Finance Final Post dialog now starts with both Cash and UPI amounts blank (no fabricated all-Cash default), requires the checker to type both amounts explicitly (zero is allowed), validates both parsed numbers and exact source/server sale reconciliation, and requires an explicit acknowledgement of missing independent proof before enabling Final Post.
+- The same guard is rechecked before the original `ApiPaths.finalPost(id)` call. The canonical backend POST payload, roles, maker-checker rules and accounting/stock writers **are unchanged**.
+- Added accessible disclosure widget tests for 320/390/768/1366px screen widths and 1.25 text scale and CI contract checks. These are development acceptance tests, not real cash-receipt or bank-proof verification.
+- No Office deploy or financial mutation. Existing Office staging remains the earlier read-only V8 preview. Human role/device UAT, independent cashier receipt, bank confirmation, rollback drill, sanitized rehearsal and accounting sign-off remain open.
