@@ -63,3 +63,11 @@
 - The same guard is rechecked before the original `ApiPaths.finalPost(id)` call. The canonical backend POST payload, roles, maker-checker rules and accounting/stock writers **are unchanged**.
 - Added accessible disclosure widget tests for 320/390/768/1366px screen widths and 1.25 text scale and CI contract checks. These are development acceptance tests, not real cash-receipt or bank-proof verification.
 - No Office deploy or financial mutation. Existing Office staging remains the earlier read-only V8 preview. Human role/device UAT, independent cashier receipt, bank confirmation, rollback drill, sanitized rehearsal and accounting sign-off remain open.
+
+## 2026-10-26 — Daily Order role-visible Additional Stock closing hold
+
+- Source: `DailyOrderWorkflow.additionalClosingHold`; `V8DailyOrderCard`; original authorised `my_work_daily_overview.dart`. The issued cycle clearly shows the missing step when an additional request is `draft`, `submitted` or `approved`. The view is **informational only**; it never grants approval, stock issue, branch access or Final Post rights.
+- The original canonical V7 API retains the authoritative pending-additional check; the 2026-10-26 disposable MariaDB lifecycle tested submitted/approved holds without stock, settlement or GL mutations.
+- The UI regression suite verifies real card layout at 320/390/768/1366px, original action callbacks, no hold after completed/cancelled additional requests, and source wiring.
+- **Provisional engineering planning estimate (not acceptance percentage): roughly 55–60% developed**, based on original 22 October ~55% planning baseline, subsequent UI/regression work and ten scoped workstreams above. This is *not an audited numerator*, and should not be confused with the narrow earlier Finance review 3/5 checkpoints. The proposed 100-point weights remain unapproved and no certified overall completion percentage exists. Production readiness is separately `NOT SIGNED OFF`, with real role/device UAT, cashier receipt, bank UPI proof and safe restoration still open.
+- Deployed Office V8 read-only preview stays at source `54b791a327ceccabce9008916fb41b077a89de4f`; development UI additions are NOT automatically deployed. No live business posting or DB mutation.

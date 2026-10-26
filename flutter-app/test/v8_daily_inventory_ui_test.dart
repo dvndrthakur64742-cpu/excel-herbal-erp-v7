@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:excel_herbal_erp/core/daily_order_workflow.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:excel_herbal_erp/widgets/v8_daily_order_board.dart';
@@ -90,4 +92,70 @@ void main() {
     expect(find.text('2026-10-24'), findsOneWidget);
     expect(find.textContaining('total stock'), findsNothing);
   });
+  test('additional-stock closing hold uses only real issued and pending statuses', () {
+    final states = <String, String>{
+      'draft': 'draft pending',
+      'submitted': 'approval pending',
+      'approved': 'issue pending',
+    };
+    for (final entry in states.entries) {
+      final hold = DailyOrderWorkflow.additionalClosingHold(
+        cycle(17, 'issued', additional: entry.key),
+      );
+      expect(hold, contains(entry.value));
+      expect(hold, contains('before Evening Closing.'));
+    }
+    for (final status in ['', 'issued', 'rejected', 'cancelled']) {
+      expect(DailyOrderWorkflow.additionalClosingHold(
+        cycle(17, 'issued', additional: status)), isNull);
+    }
+    expect(DailyOrderWorkflow.additionalClosingHold(
+      cycle(17, 'completed', additional: 'submitted')), isNull);
+  });
+
+  for (final width in [320.0, 390.0, 768.0, 1366.0]) {
+    testWidgets('issued additional stock hold fits work-card at ${width}px',
+        (tester) async {
+      await tester.binding.setSurfaceSize(Size(width, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var opened = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: SizedBox(
+          height: 235,
+          width: double.infinity,
+          child: V8DailyOrderCard(
+            id: 82, employee: 'Field Employee', branch: 'Authorised Branch',
+            businessDate: '2026-10-26',
+            statusBadge: const Text('Issued · Pending'),
+            closingHold: DailyOrderWorkflow.additionalClosingHold(
+              cycle(82, 'issued', additional: 'approved')),
+            action: TextButton(
+              onPressed: () => opened++,
+              child: const Text('View'),
+            ),
+            onOpen: () => opened++,
+          ),
+        )),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('v8-additional-closing-hold-82')),
+          findsOneWidget);
+      expect(find.text('View'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('View'));
+      expect(opened, 1);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  test('Daily Order list integrates pending status message without mutating actions', () {
+    final code = File('lib/screens/my_work/my_work_daily_overview.dart')
+        .readAsStringSync();
+    expect(code, contains('DailyOrderWorkflow.additionalClosingHold(row)'));
+    expect(code, contains('DailyOrderWorkflow.canApproveRequest('));
+    expect(code, contains('DailyOrderWorkflow.canIssueRequest('));
+    expect(code, contains("additionalRequestStatus.isEmpty"));
+    expect(code, contains("'final_post'"));
+  });
+
 }

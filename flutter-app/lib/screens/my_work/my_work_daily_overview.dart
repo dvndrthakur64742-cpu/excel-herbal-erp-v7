@@ -115,6 +115,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
       branch: '${row['branch_name'] ?? app.currentBranchName}',
       businessDate: BusinessFormat.date(row['business_date']),
       statusBadge: _dailyRowStatusChip(row),
+      closingHold: DailyOrderWorkflow.additionalClosingHold(row),
       action: _dailyActionsImpl(row, app, id),
       onOpen: () => _MyWorkDaily(this)._showDaily(id),
     );

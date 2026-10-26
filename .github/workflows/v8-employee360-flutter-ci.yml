@@ -46,6 +46,7 @@ on:
       - 'flutter-app/lib/screens/my_work/my_work_screen.dart'
       - 'flutter-app/lib/screens/my_work/my_work_daily_overview.dart'
       - 'flutter-app/lib/screens/inventory/inventory_screen.dart'
+      - 'flutter-app/lib/core/daily_order_workflow.dart'
       - 'flutter-app/lib/widgets/v8_daily_order_board.dart'
       - 'flutter-app/lib/widgets/v8_inventory_banner.dart'
       - 'flutter-app/test/v8_daily_inventory_ui_test.dart'

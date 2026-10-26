@@ -98,6 +98,7 @@ class V8DailyOrderCard extends StatelessWidget {
     super.key, required this.id, required this.employee,
     required this.branch, required this.businessDate,
     required this.statusBadge, required this.action, required this.onOpen,
+    this.closingHold,
   });
   final int id;
   final String employee;
@@ -106,6 +107,8 @@ class V8DailyOrderCard extends StatelessWidget {
   final Widget statusBadge;
   final Widget action;
   final VoidCallback onOpen;
+  /// A display-only hint from the already authorised server cycle, not a permission grant.
+  final String? closingHold;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -143,6 +146,31 @@ class V8DailyOrderCard extends StatelessWidget {
             const SizedBox(height: 5),
             Text(branch, maxLines: 1, overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall),
+            if (closingHold != null) ...[
+              const SizedBox(height: 4),
+              Tooltip(
+                message: closingHold!,
+                child: Row(
+                  key: ValueKey('v8-additional-closing-hold-$id'),
+                  children: [
+                    Icon(Icons.lock_clock_outlined, size: 15,
+                      color: Theme.of(context).colorScheme.error),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        closingHold!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const Spacer(),
             const Divider(height: 15),
             Align(alignment: Alignment.centerLeft, child: action),
