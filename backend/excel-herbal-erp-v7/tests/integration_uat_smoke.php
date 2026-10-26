@@ -1217,6 +1217,178 @@ uat_case('uat_inventory_adjustment_quarantine_nonfinite_zero_mutation', function
 });
 
 
+
+uat_case('uat_inventory_adjustment_maker_checker_gain_loss_rejection_and_atomic_rollback', function () use ($wpdb) {
+    // Genuine isolated MariaDB. Model positive/negative adjustments through
+    // the original inventory REST dispatch and original Stock/GL writers.
+    $maker=uat_actor(30,[1,2],[Capabilities::ADJ_CREATE],'SYSADMIN');
+    $checker=uat_actor(20,[1,2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $outside=uat_actor(20,[2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $noPermission=uat_actor(20,[1,2],[Capabilities::INVENTORY_VIEW],'SYSADMIN');
+    $selfChecker=uat_actor(30,[1,2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $snapshot=static function(?int $id=null)use($wpdb):array{
+        $state=$id===null?null:$wpdb->get_row($wpdb->prepare(
+            'SELECT status,decided_by,journal_entry_id FROM '.Db::table('stock_adjustments').
+            ' WHERE id=%d',$id),ARRAY_A);
+        return [
+            'state'=>$state,
+            'header_count'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_adjustments')),
+            'line_count'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_adjustment_lines')),
+            'movement_count'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type='stock_adjustment'"),
+            'journal_count'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type='stock_adjustment'"),
+            'audit_count'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action LIKE 'stock_adjustment.%'"),
+            'warehouse_qty'=>(float)$wpdb->get_var(
+                'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+                ' WHERE company_id=1 AND branch_id=1 AND product_id=100'.
+                ' AND batch_key=0 AND custodian_key=0'),
+        ];
+    };
+    // Explicit negative unit-cost must not silently turn into an average
+    // inventory cost or create an adjustment request.
+    $base=$snapshot();
+    try {
+        uat_dispatch('inventory.adjustment',$maker,[
+            'branch_id'=>1,'reason'=>'Negative cost must not fallback',
+            'lines'=>[['product_id'=>100,'quantity_delta'=>2,'unit_cost'=>-5]],
+        ]);
+        throw new RuntimeException('Explicit negative adjustment cost was accepted');
+    }catch(DomainException $e){
+        if($e->codeKey!=='adjustment_cost_invalid'||$e->httpStatus!==422)throw $e;
+    }
+    if($snapshot()!==$base)
+        throw new RuntimeException('Invalid adjustment cost created draft, stock, GL or audit');
+
+    $positive=uat_dispatch('inventory.adjustment',$maker,[
+        'branch_id'=>1,'reason'=>'Counted warehouse surplus evidence',
+        'lines'=>[['product_id'=>100,'quantity_delta'=>2,'unit_cost'=>40]],
+    ]);
+    $posId=(int)$positive['id'];
+    $pending=$snapshot($posId);
+    if(($pending['state']['status']??'')!=='pending'||
+       $pending['movement_count']!==$base['movement_count']||
+       $pending['journal_count']!==$base['journal_count']||
+       abs($pending['warehouse_qty']-$base['warehouse_qty'])>.001)
+        throw new RuntimeException('Pending adjustment posted stock before approval');
+    foreach([
+        ['maker_self',$selfChecker,'maker_checker_required',409],
+        ['outside_branch',$outside,'branch_forbidden',403],
+        ['missing_capability',$noPermission,'permission_denied',403],
+    ] as [$name,$actor,$key,$http]) {
+        $before=$snapshot($posId);
+        try {
+            uat_dispatch('inventory.adjustment_decision',$actor,[
+                'id'=>$posId,'approve'=>true,
+            ]);
+            throw new RuntimeException('Invalid adjustment approver accepted: '.$name);
+        }catch(DomainException $e){
+            if($e->codeKey!==$key||$e->httpStatus!==$http)
+                throw new RuntimeException('Incorrect adjustment permission error '.$name.
+                    ': '.$e->codeKey.' '.$e->httpStatus,0,$e);
+        }
+        if($snapshot($posId)!==$before)
+            throw new RuntimeException('Denied approval '.$name.' changed inventory or journal');
+    }
+    $approved=uat_dispatch('inventory.adjustment_decision',$checker,[
+        'id'=>$posId,'approve'=>true,
+    ]);
+    $posJournal=(int)($approved['journal_entry_id']??0);
+    $afterPositive=$snapshot($posId);
+    if(($approved['status']??'')!=='approved'||$posJournal<1||
+       $afterPositive['movement_count']!==$pending['movement_count']+1||
+       $afterPositive['journal_count']!==$pending['journal_count']+1||
+       abs($afterPositive['warehouse_qty']-$pending['warehouse_qty']-2)>.001)
+        throw new RuntimeException('Approved stock gain not reflected in ledger/warehouse');
+    $amounts=static function(int $journalId)use($wpdb):array{
+        $rows=(array)$wpdb->get_results($wpdb->prepare(
+            'SELECT account_id,SUM(debit) debit,SUM(credit) credit FROM '.
+            Db::table('journal_lines').' WHERE journal_entry_id=%d GROUP BY account_id',$journalId
+        ),ARRAY_A);
+        $map=[];foreach($rows as $row)$map[(int)$row['account_id']]=[
+            'debit'=>(float)$row['debit'],'credit'=>(float)$row['credit'],
+        ];
+        return $map;
+    };
+    $gain=$amounts($posJournal);
+    if(abs(($gain[5]['debit']??0)-80)>.005||
+       abs(($gain[7]['credit']??0)-80)>.005||
+       abs(($gain[5]['credit']??0))>.005||
+       abs(($gain[7]['debit']??0))>.005)
+        throw new RuntimeException('Stock gain journal lacks Dr INVENTORY / Cr VARIANCE 80');
+
+    try {
+        uat_dispatch('inventory.adjustment_decision',$checker,['id'=>$posId,'approve'=>true]);
+        throw new RuntimeException('Second stock gain approval was allowed');
+    }catch(DomainException $e){
+        if($snapshot($posId)!==$afterPositive)
+            throw new RuntimeException('Duplicate stock gain approval changed GL or stock');
+    }
+
+    $rejected=uat_dispatch('inventory.adjustment',$maker,[
+        'branch_id'=>1,'reason'=>'Rejected discrepancy should not move stock',
+        'lines'=>[['product_id'=>100,'quantity_delta'=>1,'unit_cost'=>40]],
+    ]);
+    $rejectId=(int)$rejected['id'];
+    $rejectBefore=$snapshot($rejectId);
+    $denied=uat_dispatch('inventory.adjustment_decision',$checker,[
+        'id'=>$rejectId,'approve'=>false,
+    ]);
+    $rejectAfter=$snapshot($rejectId);
+    if(($denied['status']??'')!=='rejected'||
+       $rejectAfter['movement_count']!==$rejectBefore['movement_count']||
+       $rejectAfter['journal_count']!==$rejectBefore['journal_count']||
+       abs($rejectAfter['warehouse_qty']-$rejectBefore['warehouse_qty'])>.001)
+        throw new RuntimeException('Rejected adjustment mutated stock or GL');
+
+    // A pending negative adjustment above actual stock must roll back
+    // atomically: do not mark approved, record stock OUT, or write GL.
+    $short=uat_dispatch('inventory.adjustment',$maker,[
+        'branch_id'=>1,'reason'=>'Excess physical stock loss denial',
+        'lines'=>[['product_id'=>100,'quantity_delta'=>-1000000]],
+    ]);
+    $shortId=(int)$short['id'];
+    $shortBefore=$snapshot($shortId);
+    try {
+        uat_dispatch('inventory.adjustment_decision',$checker,[
+            'id'=>$shortId,'approve'=>true,
+        ]);
+        throw new RuntimeException('Stock-loss adjustment over warehouse count approved');
+    }catch(DomainException $e){
+        if($e->codeKey!=='insufficient_stock'||$e->httpStatus!==409)throw $e;
+    }
+    if($snapshot($shortId)!==$shortBefore)
+        throw new RuntimeException('Insufficient-stock approval partially changed stock, GL or status');
+
+    $loss=uat_dispatch('inventory.adjustment',$maker,[
+        'branch_id'=>1,'reason'=>'Counted warehouse shortage evidence',
+        'lines'=>[['product_id'=>100,'quantity_delta'=>-1]],
+    ]);
+    $lossId=(int)$loss['id'];
+    $lossBefore=$snapshot($lossId);
+    $lossResult=uat_dispatch('inventory.adjustment_decision',$checker,[
+        'id'=>$lossId,'approve'=>true,
+    ]);
+    $lossJournal=(int)($lossResult['journal_entry_id']??0);
+    $lossAfter=$snapshot($lossId);
+    $unitCost=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT unit_cost_snapshot FROM '.Db::table('stock_adjustment_lines').
+        ' WHERE adjustment_id=%d LIMIT 1',$lossId));
+    $expected=round($unitCost,2);
+    $lossAmounts=$amounts($lossJournal);
+    if(($lossResult['status']??'')!=='approved'||$lossJournal<1||
+       $lossAfter['movement_count']!==$lossBefore['movement_count']+1||
+       $lossAfter['journal_count']!==$lossBefore['journal_count']+1||
+       abs($lossAfter['warehouse_qty']-$lossBefore['warehouse_qty']+1)>.001||
+       abs(($lossAmounts[7]['debit']??0)-$expected)>.005||
+       abs(($lossAmounts[5]['credit']??0)-$expected)>.005)
+        throw new RuntimeException('Stock shortage missing correct Dr VARIANCE / Cr INVENTORY GL');
+});
+
 uat_case('uat_inventory_transfer_discrepancy_separate_checker_and_balanced_gl', function () use ($maker,$manager,$wpdb) {
     // Disposable MariaDB, genuine REST services: transfer shortage must be
     // reconciled once by a distinct checker authorized for BOTH branches.
