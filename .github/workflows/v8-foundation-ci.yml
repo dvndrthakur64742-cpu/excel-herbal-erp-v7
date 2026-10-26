@@ -45,6 +45,7 @@ on:
       - 'flutter-app/test/branch_daily_control_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/src/DailyOrder/DailyFieldStockAudit.php'
       - 'backend/excel-herbal-erp-v7/tests/daily_field_stock_audit_regression.php'
+      - 'backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Registers.php'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360PersonLedger.php'
       - 'backend/excel-herbal-erp-v7/src/Organization/Employee360Service.php'
@@ -189,7 +190,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo_mysql
+          extensions: pdo_mysql, mysqli
           coverage: none
       - name: Branch report submission and regional maker-checker REAL MariaDB UAT
         env:
@@ -245,3 +246,13 @@ jobs:
           V8_TEST_USER: v8
           V8_TEST_PASSWORD: v8
         run: php -d zend.assertions=1 -d assert.exception=1 v8/backend/tests/sale_tender_mariadb.php
+      - name: Phase 1 FULL canonical Employee ASM Daily Request Issue Evening and GL Employee360 real MariaDB UAT (disposable only)
+        env:
+          EH7_MARIADB_HOST: '127.0.0.1'
+          EH7_MARIADB_PORT: '3306'
+          EH7_MARIADB_USER: 'v8'
+          EH7_MARIADB_PASSWORD: 'v8'
+          EH7_MARIADB_DATABASE: 'v8_test'
+        run: |
+          php -l backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php
+          php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php

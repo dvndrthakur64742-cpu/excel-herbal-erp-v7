@@ -1213,10 +1213,45 @@ uat_case('uat_audit_daily_draft_edit_reject_and_additional_cancel', function () 
     uat_dispatch('daily.submit',$self,['id'=>$id]);
     uat_dispatch('daily.approve',$manager,['id'=>$request]);
     uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]]);
+    // Phase 1 fail-closed gate: a submitted or approved additional request
+    // must block Evening Closing without creating a settlement or movements.
+    // Read exact real MariaDB tables before/after each attempted write.
+    $assertPendingBlocksClosing=static function(string $stage)use($self,$wpdb,$id):void{
+        $ledgerBefore=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+            " WHERE source_type IN ('daily_sale','daily_return') AND source_id=%d",$id));
+        $settlementsBefore=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('evening_settlements').' WHERE daily_cycle_id=%d',$id));
+        $journalsBefore=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+            " WHERE source_type='daily_cycle' AND source_id=%d",$id));
+        try {
+            uat_dispatch('daily.evening_start',$self,['id'=>$id]);
+            throw new RuntimeException('Phase 1 '.$stage.' pending Additional Stock allowed Evening Closing');
+        }catch(DomainException $e){
+            if($e->codeKey!=='additional_request_pending'||$e->httpStatus!==409)throw $e;
+        }
+        $ledgerAfter=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+            " WHERE source_type IN ('daily_sale','daily_return') AND source_id=%d",$id));
+        $settlementsAfter=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('evening_settlements').' WHERE daily_cycle_id=%d',$id));
+        $journalsAfter=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+            " WHERE source_type='daily_cycle' AND source_id=%d",$id));
+        $cycleStatus=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$id));
+        if($cycleStatus!=='issued'||$ledgerAfter!==$ledgerBefore||
+           $settlementsAfter!==$settlementsBefore||$journalsAfter!==$journalsBefore) {
+            throw new RuntimeException('Phase 1 '.$stage.' denied closing mutated stock, settlement, journal or cycle');
+        }
+    };
     $extra=uat_dispatch('daily.additional',$self,['id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>1]]]);
+    $assertPendingBlocksClosing('submitted');
     uat_dispatch('daily.reject',$manager,['id'=>(int)$extra['id'],'reason'=>'Requested stock is not required']);
     $next=uat_dispatch('daily.additional',$self,['id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>1]]]);
     uat_dispatch('daily.approve',$manager,['id'=>(int)$next['id']]);
+    $assertPendingBlocksClosing('approved');
     uat_dispatch('daily.cancel_additional',$self,[
         'id'=>(int)$next['id'],'reason'=>'Cancel after revised demand',
     ]);
