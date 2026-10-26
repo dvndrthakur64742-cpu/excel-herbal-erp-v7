@@ -2087,6 +2087,15 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
         'reason'=>'Synthetic full bill cancellation after supplier return',
     ]);
     $rid=(int)$request['id'];
+    $unauthorized=uat_actor(10,[1],[],'FE');
+    try {
+        uat_dispatch('finance.reversal_decision',$unauthorized,[
+            'id'=>$rid,'approve'=>true,
+        ]);
+        throw new RuntimeException('Unauthorized reviewer approved purchase reversal');
+    }catch(DomainException $e){
+        if($e->codeKey!=='permission_denied'||$e->httpStatus!==403)throw $e;
+    }
     try {
         uat_dispatch('finance.reversal_decision',$buyer,[
             'id'=>$rid,'approve'=>true,
@@ -2177,6 +2186,43 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
        abs((float)$afterPayment['bill']['paid_amount'])>.005||
        abs((float)$afterPayment['bill']['outstanding_amount']-120)>.005)
         throw new RuntimeException('Supplier AP not restored after payment reversal');
+
+    // The canonical Supplier Payment writer locks purchase_bills FOR UPDATE.
+    // A full-bill reversal must hold that same row until its stock/GL commit,
+    // preventing a payment from being inserted after the dependency check.
+    // Invoke the stock helper inside a rollback-only synthetic transaction,
+    // then prove an independent MariaDB connection cannot acquire the bill.
+    $beforeLockProbe=$snapshot();
+    try {
+        \ExcelHerbal\ERP7\Database\Transaction::run(static function()use($buyer,$billId):void {
+            $reverseStock=new ReflectionMethod(
+                \ExcelHerbal\ERP7\Finance\FinanceReversalService::class,
+                'reversePurchaseStock'
+            );
+            $reverseStock->invoke(null,$buyer,$billId);
+            $peer=eh7_connect();
+            try {
+                $sql='SELECT id FROM '.Db::table('purchase_bills').
+                    ' WHERE id='.(int)$billId.' FOR UPDATE NOWAIT';
+                $probe=$peer->query($sql);
+                if($probe instanceof mysqli_result){
+                    $probe->free();
+                    throw new RuntimeException('Purchase reversal did not lock bill against payment');
+                }
+                if(!in_array($peer->errno,[1205,3572],true))
+                    throw new RuntimeException('Unexpected competing bill lock error: '.
+                        $peer->errno.' '.$peer->error);
+            }finally{
+                $peer->close();
+            }
+            throw new RuntimeException('purchase_reversal_lock_probe_rollback');
+        });
+        throw new RuntimeException('Purchase reversal lock probe did not roll back');
+    }catch(RuntimeException $e){
+        if($e->getMessage()!=='purchase_reversal_lock_probe_rollback')throw $e;
+    }
+    if($snapshot()!==$beforeLockProbe)
+        throw new RuntimeException('Reversal locking probe changed bill, stock, GL or audit');
 
     // A synthetic residual mismatch must block full bill reversal even if
     // there is no longer any posted supplier payment.
