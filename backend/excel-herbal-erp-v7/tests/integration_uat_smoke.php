@@ -726,6 +726,53 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
         fn()=>uat_dispatch('daily.final_post',$dual,['id'=>$cycle,'cash'=>200,'upi'=>160]),
         'Evening maker final-posted their own submitted settlement'
     );
+    // Reviewer separation and branch-scope denial are business-critical.
+    // Check actual SQL before and after each rejected financial POST, not
+    // merely its error code. This runs ONLY on disposable synthetic MariaDB.
+    $snapshotRejectedFinalPost=static function()use($wpdb,$cycle,$eveningId):array {
+        return [
+            'cycle'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle)),
+            'settlement'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('evening_settlements').' WHERE id=%d',$eveningId)),
+            'sale_return_stock'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type IN ('daily_sale','daily_return') AND source_id=%d",$cycle)),
+            'journals'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type='daily_cycle' AND source_id=%d",$cycle)),
+            'performance'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('performance_entries').
+                " WHERE source_type='daily_cycle' AND source_id=%d",$cycle)),
+            'audit'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action='daily_order.final_post' AND entity_id=%d",$cycle)),
+        ];
+    };
+    foreach([
+        ['no_review_capability',uat_actor(20,[1,2],[Capabilities::DAILY_APPROVE],'SYSADMIN')],
+        ['wrong_branch',uat_actor(20,[2],[Capabilities::DAILY_REVIEW],'SYSADMIN')],
+        ['outside_reporting_hierarchy',uat_actor(30,[1,2],[Capabilities::DAILY_REVIEW],'ASM')],
+    ] as [$denialName,$unauthorised]) {
+        $before=$snapshotRejectedFinalPost();
+        if($before['cycle']!=='evening_submitted'||$before['settlement']!=='submitted') {
+            throw new RuntimeException('Final Post denial fixture is not submitted');
+        }
+        try {
+            uat_dispatch('daily.final_post',$unauthorised,
+                ['id'=>$cycle,'cash'=>200,'upi'=>160]);
+            throw new RuntimeException('Unauthorised reviewer posted: '.$denialName);
+        }catch(DomainException $e){
+            if($e->httpStatus!==403){
+                throw new RuntimeException('Wrong denial for '.$denialName.
+                    ' ('.$e->codeKey.': '.$e->httpStatus.')',0,$e);
+            }
+        }
+        if($snapshotRejectedFinalPost()!==$before) {
+            throw new RuntimeException('Rejected '.$denialName.
+                ' Final Post changed cycle, settlement, stock, GL, performance or audit');
+        }
+    }
     $failureCases=[
         ['cash'=>201,'upi'=>160],
         ['cash'=>200,'upi'=>-1],

@@ -44,3 +44,14 @@ Inherited UAT already covers: out-of-hierarchy operations, no self approval, sto
 - New pure `DailyOrderActionTarget.select` resolves only **one** matching request, requiring a positive cycle/request ID, correct parent cycle, expected initial/additional type and lifecycle state, appropriate approval/issue capability, and a known distinct requester/checker for approve/issue/reject. Invalid or duplicate entries fail closed.
 - `my_work_daily_order.dart` now re-fetches detail before approve, reject, cancel-additional and issue, then uses this selector. The canonical `dailyApprove`, `dailyReject`, `dailyCancelAdditional`, and `dailyIssuePreflight`/stock issue endpoints remain the sole writers and separately recheck actual database state.
 - Negative test matrix includes old cancelled additional request, mismatched cycle, duplicate pending targets, self-approval/issue, missing actor/requester IDs, unpermitted roles and wrong lifecycle action. Pure Dart tests cannot establish live WordPress/field-role acceptance; keep user-facing UAT and financial release gates open.
+
+## 2026-10-26 — Independent Finance Checker negative-role UAT gate
+
+The original mixed Cash/UPI canonical Daily Order case now checks **three additional real SQL denial scenarios before legitimate Final Post**:
+1. A same-branch manager identity with `daily_order.approve` but **without** `daily_order.review` attempts financial Final Post.
+2. A reviewer with `daily_order.review` limited to **another branch** attempts to final-post this branch's settlement.
+3. A synthetic ASM reviewer with the permission but **outside the employee's reporting hierarchy** attempts to post.
+
+For each test, the original `daily.final_post` API must deny with HTTP 403. MariaDB before/after snapshots must be identical for the original Daily Order state, submitted Evening Settlement, Daily Sale/Return stock-issue postings, source financial journal, employee performance entries and Final Post audit event. The authorised separate Finance Checker must still post exactly once and retain balanced journal totals.
+
+Scope: synthetic data on isolated CI MariaDB. Real Office staging remains unsanitized; no role simulation or financial mutation is authorized there. **A green synthetic UAT is not a verified Cashier handover receipt, external bank proof, or live role/device sign-off**.
