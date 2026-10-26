@@ -22,7 +22,11 @@ final class DailyOrderService{
   foreach($rows as$row){
    $product=(int)($row['product_id']??0);
    if($product<=0||isset($seen[$product]))throw new DomainException('Invalid or duplicate stored Daily product.','daily_line_invalid',422);
-   self::positiveWholePcs($row['quantity']??null,'quantity');
+   // MySQL DECIMAL(14,3) returns whole PCS as a string such as "2.000".
+   // Normalize only an all-zero decimal suffix; never truncate fractional stock.
+   $quantity=$row['quantity']??null;
+   if(is_string($quantity)&&preg_match('/^(-?[0-9]+)\.0+$/D',$quantity,$parts)===1)$quantity=$parts[1];
+   self::positiveWholePcs($quantity,'quantity');
    $seen[$product]=true;
   }
  }
