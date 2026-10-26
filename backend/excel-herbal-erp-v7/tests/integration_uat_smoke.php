@@ -2048,6 +2048,7 @@ uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', f
     // This suite runs only with synthetic data in disposable MariaDB CI.
     $buyer=uat_actor(30,[1,2],[
         Capabilities::PURCHASE_CREATE,Capabilities::REVERSAL_CREATE,
+        Capabilities::REVERSAL_APPROVE,
     ],'SYSADMIN');
     $payer=uat_actor(20,[1,2],[
         Capabilities::SUPPLIER_PAYMENT,Capabilities::REVERSAL_APPROVE,
