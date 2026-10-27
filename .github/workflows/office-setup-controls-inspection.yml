@@ -1,0 +1,53 @@
+name: V8 Unified Setup Center control and login inspection (read-only)
+on:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/office-setup-controls-inspection.yml'
+permissions:
+  contents: read
+jobs:
+  inspect-ui-labels:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+    steps:
+      - name: Inspect actual WordPress V8 Unified Setup UI labels (read-only)
+        run: |
+          $ErrorActionPreference='Stop'
+          Add-Type -AssemblyName UIAutomationClient
+          Add-Type -AssemblyName UIAutomationTypes
+          $session=(Get-Process -Id $PID).SessionId
+          if($session -eq 0){throw 'Runner in Session 0'}
+          $chrome=@(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne [IntPtr]::Zero})
+          if($chrome.Count -eq 0){throw 'No visible Chrome session'}
+          $exe=@('C:\Program Files\Google\Chrome\Application\chrome.exe','C:\Program Files (x86)\Google\Chrome\Application\chrome.exe') | Where-Object {Test-Path -LiteralPath $_} | Select-Object -First 1
+          if(-not $exe){throw 'Chrome path missing'}
+          $target='https://office.excelherbal.in/wp-admin/admin.php?page=excel-herbal-erp-v8'
+          Start-Process -FilePath $exe -ArgumentList @('--new-window',$target) | Out-Null
+          Start-Sleep -Seconds 7
+          $chrome=@(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne [IntPtr]::Zero})
+          Write-Host ('INFO runner_session='+$session+' visible_chrome_windows='+$chrome.Count)
+          foreach($process in $chrome){
+            Write-Host ('INFO browser_title='+$process.MainWindowTitle)
+            $root=[System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+            if(-not $root){continue}
+            $all=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+            $hits=0
+            foreach($element in $all){
+              try{
+                $kind=[string]$element.Current.ControlType.ProgrammaticName
+                if($kind -notin @('ControlType.Button','ControlType.Hyperlink','ControlType.TabItem','ControlType.Edit','ControlType.Text')){continue}
+                $name=([string]$element.Current.Name).Trim()
+                if($name -notmatch '(?i)upload|web|desktop|bundle|install|zip|setup|file|choose|select|log in|wordpress|v8|staging|blocked|schema|login|error'){continue}
+                if($name.Length -gt 120){$name=$name.Substring(0,120)}
+                $name=$name -replace '[\r\n\t]',' '
+                if($hits -lt 70){Write-Host ('INFO control kind='+$kind+' name='+$name+' enabled='+$element.Current.IsEnabled+' id='+[string]$element.Current.AutomationId)}
+                $hits++
+              }catch{}
+            }
+            Write-Host ('INFO matching_labels='+$hits)
+          }
+          Write-Host 'PASS read-only UI control survey, no uploads or site changes'

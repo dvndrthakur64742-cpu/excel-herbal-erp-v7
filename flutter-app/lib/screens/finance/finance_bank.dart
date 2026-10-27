@@ -26,7 +26,10 @@ extension _FinanceBankFeature on _FinanceScreenState {
               query: {'branch_id': app.currentBranchId},
             ),
             emptyMessage: 'Koi Bank Reconciliation nahi hai.',
-            builder: (context, data) => RecordsList(
+            builder: (context, data) => V8RecordWorkspace(
+              title: 'Bank Reconciliations',
+              subtitle: 'Review recorded statements and matching progress.',
+              contextLabel: app.currentBranchName,
               recordType: 'bank_reconciliation',
               rows: _rows(data),
               onTap: (row) => _bankDetail(int.parse('${row['id']}')),

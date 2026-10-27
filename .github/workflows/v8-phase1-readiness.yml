@@ -1,0 +1,55 @@
+name: V8 Phase 1 Readiness No-Deploy
+on:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/scripts/phase1-office-readiness.py'
+      - '.github/scripts/test-phase1-office-readiness.py'
+      - '.github/workflows/v8-phase1-readiness.yml'
+  workflow_dispatch:
+    inputs:
+      check_office_live:
+        description: 'Read Office health without login, mutation, or deploy'
+        required: false
+        default: false
+        type: boolean
+      expected_backend:
+        description: 'Approved backend exact 40-char SHA'
+        required: false
+        type: string
+      expected_web:
+        description: 'Approved web exact 40-char SHA'
+        required: false
+        type: string
+permissions:
+  contents: read
+jobs:
+  offline-gate-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pure synthetic admission test matrix
+        run: python3 .github/scripts/test-phase1-office-readiness.py -v
+      - name: Syntax validation
+        run: python3 -m py_compile .github/scripts/phase1-office-readiness.py
+  office-health-readonly:
+    if: github.event_name == 'workflow_dispatch' && inputs.check_office_live == true
+    needs: offline-gate-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: GET-only no-credentials health and all blockers
+        env:
+          EXPECTED_BACKEND: ${{ inputs.expected_backend }}
+          EXPECTED_WEB: ${{ inputs.expected_web }}
+        run: |
+          python3 .github/scripts/phase1-office-readiness.py --office-health --expected-backend "$EXPECTED_BACKEND" --expected-web "$EXPECTED_WEB"
+      - name: Preserve JSON evidence including blockers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: V8-Office-Phase1-ReadOnly-Admission
+          path: dist/phase1-readiness/EVIDENCE.json
+          if-no-files-found: warn

@@ -39,6 +39,12 @@ if (!function_exists('get_date_from_gmt')) {
         return $instant->setTimezone(wp_timezone())->format((string)$format);
     }
 }
+if (!function_exists('get_gmt_from_date')) {
+    function get_gmt_from_date($local, $format='Y-m-d H:i:s'): string {
+        return (new DateTimeImmutable((string)$local,wp_timezone()))
+            ->setTimezone(new DateTimeZone('UTC'))->format($format);
+    }
+}
 
 final class Eh7UatRequest implements ArrayAccess {
     public function __construct(private array $params = [], private array $json = []) {}
@@ -201,34 +207,90 @@ uat_case('uat_bootstrap_contract_metadata', function () use ($self) {
     }
 });
 
-uat_case('uat_manual_attendance_disabled_cross_branch', function () use ($self, $wpdb) {
+uat_case('uat_gps_post_without_attendance_real_mariadb_and_route', function () use ($self,$wpdb) {
+    // Isolated disposable synthetic data and fake server clock, no Office writes.
+    $table=Db::table('gps_points');
+    $GLOBALS['eh7_uat_clock_override']='11:00:00';
     try {
-        uat_dispatch('work.check_in', $self, ['branch_id'=>2,'lat'=>31.9579,'lng'=>77.1095]);
-    } catch (DomainException $e) {
-        if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) throw $e;
-        $count = (int)$wpdb->get_var($wpdb->prepare(
-            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
-            1, 10, uat_date()
-        ));
-        if ($count !== 0) throw new RuntimeException('disabled cross-branch check-in created attendance');
-        return;
+        $duty=uat_dispatch('work.gps_duty',$self);
+        if(($duty['gps_status']??'')!=='active')
+            throw new RuntimeException('GPS not active at 11:00 despite independent duty window');
+        $point=uat_dispatch('work.gps_point',$self,[],[
+            'lat'=>31.9579,'lng'=>77.1095,'accuracy'=>5.6,'source'=>'duty_web'
+        ]);
+        if((int)($point['id']??0)<1)throw new RuntimeException('GPS point insert not confirmed');
+        $row=$wpdb->get_row($wpdb->prepare(
+            "SELECT id,company_id,branch_id,employee_id,attendance_id,source,recorded_at FROM {$table} WHERE id=%d",
+            (int)$point['id']),ARRAY_A);
+        if(!$row||(int)$row['company_id']!==1||(int)$row['branch_id']!==1
+           ||(int)$row['employee_id']!==10||$row['attendance_id']!==null
+           ||$row['source']!=='duty_web'||substr((string)$row['recorded_at'],-8)!=='11:00:00')
+            throw new RuntimeException('Independent GPS point corrupted identity, branch, source, time or attendance nullable link');
+        $attendanceCount=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE employee_id=%d AND business_date=%s',
+            10,uat_date()));
+        if($attendanceCount!==0)throw new RuntimeException('GPS posting invented a payroll attendance row');
+        $date=uat_date();
+        $route=uat_dispatch('work.gps_route',$self,[
+            'from'=>$date.'T10:30:00Z','to'=>$date.'T17:00:00Z'
+        ]);
+        if(count($route)!==1||(int)$route[0]['id']!==(int)$point['id']||$route[0]['attendance_id']!==null)
+            throw new RuntimeException('GPS route read omits points with nullable attendance reference');
+        $GLOBALS['eh7_uat_clock_override']='17:00:00';
+        try{uat_dispatch('work.gps_point',$self,[],[
+            'lat'=>31.9579,'lng'=>77.1095,'source'=>'duty_web'
+        ]);}catch(DomainException $error){
+            if($error->codeKey!=='gps_duty_inactive'||$error->httpStatus!==409)throw $error;
+            $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+            if($count!==1)throw new RuntimeException('Late GPS duty rejection wrote a second point');
+            return;
+        }
+        throw new RuntimeException('GPS point accepted after automatic 5 PM cutoff');
+    }finally{
+        unset($GLOBALS['eh7_uat_clock_override']);
     }
-    throw new RuntimeException('manual cross-branch check-in was not disabled');
 });
 
-uat_case('uat_attendance_manual_checkin_disabled', function () use ($self, $wpdb) {
-    try {
-        uat_dispatch('work.check_in', $self, ['branch_id'=>1]);
-    } catch (DomainException $e) {
-        if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) throw $e;
-        $count = (int)$wpdb->get_var($wpdb->prepare(
-            'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
-            1, 10, uat_date()
-        ));
-        if ($count !== 0) throw new RuntimeException('manual check-in created attendance');
-        return;
+uat_case('uat_attendance_self_branch_security_and_independent_gps', function () use ($self,$wpdb) {
+    // Genuine synthetic MariaDB with a deterministic 9:15 AM UAT-only clock.
+    // Server GPS state must exist before employee attendance does.
+    $countBefore=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+        1,10,uat_date()));
+    if($countBefore!==0)throw new RuntimeException('Synthetic attendance fixture not clean');
+    $duty=uat_dispatch('work.gps_duty',$self);
+    if(!in_array($duty['gps_status']??'', ['scheduled','active','auto_stopped'],true))
+        throw new RuntimeException('Automatic GPS requires manual attendance');
+    if((int)$duty['branch_id']!==1)
+        throw new RuntimeException('GPS authority returned wrong assigned branch');
+    $countAfter=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+        1,10,uat_date()));
+    if($countAfter!==0)throw new RuntimeException('GET GPS duty manufactured attendance');
+    $GLOBALS['eh7_uat_clock_override']='09:15:00';
+    try{
+        try{uat_dispatch('work.check_in',$self,['branch_id'=>2]);}
+        catch(DomainException $e){
+            if($e->codeKey!=='attendance_branch_forbidden'||$e->httpStatus!==403)throw $e;
+            $record=uat_dispatch('work.check_in',$self,['branch_id'=>1]);
+            if((int)($record['id']??0)<1)throw new RuntimeException('Valid manual check-in did not insert');
+            $saved=$wpdb->get_row($wpdb->prepare(
+                'SELECT check_in_at,check_out_at,branch_id FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
+                1,10,uat_date()),ARRAY_A);
+            if(!$saved||$saved['check_out_at']!==null||(int)$saved['branch_id']!==1
+                ||substr((string)$saved['check_in_at'],-8)!=='09:15:00')
+                throw new RuntimeException('Manual check-in database time/branch mismatch');
+            try{uat_dispatch('work.check_in',$self,['branch_id'=>1]);}
+            catch(DomainException $dup){
+                if($dup->codeKey!=='attendance_already_checked_in'||$dup->httpStatus!==409)throw $dup;
+                return;
+            }
+            throw new RuntimeException('Duplicate same-day check-in accepted');
+        }
+        throw new RuntimeException('Cross-branch self check-in accepted');
+    }finally{
+        unset($GLOBALS['eh7_uat_clock_override']);
     }
-    throw new RuntimeException('manual check-in was accepted');
 });
 
 uat_case('uat_sales_capability_fail_closed', function () use ($self) {
@@ -248,23 +310,60 @@ uat_case('uat_sales_capability_fail_closed', function () use ($self) {
     throw new RuntimeException('actor without SALES_CREATE capability posted a sale');
 });
 
-uat_case('uat_attendance_manual_start_stop_disabled', function () use ($self, $wpdb) {
-    foreach (['work.check_in', 'work.check_out'] as $handler) {
-        try {
-            uat_dispatch($handler, $self, ['branch_id'=>1,'lat'=>31.9579,'lng'=>77.1095]);
-        } catch (DomainException $e) {
-            if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) {
-                throw $e;
-            }
-            continue;
+uat_case('uat_attendance_self_checkout_real_sql_and_8pm_cron', function () use ($self,$wpdb) {
+    $table=Db::table('attendance');
+    $GLOBALS['eh7_uat_clock_override']='18:05:00';
+    try {
+        $out=uat_dispatch('work.check_out',$self);
+        if((int)($out['id']??0)<1)throw new RuntimeException('Employee self checkout failed');
+        $checkOut=$wpdb->get_var($wpdb->prepare(
+            "SELECT check_out_at FROM {$table} WHERE company_id=%d AND employee_id=%d AND business_date=%s",
+            1,10,uat_date()));
+        if(substr((string)$checkOut,-8)!=='18:05:00')
+            throw new RuntimeException('Actual 6 PM checkout time not stored');
+        try{uat_dispatch('work.check_out',$self);}
+        catch(DomainException $error){
+            if($error->codeKey!=='attendance_already_checked_out'||$error->httpStatus!==409)throw $error;
+            // Disconnected GPS route rows must never be manufactured by attendance.
+            $existing=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('gps_points'));
+            if($existing!==1)throw new RuntimeException('Attendance modified GPS points saved independently before check-in');
+            // Employee 30 intentionally lacks attendance; create synthetic open
+            // attendance only in this disposable isolated database.
+            uat_insert($wpdb,'attendance',[
+                'company_id'=>1,'branch_id'=>2,'employee_id'=>30,
+                'business_date'=>uat_date(),'status'=>'present',
+                'check_in_at'=>uat_date().' 09:30:00',
+                'created_at'=>uat_date().' 09:30:00'
+            ]);
+            // Historical open attendance must NOT be altered by today's auto-close.
+            uat_insert($wpdb,'attendance',[
+                'company_id'=>1,'branch_id'=>2,'employee_id'=>20,
+                'business_date'=>(new DateTimeImmutable(uat_date()))->modify('-1 day')->format('Y-m-d'),
+                'status'=>'present','check_in_at'=>uat_date().' 09:30:00',
+                'created_at'=>uat_date().' 09:30:00'
+            ]);
+            $GLOBALS['eh7_uat_clock_override']='19:59:59';
+            \ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService::run();
+            if($wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=30")!==null)
+                throw new RuntimeException('Auto-checkout fired before 8 PM');
+            $GLOBALS['eh7_uat_clock_override']='20:05:00';
+            \ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService::run();
+            $auto=$wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=30");
+            if(substr((string)$auto,-8)!=='20:00:00')
+                throw new RuntimeException('Automatic checkout not anchored at 8 PM');
+            if($wpdb->get_var("SELECT check_out_at FROM {$table} WHERE employee_id=20")!==null)
+                throw new RuntimeException('Auto checkout modified historical attendance');
+            $manual=$wpdb->get_var($wpdb->prepare(
+                "SELECT check_out_at FROM {$table} WHERE employee_id=%d AND business_date=%s",
+                10,uat_date()));
+            if(substr((string)$manual,-8)!=='18:05:00')
+                throw new RuntimeException('Auto checkout overwrote employee manual checkout');
+            return;
         }
-        throw new RuntimeException('manual attendance action was accepted: '.$handler);
+        throw new RuntimeException('Duplicate manual checkout accepted');
+    }finally{
+        unset($GLOBALS['eh7_uat_clock_override']);
     }
-    $count = (int)$wpdb->get_var($wpdb->prepare(
-        'SELECT COUNT(*) FROM '.Db::table('attendance').' WHERE company_id=%d AND employee_id=%d AND business_date=%s',
-        1, 10, uat_date()
-    ));
-    if ($count !== 0) throw new RuntimeException('manual attendance action created an attendance record');
 });
 
 uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) {
@@ -571,6 +670,64 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
     } catch(DomainException $err) {
         if($err->codeKey!=='wholesale_discount_exceeds_allocation')throw $err;
     }
+    // Malformed or non-finite numeric input must fail *before* updating
+    // the submitted-for-save closing, GL, stock or audit. PHP NAN evades
+    // ordinary <, > and abs comparisons; evaluate both rates independently.
+    $beforeInvalidRates=static function()use($wpdb,$cycle,$eveningId):array {
+        return [
+            'cycle'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle)),
+            'closing'=>$wpdb->get_row($wpdb->prepare(
+                'SELECT status,expected_amount,wholesale_customer_name FROM '.Db::table('evening_settlements').
+                ' WHERE id=%d',$eveningId
+            ),ARRAY_A),
+            'lines'=>$wpdb->get_results($wpdb->prepare(
+                'SELECT * FROM '.Db::table('evening_lines').
+                ' WHERE evening_settlement_id=%d ORDER BY id',$eveningId
+            ),ARRAY_A),
+            'movement_count'=>(int)$wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM '.Db::table('stock_ledger').
+                " WHERE source_id=%d AND source_type IN ('daily_sale','daily_return')",$cycle)),
+            'journal_count'=>(int)$wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM '.Db::table('journal_entries').
+                " WHERE source_type='daily_cycle' AND source_id=%d",$cycle)),
+            'audit_count'=>(int)$wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM '.Db::table('audit_log').
+                " WHERE action='daily_order.evening_save' AND entity_id=%d",$cycle)),
+        ];
+    };
+    foreach([
+        ['name'=>'nan_retail','rr'=>NAN,'wr'=>80],
+        ['name'=>'infinite_retail','rr'=>INF,'wr'=>80],
+        ['name'=>'negative_infinite_retail','rr'=>-INF,'wr'=>80],
+        ['name'=>'nan_wholesale','rr'=>100,'wr'=>NAN],
+        ['name'=>'infinite_wholesale','rr'=>100,'wr'=>INF],
+        ['name'=>'negative_infinite_wholesale','rr'=>100,'wr'=>-INF],
+        ['name'=>'nan_unused_wholesale_rate','rr'=>100,'wr'=>NAN,'wh'=>0],
+    ] as $invalidRate) {
+        $before=$beforeInvalidRates();
+        try {
+            uat_dispatch('daily.evening_save',$self,[
+                'id'=>$cycle,
+                'lines'=>[[
+                    'issue_line_id'=>$issuedLineId,
+                    'return_quantity'=>1,
+                    'wholesale_quantity'=>$invalidRate['wh']??2,
+                    'retail_rate'=>$invalidRate['rr'],
+                    'wholesale_rate'=>$invalidRate['wr'],
+                ]],
+                'wholesale_details'=>['wholesale_customer_name'=>'Synthetic Wholesale Buyer'],
+                'price_reason'=>'Invalid nonfinite rate should not persist',
+            ]);
+            throw new RuntimeException('Nonfinite Evening Save succeeded: '.$invalidRate['name']);
+        }catch(DomainException $error){
+            if($error->codeKey!=='evening_rate_invalid'||$error->httpStatus!==422)
+                throw new RuntimeException('Incorrect Evening rate denial: '.$invalidRate['name'].
+                    ' '.$error->codeKey.' '.$error->httpStatus,0,$error);
+        }
+        if($beforeInvalidRates()!==$before)
+            throw new RuntimeException('Invalid Evening Save changed bill, stock, GL, closing or audit: '.$invalidRate['name']);
+    }
     $saved=uat_dispatch('daily.evening_save',$self,[
         'id'=>$cycle,
         'lines'=>[[
@@ -627,25 +784,207 @@ uat_case('uat_daily_mixed_returns_wholesale_cash_upi_maker_checker', function ()
         fn()=>uat_dispatch('daily.final_post',$dual,['id'=>$cycle,'cash'=>200,'upi'=>160]),
         'Evening maker final-posted their own submitted settlement'
     );
+    // Reviewer separation and branch-scope denial are business-critical.
+    // Check actual SQL before and after each rejected financial POST, not
+    // merely its error code. This runs ONLY on disposable synthetic MariaDB.
+    $snapshotRejectedFinalPost=static function()use($wpdb,$cycle,$eveningId):array {
+        return [
+            'cycle'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle)),
+            'settlement'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('evening_settlements').' WHERE id=%d',$eveningId)),
+            'sale_return_stock'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type IN ('daily_sale','daily_return') AND source_id=%d",$cycle)),
+            'journals'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type='daily_cycle' AND source_id=%d",$cycle)),
+            'performance'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('performance_entries').
+                " WHERE source_type='daily_cycle' AND source_id=%d",$cycle)),
+            'audit'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action='daily_order.final_post' AND entity_id=%d",$cycle)),
+        ];
+    };
+    foreach([
+        ['no_review_capability',uat_actor(20,[1,2],[Capabilities::DAILY_APPROVE],'SYSADMIN')],
+        ['wrong_branch',uat_actor(20,[2],[Capabilities::DAILY_REVIEW],'SYSADMIN')],
+        ['outside_reporting_hierarchy',uat_actor(30,[1,2],[Capabilities::DAILY_REVIEW],'ASM')],
+    ] as [$denialName,$unauthorised]) {
+        $before=$snapshotRejectedFinalPost();
+        if($before['cycle']!=='evening_submitted'||$before['settlement']!=='submitted') {
+            throw new RuntimeException('Final Post denial fixture is not submitted');
+        }
+        try {
+            uat_dispatch('daily.final_post',$unauthorised,
+                ['id'=>$cycle,'cash'=>200,'upi'=>160]);
+            throw new RuntimeException('Unauthorised reviewer posted: '.$denialName);
+        }catch(DomainException $e){
+            if($e->httpStatus!==403){
+                throw new RuntimeException('Wrong denial for '.$denialName.
+                    ' ('.$e->codeKey.': '.$e->httpStatus.')',0,$e);
+            }
+        }
+        if($snapshotRejectedFinalPost()!==$before) {
+            throw new RuntimeException('Rejected '.$denialName.
+                ' Final Post changed cycle, settlement, stock, GL, performance or audit');
+        }
+    }
+    // Final Post must revalidate the submitted snapshot, even when the
+    // employee's Evening Submit originally passed. Synthetic direct SQL
+    // represents a stale/tampered line/header between maker and checker.
+    $closingLineId=(int)$wpdb->get_var($wpdb->prepare(
+        'SELECT id FROM '.Db::table('evening_lines').
+        ' WHERE evening_settlement_id=%d LIMIT 1',$eveningId));
+    foreach([
+        ['name'=>'quantity_drift','table'=>'evening_lines','id'=>$closingLineId,
+            'column'=>'retail_quantity','corrupt'=>3,'restore'=>2,
+            'code'=>'evening_quantities_mismatch','cash'=>200,'upi'=>160],
+        ['name'=>'extended_price_drift','table'=>'evening_lines','id'=>$closingLineId,
+            'column'=>'total_amount','corrupt'=>350,'restore'=>360,
+            'code'=>'evening_totals_mismatch','cash'=>200,'upi'=>160],
+        ['name'=>'rate_drift','table'=>'evening_lines','id'=>$closingLineId,
+            'column'=>'retail_rate','corrupt'=>95,'restore'=>100,
+            'code'=>'evening_totals_mismatch','cash'=>200,'upi'=>160],
+        ['name'=>'header_drift','table'=>'evening_settlements','id'=>$eveningId,
+            'column'=>'expected_amount','corrupt'=>350,'restore'=>360,
+            'code'=>'evening_totals_mismatch','cash'=>190,'upi'=>160],
+    ] as $corrupt) {
+        if($wpdb->update(Db::table($corrupt['table']),
+            [$corrupt['column']=>$corrupt['corrupt']],['id'=>$corrupt['id']])!==1)
+            throw new RuntimeException('Could not corrupt disposable UAT fixture '.$corrupt['name']);
+        try {
+            $before=$snapshotRejectedFinalPost();
+            try {
+                uat_dispatch('daily.final_post',$manager,[
+                    'id'=>$cycle,'cash'=>$corrupt['cash'],'upi'=>$corrupt['upi'],
+                ]);
+                throw new RuntimeException('Stale submitted closing final-posted: '.$corrupt['name']);
+            }catch(DomainException $error){
+                if($error->codeKey!==$corrupt['code']||$error->httpStatus!==409)
+                    throw new RuntimeException('Unexpected denial for '.$corrupt['name'].': '.$error->codeKey,0,$error);
+            }
+            if($snapshotRejectedFinalPost()!==$before)
+                throw new RuntimeException('Stale '.$corrupt['name'].
+                    ' Final Post wrote stock, journal, points, audit or changed settlement state');
+        } finally {
+            $wpdb->update(Db::table($corrupt['table']),
+                [$corrupt['column']=>$corrupt['restore']],['id'=>$corrupt['id']]);
+        }
+    }
+    // Line totals alone cannot prove custody, batch, valuation or employee
+    // performance. Mutate one synthetic submitted line at a time; the
+    // finance checker must reject before any stock/GL/performance/audit write.
+    $sourceSnapshot=$wpdb->get_row($wpdb->prepare(
+        'SELECT product_id,batch_id,quantity,purchase_cost_snapshot,points_snapshot,salary_fund_snapshot'.
+        ' FROM '.Db::table('daily_issue_lines').' WHERE id=%d',$issuedLineId
+    ),ARRAY_A);
+    $closingSnapshot=$wpdb->get_row($wpdb->prepare(
+        'SELECT issue_line_id,product_id,batch_id,issued_quantity,purchase_cost_snapshot,points,salary_fund'.
+        ' FROM '.Db::table('evening_lines').' WHERE id=%d',$closingLineId
+    ),ARRAY_A);
+    foreach([
+        ['name'=>'foreign_issue_line','column'=>'issue_line_id','corrupt'=>987654321,
+            'code'=>'evening_issue_lineage_mismatch'],
+        ['name'=>'wrong_product','column'=>'product_id','corrupt'=>999999,
+            'code'=>'evening_issue_lineage_mismatch'],
+        ['name'=>'wrong_batch','column'=>'batch_id','corrupt'=>999999,
+            'code'=>'evening_issue_lineage_mismatch'],
+        ['name'=>'wrong_purchase_cost','column'=>'purchase_cost_snapshot','corrupt'=>999.99,
+            'code'=>'evening_issue_valuation_mismatch'],
+        ['name'=>'forged_points','column'=>'points','corrupt'=>999,
+            'code'=>'evening_issue_performance_mismatch'],
+    ] as $corrupt) {
+        $column=$corrupt['column'];
+        if($wpdb->update(Db::table('evening_lines'),
+            [$column=>$corrupt['corrupt']],['id'=>$closingLineId])!==1)
+            throw new RuntimeException('Cannot set synthetic closing corruption '.$corrupt['name']);
+        try {
+            $before=$snapshotRejectedFinalPost();
+            try {
+                uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>160]);
+                throw new RuntimeException('Finance posted corrupted original stock source '.$corrupt['name']);
+            }catch(DomainException $error){
+                if($error->httpStatus!==409||$error->codeKey!==$corrupt['code'])
+                    throw new RuntimeException('Wrong rejection for '.$corrupt['name'].': '.$error->codeKey,0,$error);
+            }
+            if($before!==$snapshotRejectedFinalPost())
+                throw new RuntimeException('Corrupted issue lineage changed source stock, journal, performance or audit '.$corrupt['name']);
+        } finally {
+            $wpdb->update(Db::table('evening_lines'),
+                [$column=>$closingSnapshot[$column]],['id'=>$closingLineId]);
+        }
+    }
+    if(!$sourceSnapshot||!$closingSnapshot)
+        throw new RuntimeException('Missing source snapshots for Phase 1 Final Post UAT');
+    // Compensating allocations can preserve the header and line sales
+    // total while silently moving money between HO/BM/Office. The maker's
+    // stored amounts must equal the immutable source allocation snapshots.
+    $allocationOriginal=$wpdb->get_row($wpdb->prepare(
+        'SELECT ho_amount,bm_profit,office_expense FROM '.Db::table('evening_lines').
+        ' WHERE id=%d',$closingLineId
+    ),ARRAY_A);
+    if(!$allocationOriginal)throw new RuntimeException('Closing allocation fixture missing');
+    foreach([
+        ['name'=>'ho_to_bm_shift','changes'=>[
+            'ho_amount'=>((float)$allocationOriginal['ho_amount'])+1,
+            'bm_profit'=>((float)$allocationOriginal['bm_profit'])-1,
+        ]],
+        ['name'=>'office_to_bm_shift','changes'=>[
+            'office_expense'=>((float)$allocationOriginal['office_expense'])+1,
+            'bm_profit'=>((float)$allocationOriginal['bm_profit'])-1,
+        ]],
+    ] as $invalidAllocation) {
+        $change=$invalidAllocation['changes'];
+        if($wpdb->update(Db::table('evening_lines'),$change,['id'=>$closingLineId])!==1)
+            throw new RuntimeException('Unable to seed compensated allocation '.$invalidAllocation['name']);
+        try {
+            $before=$snapshotRejectedFinalPost();
+            try {
+                uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>160]);
+                throw new RuntimeException('Compensating allocation posted: '.$invalidAllocation['name']);
+            } catch(DomainException $error) {
+                if($error->httpStatus!==409||$error->codeKey!=='evening_issue_allocation_mismatch')
+                    throw new RuntimeException('Wrong allocation denial '.$invalidAllocation['name'].
+                        ': '.$error->codeKey,0,$error);
+            }
+            if($snapshotRejectedFinalPost()!==$before)
+                throw new RuntimeException('Compensating allocation altered stock, GL, performance or audit');
+        } finally {
+            $restore=[];
+            foreach(array_keys($change) as $column)$restore[$column]=$allocationOriginal[$column];
+            $wpdb->update(Db::table('evening_lines'),$restore,['id'=>$closingLineId]);
+        }
+    }
+    // An internal/REST caller can pass PHP NAN or INF even when ordinary
+    // Flutter text fields cannot. Such values must never bypass <0 or
+    // total-mismatch comparisons, contaminate GL or complete the cycle.
     $failureCases=[
-        ['cash'=>201,'upi'=>160],
-        ['cash'=>200,'upi'=>-1],
+        ['name'=>'cash_upi_total_mismatch','cash'=>201,'upi'=>160,'key'=>'payment_mismatch','http'=>409],
+        ['name'=>'negative_upi','cash'=>200,'upi'=>-1,'key'=>'payment_amount_invalid','http'=>422],
+        ['name'=>'nan_cash','cash'=>NAN,'upi'=>160,'key'=>'payment_amount_invalid','http'=>422],
+        ['name'=>'nan_upi','cash'=>200,'upi'=>NAN,'key'=>'payment_amount_invalid','http'=>422],
+        ['name'=>'infinite_cash','cash'=>INF,'upi'=>160,'key'=>'payment_amount_invalid','http'=>422],
+        ['name'=>'negative_infinite_upi','cash'=>200,'upi'=>-INF,'key'=>'payment_amount_invalid','http'=>422],
     ];
     foreach($failureCases as$bad) {
-        $rejected=false;
+        $before=$snapshotRejectedFinalPost();
+        if($before['cycle']!=='evening_submitted'||$before['settlement']!=='submitted') {
+            throw new RuntimeException('Non-finite payment fixture must remain pending');
+        }
         try {
             uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>$bad['cash'],'upi'=>$bad['upi']]);
+            throw new RuntimeException('Invalid Final Post was accepted: '.$bad['name']);
         } catch(DomainException $e) {
-            if($e->httpStatus!==409 && $e->httpStatus!==422) throw $e;
-            $rejected=true;
+            if($e->httpStatus!==$bad['http']||$e->codeKey!==$bad['key']) {
+                throw new RuntimeException('Wrong Final Post denial for '.$bad['name'].
+                    ' ('.$e->codeKey.': '.$e->httpStatus.')',0,$e);
+            }
         }
-        if(!$rejected) throw new RuntimeException('Non-reconciled cash/UPI payment was accepted');
-        $status=(string)$wpdb->get_var($wpdb->prepare('SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$cycle));
-        $movements=(int)$wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM ".Db::table('stock_ledger')." WHERE source_id=%d AND source_type IN ('daily_return','daily_sale')",$cycle
-        ));
-        if($status!=='evening_submitted'||$movements!==0) {
-            throw new RuntimeException('Rejected Final Post mutated order or stock');
+        if($snapshotRejectedFinalPost()!==$before) {
+            throw new RuntimeException('Rejected '.$bad['name'].
+                ' Final Post changed cycle, settlement, stock, GL, performance or audit');
         }
     }
     $posted=uat_dispatch('daily.final_post',$manager,['id'=>$cycle,'cash'=>200,'upi'=>160]);
@@ -752,6 +1091,145 @@ uat_case('uat_sales_report_consolidates_posted_daily_orders', function () use ($
     ),'Daily Order sales report ignored REPORTS_VIEW capability');
 });
 
+// Critical business-facing acceptance: the SAME posted daily sale must appear
+// in the original employee profile, stock issue history, branch sales, Cash
+// Control and the Tally-style source timeline. No second posting or fake
+// cash handover; synthetic isolated MariaDB only.
+uat_case('uat_posted_field_day_visible_in_employee360_cash_stock_and_ledger', function () use ($self,$wpdb) {
+    $date=(new DateTimeImmutable(uat_date()))->modify('-203 days')->format('Y-m-d');
+    $managerFinance=uat_actor(20,[1,2],[
+        Capabilities::EMP_VIEW,Capabilities::ACCOUNTING_VIEW,Capabilities::REPORTS_VIEW,
+    ],'SYSADMIN');
+    $params=['id'=>10,'from'=>$date,'to'=>$date];
+
+    // The existing full lifecycle fixture posted exactly 5 issued, 4 sold,
+    // 1 returned, ₹200 Cash, ₹160 UPI, 8 points and ₹20 salary fund.
+    $profile=uat_dispatch('org.employee_360',$self,$params);
+    if(($profile['read_only']??null)!==true||($profile['dashboard_unchanged']??null)!==true||
+       ($profile['person_ledger']['visible']??null)!==false||
+       ($profile['cash_reconciliation']??null)!=='not_available_in_canonical_v7_employee_ledger') {
+        throw new RuntimeException('Employee profile leaked finance view or promised Cash proof');
+    }
+    $month=substr($date,0,7);
+    $summary=array_values(array_filter($profile['monthly_summary']??[],static fn($r)=>($r['month']??null)===$month));
+    if(count($summary)!==1||
+       abs((float)($summary[0]['sales_amount']??0)-360)>.005||
+       abs((float)($summary[0]['points']??0)-8)>.005) {
+        throw new RuntimeException('Posted field sale and points missing from employee monthly profile');
+    }
+    $noFinance=static function(string $type)use($self,$date):void {
+        try{
+            uat_dispatch('org.employee_360_register',$self,[
+                'id'=>10,'type'=>$type,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+            ]);
+            throw new RuntimeException('Employee without finance access opened '.$type);
+        }catch(DomainException $e){
+            if($e->codeKey!=='permission_denied'||$e->httpStatus!==403)throw $e;
+        }
+    };
+    $noFinance('person_ledger');
+    try{
+        uat_dispatch('org.employee_360_cash_control',$self,[
+            'id'=>10,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+        ]);
+        throw new RuntimeException('Employee without finance access opened Cash Control');
+    }catch(DomainException $e){
+        if($e->codeKey!=='permission_denied'||$e->httpStatus!==403)throw $e;
+    }
+
+    $before=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('journal_entries'));
+    $beforeStock=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('stock_ledger'));
+    $beforePoints=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('performance_entries'));
+    $register=static function(string $type)use($managerFinance,$date):array{
+        return uat_dispatch('org.employee_360_register',$managerFinance,[
+            'id'=>10,'type'=>$type,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+        ]);
+    };
+
+    $managerProfile=uat_dispatch('org.employee_360',$managerFinance,$params);
+    if(($managerProfile['person_ledger']['visible']??null)!==true||
+       ($managerProfile['read_only']??null)!==true) {
+        throw new RuntimeException('Finance manager cannot inspect employee profile safely');
+    }
+
+    $sales=$register('sales');
+    if(($sales['read_only']??null)!==true||($sales['has_more']??null)!==false||
+       count($sales['rows']??[])!==1)throw new RuntimeException('Employee sales register missing or duplicated settled Daily Order');
+    $sale=$sales['rows'][0];$cycle=(int)$sale['daily_cycle_id'];
+    if($cycle<1||abs((float)$sale['sale_amount']-360)>.005||
+       abs((float)$sale['cash_amount']-200)>.005||
+       abs((float)$sale['upi_amount']-160)>.005||
+       abs((float)$sale['retail_quantity']-2)>.001||
+       abs((float)$sale['wholesale_quantity']-2)>.001||
+       abs((float)$sale['returned_quantity']-1)>.001||
+       abs((float)$sale['incentive_points']-8)>.005){
+        throw new RuntimeException('Employee sales register does not match the actual posted stock/cash/points split');
+    }
+
+    $requests=$register('requests');
+    $requestRows=array_values(array_filter($requests['rows']??[],
+        static fn($r)=>(int)($r['daily_cycle_id']??0)===$cycle));
+    if(count($requestRows)!==1||($requestRows[0]['request_status']??null)!=='issued'||
+       abs((float)$requestRows[0]['requested_quantity']-5)>.001||
+       abs((float)$requestRows[0]['issued_quantity']-5)>.001) {
+        throw new RuntimeException('ASM issued stock absent from employee original request register');
+    }
+
+    $reconciliations=$register('reconciliation');
+    $matching=array_values(array_filter($reconciliations['rows']??[],
+        static fn($r)=>(int)($r['daily_cycle_id']??0)===$cycle));
+    if(count($matching)!==1||($matching[0]['reconciliation_status']??null)!=='cycle_sources_match'||
+       abs((float)$matching[0]['cycle_issued_minus_out_qty'])>.001||
+       abs((float)$matching[0]['cycle_warehouse_net_out_qty']-4)>.001||
+       ($matching[0]['cash_handover_verified']??null)!==false||
+       ($matching[0]['upi_bank_verified']??null)!==false||
+       ($matching[0]['gl_posting_verified']??null)!==false) {
+        throw new RuntimeException('Employee stock closing is inconsistent or implies unproven financial custody');
+    }
+
+    $cash=uat_dispatch('org.employee_360_cash_control',$managerFinance,[
+        'id'=>10,'from'=>$date,'to'=>$date,'page'=>1,'page_size'=>25,
+    ]);
+    if(($cash['read_only']??null)!==true||($cash['cash_remittance_status']??null)!=='not_available_in_legacy_v7'||
+       count($cash['rows']??[])!==1||
+       (int)$cash['rows'][0]['daily_cycle_id']!==$cycle||
+       (int)$cash['page_totals']['cash_reported_paise']!==20000||
+       (int)$cash['page_totals']['upi_reported_paise']!==16000||
+       (int)($cash['page_evidence_gaps']['cash_without_independent_receipt_paise']??-1)!==20000||
+       (int)($cash['page_evidence_gaps']['upi_without_bank_confirmation_paise']??-1)!==16000||
+       ($cash['page_evidence_gaps']['interpretation']??null)!=='booked_tenders_without_independent_proof_not_outstanding'||
+       ($cash['page_evidence_gaps']['basis']??null)!=='canonical_daily_order_page_only'||
+       (int)($cash['page_flags']['upi_bank_unproven_count']??-1)!==1||
+       ($cash['rows'][0]['journal_check']??null)!=='journal_amounts_match'||
+       ($cash['rows'][0]['journal_cost_of_goods_reconcile']??null)!==true||
+       (int)($cash['rows'][0]['journal_cogs_debit_paise']??-1)!==20000||
+       (int)($cash['rows'][0]['journal_inventory_credit_paise']??-1)!==20000||
+       (int)($cash['rows'][0]['journal_unexpected_legs_paise']??-1)!==0||
+       ($cash['rows'][0]['cash_remittance_proof']??null)!=='not_evidenced_in_legacy_v7'||
+       ($cash['rows'][0]['upi_bank_settlement_proof']??null)!=='not_verified_by_this_report'||
+       ($cash['rows'][0]['legacy_direct_branch_cash_posting']??null)!==true) {
+        throw new RuntimeException('Original Employee Cash Control does not match posted mixed Cash/UPI journal');
+    }
+
+    $ledger=$register('person_ledger');
+    if(($ledger['read_only']??null)!==true||
+       ($ledger['balance_basis']??null)!=='complete_tagged_movement_history_not_visible_page'||
+       ($ledger['employee_cash_handover_verified']??null)!==false||
+       ($ledger['upi_bank_settlement_verified']??null)!==false||
+       !is_array($ledger['rows']??null)||!is_array($ledger['financial_accounts']??null)){
+        throw new RuntimeException('Person Ledger implied unproven Cash deposit or lost source-linked events');
+    }
+    $sourceEvents=array_values(array_filter($ledger['rows'],
+        static fn($r)=>($r['event_type']??null)==='sale'&&(int)($r['source_id']??0)===$cycle));
+    if(!$sourceEvents)throw new RuntimeException('Completed Daily Order not visible in person-wise source ledger timeline');
+
+    $after=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('journal_entries'));
+    $afterStock=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('stock_ledger'));
+    $afterPoints=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('performance_entries'));
+    if($before!==$after||$beforeStock!==$afterStock||$beforePoints!==$afterPoints)
+        throw new RuntimeException('Read-only employee/finance integration test mutated operational or financial source');
+});
+
 uat_case('uat_audit_batch_without_expiry_and_expired_quarantine', function () use ($manager,$wpdb) {
     // F02: batch-required without expiry tracking must remain issueable when expires_on is NULL.
     uat_insert($wpdb,'products',[
@@ -798,12 +1276,68 @@ uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($mak
     // earlier disposable Daily Order tests may add completed sales.
     $sourceBefore=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     $destBefore=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    // Fail closed: invalid transfer quantities may not create headers,
+    // detail lines, stock movements, journals or audit events.
+    $transferSnapshot=static function()use($wpdb):array{return [
+        'transfers'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_transfers')),
+        'lines'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_transfer_lines')),
+        'stock'=>(int)$wpdb->get_var(
+            "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+            " WHERE source_type LIKE 'stock_transfer_%'"),
+        'journals'=>(int)$wpdb->get_var(
+            "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+            " WHERE source_type LIKE 'stock_transfer_%'"),
+        'audit'=>(int)$wpdb->get_var(
+            "SELECT COUNT(*) FROM ".Db::table('audit_log').
+            " WHERE action LIKE 'stock_transfer.%'"),
+    ];};
+    foreach([['nan',NAN],['infinite',INF],['negative_infinite',-INF]] as [$name,$quantity]) {
+        $before=$transferSnapshot();
+        try {
+            uat_dispatch('inventory.transfer_create',$maker,[
+                'source_branch_id'=>1,'destination_branch_id'=>2,
+                'lines'=>[['product_id'=>100,'quantity'=>$quantity]],
+                'notes'=>'UAT invalid '.$name,
+            ]);
+            throw new RuntimeException('Invalid stock transfer '.$name.' was created');
+        } catch(DomainException $e) {
+            if($e->codeKey!=='transfer_quantity_invalid'||$e->httpStatus!==422)throw $e;
+        }
+        if($transferSnapshot()!==$before)
+            throw new RuntimeException('Rejected '.$name.' created transfer, stock, journal or audit');
+    }
     $created=uat_dispatch('inventory.transfer_create',$maker,[
         'source_branch_id'=>1,'destination_branch_id'=>2,'lines'=>[['product_id'=>100,'quantity'=>5]],'notes'=>'UAT transfer',
     ]);
     $id=(int)$created['id']; uat_dispatch('inventory.transfer_pack',$maker,['id'=>$id]);
     if((uat_dispatch('inventory.transfer_dispatch',$maker,['id'=>$id])['status']??'')!=='in_transit') throw new RuntimeException('transfer dispatch failed');
     $lineId=(int)$wpdb->get_var($wpdb->prepare('SELECT id FROM '.Db::table('stock_transfer_lines').' WHERE transfer_id=%d LIMIT 1',$id));
+    // A dispatched transfer must remain in transit with no receiving
+    // stock or GL postings after NaN/Infinity receipt attempts.
+    foreach([['nan',NAN],['infinite',INF],['negative_infinite',-INF]] as [$name,$quantity]) {
+        $before=$transferSnapshot();
+        $statusBefore=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('stock_transfers').' WHERE id=%d',$id));
+        $destQtyBefore=(float)$wpdb->get_var(
+            'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+            ' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND custodian_key=0');
+        try {
+            uat_dispatch('inventory.transfer_receive',$manager,[
+                'id'=>$id,'lines'=>[['transfer_line_id'=>$lineId,'received_quantity'=>$quantity]],
+            ]);
+            throw new RuntimeException('Invalid stock transfer receipt '.$name.' was posted');
+        }catch(DomainException $e){
+            if($e->codeKey!=='transfer_receive_quantity_invalid'||$e->httpStatus!==422)throw $e;
+        }
+        $statusAfter=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('stock_transfers').' WHERE id=%d',$id));
+        $destQtyAfter=(float)$wpdb->get_var(
+            'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+            ' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND custodian_key=0');
+        if($transferSnapshot()!==$before||$statusBefore!=='in_transit'||
+           $statusAfter!==$statusBefore||abs($destQtyAfter-$destQtyBefore)>.001)
+            throw new RuntimeException('Rejected receipt '.$name.' mutated transfer, stock, GL or audit');
+    }
     uat_expect_forbidden(
         fn()=>uat_dispatch('inventory.transfer_receive',$maker,['id'=>$id,'lines'=>[['transfer_line_id'=>$lineId,'received_quantity'=>5]]]),
         'transfer creator received own transfer without TRANSFER_RECEIVE'
@@ -813,6 +1347,353 @@ uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($mak
     $dest=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     if(abs($source-($sourceBefore-5.0))>0.001||abs($dest-($destBefore+5.0))>0.001) {
         throw new RuntimeException("transfer delta mismatch source={$sourceBefore}->{$source} destination={$destBefore}->{$dest}");
+    }
+});
+
+uat_case('uat_inventory_adjustment_quarantine_nonfinite_zero_mutation', function () use ($wpdb) {
+    $creator=uat_actor(30,[1,2],[Capabilities::ADJ_CREATE,Capabilities::INVENTORY_VIEW],'SYSADMIN');
+    $snapshot=static function()use($wpdb):array{return [
+        'adjustments'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_adjustments')),
+        'adjustment_lines'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_adjustment_lines')),
+        'quarantine'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_quarantine')),
+        'stock_moves'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger')),
+        'journals'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries')),
+        'audit'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('audit_log')),
+        'stock'=>(float)$wpdb->get_var(
+            'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+            ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND custodian_key=0'),
+    ];};
+    foreach([
+        ['nan_delta',NAN,50.0,'adjustment_quantity_invalid'],
+        ['infinite_delta',INF,50.0,'adjustment_quantity_invalid'],
+        ['negative_inf_delta',-INF,50.0,'adjustment_quantity_invalid'],
+        ['nan_cost',1.0,NAN,'adjustment_cost_invalid'],
+        ['infinite_cost',1.0,INF,'adjustment_cost_invalid'],
+        ['negative_inf_cost',1.0,-INF,'adjustment_cost_invalid'],
+    ] as [$name,$delta,$cost,$key]) {
+        $before=$snapshot();
+        try {
+            uat_dispatch('inventory.adjustment',$creator,[
+                'branch_id'=>1,'reason'=>'UAT invalid '.$name,
+                'lines'=>[['product_id'=>100,'quantity_delta'=>$delta,'unit_cost'=>$cost]],
+            ]);
+            throw new RuntimeException('Invalid stock adjustment '.$name.' was created');
+        }catch(DomainException $e){
+            if($e->codeKey!==$key||$e->httpStatus!==422)throw $e;
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Rejected adjustment '.$name.' changed stock or GL');
+    }
+    foreach([['nan',NAN],['infinite',INF],['negative_inf',-INF]] as [$name,$quantity]) {
+        $before=$snapshot();
+        try {
+            uat_dispatch('inventory.quarantine_hold',$creator,[
+                'branch_id'=>1,'product_id'=>100,
+                'quantity'=>$quantity,'reason'=>'UAT reject invalid quarantine '.$name,
+            ]);
+            throw new RuntimeException('Invalid quarantine '.$name.' was created');
+        }catch(DomainException $e){
+            if($e->codeKey!=='quarantine_fields_invalid'||$e->httpStatus!==422)throw $e;
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Rejected quarantine '.$name.' changed stock or GL');
+    }
+});
+
+
+
+uat_case('uat_inventory_adjustment_maker_checker_gain_loss_rejection_and_atomic_rollback', function () use ($wpdb) {
+    // Genuine isolated MariaDB. Model positive/negative adjustments through
+    // the original inventory REST dispatch and original Stock/GL writers.
+    $maker=uat_actor(30,[1,2],[Capabilities::ADJ_CREATE],'SYSADMIN');
+    $checker=uat_actor(20,[1,2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $outside=uat_actor(20,[2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $noPermission=uat_actor(20,[1,2],[Capabilities::INVENTORY_VIEW],'SYSADMIN');
+    $selfChecker=uat_actor(30,[1,2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $snapshot=static function(?int $id=null)use($wpdb):array{
+        $state=$id===null?null:$wpdb->get_row($wpdb->prepare(
+            'SELECT status,decided_by,journal_entry_id FROM '.Db::table('stock_adjustments').
+            ' WHERE id=%d',$id),ARRAY_A);
+        return [
+            'state'=>$state,
+            'header_count'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_adjustments')),
+            'line_count'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('stock_adjustment_lines')),
+            'movement_count'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type='stock_adjustment'"),
+            'journal_count'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type='stock_adjustment'"),
+            'audit_count'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action LIKE 'stock_adjustment.%'"),
+            'warehouse_qty'=>(float)$wpdb->get_var(
+                'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+                ' WHERE company_id=1 AND branch_id=1 AND product_id=100'.
+                ' AND batch_key=0 AND custodian_key=0'),
+        ];
+    };
+    // Explicit negative unit-cost must not silently turn into an average
+    // inventory cost or create an adjustment request.
+    $base=$snapshot();
+    try {
+        uat_dispatch('inventory.adjustment',$maker,[
+            'branch_id'=>1,'reason'=>'Negative cost must not fallback',
+            'lines'=>[['product_id'=>100,'quantity_delta'=>2,'unit_cost'=>-5]],
+        ]);
+        throw new RuntimeException('Explicit negative adjustment cost was accepted');
+    }catch(DomainException $e){
+        if($e->codeKey!=='adjustment_cost_invalid'||$e->httpStatus!==422)throw $e;
+    }
+    if($snapshot()!==$base)
+        throw new RuntimeException('Invalid adjustment cost created draft, stock, GL or audit');
+
+    $positive=uat_dispatch('inventory.adjustment',$maker,[
+        'branch_id'=>1,'reason'=>'Counted warehouse surplus evidence',
+        'lines'=>[['product_id'=>100,'quantity_delta'=>2,'unit_cost'=>40]],
+    ]);
+    $posId=(int)$positive['id'];
+    $pending=$snapshot($posId);
+    if(($pending['state']['status']??'')!=='pending'||
+       $pending['movement_count']!==$base['movement_count']||
+       $pending['journal_count']!==$base['journal_count']||
+       abs($pending['warehouse_qty']-$base['warehouse_qty'])>.001)
+        throw new RuntimeException('Pending adjustment posted stock before approval');
+    foreach([
+        ['maker_self',$selfChecker,'maker_checker_required',409],
+        ['outside_branch',$outside,'branch_forbidden',403],
+        ['missing_capability',$noPermission,'permission_denied',403],
+    ] as [$name,$actor,$key,$http]) {
+        $before=$snapshot($posId);
+        try {
+            uat_dispatch('inventory.adjustment_decision',$actor,[
+                'id'=>$posId,'approve'=>true,
+            ]);
+            throw new RuntimeException('Invalid adjustment approver accepted: '.$name);
+        }catch(DomainException $e){
+            if($e->codeKey!==$key||$e->httpStatus!==$http)
+                throw new RuntimeException('Incorrect adjustment permission error '.$name.
+                    ': '.$e->codeKey.' '.$e->httpStatus,0,$e);
+        }
+        if($snapshot($posId)!==$before)
+            throw new RuntimeException('Denied approval '.$name.' changed inventory or journal');
+    }
+    $approved=uat_dispatch('inventory.adjustment_decision',$checker,[
+        'id'=>$posId,'approve'=>true,
+    ]);
+    $posJournal=(int)($approved['journal_entry_id']??0);
+    $afterPositive=$snapshot($posId);
+    if(($approved['status']??'')!=='approved'||$posJournal<1||
+       $afterPositive['movement_count']!==$pending['movement_count']+1||
+       $afterPositive['journal_count']!==$pending['journal_count']+1||
+       abs($afterPositive['warehouse_qty']-$pending['warehouse_qty']-2)>.001)
+        throw new RuntimeException('Approved stock gain not reflected in ledger/warehouse');
+    $amounts=static function(int $journalId)use($wpdb):array{
+        $rows=(array)$wpdb->get_results($wpdb->prepare(
+            'SELECT account_id,SUM(debit) debit,SUM(credit) credit FROM '.
+            Db::table('journal_lines').' WHERE journal_entry_id=%d GROUP BY account_id',$journalId
+        ),ARRAY_A);
+        $map=[];foreach($rows as $row)$map[(int)$row['account_id']]=[
+            'debit'=>(float)$row['debit'],'credit'=>(float)$row['credit'],
+        ];
+        return $map;
+    };
+    $gain=$amounts($posJournal);
+    if(abs(($gain[5]['debit']??0)-80)>.005||
+       abs(($gain[7]['credit']??0)-80)>.005||
+       abs(($gain[5]['credit']??0))>.005||
+       abs(($gain[7]['debit']??0))>.005)
+        throw new RuntimeException('Stock gain journal lacks Dr INVENTORY / Cr VARIANCE 80');
+
+    try {
+        uat_dispatch('inventory.adjustment_decision',$checker,['id'=>$posId,'approve'=>true]);
+        throw new RuntimeException('Second stock gain approval was allowed');
+    }catch(DomainException $e){
+        if($snapshot($posId)!==$afterPositive)
+            throw new RuntimeException('Duplicate stock gain approval changed GL or stock');
+    }
+
+    $rejected=uat_dispatch('inventory.adjustment',$maker,[
+        'branch_id'=>1,'reason'=>'Rejected discrepancy should not move stock',
+        'lines'=>[['product_id'=>100,'quantity_delta'=>1,'unit_cost'=>40]],
+    ]);
+    $rejectId=(int)$rejected['id'];
+    $rejectBefore=$snapshot($rejectId);
+    $denied=uat_dispatch('inventory.adjustment_decision',$checker,[
+        'id'=>$rejectId,'approve'=>false,
+    ]);
+    $rejectAfter=$snapshot($rejectId);
+    if(($denied['status']??'')!=='rejected'||
+       $rejectAfter['movement_count']!==$rejectBefore['movement_count']||
+       $rejectAfter['journal_count']!==$rejectBefore['journal_count']||
+       abs($rejectAfter['warehouse_qty']-$rejectBefore['warehouse_qty'])>.001)
+        throw new RuntimeException('Rejected adjustment mutated stock or GL');
+
+    // A pending negative adjustment above actual stock must roll back
+    // atomically: do not mark approved, record stock OUT, or write GL.
+    $short=uat_dispatch('inventory.adjustment',$maker,[
+        'branch_id'=>1,'reason'=>'Excess physical stock loss denial',
+        'lines'=>[['product_id'=>100,'quantity_delta'=>-1000000]],
+    ]);
+    $shortId=(int)$short['id'];
+    $shortBefore=$snapshot($shortId);
+    try {
+        uat_dispatch('inventory.adjustment_decision',$checker,[
+            'id'=>$shortId,'approve'=>true,
+        ]);
+        throw new RuntimeException('Stock-loss adjustment over warehouse count approved');
+    }catch(DomainException $e){
+        if($e->codeKey!=='insufficient_stock'||$e->httpStatus!==409)throw $e;
+    }
+    if($snapshot($shortId)!==$shortBefore)
+        throw new RuntimeException('Insufficient-stock approval partially changed stock, GL or status');
+
+    $loss=uat_dispatch('inventory.adjustment',$maker,[
+        'branch_id'=>1,'reason'=>'Counted warehouse shortage evidence',
+        'lines'=>[['product_id'=>100,'quantity_delta'=>-1]],
+    ]);
+    $lossId=(int)$loss['id'];
+    $lossBefore=$snapshot($lossId);
+    $lossResult=uat_dispatch('inventory.adjustment_decision',$checker,[
+        'id'=>$lossId,'approve'=>true,
+    ]);
+    $lossJournal=(int)($lossResult['journal_entry_id']??0);
+    $lossAfter=$snapshot($lossId);
+    $unitCost=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT unit_cost_snapshot FROM '.Db::table('stock_adjustment_lines').
+        ' WHERE adjustment_id=%d LIMIT 1',$lossId));
+    $expected=round($unitCost,2);
+    $lossAmounts=$amounts($lossJournal);
+    if(($lossResult['status']??'')!=='approved'||$lossJournal<1||
+       $lossAfter['movement_count']!==$lossBefore['movement_count']+1||
+       $lossAfter['journal_count']!==$lossBefore['journal_count']+1||
+       abs($lossAfter['warehouse_qty']-$lossBefore['warehouse_qty']+1)>.001||
+       abs(($lossAmounts[7]['debit']??0)-$expected)>.005||
+       abs(($lossAmounts[5]['credit']??0)-$expected)>.005)
+        throw new RuntimeException('Stock shortage missing correct Dr VARIANCE / Cr INVENTORY GL');
+});
+
+uat_case('uat_inventory_transfer_discrepancy_separate_checker_and_balanced_gl', function () use ($maker,$manager,$wpdb) {
+    // Disposable MariaDB, genuine REST services: transfer shortage must be
+    // reconciled once by a distinct checker authorized for BOTH branches.
+    $created=uat_dispatch('inventory.transfer_create',$maker,[
+        'source_branch_id'=>1,'destination_branch_id'=>2,
+        'lines'=>[['product_id'=>100,'quantity'=>4]],
+        'notes'=>'Synthetic UAT shortage reconciliation',
+    ]);
+    $id=(int)$created['id'];
+    $sourceQty=static fn():float=>(float)$wpdb->get_var(
+        'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    $destQty=static fn():float=>(float)$wpdb->get_var(
+        'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
+    $sourceBefore=$sourceQty();$destBefore=$destQty();
+    $snapshot=static function()use($wpdb,$id,$sourceQty,$destQty):array {
+        return [
+            'status'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('stock_transfers').' WHERE id=%d',$id)),
+            'received'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT COALESCE(received_quantity,-1) FROM '.
+                Db::table('stock_transfer_lines').' WHERE transfer_id=%d LIMIT 1',$id)),
+            'stock_movements'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type LIKE 'stock_transfer_%' AND source_id=%d",$id)),
+            'journals'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type LIKE 'stock_transfer_%' AND source_id=%d",$id)),
+            'audits'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE entity_type='stock_transfer' AND entity_id=%d",$id)),
+            'source_qty'=>$sourceQty(),
+            'dest_qty'=>$destQty(),
+        ];
+    };
+    uat_dispatch('inventory.transfer_pack',$maker,['id'=>$id]);
+    $dispatched=uat_dispatch('inventory.transfer_dispatch',$maker,['id'=>$id]);
+    if(($dispatched['status']??'')!=='in_transit')
+        throw new RuntimeException('Shortage fixture never reached transit state');
+    $line=$wpdb->get_row($wpdb->prepare(
+        'SELECT id,unit_cost_snapshot FROM '.Db::table('stock_transfer_lines').
+        ' WHERE transfer_id=%d LIMIT 1',$id),ARRAY_A);
+    if(!$line)throw new RuntimeException('Transfer line missing in shortage UAT');
+    $receipt=uat_dispatch('inventory.transfer_receive',$manager,[
+        'id'=>$id,'lines'=>[['transfer_line_id'=>(int)$line['id'],'received_quantity'=>3]],
+    ]);
+    if(($receipt['status']??'')!=='difference_reported')
+        throw new RuntimeException('1 PCS shortage was not reported');
+    $pending=$snapshot();
+    if($pending['status']!=='difference_reported'||
+       abs($sourceQty()-($sourceBefore-4))>.001||
+       abs($destQty()-($destBefore+3))>.001)
+        throw new RuntimeException('Reported transfer shortage stock or status mismatch');
+
+    $checker=uat_actor(20,[1,2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $sourceOnly=uat_actor(20,[1],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $destOnly=uat_actor(20,[2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $selfChecker=uat_actor(30,[1,2],[Capabilities::ADJ_APPROVE],'SYSADMIN');
+    $noCapability=uat_actor(20,[1,2],[Capabilities::INVENTORY_VIEW],'SYSADMIN');
+    foreach([
+        ['source_only',$sourceOnly,'branch_forbidden',403,'Both branch scopes needed'],
+        ['dest_only',$destOnly,'branch_forbidden',403,'Source branch scope required'],
+        ['missing_capability',$noCapability,'permission_denied',403,'Approval permission required'],
+        ['maker_as_checker',$selfChecker,'maker_checker_required',409,'Self correction forbidden'],
+        ['short_note',$checker,'transfer_resolution_note_required',422,'bad'],
+    ] as [$case,$actor,$expectedCode,$expectedStatus,$note]) {
+        $before=$snapshot();
+        try {
+            uat_dispatch('inventory.transfer_correct',$actor,['id'=>$id,'note'=>$note]);
+            throw new RuntimeException('Unauthorised transfer correction accepted: '.$case);
+        }catch(DomainException $error){
+            if($error->codeKey!==$expectedCode||$error->httpStatus!==$expectedStatus)
+                throw new RuntimeException('Wrong discrepancy denial '.$case.': '.
+                    $error->codeKey.' '.$error->httpStatus,0,$error);
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Rejected transfer correction '.$case.
+                ' changed custody, journal, stock or audit');
+    }
+
+    $variance=round((float)$line['unit_cost_snapshot'],2);
+    $corrected=uat_dispatch('inventory.transfer_correct',$checker,[
+        'id'=>$id,'note'=>'Independent shortage verified from destination count',
+    ]);
+    if(($corrected['status']??'')!=='received'||
+       abs((float)($corrected['variance_amount']??-1)-$variance)>.005)
+        throw new RuntimeException('Valid transfer correction variance mismatch');
+    $after=$snapshot();
+    if($after['status']!=='received'||$after['journals']!==$pending['journals']+1||
+       $after['audits']!==$pending['audits']+1||
+       $after['stock_movements']!==$pending['stock_movements']||
+       abs($after['source_qty']-$pending['source_qty'])>.001||
+       abs($after['dest_qty']-$pending['dest_qty'])>.001)
+        throw new RuntimeException('Transfer correction changed custody or did not create exactly one GL/audit');
+    $journal=$wpdb->get_row($wpdb->prepare(
+        "SELECT id FROM ".Db::table('journal_entries').
+        " WHERE source_type='stock_transfer_variance' AND source_id=%d",$id),ARRAY_A);
+    if(!$journal)throw new RuntimeException('Stock shortage variance journal missing');
+    $dr=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(debit),0) FROM '.Db::table('journal_lines').
+        ' WHERE journal_entry_id=%d',(int)$journal['id']));
+    $cr=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(credit),0) FROM '.Db::table('journal_lines').
+        ' WHERE journal_entry_id=%d',(int)$journal['id']));
+    $clearing=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(jl.debit-jl.credit),0) FROM '.Db::table('journal_lines').' jl JOIN '.
+        Db::table('journal_entries')." je ON je.id=jl.journal_entry_id
+        WHERE je.source_id=%d AND je.source_type IN
+        ('stock_transfer_dispatch','stock_transfer_receive','stock_transfer_variance')
+        AND jl.account_id=%d",$id,6));
+    if(abs($dr-$variance)>.005||abs($cr-$variance)>.005||abs($clearing)>.005)
+        throw new RuntimeException('Transfer shortage variance or inter-branch clearing GL not balanced');
+    try {
+        uat_dispatch('inventory.transfer_correct',$checker,[
+            'id'=>$id,'note'=>'Repeated checker must be denied',
+        ]);
+        throw new RuntimeException('Duplicate transfer shortage GL post accepted');
+    }catch(DomainException $error) {
+        if($snapshot()!==$after)
+            throw new RuntimeException('Rejected duplicate correction changed stock, GL or audit');
     }
 });
 
@@ -975,10 +1856,45 @@ uat_case('uat_audit_daily_draft_edit_reject_and_additional_cancel', function () 
     uat_dispatch('daily.submit',$self,['id'=>$id]);
     uat_dispatch('daily.approve',$manager,['id'=>$request]);
     uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[]]);
+    // Phase 1 fail-closed gate: a submitted or approved additional request
+    // must block Evening Closing without creating a settlement or movements.
+    // Read exact real MariaDB tables before/after each attempted write.
+    $assertPendingBlocksClosing=static function(string $stage)use($self,$wpdb,$id):void{
+        $ledgerBefore=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+            " WHERE source_type IN ('daily_sale','daily_return') AND source_id=%d",$id));
+        $settlementsBefore=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('evening_settlements').' WHERE daily_cycle_id=%d',$id));
+        $journalsBefore=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+            " WHERE source_type='daily_cycle' AND source_id=%d",$id));
+        try {
+            uat_dispatch('daily.evening_start',$self,['id'=>$id]);
+            throw new RuntimeException('Phase 1 '.$stage.' pending Additional Stock allowed Evening Closing');
+        }catch(DomainException $e){
+            if($e->codeKey!=='additional_request_pending'||$e->httpStatus!==409)throw $e;
+        }
+        $ledgerAfter=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+            " WHERE source_type IN ('daily_sale','daily_return') AND source_id=%d",$id));
+        $settlementsAfter=(int)$wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('evening_settlements').' WHERE daily_cycle_id=%d',$id));
+        $journalsAfter=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+            " WHERE source_type='daily_cycle' AND source_id=%d",$id));
+        $cycleStatus=(string)$wpdb->get_var($wpdb->prepare(
+            'SELECT status FROM '.Db::table('daily_cycles').' WHERE id=%d',$id));
+        if($cycleStatus!=='issued'||$ledgerAfter!==$ledgerBefore||
+           $settlementsAfter!==$settlementsBefore||$journalsAfter!==$journalsBefore) {
+            throw new RuntimeException('Phase 1 '.$stage.' denied closing mutated stock, settlement, journal or cycle');
+        }
+    };
     $extra=uat_dispatch('daily.additional',$self,['id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>1]]]);
+    $assertPendingBlocksClosing('submitted');
     uat_dispatch('daily.reject',$manager,['id'=>(int)$extra['id'],'reason'=>'Requested stock is not required']);
     $next=uat_dispatch('daily.additional',$self,['id'=>$id,'lines'=>[['product_id'=>100,'quantity'=>1]]]);
     uat_dispatch('daily.approve',$manager,['id'=>(int)$next['id']]);
+    $assertPendingBlocksClosing('approved');
     uat_dispatch('daily.cancel_additional',$self,[
         'id'=>(int)$next['id'],'reason'=>'Cancel after revised demand',
     ]);
@@ -1181,6 +2097,379 @@ uat_case('uat_finance_reversal_capability_and_branch_scope', function () use ($w
     ));
     if($state!=='approved')throw new RuntimeException('Denied reversal modified source state');
 });
+
+
+uat_case('uat_purchase_supplier_bill_payment_finite_and_ledger_atomicity', function () use ($wpdb) {
+    // Synthetic, disposable CI MariaDB only. Guard direct API/service callers
+    // from NAN/INF quantities, costs and payments before stock/GL mutations.
+    $buyer=uat_actor(20,[1,2],[
+        Capabilities::PURCHASE_CREATE,Capabilities::SUPPLIER_PAYMENT,
+    ],'SYSADMIN');
+    $supplier=uat_dispatch('purchase.supplier_create',$buyer,[
+        'name'=>'Synthetic Purchase Finance Guard Supplier',
+        'mobile'=>'9000000920',
+    ]);
+    $sid=(int)$supplier['id'];
+    // Original UAT accounting fixture lacks AP; this isolated last case
+    // adds the canonical payable account without touching live Office.
+    uat_insert($wpdb,'accounts',[
+        'id'=>11,'company_id'=>1,'code'=>'AP','name'=>'Accounts Payable',
+        'type'=>'liability','subtype'=>null,'active'=>1,
+    ]);
+    $snapshot=static function()use($wpdb):array {
+        return [
+            'purchase_bills'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('purchase_bills')),
+            'purchase_bill_lines'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('purchase_bill_lines')),
+            'supplier_payments'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('supplier_payments')),
+            'purchase_moves'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type='purchase_bill'"),
+            'purchase_journals'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type='purchase_bill'"),
+            'payment_journals'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('journal_entries').
+                " WHERE source_type='supplier_payment'"),
+            'purchase_audits'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action='purchase_bill.post'"),
+            'payment_audits'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action='supplier_payment.post'"),
+            'warehouse'=>(float)$wpdb->get_var(
+                'SELECT quantity FROM '.Db::table('stock_balances').
+                ' WHERE company_id=1 AND branch_id=1 AND product_id=100'.
+                ' AND batch_key=0 AND custodian_key=0'),
+        ];
+    };
+    foreach([
+        ['nan_qty',NAN,40.0],
+        ['inf_qty',INF,40.0],
+        ['negative_inf_qty',-INF,40.0],
+        ['nan_cost',2.0,NAN],
+        ['inf_cost',2.0,INF],
+        ['negative_inf_cost',2.0,-INF],
+        ['overflow_total',1.0e308,2.0],
+    ] as [$case,$qty,$cost]) {
+        $before=$snapshot();
+        try {
+            uat_dispatch('purchase.bill',$buyer,[
+                'branch_id'=>1,'supplier_id'=>$sid,
+                'bill_no'=>'UAT-PURCHASE-INVALID-'.$case,
+                'bill_date'=>uat_date(),
+                'lines'=>[['product_id'=>100,'quantity'=>$qty,'unit_cost'=>$cost]],
+            ]);
+            throw new RuntimeException('Invalid supplier purchase was posted: '.$case);
+        }catch(DomainException $err){
+            if($err->codeKey!=='purchase_amount_invalid'||$err->httpStatus!==422)
+                throw new RuntimeException('Unexpected purchase denial: '.$case.
+                    ' ('.$err->codeKey.': '.$err->httpStatus.')',0,$err);
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Invalid '.$case.' changed stock, purchase, GL or audit');
+    }
+    $beforeValid=$snapshot();
+    $bill=uat_dispatch('purchase.bill',$buyer,[
+        'branch_id'=>1,'supplier_id'=>$sid,'bill_no'=>'UAT-PURCHASE-FINITE-001',
+        'bill_date'=>uat_date(),
+        'lines'=>[['product_id'=>100,'quantity'=>2,'unit_cost'=>40]],
+    ]);
+    $billId=(int)$bill['id'];
+    $afterValid=$snapshot();
+    if(abs((float)$bill['total_amount']-80)>.005||
+       abs((float)$bill['outstanding_amount']-80)>.005||
+       $afterValid['purchase_bills']!==$beforeValid['purchase_bills']+1||
+       $afterValid['purchase_bill_lines']!==$beforeValid['purchase_bill_lines']+1||
+       $afterValid['purchase_moves']!==$beforeValid['purchase_moves']+1||
+       $afterValid['purchase_journals']!==$beforeValid['purchase_journals']+1||
+       abs($afterValid['warehouse']-$beforeValid['warehouse']-2)>.001)
+        throw new RuntimeException('Legitimate Purchase bill stock and AP posting mismatch');
+    foreach([
+        ['nan',NAN],['inf',INF],['negative_inf',-INF],
+        ['zero',0.0],['negative',-1.0],['rounds_to_zero',0.001],
+    ] as [$case,$amount]) {
+        $before=$snapshot();
+        $outstanding=(float)$wpdb->get_var($wpdb->prepare(
+            'SELECT outstanding_amount FROM '.Db::table('purchase_bills').
+            ' WHERE id=%d',$billId));
+        try {
+            uat_dispatch('purchase.payment',$buyer,[
+                'purchase_bill_id'=>$billId,'amount'=>$amount,
+                'payment_account_id'=>1,
+            ]);
+            throw new RuntimeException('Invalid supplier payment posted: '.$case);
+        }catch(DomainException $err){
+            if($err->codeKey!=='supplier_payment_amount_invalid'||$err->httpStatus!==422)
+                throw new RuntimeException('Unexpected supplier payment denial: '.$case.
+                    ' ('.$err->codeKey.': '.$err->httpStatus.')',0,$err);
+        }
+        $still=(float)$wpdb->get_var($wpdb->prepare(
+            'SELECT outstanding_amount FROM '.Db::table('purchase_bills').
+            ' WHERE id=%d',$billId));
+        if($snapshot()!==$before||abs($still-$outstanding)>.005)
+            throw new RuntimeException('Rejected supplier '.$case.
+                ' payment changed AP, stock, GL or audit');
+    }
+    $paid=uat_dispatch('purchase.payment',$buyer,[
+        'purchase_bill_id'=>$billId,'amount'=>30,'payment_account_id'=>1,
+    ]);
+    $outstanding=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT outstanding_amount FROM '.Db::table('purchase_bills').
+        ' WHERE id=%d',$billId));
+    $afterPaid=$snapshot();
+    if(($paid['status']??'')!=='posted'||abs((float)$paid['amount']-30)>.005||
+       abs($outstanding-50)>.005||
+       $afterPaid['supplier_payments']!==$afterValid['supplier_payments']+1||
+       $afterPaid['payment_journals']!==$afterValid['payment_journals']+1||
+       $afterPaid['payment_audits']!==$afterValid['payment_audits']+1||
+       abs($afterPaid['warehouse']-$afterValid['warehouse'])>.001)
+        throw new RuntimeException('Legitimate supplier payment AP/GL/stock split mismatch');
+});
+
+
+uat_case('uat_purchase_full_bill_reversal_requires_payment_stock_and_checker', function () use ($wpdb) {
+    // Whole-bill cancellation is NOT a partial supplier credit-note/return.
+    // This suite runs only with synthetic data in disposable MariaDB CI.
+    $buyer=uat_actor(30,[1,2],[
+        Capabilities::PURCHASE_CREATE,Capabilities::REVERSAL_CREATE,
+        Capabilities::REVERSAL_APPROVE,
+    ],'SYSADMIN');
+    $payer=uat_actor(20,[1,2],[
+        Capabilities::SUPPLIER_PAYMENT,Capabilities::REVERSAL_APPROVE,
+    ],'SYSADMIN');
+    $otherBranch=uat_actor(20,[2],[Capabilities::REVERSAL_APPROVE],'SYSADMIN');
+    $supplier=uat_dispatch('purchase.supplier_create',$buyer,[
+        'name'=>'Synthetic Full Bill Reversal Supplier','mobile'=>'9000000909',
+    ]);
+    // A separate stock SKU prevents other UAT stock movements from hiding
+    // a missing warehouse item during the actual full-bill reversal.
+    $productId=(int)$wpdb->get_var('SELECT COALESCE(MAX(id),0)+1 FROM '.Db::table('products'));
+    uat_insert($wpdb,'products',[
+        'id'=>$productId,'company_id'=>1,'sku'=>'UAT-REV-P1099',
+        'name'=>'Unique Reversal Fixture Product','uom'=>'PCS',
+        'batch_tracking'=>'off','expiry_tracking'=>0,'status'=>'active',
+        'created_at'=>'2026-01-01 00:00:00',
+    ]);
+    $apId=(int)$wpdb->get_var(
+        "SELECT id FROM ".Db::table('accounts')." WHERE company_id=1 AND code='AP'");
+    if(!$apId)uat_insert($wpdb,'accounts',[
+        'id'=>11,'company_id'=>1,'code'=>'AP','name'=>'Accounts Payable',
+        'type'=>'liability','subtype'=>null,'active'=>1,
+    ]);
+    $bill=uat_dispatch('purchase.bill',$buyer,[
+        'branch_id'=>1,'supplier_id'=>(int)$supplier['id'],
+        'bill_no'=>'UAT-REV-FULL-1099','bill_date'=>uat_date(),
+        'lines'=>[['product_id'=>$productId,'quantity'=>3,'unit_cost'=>40]],
+    ]);
+    $billId=(int)$bill['id'];
+    $payment=uat_dispatch('purchase.payment',$payer,[
+        'purchase_bill_id'=>$billId,'amount'=>50,'payment_account_id'=>1,
+    ]);
+    $paymentId=(int)$payment['id'];
+    $request=uat_dispatch('finance.reversal_request',$buyer,[
+        'source_type'=>'purchase_bill','source_id'=>$billId,
+        'reason'=>'Synthetic full bill cancellation after supplier return',
+    ]);
+    $rid=(int)$request['id'];
+    $unauthorized=uat_actor(10,[1],[],'FE');
+    try {
+        uat_dispatch('finance.reversal_decision',$unauthorized,[
+            'id'=>$rid,'approve'=>true,
+        ]);
+        throw new RuntimeException('Unauthorized reviewer approved purchase reversal');
+    }catch(DomainException $e){
+        if($e->codeKey!=='permission_denied'||$e->httpStatus!==403)throw $e;
+    }
+    try {
+        uat_dispatch('finance.reversal_decision',$buyer,[
+            'id'=>$rid,'approve'=>true,
+        ]);
+        throw new RuntimeException('Purchase cancellation maker approved own request');
+    }catch(DomainException $e){
+        if($e->codeKey!=='maker_checker_required'||$e->httpStatus!==409)throw $e;
+    }
+    try {
+        uat_dispatch('finance.reversal_decision',$otherBranch,[
+            'id'=>$rid,'approve'=>true,
+        ]);
+        throw new RuntimeException('Wrong branch reviewer approved purchase reversal');
+    }catch(DomainException $e){
+        if($e->codeKey!=='branch_forbidden'||$e->httpStatus!==403)throw $e;
+    }
+    $review=uat_dispatch('finance.reversal_decision',$payer,[
+        'id'=>$rid,'approve'=>true,
+    ]);
+    if(($review['status']??'')!=='approved')
+        throw new RuntimeException('Independent bill reversal approval missing');
+    $snapshot=static function()use($wpdb,$billId,$paymentId,$rid,$productId):array {
+        return [
+            'bill'=>$wpdb->get_row($wpdb->prepare(
+                'SELECT status,paid_amount,outstanding_amount FROM '.
+                Db::table('purchase_bills').' WHERE id=%d',$billId),ARRAY_A),
+            'payment_status'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('supplier_payments').
+                ' WHERE id=%d',$paymentId)),
+            'request_status'=>(string)$wpdb->get_var($wpdb->prepare(
+                'SELECT status FROM '.Db::table('reversals').' WHERE id=%d',$rid)),
+            'stock'=>(float)$wpdb->get_var(
+                'SELECT COALESCE(SUM(quantity),0) FROM '.Db::table('stock_balances').
+                ' WHERE company_id=1 AND branch_id=1 AND product_id='.(int)$productId.' AND custodian_key=0'),
+            'purchase_reversal_moves'=>(int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ".Db::table('stock_ledger').
+                " WHERE source_type='purchase_bill_reversal' AND source_id=%d",$billId)),
+            'journals'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries')),
+            'journal_lines'=>(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('journal_lines')),
+            'audit'=>(int)$wpdb->get_var(
+                "SELECT COUNT(*) FROM ".Db::table('audit_log').
+                " WHERE action='reversal.execute'"),
+        ];
+    };
+    $expectDenial=static function(string $label,string $expected)use($payer,$rid,$snapshot):void {
+        $before=$snapshot();
+        try {
+            uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
+            throw new RuntimeException('Unsafe purchase reversal succeeded: '.$label);
+        }catch(DomainException $e){
+            if($e->codeKey!==$expected||$e->httpStatus!==409)
+                throw new RuntimeException('Unexpected purchase reversal denial '.$label.
+                    ': '.$e->codeKey.' '.$e->httpStatus,0,$e);
+        }
+        if($snapshot()!==$before)
+            throw new RuntimeException('Rejected '.$label.' changed supplier, stock, GL or audit');
+    };
+    $expectDenial('posted_supplier_payment','dependent_payment_exists');
+
+    // Synthetic corruption simulation: even if the bill's cached paid
+    // amount is zeroed, an actual posted supplier payment must block reversal.
+    $wpdb->update(Db::table('purchase_bills'),[
+        'paid_amount'=>0,'outstanding_amount'=>120,
+    ],['id'=>$billId]);
+    try {
+        $expectDenial('posted_payment_despite_cached_paid_zero','dependent_payment_exists');
+    }finally{
+        $wpdb->update(Db::table('purchase_bills'),[
+            'paid_amount'=>50,'outstanding_amount'=>70,
+        ],['id'=>$billId]);
+    }
+
+    $paymentRequest=uat_dispatch('finance.reversal_request',$buyer,[
+        'source_type'=>'supplier_payment','source_id'=>$paymentId,
+        'reason'=>'Reverse original supplier payment before full bill',
+    ]);
+    $paymentRevId=(int)$paymentRequest['id'];
+    uat_dispatch('finance.reversal_decision',$payer,[
+        'id'=>$paymentRevId,'approve'=>true,
+    ]);
+    $paymentReversed=uat_dispatch('finance.reversal_execute',$payer,[
+        'id'=>$paymentRevId,
+    ]);
+    if(($paymentReversed['status']??'')!=='executed')
+        throw new RuntimeException('Supplier payment reversal failed');
+    $afterPayment=$snapshot();
+    if($afterPayment['payment_status']!=='reversed'||
+       abs((float)$afterPayment['bill']['paid_amount'])>.005||
+       abs((float)$afterPayment['bill']['outstanding_amount']-120)>.005)
+        throw new RuntimeException('Supplier AP not restored after payment reversal');
+
+    // The canonical Supplier Payment writer locks purchase_bills FOR UPDATE.
+    // A full-bill reversal must hold that same row until its stock/GL commit,
+    // preventing a payment from being inserted after the dependency check.
+    // Invoke the stock helper inside a rollback-only synthetic transaction,
+    // then prove an independent MariaDB connection cannot acquire the bill.
+    $beforeLockProbe=$snapshot();
+    try {
+        \ExcelHerbal\ERP7\Database\Transaction::run(static function()use($buyer,$billId):void {
+            $reverseStock=new ReflectionMethod(
+                \ExcelHerbal\ERP7\Finance\FinanceReversalService::class,
+                'reversePurchaseStock'
+            );
+            $reverseStock->invoke(null,$buyer,$billId);
+            $peer=eh7_connect();
+            try {
+                $sql='SELECT id FROM '.Db::table('purchase_bills').
+                    ' WHERE id='.(int)$billId.' FOR UPDATE NOWAIT';
+                $probe=$peer->query($sql);
+                if($probe instanceof mysqli_result){
+                    $probe->free();
+                    throw new RuntimeException('Purchase reversal did not lock bill against payment');
+                }
+                if(!in_array($peer->errno,[1205,3572],true))
+                    throw new RuntimeException('Unexpected competing bill lock error: '.
+                        $peer->errno.' '.$peer->error);
+            }finally{
+                $peer->close();
+            }
+            throw new RuntimeException('purchase_reversal_lock_probe_rollback');
+        });
+        throw new RuntimeException('Purchase reversal lock probe did not roll back');
+    }catch(RuntimeException $e){
+        if($e->getMessage()!=='purchase_reversal_lock_probe_rollback')throw $e;
+    }
+    if($snapshot()!==$beforeLockProbe)
+        throw new RuntimeException('Reversal locking probe changed bill, stock, GL or audit');
+
+    // A synthetic residual mismatch must block full bill reversal even if
+    // there is no longer any posted supplier payment.
+    $wpdb->update(Db::table('purchase_bills'),[
+        'paid_amount'=>0,'outstanding_amount'=>110,
+    ],['id'=>$billId]);
+    try {
+        $expectDenial('purchase_AP_outstanding_drift','purchase_bill_settlement_mismatch');
+    }finally{
+        $wpdb->update(Db::table('purchase_bills'),[
+            'paid_amount'=>0,'outstanding_amount'=>120,
+        ],['id'=>$billId]);
+    }
+
+    // One unit has left the warehouse: no full bill cancellation is allowed
+    // until all original quantity becomes physically available to reverse.
+    StockService::move($buyer,1,$productId,null,null,'OUT',1,40,
+        'uat_purchase_return_unavailable',$productId);
+    $beforeShortage=$snapshot();
+    try {
+        uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
+        throw new RuntimeException('Unreturnable stock full purchase reversal succeeded');
+    }catch(DomainException $e){
+        if($e->codeKey!=='insufficient_stock'||$e->httpStatus!==409)throw $e;
+    }
+    if($snapshot()!==$beforeShortage)
+        throw new RuntimeException('Failed stock reversal partially mutated GL, stock, bill or audit');
+
+    StockService::move($buyer,1,$productId,null,null,'IN',1,40,
+        'uat_purchase_return_restored',$productId);
+    $beforeSuccess=$snapshot();
+    $result=uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
+    $afterSuccess=$snapshot();
+    if(($result['status']??'')!=='executed'||
+       (int)($result['reversal_journal_id']??0)<1||
+       $afterSuccess['bill']['status']!=='reversed'||
+       $afterSuccess['request_status']!=='executed'||
+       $afterSuccess['payment_status']!=='reversed'||
+       $afterSuccess['purchase_reversal_moves']!==$beforeSuccess['purchase_reversal_moves']+1||
+       $afterSuccess['journals']!==$beforeSuccess['journals']+1||
+       $afterSuccess['audit']!==$beforeSuccess['audit']+1||
+       abs($afterSuccess['stock'])>.001)
+        throw new RuntimeException('Full bill reversal did not restore original warehouse and AP/GL state');
+    $journalId=(int)$result['reversal_journal_id'];
+    $debit=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(debit),0) FROM '.Db::table('journal_lines').
+        ' WHERE journal_entry_id=%d',$journalId));
+    $credit=(float)$wpdb->get_var($wpdb->prepare(
+        'SELECT COALESCE(SUM(credit),0) FROM '.Db::table('journal_lines').
+        ' WHERE journal_entry_id=%d',$journalId));
+    if(abs($debit-120)>.005||abs($credit-120)>.005)
+        throw new RuntimeException('Purchase bill reversal is not Dr AP / Cr Inventory 120');
+    try {
+        uat_dispatch('finance.reversal_execute',$payer,['id'=>$rid]);
+        throw new RuntimeException('Duplicate full bill reversal accepted');
+    }catch(DomainException $e){
+        if($snapshot()!==$afterSuccess)
+            throw new RuntimeException('Duplicate reversal added stock/GL/audit');
+    }
+});
+
+require __DIR__.'/integration_purchase_return_preflight.php';
+require __DIR__.'/integration_daily_positive_whole_pcs.php';
 
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);

@@ -28,7 +28,7 @@ final class GpsPointValidator
             $accuracy = null;
         }
         $source = strtolower(trim((string)($data['source'] ?? 'duty')));
-        if (!in_array($source, ['duty','field_visit','manual_retry'], true)) {
+        if (!in_array($source, ['duty','duty_web','field_visit','manual_retry'], true)) {
             throw new InvalidArgumentException('GPS point source is invalid.');
         }
         return [

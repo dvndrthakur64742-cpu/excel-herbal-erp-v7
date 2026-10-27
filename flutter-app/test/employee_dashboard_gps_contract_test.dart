@@ -47,10 +47,14 @@ void main() {
     expect(policy, contains("public const START='10:30:00'"));
     expect(policy, contains("public const STOP='17:00:00'"));
     expect(policy, contains("'manual_start_allowed'=>false"));
+    expect(policy, isNot(contains(r"if(!$checkedIn)")));
+    final tracker = File('lib/core/gps_tracking_service.dart').readAsStringSync();
+    expect(tracker, contains('ApiPaths.gpsDuty'));
+    expect(tracker, isNot(contains('_api.get(ApiPaths.attendanceToday)')));
     expect(policy, contains("'manual_stop_allowed'=>false"));
     expect(tracking, contains('_scheduleTimer = Timer(delay'));
     expect(tracking, contains('_stopTimer = Timer(delay'));
-    expect(tracking, contains('Duty GPS is automatic. It stops only after checkout or the 5 PM duty cutoff.'));
+    expect(tracking, contains('Duty GPS is automatic between 10:30 AM and 5 PM. Attendance check-out cannot stop it.'));
     expect(coordinator, contains('ref.read(gpsTrackingProvider).sync()'));
     expect(tracking, isNot(contains('void employeeStart(')));
     expect(tracking, isNot(contains('void employeeStop(')));
@@ -62,7 +66,9 @@ void main() {
     ).readAsStringSync();
     final screen = File('lib/screens/my_work/my_work_attendance.dart').readAsStringSync();
 
-    expect(backend, contains('private static function ensureScheduledAttendance'));
+    expect(backend, contains('AttendancePolicy::assertCheckInTime'));
+    expect(backend, contains('AttendancePolicy::assertCheckOutTime'));
+    expect(backend, isNot(contains('ensureScheduledAttendance')));
     final scheduler = File(
       '../backend/excel-herbal-erp-v7/src/Workforce/ScheduledAttendanceService.php',
     ).readAsStringSync();
@@ -71,21 +77,40 @@ void main() {
     ).readAsStringSync();
     expect(scheduler, contains("public const HOOK = 'eh7_scheduled_attendance_tick'")); 
     expect(scheduler, contains("'interval' => 300"));
-    expect(scheduler, contains("NOT EXISTS"));
+    expect(scheduler, contains('AttendancePolicy::autoCheckOutDue'));
+    expect(scheduler, contains('AttendancePolicy::AUTO_CHECK_OUT'));
+    expect(scheduler, contains('check_in_at IS NOT NULL AND check_out_at IS NULL'));
+    expect(scheduler, isNot(contains('INSERT INTO')));
+    expect(scheduler, isNot(contains('GpsDutyPolicy::STOP')));
     expect(scheduler, contains("check_out_at"));
     expect(plugin, contains('ScheduledAttendanceService::boot()'));
 
-    expect(backend, contains("'attendance_manual_disabled',403"));
+    final policy = File('../backend/excel-herbal-erp-v7/src/Workforce/AttendancePolicy.php').readAsStringSync();
     expect(backend, contains("current_time('H:i:s')"));
-    expect(backend, contains('get_gmt_from_date'));
-    expect(backend, contains('GpsDutyPolicy::START'));
-    expect(backend, contains('GpsDutyPolicy::STOP'));
-    expect(screen, contains('Duty automatically starts at 10:30 AM'));
-    expect(screen, contains('Duty is automatic · 10:30 AM–5:00 PM'));
-    expect(screen, isNot(contains("Text('Check-In')")));
-    expect(screen, isNot(contains("Text('Check-Out')")));
-    expect(screen, isNot(contains('_attendanceAction(true)')));
-    expect(screen, isNot(contains('_attendanceAction(false)')));
+    expect(policy, contains("SELF_CHECK_IN_START = '09:00:00'"));
+    expect(policy, contains("SELF_CHECK_OUT_START = '18:00:00'"));
+    expect(policy, contains("AUTO_CHECK_OUT = '20:00:00'"));
+    expect(screen, contains("Text('Self Check-In')"));
+    expect(screen, contains("Text('Self Check-Out')"));
+    expect(screen, contains('PreviewReadOnlyPolicy.enabled'));
+    expect(screen, contains('GPS Duty: automatic 10:30 AM–5 PM'));
+    expect(screen, isNot(contains("Text('Start GPS Duty')")));
+    expect(screen, isNot(contains("Text('Stop GPS Duty')")));
+    expect(scheduler, isNot(contains('GpsDutyPolicy::START')));
+  });
+
+  test('read-only preview loads duty via GET without location sampling or POST', () {
+    final screen = File('lib/screens/my_work/my_work_attendance.dart').readAsStringSync();
+    final preview = screen.substring(
+      screen.indexOf('if (PreviewReadOnlyPolicy.enabled)\n          AsyncPanel('),
+      screen.indexOf('else\n          Card(', screen.indexOf('if (PreviewReadOnlyPolicy.enabled)\n          AsyncPanel(')),
+    );
+    expect(preview, contains('api.get(ApiPaths.gpsDuty)'));
+    expect(preview, contains('Read-only preview: no device location or GPS uploads.'));
+    expect(preview, isNot(contains('gpsTrackingProvider).sync()')));
+    expect(preview, isNot(contains('ApiPaths.gpsPoints')));
+    expect(screen, contains('Attendance completed for today'));
+    expect(screen, contains('Attendance se alag.'));
   });
 
   test('route widget overlays recorded points on attributed OpenStreetMap road tiles', () {

@@ -1,0 +1,167 @@
+# Employee Cash Responsibility / Cashier Handover UAT Audit
+
+Read-only UAT adapter `UatEmployeeCashCustodyHistory` is built on existing
+preview sales, employee cash responsibility, independent cashier attestation,
+receipt consumption and remittance journal records in disposable `v8_test`.
+No new stock table, ledger table, sales header or public WordPress route.
+
+For each original field-Cash retailer sale:
+- Before handover: employee_cash_pending, remitted zero.
+- Only a consumed cashier receipt with independent actor and exact full
+  remittance, matching balanced two-line custody journal, can report
+  cashier_remittance_evidenced.
+- Missing/tampered evidence: reconciliation_mismatch, remitted zero.
+- Handover NEVER creates another retailer sale or retail income.
+- Finance viewer must be permitted by a trusted server-side authority.
+- All UAT readers and remittance writers reject wrong DB and schema switch.
+
+**Release gate:** This is NOT canonical V7 GL posting and not real bank
+deposit verification. Existing V7 Cash-in-Transit debit at sale can be posted
+through canonical B2B UAT, but its corresponding V7 GL reclassification on
+cashier handover is NOT implemented here. That requires owner-approved
+canonical source type, reversal policy, period close rules, maker/checker
+and real WordPress MariaDB UAT. No production deployment or PR merge.
+
+## 2026-10-24 — Finance-only Employee source-linked cashier review (UAT only)
+
+Before this change the canonical B2B field Cash employee report exposed a
+boolean `cash_handover_verified`, but not its original physical cashier
+attestation and the *different* Finance checker's posted canonical journal
+in a single reviewer record. A manager could not follow the true evidence
+chain from a finance-scoped employee review row.
+
+The existing read-only `V7EmployeeCrossSourceCashAuditUat::inspect` now
+exposes `cashier_finance_evidence` per canonical B2B field-Cash source
+**only after** `V7B2BCrossLedgerAuditUat` fully verifies all canonical
+journal lines, source identity, maker/checker separation and original
+cashier receipt. The proof chain uses a second read-only join of original
+`b2b_cash_remittances`, `b2b_cashier_receipts_uat` and V7
+`journal_entries`. Company, branch, employee and sale must agree, and
+the cashier, Finance checker, receipt, consumed-remittance and journal
+author/source IDs must be consistent. Wrong, malformed, missing or duplicated
+evidence fails closed.
+
+The authorized report includes original source key, receipt ID/reference,
+cashier user/employee, exact amount paise, finance checker user/employee,
+canonical remittance/journal IDs and an explicit `*_uat` state. Legacy
+Daily Orders have **no such proof chain**, no automated B2B identity,
+and retain `cash_handover_verified=false`. Pending/failed B2B Cash
+has `cashier_finance_evidence=null`; neither status is a debt calculation.
+The whole report remains `read_only=true` and
+`production_financial_status=not_certified`, with no second GL, price
+visibility change, staging API, cashier confirmation, bank claim or live
+production payment posting.
+
+The disposable V7 canonical MariaDB test additionally verifies the original
+cashier and independent Finance checker identities, the same original
+source-linked posted journal, forged receipt-reference fail-close,
+recovery without a second financial write, and original role/branch
+authorization. Changes in the audit class trigger the dedicated isolated
+Cashier/Finance-checker/UPI MariaDB workflow.
+
+**Release status:** isolated development/UAT code only. To show this in an
+actual Office browser, the new scope-limited finance API and authorized
+Flutter screen must be designed, staged on sanitized infrastructure,
+and independently approved. The current live Office backend has no
+canonical cashier receipt action for this source.
+
+## 2026-10-24 — UAT-only Finance Review component; no live API activation
+
+The existing Flutter `EmployeeFinanceReviewView` now optionally renders a
+`CashierEvidenceUatSection` ONLY if the caller explicitly supplies a
+strictly parsed `CashierEvidenceUatPage`. Its parser validates the isolated
+`V7EmployeeCrossSourceCashAuditUat::inspect` payload contract: read-only,
+company, branch, employee, exact period, bounded first page, independence
+of Daily Order and B2B sources, original B2B posted-sale ID / date / amount,
+and original independently authenticated cashier receipt, Finance checker,
+remittance and V7 posted GL journal IDs. Different cashier and checker user
+and employee IDs are mandatory; UAT-only scope, unverified-live flag and
+source-specific evidence stages are required. Duplicate source, receipt and
+journal IDs, tampered amount, altered company/period, fake bank proof and
+employee outstanding assertions fail closed. No totals are aggregated.
+
+The independent component shows the receipt -> cashier -> Finance checker ->
+canonical remittance/GL chain with an unmistakable **UAT ONLY / NOT Office
+Cash proof / NOT bank settlement / NOT employee outstanding** disclaimer.
+The old Daily Order renderer remains unchanged and explicitly lacks physical
+Cash attestation. The existing `EmployeeFinanceReviewPanel._fetch` retains
+ONLY canonical live V7 Cash Control and person ledger REST GET calls; it does
+NOT fetch isolated v8_test data or present synthetic evidence as live fact.
+
+A dedicated Flutter widget/contract suite covers acceptance and tamper
+rejection. Pending **authorized** staging API integration, no runtime caller
+passes `cashierEvidenceUat`, so this is a previewable development component,
+not a live Cashier Receipt UI or a production ready workflow. This change
+contains no REST route, financial posting, migration or Office deployment.
+
+## 2026-10-24 — Consolidated read-only Finance GET adapter and UAT UI transport
+
+Added `V7FinanceReviewReadEndpointUat::get`, a server-side **UAT-only GET
+adapter** for the existing original `V7EmployeeCrossSourceCashAuditUat`
+source. This is NOT registered in the canonical WordPress REST RouteRegistry,
+not accessible on Office staging, and not a production cashier approval API.
+The adapter calls the original actual-DB `v8_test` safety gate and accepts
+ONLY exact GET parameters: branch, employee, from/to, page=1, page_size=25.
+It rejects POST, company-id override, impossible dates, oversized pages,
+unauthenticated actor context, missing BOTH employee-view and finance-view
+permissions, other branch or company, and any target denied by independently
+resolved reporting hierarchy. The company's real identity and authorization
+always come from server Actor and policy callback, never client parameters.
+The resulting read-only response preserves independent legacy Daily Order and
+canonical B2B source pages and guarantees no combined total or employee
+outstanding amount and no claimed bank settlement.
+
+Added `FinanceEvidenceUatApiLoader` Flutter UAT transport component. It only
+runs when a caller explicitly injects an authenticated disposable UAT GET
+function; the existing Office `EmployeeFinanceReviewPanel._fetch` continues
+to call ONLY original protected V7 Cash-Control / Person-Ledger routes. The
+UAT transport result is passed through the existing strict finance source
+parser before displaying cashier/independent-checker/original GL references;
+errors and wrong employee/branch/period render **unavailable**, not proof.
+No Office app runtime caller supplies a UAT API function.
+
+One big development batch adds the server-side UAT adapter, disposable real
+MariaDB acceptance/denial/non-mutation cases, UAT Flutter GET loader,
+focused widget tests, and auto-triggered Cash/Flutter CI paths. No live
+payment records, duplicate ledger, payroll calculation, schema migrations,
+production bank/PSP connection, Office/WordPress REST route or staging
+release accompany this work. Actual authorized browser testing must be
+performed on a sanitized isolated environment; the current Office staging
+has non-sanitized data and active mobile sessions.
+
+
+## 2026-10-24 — Actual loopback HTTP Finance review proof test (disposable only)
+
+Added `finance_review_uat_http_router.php` and
+`finance_review_uat_http_smoke.py` under `v8/backend/tests/`.
+After the original 141-check full V7 canonical MariaDB sale, cashier receipt,
+independent checker, source ledger, role and no-mutation UAT (plus 27 synthetic
+signed bank-proof checks), the same runner starts PHP's built-in server on
+**127.0.0.1:18746** and tests the actual HTTP request/response boundary
+against the seeded original `v8_test` source rows. The router is NOT a
+WordPress REST route. It checks loopback client/server identity, ephemeral
+`V8_FINANCE_HTTP_CI_ONLY=1` and actual `SELECT DATABASE()=v8_test`; the
+database adapter exposes SELECT-only SQL operations. Financial POST/DELETE
+requests can never be forwarded to a writer.
+
+The loopback test uses **synthetic bearer identities, not real WordPress
+authentication**. Those synthetic identities are generated by the server and
+are confined to disposable CI: finance employee-view with independently
+approved reporting target, field seller, accounting-only without employee
+profile view, other branch and other company. Requests validate exact GET
+shape, bound page=1/25, date window, no client company override and fail
+closed for unknown bearer, wrong role, branch, target, method or URI.
+The happy path verifies the SAME real original B2B sale/receipt, independent
+cashier, checker, remittance ID and posted V7 GL ID that were committed by the
+preceding MariaDB UAT, plus the unrelated legacy Daily Order remaining
+**not Cash/UPI proof**. Responses forbid synthetic/global employee
+outstanding and any real Office/bank confirmation. No SQL error detail or
+financial evidence leaves denied requests, and HTTP replies use
+`Cache-Control: no-store`.
+
+This gate **does not complete real browser / real WordPress identity UAT**:
+there is no trusted Office role-login session, installed WordPress route,
+customer money, PSP integration or production-like staging deployment.
+The actual Office staging is non-sanitized and has active mobile sessions.
+Only after a separate deployment approval, sanitized staging and production
+source/rollback review may an authenticated WordPress finance API be built.

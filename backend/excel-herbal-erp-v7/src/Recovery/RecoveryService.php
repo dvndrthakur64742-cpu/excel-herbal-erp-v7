@@ -13,19 +13,65 @@ use ExcelHerbal\ERP7\Security\HierarchyScope;
 use ExcelHerbal\ERP7\Workforce\GpsDutyPolicy;
 
 final class RecoveryService {
+    /** Read-only independent GPS duty status; never creates payroll attendance. */
+    public static function gpsDuty(Actor $a):array {
+        Guard::cap($a,Capabilities::ATT_SELF);
+        $branch=(int)$a->assignedBranchId;
+        if($branch<1||!$a->hasBranch($branch))
+            throw new DomainException('An assigned branch is required for duty GPS.','gps_branch_required',403);
+        $db=Db::wpdb();
+        $employee=$db->get_row($db->prepare(
+            "SELECT e.id FROM ".Db::table('employees')." e JOIN ".Db::table('branches')." b ON b.id=e.assigned_branch_id AND b.company_id=e.company_id AND b.status='active'
+             WHERE e.id=%d AND e.company_id=%d AND e.assigned_branch_id=%d AND e.status='active' LIMIT 1",
+            $a->employeeId,$a->companyId,$branch),ARRAY_A);
+        if(!$employee)throw new DomainException('GPS duty requires an active employee and branch.','gps_employee_inactive',403);
+        $date=Db::today();
+        $leave=(int)$db->get_var($db->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('leave_requests')." WHERE company_id=%d AND employee_id=%d AND status='approved' AND date_from<=%s AND date_to>=%s",
+            $a->companyId,$a->employeeId,$date,$date));
+        $holiday=(int)$db->get_var($db->prepare(
+            "SELECT COUNT(*) FROM ".Db::table('holidays')." WHERE company_id=%d AND active=1 AND (branch_id IS NULL OR branch_id=%d) AND holiday_date=%s",
+            $a->companyId,$branch,$date));
+        $state=GpsDutyPolicy::state(['business_date'=>$date]);
+        if($leave||$holiday){
+            $state['gps_status']='not_scheduled';
+            $state['gps_should_track']=false;
+            $state['exclusion']=$leave?'approved_leave':'holiday';
+        }
+        return ['business_date'=>$date,'branch_id'=>$branch]+$state;
+    }
+
     public static function gpsPoint(Actor $a,array $data):array {
         Guard::cap($a,Capabilities::ATT_SELF);
-        try{$gps=GpsPointValidator::normalize($data);}catch(\InvalidArgumentException $e){throw new DomainException($e->getMessage(),'gps_invalid',422);}
-        $recorded=trim((string)($data['recorded_at']??''));$recorded=$recorded===''?Db::now():Input::utcDateTime($recorded,'GPS recorded_at');
-        return Transaction::run(function()use($a,$data,$gps,$recorded){
-            $db=Db::wpdb();$att=$db->get_row($db->prepare("SELECT * FROM ".Db::table('attendance')." WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",$a->companyId,$a->employeeId,Db::today()),ARRAY_A);
-            if(!$att||!$att['check_in_at'])throw new DomainException('Attendance check-in required for scheduled GPS tracking.','gps_checkin_required',409);
-            GpsDutyPolicy::assertRecordedAt($recorded,$att);
-            $utc=new \DateTimeZone('UTC');$recordedAt=new \DateTimeImmutable($recorded,$utc);$earliest=(new \DateTimeImmutable((string)$att['check_in_at'],$utc))->modify('-5 minutes');$latest=(new \DateTimeImmutable('now',$utc))->modify('+10 minutes');if($recordedAt<$earliest||$recordedAt>$latest)throw new DomainException('GPS recorded_at is outside the active attendance window.','gps_recorded_time_invalid',422);
-            $branch=(int)$att['branch_id']; if(!$a->hasBranch($branch))throw new DomainException('Attendance branch is outside effective authority.','branch_forbidden',403);
+        try{$gps=GpsPointValidator::normalize($data);}
+        catch(\InvalidArgumentException $e){throw new DomainException($e->getMessage(),'gps_invalid',422);}
+        $recorded=trim((string)($data['recorded_at']??''));
+        $recorded=$recorded===''?Db::now():Input::utcDateTime($recorded,'GPS recorded_at');
+        return Transaction::run(function()use($a,$data,$gps,$recorded) {
+            $duty=self::gpsDuty($a);
+            if($duty['gps_status']!=='active')
+                throw new DomainException('GPS duty is not active for this employee.','gps_duty_inactive',409);
+            GpsDutyPolicy::assertRecordedAt($recorded,['business_date'=>$duty['business_date']]);
+            GpsDutyPolicy::assertFreshRecording($recorded,Db::now());
+            $branch=(int)$duty['branch_id'];$db=Db::wpdb();
+            // gps_points.attendance_id is nullable on the existing database.
+            $att=$db->get_row($db->prepare(
+                "SELECT id FROM ".Db::table('attendance')." WHERE company_id=%d AND employee_id=%d AND business_date=%s",
+                $a->companyId,$a->employeeId,$duty['business_date']),ARRAY_A);
             $visitId=isset($data['field_visit_id'])?(int)$data['field_visit_id']:0;
-            if($visitId){$v=$db->get_row($db->prepare("SELECT id FROM ".Db::table('field_visits')." WHERE id=%d AND company_id=%d AND employee_id=%d AND status='in_progress'",$visitId,$a->companyId,$a->employeeId),ARRAY_A);if(!$v)throw new DomainException('Active field visit not found.','field_visit_not_found',404);}
-            Db::mustInsert($db,Db::table('gps_points'),['company_id'=>$a->companyId,'branch_id'=>$branch,'employee_id'=>$a->employeeId,'attendance_id'=>(int)$att['id'],'field_visit_id'=>$visitId?:null,'latitude'=>$gps['latitude'],'longitude'=>$gps['longitude'],'accuracy_m'=>$gps['accuracy_m'],'source'=>$gps['source'],'recorded_at'=>$recorded,'created_at'=>Db::now()]);
+            if($visitId){
+                $v=$db->get_row($db->prepare(
+                    "SELECT id FROM ".Db::table('field_visits')." WHERE id=%d AND company_id=%d AND employee_id=%d AND status='in_progress'",
+                    $visitId,$a->companyId,$a->employeeId),ARRAY_A);
+                if(!$v)throw new DomainException('Active field visit not found.','field_visit_not_found',404);
+            }
+            Db::mustInsert($db,Db::table('gps_points'),[
+                'company_id'=>$a->companyId,'branch_id'=>$branch,'employee_id'=>$a->employeeId,
+                'attendance_id'=>$att?(int)$att['id']:null,'field_visit_id'=>$visitId?:null,
+                'latitude'=>$gps['latitude'],'longitude'=>$gps['longitude'],
+                'accuracy_m'=>$gps['accuracy_m'],'source'=>$gps['source'],
+                'recorded_at'=>$recorded,'created_at'=>Db::now()
+            ]);
             return ['id'=>(int)$db->insert_id,'recorded_at'=>$recorded]+$gps;
         });
     }
@@ -38,9 +84,13 @@ final class RecoveryService {
         $sql.=" ORDER BY recorded_at,id";return (array)$db->get_results($db->prepare($sql,...$args),ARRAY_A);
     }
     public static function gpsTeam(Actor $a,?int $branchId=null):array {
-        Guard::cap($a,Capabilities::GPS_TEAM_VIEW);$db=Db::wpdb();$ids=HierarchyScope::visibleEmployeeIds($a,$branchId);if(!$ids)return[];$ph=implode(',',array_fill(0,count($ids),'%d'));$args=array_merge([$a->companyId,Db::today()],$ids);
-        $sql="SELECT e.id employee_id,e.employee_code,e.full_name,e.designation_code,e.reporting_designation_code,e.assigned_branch_id,a.id attendance_id,a.check_in_at,a.check_out_at,a.status attendance_status,g.latitude,g.longitude,g.accuracy_m,g.recorded_at latest_gps_at FROM ".Db::table('employees')." e LEFT JOIN ".Db::table('attendance')." a ON a.company_id=e.company_id AND a.employee_id=e.id AND a.business_date=%s LEFT JOIN ".Db::table('gps_points')." g ON g.id=(SELECT gp.id FROM ".Db::table('gps_points')." gp WHERE gp.company_id=e.company_id AND gp.employee_id=e.id AND gp.attendance_id=a.id ORDER BY gp.recorded_at DESC,gp.id DESC LIMIT 1) WHERE e.company_id=%d AND e.status='active' AND e.id IN ({$ph}) ORDER BY e.full_name";
-        $args2=array_merge([Db::today(),$a->companyId],$ids);$rows=(array)$db->get_results($db->prepare($sql,...$args2),ARRAY_A);foreach($rows as&$r){$att=['business_date'=>Db::today(),'check_in_at'=>$r['check_in_at'],'check_out_at'=>$r['check_out_at']];$r=array_merge($r,GpsDutyPolicy::state($att));$r['reporting_category']=HierarchyScope::reportingCategoryForCode((string)$r['designation_code'],(string)($r['reporting_designation_code']??''));}unset($r);return$rows;
+        Guard::cap($a,Capabilities::GPS_TEAM_VIEW);
+        // Explicit branch filters must not silently succeed outside the actor's authority.
+        if($branchId!==null&&($branchId<1||!$a->hasBranch($branchId)))
+            throw new DomainException('Branch is outside effective authority.','branch_forbidden',403);
+        $db=Db::wpdb();$ids=HierarchyScope::visibleEmployeeIds($a,$branchId);if(!$ids)return[];$ph=implode(',',array_fill(0,count($ids),'%d'));$args=array_merge([$a->companyId,Db::today()],$ids);
+        $sql="SELECT e.id employee_id,e.employee_code,e.full_name,e.designation_code,e.reporting_designation_code,e.assigned_branch_id,a.id attendance_id,a.check_in_at,a.check_out_at,a.status attendance_status,g.latitude,g.longitude,g.accuracy_m,g.recorded_at latest_gps_at FROM ".Db::table('employees')." e LEFT JOIN ".Db::table('attendance')." a ON a.company_id=e.company_id AND a.employee_id=e.id AND a.business_date=%s LEFT JOIN ".Db::table('gps_points')." g ON g.id=(SELECT gp.id FROM ".Db::table('gps_points')." gp WHERE gp.company_id=e.company_id AND gp.employee_id=e.id AND gp.recorded_at>=%s AND gp.recorded_at<%s ORDER BY gp.recorded_at DESC,gp.id DESC LIMIT 1) WHERE e.company_id=%d AND e.status='active' AND e.id IN ({$ph}) ORDER BY e.full_name";
+        $day=Db::today();$gpsFrom=get_gmt_from_date($day.' '.GpsDutyPolicy::START);$gpsTo=get_gmt_from_date($day.' '.GpsDutyPolicy::STOP);$args2=array_merge([$day,$gpsFrom,$gpsTo,$a->companyId],$ids);$rows=(array)$db->get_results($db->prepare($sql,...$args2),ARRAY_A);foreach($rows as&$r){$r=array_merge($r,GpsDutyPolicy::state(['business_date'=>Db::today()]));$r['reporting_category']=HierarchyScope::reportingCategoryForCode((string)$r['designation_code'],(string)($r['reporting_designation_code']??''));}unset($r);return$rows;
     }
     public static function holidays(Actor $a,?int $branchId,string $from,string $to):array {
         Guard::any($a,[Capabilities::LEAVE_SELF,Capabilities::LEAVE_MANAGE]);$branchId=$branchId?:$a->assignedBranchId;if($branchId&&!$a->hasBranch($branchId))throw new DomainException('Branch is outside effective authority.','branch_forbidden',403);

@@ -1,0 +1,117 @@
+name: V8 Genuine WordPress B2B REST Auth and Role UAT (Disposable CI Only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/v8-b2b-real-wordpress-ci.yml'
+      - 'backend/excel-herbal-erp-v7/src/**'
+      - 'v8/backend/tests/b2b_real_wordpress_http_smoke.py'
+      - 'v8/backend/tests/b2b_real_wp_seed.php'
+  pull_request:
+    paths:
+      - '.github/workflows/v8-b2b-real-wordpress-ci.yml'
+      - 'backend/excel-herbal-erp-v7/**'
+      - 'v8/backend/schema/**'
+      - 'v8/backend/tests/b2b_real_wp_seed.php'
+      - 'v8/backend/tests/b2b_real_wp_security_mutation.php'
+      - 'v8/backend/tests/b2b_real_wordpress_http_smoke.py'
+      - 'v8/backend/tests/b2b_real_wordpress_router.php'
+
+permissions:
+  contents: read
+
+jobs:
+  genuine-wordpress-rest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci-disposable-root
+          MARIADB_DATABASE: v8_test
+          MARIADB_USER: v8
+          MARIADB_PASSWORD: v8
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: wp-cli
+          extensions: mysqli, pdo_mysql, curl, mbstring, zip
+          coverage: none
+      - name: Refuse non-disposable source or MariaDB
+        env:
+          MYSQL_PWD: v8
+        run: |
+          php -l v8/backend/tests/b2b_real_wp_seed.php
+          php -l v8/backend/tests/b2b_real_wp_security_mutation.php
+          php -l v8/backend/tests/b2b_real_wordpress_router.php
+          python3 -m py_compile v8/backend/tests/b2b_real_wordpress_http_smoke.py
+          test -n "${RUNNER_TEMP}"
+          php -r '
+            $pdo=new PDO("mysql:host=127.0.0.1;port=3306;dbname=v8_test;charset=utf8mb4","v8","v8");
+            if($pdo->query("SELECT DATABASE()")->fetchColumn()!=="v8_test")exit(3);
+            echo "PASS disposable actual MariaDB v8_test identity\n";
+          '
+      - name: Install fresh genuine WordPress core on runner-local disposable MariaDB
+        run: |
+          export B2B_REAL_WP_ROOT="$RUNNER_TEMP/eh8-real-wp"
+          echo "B2B_REAL_WP_ROOT=$B2B_REAL_WP_ROOT" >> "$GITHUB_ENV"
+          uat_secret="$(openssl rand -hex 24)"
+          echo "::add-mask::$uat_secret"
+          echo "B2B_REAL_WP_UAT_PASSWORD=$uat_secret" >> "$GITHUB_ENV"
+          mkdir -p "$B2B_REAL_WP_ROOT"
+          wp core download --version=6.8.3 --path="$B2B_REAL_WP_ROOT" --quiet
+          wp config create --dbname=v8_test --dbuser=v8 --dbpass=v8 --dbhost=127.0.0.1:3306 --dbprefix=wp_ --path="$B2B_REAL_WP_ROOT" --skip-check --quiet
+          wp config set WP_ENVIRONMENT_TYPE development --path="$B2B_REAL_WP_ROOT" --quiet
+          wp config set EH8_ENABLE_B2B_STAGING_REST_PROBE true --raw --path="$B2B_REAL_WP_ROOT" --quiet
+          wp config set DISALLOW_FILE_EDIT true --raw --path="$B2B_REAL_WP_ROOT" --quiet
+          wp core install --url=http://127.0.0.1:8731 --title='Disposable V8 genuine WordPress CI' --admin_user=ci_only_admin --admin_password="$(openssl rand -hex 24)" --admin_email=ci-admin@example.invalid --skip-email --path="$B2B_REAL_WP_ROOT" --quiet
+          cp -R backend/excel-herbal-erp-v7 "$B2B_REAL_WP_ROOT/wp-content/plugins/excel-herbal-erp-v7"
+          wp plugin activate excel-herbal-erp-v7 --path="$B2B_REAL_WP_ROOT"
+          wp eval 'if(get_option("eh7_schema_version")!==\ExcelHerbal\ERP7\Database\Schema::VERSION)throw new RuntimeException("Plugin schema is incomplete"); echo "PASS genuine ERP plugin activation + canonical schema\\n";' --path="$B2B_REAL_WP_ROOT"
+      - name: Install only isolated V8 staging schema prerequisites
+        env:
+          MYSQL_PWD: v8
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mariadb-client
+          for file in \
+            v8/backend/schema/001_b2b_preview_mysql.sql \
+            v8/backend/schema/004_trusted_tender_intake_UAT.sql \
+            v8/backend/schema/005_sale_intent_tender_binding_UAT.sql \
+            v8/backend/schema/008_cashier_attestation_UAT.sql \
+            v8/backend/schema/009_v7_canonical_retailer_posting_DRAFT.sql \
+            v8/backend/schema/011_v7_canonical_cash_handover_DRAFT.sql; do
+            mariadb -h 127.0.0.1 -P 3306 -u v8 v8_test < "$file"
+          done
+      - name: Seed only fake WP users and company/branches, no transactions
+        run: |
+          wp eval-file v8/backend/tests/b2b_real_wp_seed.php --path="$B2B_REAL_WP_ROOT"
+      - name: Pin only disposable WordPress business time to 11 AM for GPS POST UAT
+        run: |
+          # Offset is within -12..+11h for every UTC hour; no host clock or real WP is changed.
+          uat_tz="$(php -r '$h=(int)gmdate("G"); $o=11-$h; echo $o===0?"Etc/GMT":"Etc/GMT".($o>0?"-":"+").abs($o);')"
+          wp option update timezone_string "$uat_tz" --path="$B2B_REAL_WP_ROOT"
+          wp eval 'if((int)current_time("G")!==11)throw new RuntimeException("Disposable WordPress clock was not pinned for GPS duty UAT");' --path="$B2B_REAL_WP_ROOT"
+      - name: Actual WordPress REST, dynamic permission revocation and schema fail-closed HTTP UAT
+        run: |
+          python3 v8/backend/tests/b2b_real_wordpress_http_smoke.py
+      - name: Verify temporary role branch employee and payment schema mutations were restored
+        env:
+          B2B_REAL_WP_MUTATION: assert_restored
+        run: |
+          wp eval-file v8/backend/tests/b2b_real_wp_security_mutation.php --path="$B2B_REAL_WP_ROOT"
+      - name: No deployment or production access
+        run: |
+          echo 'PASS genuine WordPress/MariaDB test used only local GitHub ephemeral runner and synthetic users'

@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/preview_read_only_policy.dart';
 import '../../core/date_time_text.dart';
 import '../../core/business_format.dart';
 import '../../core/daily_order_math.dart';
 import '../../core/daily_order_workflow.dart';
+import '../../core/daily_order_action_target.dart';
+import '../../core/evening_order_selection.dart';
 import '../../core/providers.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
@@ -15,7 +18,12 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/evening_submit_confirmation.dart';
+import '../../widgets/evening_order_picker.dart';
 import '../../widgets/gps_route_view.dart';
+import '../../widgets/v8_daily_order_board.dart';
+import '../../widgets/v8_evening_closing_line.dart';
+import '../../widgets/v8_reported_tender_disclosure.dart';
+import '../../widgets/v8_stock_request_widgets.dart';
 
 part 'my_work_attendance.dart';
 part 'my_work_leave_visit.dart';
@@ -41,9 +49,11 @@ class MyWorkScreen extends ConsumerStatefulWidget {
 
 class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   int refresh = 0;
+  bool attendanceBusy = false;
   String? message;
   bool _handledInitialAction = false;
   bool _dailyOrderOpening = false;
+  String _dailyQueueStage = V8DailyOrderStages.all;
 
   @override
   void initState() {
@@ -70,35 +80,58 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
           break;
         case 'evening':
           final app = ref.read(appStateProvider);
-          final api = ref.read(apiClientProvider);
-          final rows = await _dailyRows(app, api);
-          final candidates = rows
-              .where(
-                (row) =>
-                    '${row['business_date'] ?? ''}' == app.businessDate &&
-                    const {
-                      'issued',
-                      'evening_draft',
-                    }.contains('${row['status']}'),
-              )
-              .toList()
-            ..sort(
-              (a, b) => (int.tryParse('${b['id']}') ?? 0).compareTo(
-                int.tryParse('${a['id']}') ?? 0,
-              ),
-            );
-          if (candidates.isEmpty) {
-            if (mounted) {
-              setState(
-                () => message =
-                    'No issued order is available for today’s evening closing.',
-              );
-            }
+          if (app.currentBranchId == null) {
+            setState(() => message =
+                'Evening Closing ke liye pehle ek authorised branch select karein.');
             return;
           }
-          final row = candidates.first;
+          if (!app.can('daily_order.self') && !app.can('daily_order.others')) {
+            setState(() => message = 'Evening Closing permission required.');
+            return;
+          }
+          final rows = await _dailyRows(app, ref.read(apiClientProvider));
+          if (!mounted) return;
+          final candidates = EveningOrderSelection.candidates(
+            rows: rows,
+            businessDate: app.businessDate,
+            branchId: app.currentBranchId,
+            actorEmployeeId: int.tryParse('${app.employee['id'] ?? ''}'),
+            selfAllowed: app.can('daily_order.self'),
+            othersAllowed: app.can('daily_order.others'),
+          );
+          if (candidates.isEmpty) {
+            setState(() => message =
+                'No issued order is available for today’s evening closing in the selected branch.');
+            return;
+          }
+          final chosenId = candidates.length == 1
+              ? int.parse('${candidates.first['id']}')
+              : await showDialog<int>(
+                  context: context,
+                  builder: (_) => EveningOrderPicker(candidates: candidates),
+                );
+          if (!mounted || chosenId == null) return;
+          final currentApp = ref.read(appStateProvider);
+          final selected = candidates.where((r) => r['id'].toString() ==
+              chosenId.toString()).toList();
+          if (selected.length != 1 ||
+              !EveningOrderSelection.remainsAllowed(
+                selected: selected.single,
+                businessDate: currentApp.businessDate,
+                branchId: currentApp.currentBranchId,
+                actorEmployeeId: int.tryParse('${currentApp.employee['id'] ?? ''}'),
+                selfAllowed: currentApp.can('daily_order.self'),
+                othersAllowed: currentApp.can('daily_order.others'),
+              )) {
+            setState(() => message =
+                'Order selection is no longer authorised. Refresh and choose again.');
+            return;
+          }
+          // Original API remains the sole writer and must recheck latest
+          // branch, employee, cycle status and pending additional requests.
+          final row = selected.single;
           await _dailyAction(
-            int.parse('${row['id']}'),
+            chosenId,
             '${row['status']}' == 'evening_draft' ? 'evening_edit' : 'evening',
           );
           break;
@@ -146,12 +179,23 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       child: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 5),
             child: BranchSelector(),
           ),
-          TabBar(
-            isScrollable: true,
-            tabs: [for (final tab in tabs) Tab(text: tab.$1)],
+          Container(
+            key: const ValueKey('v8-my-work-sections'),
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: const BoxDecoration(
+              color: ExcelBrand.surface,
+              border: Border(bottom: BorderSide(color: ExcelBrand.border)),
+            ),
+            child: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              labelPadding: const EdgeInsets.symmetric(horizontal: 15),
+              tabs: [for (final tab in tabs) Tab(text: tab.$1)],
+            ),
           ),
           Expanded(
             child: TabBarView(children: [for (final tab in tabs) tab.$2]),
@@ -239,16 +283,5 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
 
 
 
-  Map<String, dynamic>? _requestWithStatus(
-    Map<String, dynamic> detail,
-    String status,
-  ) {
-    final rows = ((detail['requests'] as List?) ?? const []).map(
-      (e) => Map<String, dynamic>.from(e as Map),
-    );
-    for (final r in rows) {
-      if ('${r['status']}' == status) return r;
-    }
-    return null;
-  }
+
 }

@@ -7,6 +7,7 @@ import '../../core/date_time_text.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
+import '../../widgets/v8_home_hero.dart';
 import '../../widgets/branch_selector.dart';
 import '../my_work/my_work_workspace_screen.dart';
 
@@ -27,13 +28,21 @@ class HomeScreen extends ConsumerWidget {
       },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
         children: [
-          _IdentityHero(app: app),
+          V8HomeHero(app: app),
           const SizedBox(height: 12),
           const BranchSelector(),
-          const SizedBox(height: 12),
-          _AuthorityCard(app: app),
+          // Keep the explicit no-branch state while avoiding V7's duplicate
+          // profile/authority card. This is also visible on denied sessions.
+          if (branch == null)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text('No Authorised Branch',
+                  style: TextStyle(fontWeight: FontWeight.w800,
+                      color: ExcelBrand.danger)),
+            ),
+          // No redundant authority card: BranchSelector owns branch context.
           if (app.businessAccessBlocked) ...[
             const SizedBox(height: 16),
             const _InfoNotice(
@@ -87,135 +96,6 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _IdentityHero extends StatelessWidget {
-  const _IdentityHero({required this.app});
-
-  final AppState app;
-
-  @override
-  Widget build(BuildContext context) {
-    final reporting = _human(app.reportingCategory);
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .55),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                child: const Icon(Icons.person_rounded, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Good ${_dayPart()}, ${app.employeeName}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      app.primaryDesignationLabel,
-                      style: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (reporting.isNotEmpty || app.additionalDesignations.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (reporting.isNotEmpty)
-                  _ContextChip(
-                    icon: Icons.account_tree_outlined,
-                    label: 'Reporting: $reporting',
-                  ),
-                if (app.additionalDesignations.isNotEmpty)
-                  _ContextChip(
-                    icon: Icons.badge_outlined,
-                    label:
-                        '${app.additionalDesignations.length} additional designation${app.additionalDesignations.length == 1 ? '' : 's'}',
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  static String _human(String value) {
-    if (value.trim().isEmpty) return '';
-    return value
-        .split('_')
-        .where((e) => e.isNotEmpty)
-        .map((e) => '${e[0]}${e.substring(1).toLowerCase()}')
-        .join(' ');
-  }
-
-  static String _dayPart() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'morning';
-    if (hour < 17) return 'afternoon';
-    return 'evening';
-  }
-}
-
-class _AuthorityCard extends StatelessWidget {
-  const _AuthorityCard({required this.app});
-
-  final AppState app;
-
-  @override
-  Widget build(BuildContext context) {
-    final extras = app.additionalDesignations.length;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            _AuthorityRow(
-              icon: Icons.store_outlined,
-              label: 'Working Branch',
-              value: app.currentBranchName,
-            ),
-            const Divider(height: 18),
-            _AuthorityRow(
-              icon: Icons.security_outlined,
-              label: 'Branch Authority',
-              value:
-                  '${app.branches.length} authorised branch${app.branches.length == 1 ? '' : 'es'}',
-            ),
-            if (extras > 0) ...[
-              const Divider(height: 18),
-              _AuthorityRow(
-                icon: Icons.add_moderator_outlined,
-                label: 'Extra Designations',
-                value: '$extras responsibility assignment${extras == 1 ? '' : 's'} · no authority inheritance',
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }
@@ -552,61 +432,6 @@ class _SectionTitle extends StatelessWidget {
           ),
           if (action != null) action!,
         ],
-      );
-}
-
-class _AuthorityRow extends StatelessWidget {
-  const _AuthorityRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 21, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.labelMedium),
-                const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
-              ],
-            ),
-          ),
-        ],
-      );
-}
-
-class _ContextChip extends StatelessWidget {
-  const _ContextChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withValues(alpha: .76),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16),
-            const SizedBox(width: 6),
-            Text(label, style: Theme.of(context).textTheme.labelMedium),
-          ],
-        ),
       );
 }
 

@@ -7,36 +7,48 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Daily Orders',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              IconButton(
-                tooltip: 'Search full Daily Order history',
-                icon: const Icon(Icons.manage_search_rounded),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: LayoutBuilder(builder: (context, bounds) {
+            final heading = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Daily orders',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: ExcelBrand.ink, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 3),
+                Text('Requests, ASM review, stock issue and closing',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: ExcelBrand.muted)),
+              ],
+            );
+            final actions = Wrap(spacing: 8, runSpacing: 8, children: [
+              OutlinedButton.icon(
                 onPressed: _searchDailyHistoryImpl,
+                icon: const Icon(Icons.manage_search_rounded, size: 19),
+                label: const Text('Find orders'),
               ),
               if (app.can('daily_order.self') || app.can('daily_order.others'))
                 FilledButton.icon(
+                  key: const ValueKey('v8-new-daily-order'),
                   onPressed: app.currentBranchId == null || _dailyOrderOpening
-                      ? null
-                      : _MyWorkDaily(this)._newDailyOrder,
+                      ? null : _MyWorkDaily(this)._newDailyOrder,
                   icon: _dailyOrderOpening
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add),
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.add_rounded),
                   label: Text(_dailyOrderOpening ? 'Opening...' : 'New Order'),
                 ),
-            ],
-          ),
+            ]);
+            return bounds.maxWidth < 560
+                ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    heading, const SizedBox(height: 11), actions,
+                  ])
+                : Row(children: [
+                    Expanded(child: heading),
+                    const SizedBox(width: 11),
+                    actions,
+                  ]);
+          }),
         ),
         if (message != null)
           Padding(
@@ -55,123 +67,50 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
               final rows = (data as List)
                   .map((e) => Map<String, dynamic>.from(e as Map))
                   .toList();
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth >= 820) {
-                    return Scrollbar(
-                      thumbVisibility: true,
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: DataTable(
-                            showCheckboxColumn: false,
-                            showBottomBorder: true,
-                            headingRowHeight: 46,
-                            dataRowMinHeight: 50,
-                            columns: const [
-                              DataColumn(label: Text('Order')),
-                              DataColumn(label: Text('Employee')),
-                              DataColumn(label: Text('Business Date')),
-                              DataColumn(label: Text('Status')),
-                              DataColumn(label: Text('Action')),
-                            ],
-                            rows: [
-                              for (final r in rows)
-                                DataRow(
-                                  onSelectChanged: (_) =>
-                                      _MyWorkDaily(this)._showDaily(int.parse('${r['id']}')),
-                                  cells: [
-                                    DataCell(Text('#${r['id']}')),
-                                    DataCell(Text(_MyWorkDaily(this)._dailyEmployeeLabel(r))),
-                                    DataCell(
-                                      Text(BusinessFormat.date(r['business_date'])),
-                                    ),
-                                    DataCell(Text(_dailyRowStatusText(r))),
-                                    DataCell(
-                                      _dailyActionsImpl(
-                                        r,
-                                        app,
-                                        int.parse('${r['id']}'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  return ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: rows.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, i) {
-                      final r = rows[i];
-                      final id = int.parse('${r['id']}');
-                      final name =
-                          '${r['employee_name'] ?? 'Employee #${r['employee_id']}'}';
-                      final code = '${r['employee_code'] ?? ''}'.trim();
-                      return Card(
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () => _MyWorkDaily(this)._showDaily(id),
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 6,
-                                        children: [
-                                          Text(
-                                              'Daily Order #$id',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                            ),
-                                          _dailyRowStatusChip(r),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        code.isEmpty ? name : '$name · $code',
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        '${r['branch_name'] ?? 'Authorised Branch'} · ${BusinessFormat.date(r['business_date'])}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                            ),
-                                      ),
-                                    ],
-                                ),
-                                const SizedBox(height: 10),
-                                _dailyActionsImpl(r, app, id),
-                              ],
-                            ),
-                          ),
-                        ),
+              final filtered = V8DailyOrderStages.visible(
+                rows, _dailyQueueStage);
+              return Column(children: [
+                V8DailyOrderBoard(
+                  rows: rows,
+                  selectedStage: _dailyQueueStage,
+                  onStageChanged: (stage) =>
+                      _setFeatureState(() => _dailyQueueStage = stage),
+                ),
+                Expanded(child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (filtered.isEmpty) {
+                      return const Center(child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'No loaded orders at this stage. '
+                          'Choose All or search the full Daily Order history.',
+                          textAlign: TextAlign.center),
+                      ));
+                    }
+                    if (constraints.maxWidth >= 1060) {
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(14),
+                        itemCount: filtered.length,
+                        gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 11,
+                            crossAxisSpacing: 11,
+                            mainAxisExtent: 235),
+                        itemBuilder: (_, i) => _v8DailyCard(filtered[i], app),
                       );
-                    },
-                  );
-                },
-              );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.all(14),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) => SizedBox(
+                        height: 230,
+                        child: _v8DailyCard(filtered[i], app)),
+                    );
+                  },
+                )),
+              ]);
             },
           ),
         ),
@@ -179,6 +118,20 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     );
   }
 
+
+  Widget _v8DailyCard(Map<String, dynamic> row, AppState app) {
+    final id = int.parse('${row['id']}');
+    return V8DailyOrderCard(
+      id: id,
+      employee: _MyWorkDaily(this)._dailyEmployeeLabel(row),
+      branch: '${row['branch_name'] ?? app.currentBranchName}',
+      businessDate: BusinessFormat.date(row['business_date']),
+      statusBadge: _dailyRowStatusChip(row),
+      closingHold: DailyOrderWorkflow.additionalClosingHold(row),
+      action: _dailyActionsImpl(row, app, id),
+      onOpen: () => _MyWorkDaily(this)._showDaily(id),
+    );
+  }
 
   Future<void> _searchDailyHistoryImpl() async {
     final api = ref.read(apiClientProvider);

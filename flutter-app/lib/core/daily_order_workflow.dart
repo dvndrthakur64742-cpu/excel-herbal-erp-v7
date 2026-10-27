@@ -28,6 +28,19 @@ abstract final class DailyOrderWorkflow {
     return statusLabel(cycleStatus);
   }
 
+  /// A server-scoped Daily Order list reports only actionable additional
+  /// request states. Explain why a still-issued cycle cannot close, without
+  /// implying that approval or custody can be granted from this card.
+  static String? additionalClosingHold(Map<String, dynamic> row) {
+    if ('${row['status'] ?? ''}' != 'issued') return null;
+    return switch ('${row['additional_request_status'] ?? ''}') {
+      'draft' => 'Additional stock draft pending. Finish or cancel it before Evening Closing.',
+      'submitted' => 'Additional stock approval pending. ASM approval and issue required before Evening Closing.',
+      'approved' => 'Additional stock issue pending. Complete stock issue before Evening Closing.',
+      _ => null,
+    };
+  }
+
   static const Set<String> _blockingAdditionalStatuses = {
     'draft',
     'submitted',

@@ -11,8 +11,9 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/business_date_field.dart';
-import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/v8_module_banner.dart';
+import '../../widgets/v8_record_workspace.dart';
 
 part 'finance_bank.dart';
 part 'finance_books.dart';
@@ -101,12 +102,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                child: ModuleWorkspaceHeader(
-                  title: 'Finance Control Centre',
-                  subtitle:
-                      'Books, expenses, branch closing, bank reconciliation and periods.',
+                child: V8ModuleBanner(
+                  eyebrow: 'Finance controls / ERP V8',
+                  title: 'Finance & Accounts',
+                  description: 'Books, expenses, closing, bank and accounting periods.',
                   icon: Icons.account_balance_outlined,
-                  contextLabel: 'Business date · ${app.businessDate}',
+                  context: [
+                    app.currentBranchName,
+                    'Business date ${app.businessDate}',
+                  ],
                 ),
               ),
               const Padding(

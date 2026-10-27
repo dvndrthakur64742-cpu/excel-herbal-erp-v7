@@ -49,34 +49,32 @@ void main() {
     expect(workspace, contains('_tabletCardWidth = 819'));
   });
 
-  test('My Work attendance reflects server-scheduled duty without manual actions', () {
-    final source = File(
-      'lib/screens/my_work/my_work_attendance.dart',
-    ).readAsStringSync();
-
+  test('Attendance is employee self-service; GPS remains a distinct automatic duty', () {
+    final source = File('lib/screens/my_work/my_work_attendance.dart').readAsStringSync();
     expect(source, contains("final checkedIn ="));
     expect(source, contains("final checkedOut ="));
-    expect(
-      source,
-      contains("Duty automatically starts at 10:30 AM; no manual check-in is required."),
-    );
-    expect(source, contains("Duty is automatic · 10:30 AM–5:00 PM"));
-    expect(source, contains("Attendance pending"));
-    expect(source, contains("Check-Out: pending"));
-    expect(source, isNot(contains("Future<void> _attendanceAction(")));
-    expect(source, isNot(contains("ApiPaths.checkIn")));
-    expect(source, isNot(contains("ApiPaths.checkOut")));
+    expect(source, contains("Text('Self Check-In')"));
+    expect(source, contains("Text('Self Check-Out')"));
+    expect(source, contains("ApiPaths.checkIn"));
+    expect(source, contains("ApiPaths.checkOut"));
+    expect(source, contains("PreviewReadOnlyPolicy.enabled"));
+    expect(source, contains('Attendance: 9 AM Check-In · 6 PM Check-Out · 8 PM Auto Close'));
+    expect(source, contains('GPS Duty: automatic 10:30 AM–5 PM'));
+    expect(source, contains('ApiPaths.gpsRoute'));
+    expect(source, isNot(contains("Text('Start GPS Duty')")));
+    expect(source, isNot(contains("Text('Stop GPS Duty')")));
   });
 
   test('desktop shell avoids a second competing workspace header', () {
     final source = File('lib/shell/app_shell.dart').readAsStringSync();
 
     expect(source, isNot(contains('_desktopWorkspaceHeader')));
-    expect(source, contains('SizedBox(width: 248'));
+    expect(source, contains('SizedBox(width: 264'));
     expect(source, isNot(contains('ModuleWorkspaceHeader(')));
-    expect(source, contains("_sectionLabel(context, 'WORK')"));
-    expect(source, contains("_sectionLabel(context, 'CONTROL')"));
-    expect(source, contains("_sectionLabel(context, 'MODULES')"));
+    expect(source, contains('V8WorkspaceContextBar('));
+    expect(source, contains('WorkspaceNavigation.groups('));
+    expect(source, contains('_sectionLabel(context, group.key)'));
+    expect(source, contains('_desktopTile(destination.id, destination.label,'));
   });
 
   test('business module page titles match shell navigation labels', () {

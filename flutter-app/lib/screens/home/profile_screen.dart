@@ -7,6 +7,7 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
 import '../tools/erp_tools_screen.dart';
+import '../organization/employee_360_screen.dart';
 import 'employee_id_card_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -68,6 +69,22 @@ class ProfileScreen extends ConsumerWidget {
           icon: const Icon(Icons.badge_outlined),
           label: const Text('View / Print Employee I-Card'),
         ),
+        if ((int.tryParse('${employee['id'] ?? ''}') ?? 0) > 0) ...[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: const ValueKey('employee-360-self'),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => Employee360Screen(
+                  employeeId: int.parse('${employee['id']}'),
+                  employeeName: '${employee['full_name'] ?? 'Employee'}',
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.insights_outlined),
+            label: const Text('My Sales, Points & Stock'),
+          ),
+        ],
         const SizedBox(height: 12),
         Card(
           child: Column(

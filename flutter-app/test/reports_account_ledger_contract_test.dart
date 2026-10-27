@@ -6,7 +6,7 @@ void main() {
   test('Account Ledger bypasses the generic list loader until an account is selected', () {
     final screen = File('lib/screens/reports/reports_screen.dart').readAsStringSync();
     final ledgerBranch = screen.indexOf(
-      "final reportView = activeType == 'account_ledger'",
+      ": activeType == 'account_ledger'",
     );
     final genericLoader = screen.indexOf(': AsyncPanel(', ledgerBranch);
 

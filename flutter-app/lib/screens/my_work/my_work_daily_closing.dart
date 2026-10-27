@@ -368,132 +368,18 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                if (!wholesaleEnabled)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 5,
-                                    ),
-                                    child: const Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            'Product',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          width: 48,
-                                          child: Text(
-                                            'Issue',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          width: 48,
-                                          child: Text(
-                                            'Sold',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          width: 76,
-                                          child: Text(
-                                            'Return',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                else
-                                  SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: SizedBox(
-                                      width: 570,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 5,
-                                        ),
-                                        child: const Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 170,
-                                              child: Text(
-                                                'Product',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 58,
-                                              child: Text(
-                                                'Issue',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 76,
-                                              child: Text(
-                                                'Return',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 76,
-                                              child: Text(
-                                                'W.Qty',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 104,
-                                              child: Text(
-                                                'W.Rate',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 58,
-                                              child: Text(
-                                                'Sold',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                const Divider(height: 1),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 2, vertical: 6),
+                                  child: Text('PRODUCT SETTLEMENT · PCS',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 12,
+                                      letterSpacing: .7,
+                                      color: ExcelBrand.primaryDark,
+                                    )),
+                                ),
+                                const SizedBox(height: 7),
                                 ...lines.map((l) {
                                   final key = int.parse('${l['issue_line_id']}');
                                   final issued =
@@ -505,204 +391,26 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                                       ? WholePcs.parseOrZero(wholesale[key]!.text)
                                       : 0;
                                   final sold = DailyOrderMath.retailSold(
-                                    issued,
-                                    ret,
-                                    wh,
+                                    issued, ret, wh,
                                   );
                                   final over = ret + wh > issued + .0001;
                                   final productName = BusinessFormat.displayName(
                                     '${l['product_name'] ?? 'Product'}',
                                   );
-
-                                  InputDecoration qtyDecoration(String hint) =>
-                                      InputDecoration(
-                                        hintText: hint,
-                                        isDense: true,
-                                        contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 9,
-                                        ),
-                                      );
-
-                                  Widget returnField(double width) => SizedBox(
-                                        width: width,
-                                        child: TextField(
-                                          controller: returns[key],
-                                          keyboardType: TextInputType.number,
-                                          inputFormatters: [WholePcs.positiveFormatter],
-                                          textAlign: TextAlign.center,
-                                          onChanged: (_) => setLocal(() {}),
-                                          decoration: qtyDecoration('0'),
-                                        ),
-                                      );
-
-                                  if (!wholesaleEnabled) {
-                                    return Container(
-                                      constraints: const BoxConstraints(minHeight: 54),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: over
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .errorContainer
-                                                .withValues(alpha: .45)
-                                            : null,
-                                        border: const Border(
-                                          bottom: BorderSide(color: ExcelBrand.border),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              productName,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            width: 48,
-                                            child: Text(
-                                              BusinessFormat.quantity(issued),
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            width: 48,
-                                            child: Text(
-                                              BusinessFormat.quantity(sold),
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                color: over
-                                                    ? ExcelBrand.danger
-                                                    : ExcelBrand.primaryDark,
-                                              ),
-                                            ),
-                                          ),
-                                          returnField(76),
-                                        ],
-                                      ),
-                                    );
-                                  }
-
-                                  return SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: SizedBox(
-                                      width: 570,
-                                      child: Container(
-                                        constraints: const BoxConstraints(
-                                          minHeight: 56,
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: over
-                                              ? Theme.of(context)
-                                                  .colorScheme
-                                                  .errorContainer
-                                                  .withValues(alpha: .45)
-                                              : null,
-                                          border: const Border(
-                                            bottom: BorderSide(
-                                              color: ExcelBrand.border,
-                                            ),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 170,
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    productName,
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodyMedium
-                                                        ?.copyWith(
-                                                          fontWeight: FontWeight.w700,
-                                                        ),
-                                                  ),
-                                                  Text(
-                                                    'Retail ₹${retailRate.toStringAsFixed(2)}',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 58,
-                                              child: Text(
-                                                BusinessFormat.quantity(issued),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ),
-                                            returnField(76),
-                                            SizedBox(
-                                              width: 76,
-                                              child: TextField(
-                                                controller: wholesale[key],
-                                                keyboardType: TextInputType.number,
-                                                inputFormatters: [
-                                                  WholePcs.positiveFormatter,
-                                                ],
-                                                textAlign: TextAlign.center,
-                                                onChanged: (_) => setLocal(() {}),
-                                                decoration: qtyDecoration('0'),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 104,
-                                              child: TextField(
-                                                controller: wholesaleRate[key],
-                                                enabled: wh > 0,
-                                                keyboardType: const TextInputType
-                                                    .numberWithOptions(
-                                                  decimal: true,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                                decoration: qtyDecoration(
-                                                  wh > 0 ? '₹ rate' : '—',
-                                                ),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 58,
-                                              child: Text(
-                                                BusinessFormat.quantity(sold),
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  color: over
-                                                      ? ExcelBrand.danger
-                                                      : ExcelBrand.primaryDark,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+                                  return V8EveningClosingLine(
+                                    key: ValueKey('evening-settlement-$key'),
+                                    productName: productName,
+                                    issuedLabel: BusinessFormat.quantity(issued),
+                                    soldLabel: BusinessFormat.quantity(sold),
+                                    retailRateLabel:
+                                        retailRate.toStringAsFixed(2),
+                                    wholesaleEnabled: wholesaleEnabled,
+                                    wholesaleQuantity: wh,
+                                    overIssued: over,
+                                    returnController: returns[key]!,
+                                    wholesaleController: wholesale[key]!,
+                                    wholesaleRateController: wholesaleRate[key]!,
+                                    onQuantityChanged: () => setLocal(() {}),
                                   );
                                 }),
                                 const SizedBox(height: 2),
@@ -871,8 +579,10 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
           calculatedExpected,
         );
 
-    final cash = TextEditingController(text: expected.toStringAsFixed(2));
-    final upi = TextEditingController(text: '0');
+    // Deliberate reported tender classification, never an all-Cash default.
+    final cash = TextEditingController();
+    final upi = TextEditingController();
+    var proofAcknowledged = false;
     bool? confirmed;
 
     try {
@@ -881,13 +591,21 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, setLocal) {
-            final cashValue = BusinessFormat.number(cash.text)?.toDouble() ?? 0;
-            final upiValue = BusinessFormat.number(upi.text)?.toDouble() ?? 0;
-            final deposit = cashValue + upiValue;
-            final matched =
+            final parsedCash = BusinessFormat.number(cash.text);
+            final parsedUpi = BusinessFormat.number(upi.text);
+            final cashValue = parsedCash?.toDouble() ?? 0;
+            final upiValue = parsedUpi?.toDouble() ?? 0;
+            final reportedTotal = cashValue + upiValue;
+            final matched = parsedCash != null && parsedUpi != null &&
                 DailyOrderMath.paymentComponentsValid(cashValue, upiValue) &&
-                    reconciliationOk &&
-                    DailyOrderMath.depositMatches(deposit, expected);
+                reconciliationOk &&
+                DailyOrderMath.depositMatches(reportedTotal, expected);
+            final canConfirm = V8ReportedTenderGuard.canConfirm(
+              cashText: cash.text,
+              upiText: upi.text,
+              amountsValid: matched,
+              acknowledged: proofAcknowledged,
+            );
 
             Widget paymentField({
               required TextEditingController controller,
@@ -1014,7 +732,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               children: [
                                 const Expanded(
                                   child: Text(
-                                    'Expected Deposit',
+                                    'Expected Reported Sales',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -1041,7 +759,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'Deposit Breakdown',
+                        'Reported Cash / UPI Breakdown',
                         style: Theme.of(context)
                             .textTheme
                             .titleMedium
@@ -1055,13 +773,13 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               children: [
                                 paymentField(
                                   controller: cash,
-                                  label: 'Cash Deposit',
+                                  label: 'Reported Cash Amount',
                                   icon: Icons.payments_outlined,
                                 ),
                                 const SizedBox(height: 10),
                                 paymentField(
                                   controller: upi,
-                                  label: 'Online / UPI',
+                                  label: 'Reported Online / UPI',
                                   icon: Icons.account_balance_outlined,
                                 ),
                               ],
@@ -1072,7 +790,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               Expanded(
                                 child: paymentField(
                                   controller: cash,
-                                  label: 'Cash Deposit',
+                                  label: 'Reported Cash Amount',
                                   icon: Icons.payments_outlined,
                                 ),
                               ),
@@ -1080,13 +798,19 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               Expanded(
                                 child: paymentField(
                                   controller: upi,
-                                  label: 'Online / UPI',
+                                  label: 'Reported Online / UPI',
                                   icon: Icons.account_balance_outlined,
                                 ),
                               ),
                             ],
                           );
                         },
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Enter BOTH amounts manually (use 0 where applicable). '
+                        'Cash handover and bank verification are not inferred.',
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 12),
                       Container(
@@ -1111,7 +835,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Total Cash Deposit = Cash + Online = ${BusinessFormat.money(deposit)}\nRequired ${BusinessFormat.money(expected)}',
+                                'Reported Cash + UPI = ${BusinessFormat.money(reportedTotal)}\nExpected ${BusinessFormat.money(expected)}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   color: matched
@@ -1121,6 +845,13 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      V8ReportedTenderDisclosure(
+                        acknowledged: proofAcknowledged,
+                        onChanged: (value) => setLocal(
+                          () => proofAcknowledged = value,
                         ),
                       ),
                     ],
@@ -1133,8 +864,9 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                   child: const Text('Cancel'),
                 ),
                 FilledButton.icon(
-                  onPressed:
-                      matched ? () => Navigator.pop(dialogContext, true) : null,
+                  onPressed: canConfirm
+                      ? () => Navigator.pop(dialogContext, true)
+                      : null,
                   icon: const Icon(Icons.post_add_outlined),
                   label: const Text('Final Post'),
                 ),
@@ -1145,8 +877,22 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
       );
 
       if (confirmed == true) {
-        final c = BusinessFormat.number(cash.text)?.toDouble() ?? 0;
-        final u = BusinessFormat.number(upi.text)?.toDouble() ?? 0;
+        final cAmount = BusinessFormat.number(cash.text);
+        final uAmount = BusinessFormat.number(upi.text);
+        if (cAmount == null || uAmount == null ||
+            !V8ReportedTenderGuard.canConfirm(
+              cashText: cash.text,
+              upiText: upi.text,
+              amountsValid: true,
+              acknowledged: proofAcknowledged,
+            )) {
+          throw Exception(
+            'Final Post requires entered Cash/UPI and acknowledgement '
+            'that cashier and independent bank proof remain pending.',
+          );
+        }
+        final c = cAmount.toDouble();
+        final u = uAmount.toDouble();
         if (!DailyOrderMath.finalPostAllowed(
           cash: c,
           online: u,
@@ -1155,14 +901,14 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
           serverExpected: backendExpected,
         )) {
           throw Exception(
-            'Final Post blocked: payment components aur product/server reconciliation verify karein.',
+            'Final Post blocked: reported Cash/UPI and product/server totals must reconcile.',
           );
         }
         await api.post(ApiPaths.finalPost(id), data: {'cash': c, 'upi': u});
         if (mounted) {
           _setFeatureState(() {
             refresh++;
-            message = 'Daily Order completed and posted.';
+            message = 'Daily Order posted to ledger. Cashier handover and bank UPI proof remain unverified.';
           });
         }
       }

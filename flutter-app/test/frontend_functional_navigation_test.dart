@@ -3,13 +3,19 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('quick actions route to their intended connected workflows', () {
+  test('all quick action screens share the catalog and recheck RBAC at tap', () {
     final source = File('lib/screens/home/actions_screen.dart').readAsStringSync();
-
-    expect(source, contains("openConnectedAction('daily_create')"));
-    expect(source, contains("openConnectedAction('evening')"));
-    expect(source, contains("openConnectedAction('field_visit')"));
-    expect(source, contains("openConnectedAction('attendance')"));
+    final catalog = File('lib/shell/workspace_action_catalog.dart').readAsStringSync();
+    final shell = File('lib/shell/app_shell.dart').readAsStringSync();
+    for (final id in ['daily_create', 'evening', 'field_visit',
+      'attendance', 'stock_adjustment', 'hr_lifecycle']) {
+      expect(catalog, contains("'$id'"));
+    }
+    expect(source, contains('WorkspaceActionCatalog.visible(app.can)'));
+    expect(source, contains('openConnectedAction(action.id)'));
+    expect(shell, contains('WorkspaceActionCatalog.visible(app.can)'));
+    expect(shell, contains('WorkspaceActionCatalog.allows('));
+    expect(shell, contains('ref.read(appStateProvider).can'));
   });
 
   test('desktop approvals and global search keep independent tab state', () {
@@ -310,6 +316,9 @@ void main() {
     final order = File(
       'lib/screens/my_work/my_work_daily_order.dart',
     ).readAsStringSync();
+    final stockRequestUi = File(
+      'lib/widgets/v8_stock_request_widgets.dart',
+    ).readAsStringSync();
     final overview = File(
       'lib/screens/my_work/my_work_daily_overview.dart',
     ).readAsStringSync();
@@ -324,8 +333,9 @@ void main() {
     expect(order, contains("'request_line_id': int.parse"));
     expect(order, contains("labelText: 'Search Product'"));
     expect(order, contains('Submit Stock Request'));
-    expect(order, contains("FilterChip("));
-    expect(order, contains("label: const Text('Selected only')"));
+    expect(order, contains('V8StockSelectionBar('));
+    expect(stockRequestUi, contains('FilterChip('));
+    expect(stockRequestUi, contains("label: const Text('Selected only')"));
     expect(order, contains('Issue Additional Stock'));
     expect(order, contains('issueError = UiError.message(e)'));
     expect(order, contains('formError = UiError.message(e)'));

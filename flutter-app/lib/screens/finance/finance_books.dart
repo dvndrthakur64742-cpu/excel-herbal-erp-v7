@@ -37,8 +37,13 @@ extension _FinanceBooksFeature on _FinanceScreenState {
                     'branch_id': app.currentBranchId,
                 },
               ),
-              builder: (context, data) =>
-                  RecordsList(recordType: 'trial_balance', rows: _rows(data)),
+              builder: (context, data) => V8RecordWorkspace(
+                  title: 'Trial Balance',
+                  subtitle: 'Original accounting records through the selected business date.',
+                  recordType: 'trial_balance',
+                  contextLabel: app.currentBranchName,
+                  rows: _rows(data),
+                ),
             ),
           ),
         ],
@@ -49,11 +54,13 @@ extension _FinanceBooksFeature on _FinanceScreenState {
     final name = TextEditingController();
     String type = 'asset';
     String subtype = 'bank';
+    String? ledgerFormError;
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
           title: const Text('New Ledger'),
+          scrollable: true,
           content: SizedBox(
             width: 500,
             child: Column(
@@ -87,6 +94,7 @@ extension _FinanceBooksFeature on _FinanceScreenState {
                       )
                       .toList(),
                   onChanged: (v) => setLocal(() {
+                    ledgerFormError = null;
                     type = v ?? 'asset';
                     if (type != 'asset' &&
                         const {'cash', 'bank', 'upi'}.contains(subtype))
@@ -117,8 +125,16 @@ extension _FinanceBooksFeature on _FinanceScreenState {
                         (v) => DropdownMenuItem(value: v, child: Text(v)),
                       )
                       .toList(),
-                  onChanged: (v) => setLocal(() => subtype = v ?? ''),
+                  onChanged: (v) => setLocal(() {
+                    subtype = v ?? '';
+                    ledgerFormError = null;
+                  }),
                 ),
+                if (ledgerFormError != null) ...[
+                  const SizedBox(height: 10),
+                  Text(ledgerFormError!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                ],
               ],
             ),
           ),
@@ -128,7 +144,21 @@ extension _FinanceBooksFeature on _FinanceScreenState {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () {
+                final codeText = code.text.trim();
+                final nameText = name.text.trim();
+                if (codeText.isEmpty || nameText.isEmpty) {
+                  setLocal(() => ledgerFormError =
+                    'Ledger Code aur Ledger Name required hain.');
+                  return;
+                }
+                if (codeText.length > 80 || nameText.length > 190) {
+                  setLocal(() => ledgerFormError =
+                    'Ledger Code max 80 aur Name max 190 characters rakhein.');
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
               child: const Text('Create'),
             ),
           ],
@@ -161,12 +191,14 @@ extension _FinanceBooksFeature on _FinanceScreenState {
       final code = TextEditingController();
       final name = TextEditingController();
       int? accountId;
+      String? headFormError;
       if (!mounted) return;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setLocal) => AlertDialog(
             title: const Text('New Expense Head'),
+            scrollable: true,
             content: SizedBox(
               width: 500,
               child: Column(
@@ -195,8 +227,16 @@ extension _FinanceBooksFeature on _FinanceScreenState {
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => setLocal(() => accountId = v),
+                    onChanged: (v) => setLocal(() {
+                      accountId = v;
+                      headFormError = null;
+                    }),
                   ),
+                  if (headFormError != null) ...[
+                    const SizedBox(height: 10),
+                    Text(headFormError!,
+                      style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  ],
                 ],
               ),
             ),
@@ -206,7 +246,21 @@ extension _FinanceBooksFeature on _FinanceScreenState {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () {
+                  final codeText = code.text.trim();
+                  final nameText = name.text.trim();
+                  if (codeText.isEmpty || nameText.isEmpty || accountId == null) {
+                    setLocal(() => headFormError =
+                        'Head Code, Head Name aur Expense Ledger required hain.');
+                    return;
+                  }
+                  if (codeText.length > 80 || nameText.length > 190) {
+                    setLocal(() => headFormError =
+                        'Head Code max 80 aur Name max 190 characters rakhein.');
+                    return;
+                  }
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Create'),
               ),
             ],

@@ -1,0 +1,57 @@
+name: Excel Herbal V8 UNIFIED WordPress Plugin Package (Build Only)
+run-name: "ERP V8 unified installable plugin ZIP | ${{ github.sha }}"
+on:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/v8-wordpress-unified-plugin.yml'
+      - 'v8/wordpress/**'
+      - 'backend/excel-herbal-erp-v7/src/**'
+      - 'flutter-app/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-unified-v8-plugin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert single commit HEAD and PHP availability
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          php -v
+          python3 --version
+          test -f v8/wordpress/plugin/excel-herbal-erp-v8.php
+          test -d backend/excel-herbal-erp-v7/src
+      - name: Flutter SDK 3.44.9
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+      - name: Analyze and run all Flutter tests (no live WordPress writes)
+        working-directory: flutter-app
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build read-only Flutter V8 for existing canonical REST API
+        working-directory: flutter-app
+        run: |
+          grep -q 'EH7_PREVIEW_READ_ONLY' lib/core/preview_read_only_policy.dart
+          flutter build web --release --no-pub --base-href /wp-content/uploads/eh7-flutter-web/ --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 --dart-define=EH7_ENVIRONMENT=staging --dart-define=EH7_PREVIEW_READ_ONLY=true
+      - name: Package unified WordPress plugin, lint all PHP, test migration/rollback
+        env:
+          PACKAGE_HEAD: ${{ github.sha }}
+        run: |
+          python3 v8/wordpress/tools/package_unified_v8.py --source-head "$PACKAGE_HEAD"
+      - name: Upload single installable plugin ZIP + build manifest (NO deploy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExcelHerbal-ERP-V8-Unified-Main-Plugin-${{ github.sha }}
+          path: |
+            dist/v8-wordpress-plugin/excel-herbal-erp-v8.zip
+            dist/v8-wordpress-plugin/V8-UNIFIED-PLUGIN-MANIFEST.json
+          if-no-files-found: error
+          retention-days: 14
