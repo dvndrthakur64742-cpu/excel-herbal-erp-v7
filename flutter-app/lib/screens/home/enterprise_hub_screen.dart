@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../theme/excel_brand.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
@@ -45,9 +46,26 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       initialIndex: initial,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('ERP Control Centre'),
+          toolbarHeight: 70,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ACTION CENTER',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: ExcelBrand.primaryDark,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                )),
+              const SizedBox(height: 3),
+              Text('Approvals & search',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: ExcelBrand.ink, fontWeight: FontWeight.w900)),
+            ],
+          ),
           bottom: TabBar(
             isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 19),
             tabs: [for (final tab in tabs) Tab(text: tab.$1)],
           ),
         ),
@@ -842,105 +860,151 @@ class _SearchResult {
   final List<String> errors;
 }
 
+/// Branch-scoped approvals are read from the canonical ERP REST API, never
+/// from a client-wide count or guessed role.
 class _ApprovalHeader extends StatelessWidget {
   const _ApprovalHeader({required this.count, required this.warnings});
   final int count;
   final int warnings;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
+  Widget build(BuildContext context) {
+    final type = Theme.of(context).textTheme;
+    return Container(
+      key: const ValueKey('v8-approvals-summary'),
+      padding: const EdgeInsets.all(19),
+      decoration: BoxDecoration(
+        color: ExcelBrand.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ExcelBrand.border),
+      ),
+      child: LayoutBuilder(builder: (context, constraints) {
+        final heading = Row(children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 42, height: 42,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(12),
+              color: ExcelBrand.primarySoft,
+              borderRadius: BorderRadius.circular(11),
             ),
-            child: const Icon(Icons.approval_outlined),
+            child: const Icon(Icons.fact_check_outlined,
+                color: ExcelBrand.primaryDark, size: 23),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Unified Approval Inbox',
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '$count pending item${count == 1 ? '' : 's'} in your authorised branch scope${warnings > 0 ? ' · $warnings source warning${warnings == 1 ? '' : 's'}' : ''}.',
-                ),
-              ],
-            ),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Your approval queue',
+                style: type.titleMedium?.copyWith(
+                  color: ExcelBrand.ink, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 3),
+              Text('Authorised branch and role only',
+                style: type.bodySmall?.copyWith(color: ExcelBrand.muted)),
+            ],
+          )),
+        ]);
+        final countPill = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: ExcelBrand.primarySoft,
+            borderRadius: BorderRadius.circular(9),
           ),
-        ],
-      ),
-    ),
-  );
+          child: Text('${count} pending',
+            style: type.labelMedium?.copyWith(
+              color: ExcelBrand.primaryDark, fontWeight: FontWeight.w900)),
+        );
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          constraints.maxWidth < 465
+              ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  heading, const SizedBox(height: 12), countPill,
+                ])
+              : Row(children: [
+                  Expanded(child: heading),
+                  const SizedBox(width: 12),
+                  countPill,
+                ]),
+          if (warnings > 0) ...[
+            const SizedBox(height: 12),
+            Text(
+              '${warnings} optional approval source warning(s). Other queues remain visible.',
+              style: type.bodySmall?.copyWith(color: ExcelBrand.danger),
+            ),
+          ],
+        ]);
+      }),
+    );
+  }
 }
 
+/// Actions preserve the canonical reviewer callbacks and require actual
+/// server-side scope / maker-checker validation.
 class _ApprovalCard extends StatelessWidget {
   const _ApprovalCard({
-    required this.item,
-    required this.onAction,
-    required this.onOpen,
+    required this.item, required this.onAction, required this.onOpen,
   });
   final _ApprovalItem item;
   final Future<void> Function(_ApprovalItem, bool) onAction;
   final void Function(_ApprovalItem) onOpen;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.title,
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
+  Widget build(BuildContext context) {
+    final type = Theme.of(context).textTheme;
+    return Card(
+      key: ValueKey('v8-approval-item-${item.id}'),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 17, 18, 15),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 38, height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: ExcelBrand.primarySoft,
+                borderRadius: BorderRadius.circular(10),
               ),
-              _StatusChip(item.status),
-            ],
-          ),
-          const SizedBox(height: 7),
-          Text(item.subtitle),
+              child: const Icon(Icons.task_alt_rounded,
+                  color: ExcelBrand.primaryDark, size: 21),
+            ),
+            const SizedBox(width: 11),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: type.titleMedium?.copyWith(
+                    color: ExcelBrand.ink, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 5),
+                Text(item.subtitle, maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.bodySmall?.copyWith(color: ExcelBrand.muted)),
+              ],
+            )),
+          ]),
+          const SizedBox(height: 10),
+          _StatusChip(item.status),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: () => onOpen(item),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: const Text('Review'),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, runSpacing: 9, children: [
+            OutlinedButton.icon(
+              key: ValueKey('v8-approval-review-${item.id}'),
+              onPressed: () => onOpen(item),
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: const Text('Review details'),
+            ),
+            if (item.secondaryAction != null)
+              OutlinedButton(
+                onPressed: () => onAction(item, false),
+                child: Text(item.secondaryAction!),
               ),
-              if (item.secondaryAction != null)
-                OutlinedButton(
-                  onPressed: () => onAction(item, false),
-                  child: Text(item.secondaryAction!),
-                ),
-              FilledButton(
-                onPressed: () => onAction(item, true),
-                child: Text(item.primaryAction),
-              ),
-            ],
-          ),
-        ],
+            FilledButton(
+              onPressed: () => onAction(item, true),
+              child: Text(item.primaryAction),
+            ),
+          ]),
+        ]),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _SearchHitCard extends StatelessWidget {
