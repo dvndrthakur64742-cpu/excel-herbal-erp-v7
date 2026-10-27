@@ -950,7 +950,7 @@ class _ApprovalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final type = Theme.of(context).textTheme;
     return Card(
-      key: ValueKey('v8-approval-item-${item.id}'),
+      key: ValueKey('v8-approval-item-${item.sortKey}'),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 17, 18, 15),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -986,7 +986,7 @@ class _ApprovalCard extends StatelessWidget {
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 9, children: [
             OutlinedButton.icon(
-              key: ValueKey('v8-approval-review-${item.id}'),
+              key: ValueKey('v8-approval-review-${item.sortKey}'),
               onPressed: () => onOpen(item),
               icon: const Icon(Icons.open_in_new_rounded, size: 18),
               label: const Text('Review details'),
