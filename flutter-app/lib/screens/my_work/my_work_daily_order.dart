@@ -262,7 +262,9 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
               content: SizedBox(
                 width: 700,
-                height: MediaQuery.sizeOf(dialogContext).height * .68,
+                height: (MediaQuery.sizeOf(dialogContext).height -
+                        MediaQuery.viewInsetsOf(dialogContext).bottom) *
+                    .62,
                 child: Column(
                   children: [
                     if (employees.isNotEmpty) ...[
@@ -294,24 +296,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                       ),
                       const SizedBox(height: 10),
                     ],
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: ExcelBrand.primarySoft,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        '1 Select Stock  →  2 Submit  →  3 Approval  →  4 Stock Issue  →  5 Evening Closing',
-                        style: TextStyle(
-                          color: ExcelBrand.primaryDark,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                    const V8StockRequestSteps(),
                     const SizedBox(height: 10),
                     TextField(
                       controller: search,
@@ -334,42 +319,14 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(dialogContext)
-                            .colorScheme
-                            .surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              selectedLines.isEmpty
-                                  ? 'No product selected'
-                                  : '${selectedLines.length} products · ${BusinessFormat.quantity(selectedQty)} PCS selected',
-                              style: Theme.of(dialogContext)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          FilterChip(
-                            label: const Text('Selected only'),
-                            selected: selectedOnly,
-                            onSelected: saving
-                                ? null
-                                : (value) =>
-                                    setLocalState(() => selectedOnly = value),
-                          ),
-                        ],
-                      ),
+                    V8StockSelectionBar(
+                      summary: selectedLines.isEmpty
+                          ? 'No product selected'
+                          : '${selectedLines.length} products · ${BusinessFormat.quantity(selectedQty)} PCS selected',
+                      selectedOnly: selectedOnly,
+                      enabled: !saving,
+                      onSelected: (value) =>
+                          setLocalState(() => selectedOnly = value),
                     ),
                     const SizedBox(height: 10),
                     Expanded(
@@ -401,7 +358,15 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                                         color: Theme.of(context)
                                             .colorScheme
                                             .surfaceContainerLow,
-                                        child: Row(
+                                        child: constraints.maxWidth < 420
+                                            ? const Text(
+                                                'PRODUCTS · ENTER WHOLE PCS',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              )
+                                            : Row(
                                           children: [
                                             Expanded(
                                               child: Text(
@@ -478,112 +443,16 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                                                   (value) => value.isNotEmpty,
                                                 )
                                                 .join(' · ');
-                                            final compactMeta = [
-                                              if (sku.isNotEmpty) 'SKU $sku',
-                                              if (!showCommercial &&
-                                                  commercial.isNotEmpty)
-                                                commercial,
-                                            ].join(' · ');
-                                            return Container(
+                                            return V8StockRequestProductLine(
                                               key: ValueKey(id),
-                                              color: currentQty > 0
-                                                  ? ExcelBrand.primarySoft
-                                                  : Theme.of(context)
-                                                      .colorScheme
-                                                      .surface,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 8,
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          '${product['name']}',
-                                                          maxLines: 1,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style: Theme.of(
-                                                            context,
-                                                          )
-                                                              .textTheme
-                                                              .bodyMedium
-                                                              ?.copyWith(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w700,
-                                                              ),
-                                                        ),
-                                                        if (compactMeta
-                                                            .isNotEmpty) ...[
-                                                          const SizedBox(
-                                                            height: 2,
-                                                          ),
-                                                          Text(
-                                                            compactMeta,
-                                                            maxLines: 1,
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                            style: Theme.of(
-                                                              context,
-                                                            )
-                                                                .textTheme
-                                                                .bodySmall,
-                                                          ),
-                                                        ],
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  if (showCommercial)
-                                                    SizedBox(
-                                                      width: 138,
-                                                      child: Text(
-                                                        commercial.isEmpty
-                                                            ? '—'
-                                                            : commercial,
-                                                        textAlign:
-                                                            TextAlign.right,
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: Theme.of(
-                                                          context,
-                                                        ).textTheme.bodySmall,
-                                                      ),
-                                                    ),
-                                                  const SizedBox(width: 12),
-                                                  SizedBox(
-                                                    width: 108,
-                                                    child: TextField(
-                                                      controller: qty[id],
-                                                      enabled: !saving,
-                                                      keyboardType:
-                                                          TextInputType.number,
-                                                      inputFormatters: [
-                                                        WholePcs
-                                                            .positiveFormatter,
-                                                      ],
-                                                      textAlign:
-                                                          TextAlign.right,
-                                                      onChanged: (_) =>
-                                                          setLocalState(() {}),
-                                                      decoration:
-                                                          const InputDecoration(
-                                                        hintText: '0',
-                                                        suffixText: 'PCS',
-                                                        isDense: true,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
+                                              name: '${product['name']}',
+                                              sku: sku,
+                                              commercial: commercial,
+                                              quantity: qty[id]!,
+                                              selectedQuantity: currentQty,
+                                              enabled: !saving,
+                                              onChanged: (_) =>
+                                                  setLocalState(() {}),
                                             );
                                           },
                                         ),
