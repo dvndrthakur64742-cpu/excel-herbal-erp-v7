@@ -334,7 +334,7 @@ for token in ["Transaction::run","FOR UPDATE","'candidate_credentials_already_is
 print('PASS candidate credential issuance locking')
 access_service=(root/'src/Security/AccessService.php').read_text()
 overrides=access_service[access_service.index('public static function setEmployeeOverrides'):]
-for token in ["Capabilities::ACCESS,Capabilities::ACCESS_MANAGE","'self_access_lockout'"]:
+for token in ["capabilitiesWithOverrides", "Capabilities::ACCESS", "Capabilities::ACCESS_MANAGE", "'self_access_lockout'", "'self_authority_escalation_forbidden'"]:
  assert token in overrides,('self access override lockout guard incomplete',token)
 print('PASS self access/access-management override lockout coverage')
 hierarchy_scope=(root/'src/Security/HierarchyScope.php').read_text()
@@ -645,7 +645,7 @@ for token in ["Transaction::run","FOR UPDATE","'candidate_credentials_already_is
 print('PASS candidate credential issuance locking')
 access_service=(root/'src/Security/AccessService.php').read_text()
 overrides=access_service[access_service.index('public static function setEmployeeOverrides'):]
-for token in ["Capabilities::ACCESS,Capabilities::ACCESS_MANAGE","'self_access_lockout'"]:
+for token in ["capabilitiesWithOverrides", "Capabilities::ACCESS", "Capabilities::ACCESS_MANAGE", "'self_access_lockout'", "'self_authority_escalation_forbidden'"]:
  assert token in overrides,('self access override lockout guard incomplete',token)
 print('PASS self access/access-management override lockout coverage')
 hierarchy_scope=(root/'src/Security/HierarchyScope.php').read_text()
