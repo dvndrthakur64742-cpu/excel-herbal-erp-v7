@@ -52,7 +52,7 @@ void main() {
       )),
     )));
     expect(find.byKey(const ValueKey('v8-daily-workboard')), findsOneWidget);
-    expect(find.text('2 loaded records · authorised scope only'), findsOneWidget);
+    expect(find.text('2 / 2 loaded'), findsOneWidget);
     expect(find.text('Approval  1'), findsOneWidget);
     expect(find.text('Field Closing  1'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('v8-daily-filter-approval')));
