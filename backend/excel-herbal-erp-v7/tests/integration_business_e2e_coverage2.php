@@ -8,6 +8,7 @@ use ExcelHerbal\ERP7\Domain\DomainException;
 use ExcelHerbal\ERP7\Http\ApiDispatch;
 use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Capabilities;
+use ExcelHerbal\ERP7\Security\DesignationDefaults;
 
 if (!function_exists('wp_timezone')) {
     function wp_timezone(): DateTimeZone { return new DateTimeZone('UTC'); }
@@ -252,6 +253,66 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
     $accessManager=new Actor(8020,20,1,1,[1,2],[Capabilities::ACCESS_MANAGE],'SYSADMIN');
     try{e2_dispatch('access.employee_overrides',$accessManager,['id'=>20,'reason'=>'Self access lockout coverage','grants'=>[],'denies'=>[Capabilities::ACCESS]]);throw new RuntimeException('self ACCESS capability denial was accepted');}
     catch(DomainException $e){if($e->codeKey!=='self_access_lockout')throw $e;}
+    // Direct REST dispatch regression: deleting an explicit self-grant must
+    // not remove the actor's only ACCESS_MANAGE authority. A denial-only
+    // guard misses this case. All these rows are disposable test fixtures.
+    $employeeTable=Db::table('employees');
+    $overrideTable=Db::table('employee_capability_overrides');
+    $originalDesignation=(string)$wpdb->get_var("SELECT designation_code FROM {$employeeTable} WHERE company_id=1 AND id=20");
+    $fixtureIds=[];
+    try{
+        if($wpdb->update($employeeTable,['designation_code'=>'EMPLOYEE'],['company_id'=>1,'id'=>20])===false)throw new RuntimeException('self-grant test setup failed');
+        e2_insert($wpdb,'employee_capability_overrides',['company_id'=>1,'employee_id'=>20,'capability'=>Capabilities::ACCESS_MANAGE,'effect'=>'grant','active'=>1,'created_by'=>30,'created_at'=>'2026-01-01 00:00:00']);
+        $fixtureIds[]=(int)$wpdb->insert_id;
+        $limitedSelf=new Actor(8020,20,1,1,[1],[Capabilities::ACCESS,Capabilities::ACCESS_MANAGE],'EMPLOYEE');
+        $auditBefore=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='access.employee_overrides' AND entity_id=20");
+        try{
+            e2_dispatch('access.employee_overrides',$limitedSelf,['id'=>20,'reason'=>'Remove own sole manager grant','grants'=>[],'denies'=>[]]);
+            throw new RuntimeException('self ACCESS_MANAGE grant removal was accepted');
+        }catch(DomainException $e){if($e->codeKey!=='self_access_lockout'||$e->httpStatus!==409)throw $e;}
+        $grantActive=(int)$wpdb->get_var($wpdb->prepare("SELECT active FROM {$overrideTable} WHERE id=%d",$fixtureIds[0]));
+        $auditAfter=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE action='access.employee_overrides' AND entity_id=20");
+        if($grantActive!==1||$auditAfter!==$auditBefore)throw new RuntimeException('rejected self removal changed grant or audit history');
+
+        // Another employee is outside this actor's reporting tree despite
+        // sharing the same branch; API-layer access must reject the mutation.
+        try{
+            e2_dispatch('access.employee_overrides',$limitedSelf,['id'=>30,'reason'=>'Outside reporting tree test','grants'=>[],'denies'=>[]]);
+            throw new RuntimeException('cross-employee access edit bypassed hierarchy scope');
+        }catch(DomainException $e){if($e->codeKey!=='employee_access_scope_forbidden'||$e->httpStatus!==403)throw $e;}
+
+        // A different-company employee must be invisible even when addressed
+        // by a guessed numeric employee ID through the same REST handler.
+        e2_insert($wpdb,'companies',['id'=>2,'name'=>'Foreign Tenant Fixture','status'=>'active','created_at'=>'2026-01-01 00:00:00']);
+        e2_insert($wpdb,'branches',['id'=>3,'company_id'=>2,'code'=>'OTHER','name'=>'Foreign Branch Fixture','is_head_office'=>0,'status'=>'active','created_at'=>'2026-01-01 00:00:00']);
+        e2_insert($wpdb,'employees',['id'=>90,'company_id'=>2,'employee_code'=>'FOREIGN90','designation_code'=>'EMPLOYEE','assigned_branch_id'=>3,'full_name'=>'Other Company Employee','monthly_salary'=>0,'joining_date'=>'2026-01-01','status'=>'active','created_at'=>'2026-01-01 00:00:00']);
+        try{
+            e2_dispatch('access.employee_overrides',$limitedSelf,['id'=>90,'reason'=>'Cross company API test','grants'=>[],'denies'=>[]]);
+            throw new RuntimeException('foreign-company employee access edit succeeded');
+        }catch(DomainException $e){if($e->codeKey!=='employee_not_found'||$e->httpStatus!==404)throw $e;}
+
+        // Even a SYSADMIN must not remove a self-deny and regain a previously
+        // denied capability. An independent admin can make that change.
+        if($wpdb->update($employeeTable,['designation_code'=>'SYSADMIN'],['company_id'=>1,'id'=>20])===false)throw new RuntimeException('self-deny test setup failed');
+        e2_insert($wpdb,'employee_capability_overrides',['company_id'=>1,'employee_id'=>20,'capability'=>Capabilities::ATT_SELF,'effect'=>'deny','active'=>1,'created_by'=>30,'created_at'=>'2026-01-01 00:00:00']);
+        $fixtureIds[]=(int)$wpdb->insert_id;
+        $currentAdminCaps=array_values(array_diff(DesignationDefaults::forCode('SYSADMIN'),[Capabilities::ATT_SELF]));
+        $adminSelf=new Actor(8020,20,1,1,[1,2],$currentAdminCaps,'SYSADMIN');
+        try{
+            e2_dispatch('access.employee_overrides',$adminSelf,['id'=>20,'reason'=>'Self deny removal forbidden','grants'=>[Capabilities::ACCESS_MANAGE],'denies'=>[]]);
+            throw new RuntimeException('system administrator removed their own effective deny');
+        }catch(DomainException $e){if($e->codeKey!=='self_authority_escalation_forbidden'||$e->httpStatus!==403)throw $e;}
+        if((int)$wpdb->get_var($wpdb->prepare("SELECT active FROM {$overrideTable} WHERE id=%d",$fixtureIds[1]))!==1)throw new RuntimeException('rejected self escalation altered deny');
+        $independentAdmin=new Actor(8030,30,1,1,[1,2],[Capabilities::ACCESS_MANAGE],'SYSADMIN');
+        $saved=e2_dispatch('access.employee_overrides',$independentAdmin,['id'=>20,'reason'=>'Independent access review','grants'=>[],'denies'=>[]]);
+        if(($saved['grants']??null)!==[]||($saved['denies']??null)!==[])throw new RuntimeException('independent review update failed');
+    }finally{
+        if($fixtureIds){$ids=implode(',',array_map('intval',$fixtureIds));$wpdb->query("DELETE FROM {$overrideTable} WHERE id IN ({$ids})");}
+        $wpdb->query('DELETE FROM '.Db::table('employees').' WHERE company_id=2 AND id=90');
+        $wpdb->query('DELETE FROM '.Db::table('branches').' WHERE company_id=2 AND id=3');
+        $wpdb->query('DELETE FROM '.Db::table('companies').' WHERE id=2');
+        $wpdb->update($employeeTable,['designation_code'=>$originalDesignation],['company_id'=>1,'id'=>20]);
+    }
     try{e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>1,'active'=>false]);throw new RuntimeException('primary branch authority was treated as revocable');}
     catch(DomainException $e){if($e->codeKey!=='primary_branch_authority_inherent')throw $e;}
     $granted=e2_dispatch('org.branch_authority',$accessManager,['employee_id'=>30,'branch_id'=>2,'active'=>true]);
