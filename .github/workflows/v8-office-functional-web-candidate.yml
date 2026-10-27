@@ -1,0 +1,71 @@
+name: Excel Herbal V8 Office Functional Web Candidate (Build Only)
+run-name: "V8 STAGING FUNCTIONAL WEB ZIP | ${{ github.sha }}"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/erp-v8-foundation-20261017]
+    paths:
+      - '.github/workflows/v8-office-functional-web-candidate.yml'
+      - '.github/scripts/package_v8_functional_web.py'
+      - '.github/scripts/test_package_v8_functional_web.py'
+      - 'flutter-app/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v8-office-functional-web-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify-staging-web-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact source HEAD and safe web-only packaging
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -f flutter-app/lib/core/preview_read_only_policy.dart
+          grep -q 'PreviewReadOnlyPolicy.permits' flutter-app/lib/core/api_client.dart
+          grep -q 'PreviewReadOnlyPolicy.enabled' flutter-app/lib/main.dart
+          python3 -m unittest discover -s .github/scripts -p 'test_package_v8_functional_web.py' -v
+      - name: Install Flutter SDK 3.44.9
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+      - name: Analyze and test business UI (no Office writes)
+        working-directory: flutter-app
+        run: |
+          flutter pub get
+          git diff --exit-code -- pubspec.lock
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build staging FUNCTIONAL web for the installed canonical V7 REST API
+        working-directory: flutter-app
+        run: |
+          flutter build web --release --no-pub \
+            --base-href /wp-content/uploads/eh7-flutter-web/ \
+            --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7 \
+            --dart-define=EH7_ENVIRONMENT=staging \
+            --dart-define=EH7_PREVIEW_READ_ONLY=false
+      - name: Certify a manifest-signed web-only ZIP (NO deployment)
+        run: |
+          python3 .github/scripts/package_v8_functional_web.py --source-head "$GITHUB_SHA"
+      - name: Publish ready-to-install ZIP and SHA manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExcelHerbal-V8-Office-Functional-Web-${{ github.sha }}
+          path: |
+            dist/v8-office-functional-web/Excel-Herbal-ERP-V8-Office-Functional-Web.zip
+            dist/v8-office-functional-web/V8-FUNCTIONAL-WEB-MANIFEST.json
+          if-no-files-found: error
+          retention-days: 14
+
+# Deliberately NO install/deploy job: WordPress admin login, fresh host health,
+# current web checksum, preserved rollback ZIP and post-install SHA checks are
+# required in a separately authorized, authenticated Office install session.
+# Never replace the working Office web bundle merely because CI passed.
