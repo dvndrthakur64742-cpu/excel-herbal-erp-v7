@@ -316,6 +316,9 @@ void main() {
     final order = File(
       'lib/screens/my_work/my_work_daily_order.dart',
     ).readAsStringSync();
+    final stockRequestUi = File(
+      'lib/widgets/v8_stock_request_widgets.dart',
+    ).readAsStringSync();
     final overview = File(
       'lib/screens/my_work/my_work_daily_overview.dart',
     ).readAsStringSync();
@@ -330,8 +333,9 @@ void main() {
     expect(order, contains("'request_line_id': int.parse"));
     expect(order, contains("labelText: 'Search Product'"));
     expect(order, contains('Submit Stock Request'));
-    expect(order, contains("FilterChip("));
-    expect(order, contains("label: const Text('Selected only')"));
+    expect(order, contains('V8StockSelectionBar('));
+    expect(stockRequestUi, contains('FilterChip('));
+    expect(stockRequestUi, contains("label: const Text('Selected only')"));
     expect(order, contains('Issue Additional Stock'));
     expect(order, contains('issueError = UiError.message(e)'));
     expect(order, contains('formError = UiError.message(e)'));
