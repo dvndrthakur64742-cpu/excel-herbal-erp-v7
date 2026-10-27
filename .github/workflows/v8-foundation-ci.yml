@@ -20,6 +20,9 @@ on:
       - 'backend/excel-herbal-erp-v7/src/Database/Schema.php'
       - 'backend/excel-herbal-erp-v7/src/Security/Capabilities.php'
       - 'backend/excel-herbal-erp-v7/src/Security/DesignationDefaults.php'
+      - 'backend/excel-herbal-erp-v7/src/Security/AccessService.php'
+      - 'backend/excel-herbal-erp-v7/tests/integration_business_e2e_coverage2.php'
+      - 'backend/excel-herbal-erp-v7/tests/static_checks.py'
       - 'flutter-app/lib/screens/reports/report_submissions_panel.dart'
       - 'flutter-app/test/report_submissions_ui_contract_test.dart'
       - 'backend/excel-herbal-erp-v7/src/Reporting/BranchReportingWatch.php'
@@ -256,3 +259,14 @@ jobs:
         run: |
           php -l backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php
           php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/integration_uat_smoke.php
+      - name: Canonical access REST guards, own-permission lockout, branch/company isolation (disposable only)
+        env:
+          EH7_MARIADB_HOST: '127.0.0.1'
+          EH7_MARIADB_PORT: '3306'
+          EH7_MARIADB_USER: 'v8'
+          EH7_MARIADB_PASSWORD: 'v8'
+          EH7_MARIADB_DATABASE: 'v8_test'
+        run: |
+          php -l backend/excel-herbal-erp-v7/src/Security/AccessService.php
+          php -l backend/excel-herbal-erp-v7/tests/integration_business_e2e_coverage2.php
+          php -d zend.assertions=1 -d assert.exception=1 backend/excel-herbal-erp-v7/tests/integration_business_e2e_coverage2.php
