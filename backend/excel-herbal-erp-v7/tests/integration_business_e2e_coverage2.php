@@ -281,6 +281,15 @@ e2_case('e2_business_rule_hardening_guards',function()use($maker,$wpdb){
             throw new RuntimeException('cross-employee access edit bypassed hierarchy scope');
         }catch(DomainException $e){if($e->codeKey!=='employee_access_scope_forbidden'||$e->httpStatus!==403)throw $e;}
 
+        // Branch denial precedes the reporting-tree check. In particular a
+        // forged employee ID in another branch cannot be edited over REST.
+        if($wpdb->update($employeeTable,['assigned_branch_id'=>2],['company_id'=>1,'id'=>30])===false)throw new RuntimeException('branch-scope test setup failed');
+        try{
+            e2_dispatch('access.employee_overrides',$limitedSelf,['id'=>30,'reason'=>'Outside branch API test','grants'=>[],'denies'=>[]]);
+            throw new RuntimeException('cross-branch access edit was accepted');
+        }catch(DomainException $e){if($e->codeKey!=='branch_forbidden'||$e->httpStatus!==403)throw $e;}
+        finally{$wpdb->update($employeeTable,['assigned_branch_id'=>1],['company_id'=>1,'id'=>30]);}
+
         // A different-company employee must be invisible even when addressed
         // by a guessed numeric employee ID through the same REST handler.
         e2_insert($wpdb,'companies',['id'=>2,'name'=>'Foreign Tenant Fixture','status'=>'active','created_at'=>'2026-01-01 00:00:00']);
