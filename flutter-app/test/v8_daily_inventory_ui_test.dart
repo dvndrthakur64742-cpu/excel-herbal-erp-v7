@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:excel_herbal_erp/widgets/v8_daily_order_board.dart';
 import 'package:excel_herbal_erp/widgets/v8_inventory_banner.dart';
+import 'package:excel_herbal_erp/widgets/v8_record_workspace.dart';
 
 Map<String, dynamic> cycle(int id, String status, {String additional = ''}) =>
     <String, dynamic>{
@@ -91,6 +92,46 @@ void main() {
     expect(find.text('Branch A'), findsOneWidget);
     expect(find.text('2026-10-24'), findsOneWidget);
     expect(find.textContaining('total stock'), findsNothing);
+  });
+
+  testWidgets('Inventory uses a branch-scoped loaded-record workspace',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: V8RecordWorkspace(
+        title: 'Branch Stock',
+        subtitle: 'Current custody records from the selected branch.',
+        contextLabel: 'Branch A',
+        recordType: 'stock',
+        rows: const [],
+      ),
+    )));
+    expect(find.byKey(const ValueKey('v8-record-workspace')), findsOneWidget);
+    expect(find.text('0 records loaded'), findsOneWidget);
+    expect(find.text('Branch A'), findsOneWidget);
+    expect(find.textContaining('total company stock'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('Inventory and finance retain authorised action handlers', () {
+    final inventory = File('lib/screens/inventory/inventory_screen.dart')
+        .readAsStringSync();
+    final bank = File('lib/screens/finance/finance_bank.dart')
+        .readAsStringSync();
+    final closing = File('lib/screens/finance/finance_closing.dart')
+        .readAsStringSync();
+    final periods = File('lib/screens/finance/finance_periods.dart')
+        .readAsStringSync();
+    expect(inventory, contains("app.can('inventory.transfer.create')"));
+    expect(inventory, contains('onTap: _transferActions'));
+    expect(inventory, contains('onTap: _adjustmentActions'));
+    expect(inventory, contains('onTap: _quarantineActions'));
+    expect(inventory, contains("query: {'branch_id': app.currentBranchId}"));
+    expect(bank, contains('onTap: (row) => _bankDetail'));
+    expect(closing, contains('onTap: _closingAction'));
+    expect(periods, contains('onTap: _periodAction'));
+    for (final source in [inventory, bank, closing, periods]) {
+      expect(source, contains('V8RecordWorkspace('));
+    }
   });
   test('additional-stock closing hold uses only real issued and pending statuses', () {
     final states = <String, String>{

@@ -26,7 +26,10 @@ extension _FinancePeriodsFeature on _FinanceScreenState {
             key: ValueKey('periods-$refresh'),
             future: api.get(ApiPaths.periods),
             emptyMessage: 'Koi accounting period record nahi hai.',
-            builder: (context, data) => RecordsList(
+            builder: (context, data) => V8RecordWorkspace(
+              title: 'Accounting Periods',
+              subtitle: 'Company-wide period controls and their status.',
+              contextLabel: 'Authorised finance records',
               recordType: 'accounting_period',
               rows: _rows(data),
               onTap: _periodAction,

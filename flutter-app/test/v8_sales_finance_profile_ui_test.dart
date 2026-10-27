@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:excel_herbal_erp/widgets/v8_module_banner.dart';
 import 'package:excel_herbal_erp/screens/organization/employee_360_workspace.dart';
+import 'package:excel_herbal_erp/theme/excel_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -48,6 +49,43 @@ void main() {
       expect(find.text('Sales & Customers'), findsOneWidget);
       expect(find.text('Finance & Accounts'), findsOneWidget);
       expect(find.text('Employee A'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final width in [320.0, 390.0, 768.0, 1366.0]) {
+    testWidgets('Premium Command Center header fits $width with large text',
+        (tester) async {
+      await tester.binding.setSurfaceSize(Size(width, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(MaterialApp(
+        theme: ExcelBrand.lightTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: const TextScaler.linear(1.35),
+          ),
+          child: child!,
+        ),
+        home: const Scaffold(
+          body: SingleChildScrollView(
+            child: V8ModuleBanner(
+              eyebrow: 'Finance controls / ERP V8',
+              title: 'Finance & Accounts',
+              description: 'Books, expenses, closing, bank and periods.',
+              icon: Icons.account_balance_outlined,
+              context: ['North India Field Branch', 'Business date 2026-10-27'],
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      final banner = tester.widget<Container>(
+        find.byKey(const ValueKey('v8-module-banner')),
+      );
+      final decoration = banner.decoration! as BoxDecoration;
+      expect(decoration.color, ExcelBrand.surface);
+      expect(decoration.gradient, isNull);
+      expect(find.text('North India Field Branch'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

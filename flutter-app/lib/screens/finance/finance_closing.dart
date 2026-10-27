@@ -35,7 +35,10 @@ extension _FinanceClosingFeature on _FinanceScreenState {
               query: {'branch_id': app.currentBranchId},
             ),
             emptyMessage: 'Koi Branch Closing record nahi hai.',
-            builder: (context, data) => RecordsList(
+            builder: (context, data) => V8RecordWorkspace(
+              title: 'Branch Closing Register',
+              subtitle: 'Review drafts and closed business dates.',
+              contextLabel: app.currentBranchName,
               recordType: 'branch_closing',
               rows: _rows(data),
               onTap: _closingAction,

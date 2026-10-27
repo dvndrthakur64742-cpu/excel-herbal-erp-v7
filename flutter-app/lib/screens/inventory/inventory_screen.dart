@@ -11,9 +11,9 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
-import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/v8_inventory_banner.dart';
+import '../../widgets/v8_record_workspace.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({
@@ -68,8 +68,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ApiPaths.inventoryStock,
                   query: {'branch_id': app.currentBranchId},
                 ),
-          builder: (context, data) =>
-              RecordsList(recordType: 'stock', rows: _rows(data)),
+          builder: (context, data) => V8RecordWorkspace(
+            title: 'Branch Stock',
+            subtitle: 'Current custody records from the selected branch.',
+            contextLabel: app.currentBranchName,
+            recordType: 'stock',
+            rows: _rows(data),
+          ),
         ),
       ));
     }
@@ -89,7 +94,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ApiPaths.transfers,
                   query: {'branch_id': app.currentBranchId},
                 ),
-          builder: (context, data) => RecordsList(
+          builder: (context, data) => V8RecordWorkspace(
+            title: 'Stock Transfers',
+            subtitle: 'Review source, destination and transfer status.',
+            contextLabel: app.currentBranchName,
             recordType: 'stock_transfer',
             rows: _rows(data),
             onTap: _transferActions,
@@ -112,7 +120,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   query: {'branch_id': app.currentBranchId},
                 ),
           emptyMessage: 'No stock adjustments are available.',
-          builder: (context, data) => RecordsList(
+          builder: (context, data) => V8RecordWorkspace(
+            title: 'Stock Adjustments',
+            subtitle: 'Authorised adjustment requests and their status.',
+            contextLabel: app.currentBranchName,
             recordType: 'stock_adjustment',
             rows: _rows(data),
             onTap: _adjustmentActions,
@@ -132,7 +143,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   query: {'branch_id': app.currentBranchId},
                 ),
           emptyMessage: 'No quarantined stock is available.',
-          builder: (context, data) => RecordsList(
+          builder: (context, data) => V8RecordWorkspace(
+            title: 'Quarantine Register',
+            subtitle: 'Stock held for controlled review and release.',
+            contextLabel: app.currentBranchName,
             recordType: 'quarantine',
             rows: _rows(data),
             onTap: _quarantineActions,
