@@ -3,22 +3,27 @@ import 'package:flutter/material.dart';
 class ExcelBrand {
   ExcelBrand._();
 
-  static const primary = Color(0xFF0B8F48);
-  static const primaryDark = Color(0xFF086F39);
-  static const primarySoft = Color(0xFFE8F5ED);
-  static const primarySoftStrong = Color(0xFFD8EFE1);
-  static const ink = Color(0xFF171A18);
-  static const muted = Color(0xFF657069);
-  static const canvas = Color(0xFFF3F6FA);
-  static const navDark = Color(0xFF12283E);
-  static const navRaised = Color(0xFF25425C);
-  static const navText = Color(0xFFDAE6EF);
-  static const navMuted = Color(0xFFA4B9C9);
-  static const accent = Color(0xFF5AE0B5);
+  static const primary = Color(0xFF594BE6);
+  static const primaryDark = Color(0xFF4534C7);
+  static const primarySoft = Color(0xFFEEEBFF);
+  static const primarySoftStrong = Color(0xFFE0DAFF);
+  static const ink = Color(0xFF20243A);
+  static const muted = Color(0xFF68718A);
+  static const canvas = Color(0xFFF7F8FC);
+  static const navDark = Color(0xFF202336);
+  static const navRaised = Color(0xFF30344E);
+  static const navText = Color(0xFFF0F1FF);
+  static const navMuted = Color(0xFFABB2CC);
+  static const accent = Color(0xFFB9ABFF);
   static const surface = Color(0xFFFFFFFF);
-  static const border = Color(0xFFE2EAF0);
+  static const border = Color(0xFFE5E8F2);
   static const warning = Color(0xFFF2A33A);
-  static const danger = Color(0xFFD64545);
+  static const danger = Color(0xFFD8485A);
+  // Premium V8 Command Center, independent of the old dark sidebar.
+  static const sidebar = Color(0xFFFFFFFF);
+  static const sidebarSelected = Color(0xFFEEEBFF);
+  static const sidebarText = Color(0xFF30354E);
+  static const sidebarMuted = Color(0xFF778098);
 
   static ThemeData lightTheme() {
     final baseScheme = ColorScheme.fromSeed(
@@ -36,13 +41,13 @@ class ExcelBrand {
       surface: surface,
       onSurface: ink,
       onSurfaceVariant: muted,
-      outline: const Color(0xFFB7C2BB),
+      outline: const Color(0xFFB7BDD3),
       outlineVariant: border,
       error: danger,
       surfaceContainerLowest: canvas,
-      surfaceContainerLow: const Color(0xFFF0F5F2),
-      surfaceContainer: const Color(0xFFEBF1ED),
-      surfaceContainerHigh: const Color(0xFFE5ECE8),
+      surfaceContainerLow: const Color(0xFFF5F4FC),
+      surfaceContainer: const Color(0xFFEFEEF8),
+      surfaceContainerHigh: const Color(0xFFEAE9F5),
     );
 
     final base = ThemeData(
@@ -117,7 +122,7 @@ class ExcelBrand {
         surfaceTintColor: Colors.transparent,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: border),
         ),
       ),
@@ -134,7 +139,7 @@ class ExcelBrand {
           color: primaryDark,
           fontWeight: FontWeight.w700,
         ),
-        hintStyle: const TextStyle(color: Color(0xFF8A938E)),
+        hintStyle: const TextStyle(color: Color(0xFF8B91A5)),
         errorStyle: const TextStyle(
           color: danger,
           fontWeight: FontWeight.w600,
@@ -221,7 +226,7 @@ class ExcelBrand {
         thumbColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.dragged)
               ? primaryDark
-              : const Color(0xFF9AA79F),
+              : const Color(0xFF9DA4BD),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -229,7 +234,7 @@ class ExcelBrand {
           backgroundColor: primary,
           foregroundColor: Colors.white,
           disabledBackgroundColor: const Color(0xFFDCE4DF),
-          disabledForegroundColor: const Color(0xFF8A938E),
+          disabledForegroundColor: const Color(0xFF8B91A5),
           minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
@@ -243,7 +248,7 @@ class ExcelBrand {
           foregroundColor: primaryDark,
           minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-          side: const BorderSide(color: Color(0xFF9AB8A7)),
+          side: const BorderSide(color: Color(0xFFBDB4F7)),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -259,7 +264,7 @@ class ExcelBrand {
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        backgroundColor: const Color(0xFFF1F4F2),
+        backgroundColor: const Color(0xFFF4F4F9),
         selectedColor: primarySoft,
         side: BorderSide.none,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),

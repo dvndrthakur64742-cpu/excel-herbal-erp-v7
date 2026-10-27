@@ -156,8 +156,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     final employee = Map<String, dynamic>.from(
       (app.me['employee'] as Map?) ?? const {},
     );
-    return Material(
-      color: ExcelBrand.navDark,
+    return Container(
+      decoration: const BoxDecoration(
+        color: ExcelBrand.sidebar,
+        border: Border(right: BorderSide(color: ExcelBrand.border)),
+      ),
       child: Column(
         children: [
           const V8SidebarBrand(),
@@ -177,15 +180,15 @@ class _AppShellState extends ConsumerState<AppShell> {
               ],
             ),
           ),
-          const Divider(height: 1, color: ExcelBrand.navRaised),
+          const Divider(height: 1, color: ExcelBrand.border),
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 19,
-                  backgroundColor: ExcelBrand.navRaised,
-                  foregroundColor: Colors.white,
+                  backgroundColor: ExcelBrand.primarySoft,
+                  foregroundColor: ExcelBrand.primaryDark,
                   child: Text(_initials('${employee['full_name'] ?? 'U'}')),
                 ),
                 const SizedBox(width: 10),
@@ -197,13 +200,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                         '${employee['full_name'] ?? 'Employee'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(color: ExcelBrand.sidebarText),
                       ),
                       Text(
                         '${employee['employee_code'] ?? ''} · ${employee['designation_code'] ?? ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: ExcelBrand.navMuted),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: ExcelBrand.sidebarMuted),
                       ),
                     ],
                   ),
@@ -211,7 +214,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 IconButton(
                   tooltip: 'Logout',
                   onPressed: () => ref.read(appStateProvider.notifier).logout(),
-                  icon: const Icon(Icons.logout, size: 20, color: ExcelBrand.navMuted),
+                  icon: const Icon(Icons.logout, size: 20, color: ExcelBrand.sidebarMuted),
                 ),
               ],
             ),
@@ -228,7 +231,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 letterSpacing: .9,
                 fontWeight: FontWeight.w700,
-                color: ExcelBrand.navMuted,
+                color: ExcelBrand.sidebarMuted,
               ),
         ),
       );
@@ -241,10 +244,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         key: ValueKey('v8-nav-$id'),
         duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
-          color: selected ? ExcelBrand.navRaised : Colors.transparent,
-          borderRadius: BorderRadius.circular(13),
+          color: selected ? ExcelBrand.sidebarSelected : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
           border: selected
-              ? const Border(left: BorderSide(color: ExcelBrand.accent, width: 3))
+              ? const Border(left: BorderSide(color: ExcelBrand.primary, width: 3))
               : null,
         ),
         child: Material(
@@ -253,10 +256,10 @@ class _AppShellState extends ConsumerState<AppShell> {
           dense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
           leading: Icon(icon, size: 21,
-            color: selected ? ExcelBrand.accent : ExcelBrand.navMuted),
+            color: selected ? ExcelBrand.primary : ExcelBrand.sidebarMuted),
           title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: selected ? Colors.white : ExcelBrand.navText,
+              color: selected ? ExcelBrand.primaryDark : ExcelBrand.sidebarText,
               fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
           onTap: () => _selectDesktopRoute(id),
           ),
@@ -316,13 +319,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     // reduced the usable data area, especially on record-heavy ERP screens.
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Material(
-          color: Theme.of(context).colorScheme.surface,
-          child: child,
-        ),
-      ),
+      child: effectiveRoute == 'home'
+          ? child
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Material(
+                color: Theme.of(context).colorScheme.surface,
+                child: child,
+              ),
+            ),
     );
   }
 
