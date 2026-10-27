@@ -12,7 +12,9 @@ for a functional Flutter web UAT candidate on the **same Office website**.
   `EH7_PREVIEW_READ_ONLY=false` so authorized requests (stock request,
   attendance, etc.) can reach the existing server-side role and posting gates.
 - The CI candidate contains **only Flutter web assets**. It never installs the
-  V8 PHP backend, updates a database, changes payment release flags or deploys.
+  V8 PHP backend, updates a database or changes payment release flags. Ordinary
+  pushes build only, while a *separate one-shot owner-marker job* can upload
+  this exact artifact via the existing authenticated WordPress UAT web form.
 - The signed ZIP and JSON manifest attest the exact Git source HEAD, main JS
   SHA-256, archive SHA-256, staging API endpoint and write-enabled build mode.
 - Archive generation verifies the Flutter renderer manifest, rejects an active
@@ -30,6 +32,21 @@ At the latest read-only health check, Office reported backend source
 `07eda6ed7f2e963ee0147274543b497e753ec4da990a5324accfcb04298aeea8`.
 The site also reported `staging_safety.sanitized=false` and active mobile
 sessions. These values are observations, not evergreen approved release pins.
+
+For the owner's current staging rollout request, the one-shot commit message
+marker `[owner-approved-office-v8-functional-web]` runs a Windows desktop
+install job *only after* the same-head Flutter tests and signed build pass.
+The job checks backend `95a9e28...`, current web source `12d74a5...` and
+current main SHA `07eda6ed...` exactly; any drift fails before upload.
+It reconstructs the web ZIP from SHA-256-verified ASCII transport, verifies
+the functional-release manifest and uses the WordPress admin form's own nonce,
+file input, source-head, audit reason and confirmation controls. No login
+credentials or browser cookies are read. The server's UatWebDeployAdmin
+atomically renames the previous web directory to a timestamped rollback copy
+before activating a new bundle, and attempts to restore it if activation fails.
+Successful deployment requires a second public fetch of the actual JS hash and
+read-only backend health. If the Windows runner has no unlocked authenticated
+Chrome session, the job stops without upload.
 
 ## Install acceptance checklist (same Office URL)
 
@@ -57,4 +74,6 @@ sessions. These values are observations, not evergreen approved release pins.
 
 Source and packaging tests may pass while installation is **not performed**.
 Only a post-install live hash and authenticated functional UAT can close this
-release. PR #25 is still a draft development PR, not a production sign-off.
+release. The one-shot job must be observed to completion; a queued job,
+failed form or green build step is not proof of deployment. PR #25 is still a
+draft development PR, not a production sign-off.

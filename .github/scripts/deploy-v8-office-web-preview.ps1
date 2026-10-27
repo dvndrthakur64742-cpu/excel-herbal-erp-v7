@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$SourceHead,
   [Parameter(Mandatory = $true)]
-  [string]$UatSiteUrl
+  [string]$UatSiteUrl,
+  [string]$AuditReason = 'Owner approved Office read-only Employee Finance Review web preview'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +13,9 @@ Add-Type -AssemblyName UIAutomationTypes
 
 if ($SourceHead -notmatch '^[a-f0-9]{40}$') {
   throw 'SourceHead must be a 40-character lowercase commit SHA.'
+}
+if ($AuditReason.Length -lt 10 -or $AuditReason.Length -gt 180) {
+  throw 'Certified WordPress audit reason must be 10-180 characters.'
 }
 
 try { $uatUri = [Uri]$UatSiteUrl.TrimEnd('/') }
@@ -229,7 +233,7 @@ $headValue=$headControl.GetCurrentPattern([System.Windows.Automation.ValuePatter
 $reasonValue=$reasonControl.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
 $confirmation=$confirmControl.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
 $headValue.SetValue($SourceHead)
-$reasonValue.SetValue('Owner approved Office read-only Employee Finance Review web preview')
+$reasonValue.SetValue($AuditReason)
 if($confirmation.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On){$confirmation.Toggle()}
 # Chromium accessibility controls commit ValuePattern/Toggle asynchronously.
 # Do not prematurely reject a verified form while the UI is settling.
