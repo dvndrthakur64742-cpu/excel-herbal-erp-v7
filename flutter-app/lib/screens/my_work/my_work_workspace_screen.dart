@@ -34,13 +34,22 @@ class MyWorkWorkspaceScreen extends ConsumerWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-          child: ModuleWorkspaceHeader(
-            title: 'My Work',
-            subtitle:
-                'Attendance, daily orders, leave and field visits in one workspace.',
-            icon: Icons.work_outline_rounded,
-            contextLabel: contextLabel,
+          padding: const EdgeInsets.fromLTRB(16, 17, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('My workday',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900)),
+              const SizedBox(height: 5),
+              ModuleWorkspaceHeader(
+                title: 'My Work',
+                subtitle:
+                    'Attendance, daily orders, leave and field visits in one workspace.',
+                icon: Icons.work_outline_rounded,
+                contextLabel: contextLabel,
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 2),

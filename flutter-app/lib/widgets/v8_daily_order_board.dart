@@ -49,45 +49,87 @@ class V8DailyOrderBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typography = Theme.of(context).textTheme;
+    final type = Theme.of(context).textTheme;
+    final currentCount = V8DailyOrderStages.count(rows, selectedStage);
     return Container(
       key: const ValueKey('v8-daily-workboard'),
-      margin: const EdgeInsets.fromLTRB(14, 9, 14, 2),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.fromLTRB(14, 10, 14, 2),
+      padding: const EdgeInsets.fromLTRB(16, 17, 16, 14),
       decoration: BoxDecoration(
         color: ExcelBrand.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ExcelBrand.border)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ExcelBrand.border),
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        LayoutBuilder(builder: (context, bounds) {
+          final narrow = bounds.maxWidth < 470;
+          final heading = Row(children: [
+            Container(
+              width: 39, height: 39,
+              decoration: BoxDecoration(
+                color: ExcelBrand.primarySoft,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.account_tree_outlined,
+                  color: ExcelBrand.primaryDark, size: 21),
+            ),
+            const SizedBox(width: 11),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Daily work pipeline', style: type.titleMedium?.copyWith(
+                  color: ExcelBrand.ink, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 2),
+                Text('Only records in your authorised scope',
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: type.bodySmall?.copyWith(color: ExcelBrand.muted)),
+              ],
+            )),
+          ]);
+          final counter = Container(
+            key: const ValueKey('v8-daily-stage-count'),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: ExcelBrand.canvas,
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: ExcelBrand.border),
+            ),
+            child: Text('${currentCount} / ${rows.length} loaded',
+              style: type.labelSmall?.copyWith(
+                color: ExcelBrand.primaryDark, fontWeight: FontWeight.w800)),
+          );
+          return narrow
+              ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  heading, const SizedBox(height: 11), counter,
+                ])
+              : Row(children: [
+                  Expanded(child: heading), const SizedBox(width: 12), counter,
+                ]);
+        }),
+        const SizedBox(height: 14),
+        Wrap(spacing: 7, runSpacing: 8, children: [
+          for (final filter in V8DailyOrderStages.filters)
+            FilterChip(
+              key: ValueKey('v8-daily-filter-${filter.$1}'),
+              label: Text('${filter.$2}  ${V8DailyOrderStages.count(rows, filter.$1)}'),
+              selected: selectedStage == filter.$1,
+              showCheckmark: false,
+              onSelected: (_) => onStageChanged(filter.$1),
+              visualDensity: VisualDensity.compact,
+            ),
+        ]),
+        const SizedBox(height: 11),
         Row(children: [
-          const Icon(Icons.account_tree_rounded,
-              color: ExcelBrand.primaryDark, size: 24),
-          const SizedBox(width: 10),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Daily Order Workflow',
-                style: typography.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900)),
-              Text('${rows.length} loaded records · authorised scope only',
-                style: typography.bodySmall),
-            ],
+          const Icon(Icons.info_outline_rounded,
+              size: 14, color: ExcelBrand.muted),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Stage counts come from this list, not financial totals.',
+            style: type.bodySmall?.copyWith(
+                color: ExcelBrand.sidebarMuted, fontSize: 11),
           )),
         ]),
-        const SizedBox(height: 10),
-        Wrap(spacing: 7, runSpacing: 7, children: [
-          for (final f in V8DailyOrderStages.filters)
-            FilterChip(
-              key: ValueKey('v8-daily-filter-${f.$1}'),
-              label: Text('${f.$2}  ${V8DailyOrderStages.count(rows, f.$1)}'),
-              selected: selectedStage == f.$1,
-              showCheckmark: false,
-              onSelected: (_) => onStageChanged(f.$1),
-              visualDensity: VisualDensity.compact),
-        ]),
-        const SizedBox(height: 7),
-        Text('Counts describe this loaded list, not ledger balances.',
-          style: typography.bodySmall),
       ]),
     );
   }

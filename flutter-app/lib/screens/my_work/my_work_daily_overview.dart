@@ -7,36 +7,48 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Daily Orders',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              IconButton(
-                tooltip: 'Search full Daily Order history',
-                icon: const Icon(Icons.manage_search_rounded),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: LayoutBuilder(builder: (context, bounds) {
+            final heading = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Daily orders',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: ExcelBrand.ink, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 3),
+                Text('Requests, ASM review, stock issue and closing',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: ExcelBrand.muted)),
+              ],
+            );
+            final actions = Wrap(spacing: 8, runSpacing: 8, children: [
+              OutlinedButton.icon(
                 onPressed: _searchDailyHistoryImpl,
+                icon: const Icon(Icons.manage_search_rounded, size: 19),
+                label: const Text('Find orders'),
               ),
               if (app.can('daily_order.self') || app.can('daily_order.others'))
                 FilledButton.icon(
+                  key: const ValueKey('v8-new-daily-order'),
                   onPressed: app.currentBranchId == null || _dailyOrderOpening
-                      ? null
-                      : _MyWorkDaily(this)._newDailyOrder,
+                      ? null : _MyWorkDaily(this)._newDailyOrder,
                   icon: _dailyOrderOpening
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add),
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.add_rounded),
                   label: Text(_dailyOrderOpening ? 'Opening...' : 'New Order'),
                 ),
-            ],
-          ),
+            ]);
+            return bounds.maxWidth < 560
+                ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    heading, const SizedBox(height: 11), actions,
+                  ])
+                : Row(children: [
+                    Expanded(child: heading),
+                    const SizedBox(width: 11),
+                    actions,
+                  ]);
+          }),
         ),
         if (message != null)
           Padding(

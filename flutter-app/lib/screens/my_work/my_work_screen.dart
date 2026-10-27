@@ -178,12 +178,23 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
       child: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 5),
             child: BranchSelector(),
           ),
-          TabBar(
-            isScrollable: true,
-            tabs: [for (final tab in tabs) Tab(text: tab.$1)],
+          Container(
+            key: const ValueKey('v8-my-work-sections'),
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: const BoxDecoration(
+              color: ExcelBrand.surface,
+              border: Border(bottom: BorderSide(color: ExcelBrand.border)),
+            ),
+            child: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              labelPadding: const EdgeInsets.symmetric(horizontal: 15),
+              tabs: [for (final tab in tabs) Tab(text: tab.$1)],
+            ),
           ),
           Expanded(
             child: TabBarView(children: [for (final tab in tabs) tab.$2]),
