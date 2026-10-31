@@ -145,6 +145,17 @@ final class PrepaidOrderService {
             return ['id'=>$id,'order_no'=>$no,'channel'=>$channel,'status'=>$status,'gross_amount'=>Money::format($gross),'net_amount'=>Money::format($net)];
         });
     }
+    /** Branch-scoped, compact order queue for seller, manager, cashier and finance. */
+    public static function list(Actor $a,int $branch,string $status=''):array {
+        Guard::any($a,[Capabilities::SALES_VIEW,Capabilities::SALES_CREATE,Capabilities::RECEIPT_CREATE,Capabilities::BANK_RECONCILE,Capabilities::SALES_DISCOUNT_APPROVE,Capabilities::SALES_DISCOUNT_HO_APPROVE]);
+        if($branch<1||!$a->hasBranch($branch))throw new DomainException('Branch is outside effective authority.','branch_forbidden',403);
+        if($status!==''&&!in_array($status,['approved','discount_pending','posted'],true))throw new DomainException('Invalid sales order status.','sales_order_status_invalid',422);
+        $db=Db::wpdb();$params=[$a->companyId,$branch];$where="company_id=%d AND branch_id=%d";
+        if($status!==''){$where.=" AND status=%s";$params[]=$status;}
+        return (array)$db->get_results($db->prepare(
+            "SELECT id,order_no,channel,status,customer_id,gross_amount,discount_amount,net_amount,sale_id,created_by,created_at FROM ".Db::table('prepaid_sales_orders')." WHERE {$where} ORDER BY id DESC LIMIT 100",...$params
+        ),ARRAY_A);
+    }
     public static function detail(Actor $a,int $id):array {
         Guard::any($a,[Capabilities::SALES_VIEW,Capabilities::SALES_CREATE,Capabilities::RECEIPT_CREATE]);
         $o=self::row($a,$id);if(!$a->hasBranch((int)$o['branch_id']))throw new DomainException('Order branch outside authority.','branch_forbidden',403);
