@@ -33,5 +33,5 @@ jobs:
             test -e /etc/apache2/mods-enabled/rewrite.load
             test -e /etc/apache2/conf-enabled/eh7-uat-rewrite.conf
             php -l /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
-            /usr/local/bin/wp --version
+            /usr/local/bin/wp --version --allow-root
           '
