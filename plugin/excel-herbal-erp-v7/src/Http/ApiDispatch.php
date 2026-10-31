@@ -25,6 +25,7 @@ public static function dispatch(string $h,$r,?Actor $a):mixed{return match($h){
   'sales.distributor_slabs'=>\ExcelHerbal\ERP7\Sales\PrepaidOrderService::setDistributorSlabs($a,(int)$r->get_param('product_id'),self::arr($r,'slabs')),
   'sales.discount_policy'=>\ExcelHerbal\ERP7\Sales\PrepaidOrderService::discountPolicy($a),
   'sales.discount_policy_set'=>\ExcelHerbal\ERP7\Sales\PrepaidOrderService::discountPolicy($a,(string)$r->get_param('ho_threshold_percent')),
+  'sales.order_list'=>\ExcelHerbal\ERP7\Sales\PrepaidOrderService::list($a,(int)$r->get_param('branch_id'),(string)($r->get_param('status')??'')),
   'sales.order_create'=>\ExcelHerbal\ERP7\Sales\PrepaidOrderService::create($a,(int)$r->get_param('branch_id'),(string)$r->get_param('channel'),self::ni($r->get_param('customer_id')),self::arr($r,'lines'),(string)($r->get_param('discount_amount')??'0.00'),(string)($r->get_param('discount_reason')??'')),
   'sales.order_detail'=>\ExcelHerbal\ERP7\Sales\PrepaidOrderService::detail($a,(int)$r['id']),
   'sales.discount_approve'=>\ExcelHerbal\ERP7\Sales\PrepaidOrderService::approveDiscount($a,(int)$r['id']),
