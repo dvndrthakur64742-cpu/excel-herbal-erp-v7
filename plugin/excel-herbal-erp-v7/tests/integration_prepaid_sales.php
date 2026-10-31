@@ -103,6 +103,7 @@ checkSales($upi['status']==='pending','UPI starts pending');
 denySales(fn()=>PrepaidOrderService::post($seller,$o['id']),'upi_verification_required');
 denySales(fn()=>PrepaidOrderService::verifyUpi($cashier,$upi['id'],'BANK-UTR-0001'),'permission_denied');
 PrepaidOrderService::verifyUpi($finance,$upi['id'],'BANK-UTR-0001');
+denySales(fn()=>PrepaidOrderService::verifyUpi($finance,$upi['id'],'BANK-UTR-0002'),'upi_payment_state_invalid');
 $post=PrepaidOrderService::post($seller,$o['id']);
 checkSales($post['status']==='posted'&&$post['paid_amount']==='200.00','invoice after confirmed full payment');
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('counter_sales'))===1,'one invoice created');

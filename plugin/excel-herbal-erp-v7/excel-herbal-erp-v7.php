@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Excel Herbal ERP 7 Clean Core
- * Version: 7.3.10-rc1
+ * Version: 7.3.10-rc2
  * Requires PHP: 8.1
  */
 if(!defined('ABSPATH'))exit;
-define('EH7_VERSION','7.3.10-rc1');
+define('EH7_VERSION','7.3.10-rc2');
 define('EH7_DIR',plugin_dir_path(__FILE__));
 $eh7BuildMeta=EH7_DIR.'build-meta.php';
 if(is_file($eh7BuildMeta))require_once $eh7BuildMeta;

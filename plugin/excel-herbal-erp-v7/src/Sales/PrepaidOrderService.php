@@ -196,8 +196,11 @@ final class PrepaidOrderService {
             $p=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND company_id=%d",$paymentId,$a->companyId),ARRAY_A);
             if(!$p||$p['method']!=='upi')throw new DomainException('UPI receipt not found.','upi_payment_not_found',404);
             $o=self::row($a,(int)$p['order_id'],true);
+            // Re-read while holding both locks so simultaneous finance reviews cannot
+            // confirm the same UPI receipt twice using stale pending state.
+            $p=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND company_id=%d FOR UPDATE",$paymentId,$a->companyId),ARRAY_A);
             Guard::branch($a,(int)$o['branch_id'],Capabilities::BANK_RECONCILE);
-            if($o['status']!=='approved'||$p['status']!=='pending')throw new DomainException('UPI payment is not awaiting verification.','upi_payment_state_invalid',409);
+            if($o['status']!=='approved'||!$p||$p['status']!=='pending')throw new DomainException('UPI payment is not awaiting verification.','upi_payment_state_invalid',409);
             if((int)$p['received_by']===$a->employeeId||((int)$o['created_by']===$a->employeeId))throw new DomainException('UPI requires an independent bank verifier.','maker_checker_required',409);
             AccountingService::bankAccount($a,(int)$p['payment_account_id']);
             Db::mustUpdate($db,$t,['status'=>'confirmed','bank_evidence_ref'=>$bankEvidence,'verified_by'=>$a->employeeId,'verified_at'=>Db::now()],['id'=>$paymentId,'company_id'=>$a->companyId]);
