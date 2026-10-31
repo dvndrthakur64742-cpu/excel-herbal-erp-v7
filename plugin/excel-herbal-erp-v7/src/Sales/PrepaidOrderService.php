@@ -145,6 +145,16 @@ final class PrepaidOrderService {
             return ['id'=>$id,'order_no'=>$no,'channel'=>$channel,'status'=>$status,'gross_amount'=>Money::format($gross),'net_amount'=>Money::format($net)];
         });
     }
+    /** Dedicated minimal collection-account lookup. Does not expose the full finance ledger. */
+    public static function paymentAccounts(Actor $a,int $branch):array {
+        Guard::branchAny($a,$branch,[Capabilities::RECEIPT_CREATE,Capabilities::BANK_RECONCILE]);
+        $db=Db::wpdb();
+        return (array)$db->get_results($db->prepare(
+            "SELECT id,code,name,subtype FROM ".Db::table('accounts')." WHERE company_id=%d AND active=1 AND type='asset' AND subtype IN ('cash','upi') ORDER BY code",
+            $a->companyId
+        ),ARRAY_A);
+    }
+
     /** Branch-scoped, compact order queue for seller, manager, cashier and finance. */
     public static function list(Actor $a,int $branch,string $status=''):array {
         Guard::any($a,[Capabilities::SALES_VIEW,Capabilities::SALES_CREATE,Capabilities::RECEIPT_CREATE,Capabilities::BANK_RECONCILE,Capabilities::SALES_DISCOUNT_APPROVE,Capabilities::SALES_DISCOUNT_HO_APPROVE]);
