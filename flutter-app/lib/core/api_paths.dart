@@ -48,7 +48,10 @@ abstract final class ApiPaths {
       availableStock = '/sales/available-stock',
       openSales = '/sales/open-sales',
       counterSale = '/sales/counter',
-      customerReceipt = '/sales/receipts';
+      customerReceipt = '/sales/receipts',
+      prepaidOrders = '/sales/orders',
+      distributorQuote = '/sales/distributor/quote',
+      prepaidDiscountPolicy = '/sales/discount-policy';
 
   static const suppliers = '/purchase/suppliers',
       openBills = '/purchase/open-bills',
@@ -111,6 +114,12 @@ abstract final class ApiPaths {
       audit = '/administration/audit',
       diagnostics = '/administration/diagnostics',
       maintenanceCleanup = '/administration/maintenance/cleanup';
+
+  static String prepaidOrder(int id) => '/sales/orders/$id';
+  static String prepaidApproveDiscount(int id) => '/sales/orders/$id/approve-discount';
+  static String prepaidOrderPayments(int id) => '/sales/orders/$id/payments';
+  static String prepaidVerifyUpi(int id) => '/sales/payments/$id/verify-upi';
+  static String prepaidPost(int id) => '/sales/orders/$id/post';
 
   static String authSessionRevoke(int id) => '/auth/sessions/$id/revoke';
   static String branchUpdate(int id) => '/organization/branches/$id';
