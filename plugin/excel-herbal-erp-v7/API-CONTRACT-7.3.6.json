@@ -1,0 +1,1844 @@
+{
+  "contract_version": "7.3.6-contract-2",
+  "namespace": "excel-herbal-erp/v7",
+  "authentication": "Bearer access token for authenticated routes",
+  "idempotency_header": "X-Idempotency-Key",
+  "features": {
+    "field_sales_three_step_review": true,
+    "employee_stock_receipt_confirmation": true,
+    "field_sales_gps_attendance_gate": true,
+    "legacy_credit_sales_blocked": true,
+    "gps_points": true,
+    "gps_route": true,
+    "gps_auto_duty_window": true,
+    "gps_hierarchy_scope": true,
+    "gps_team_map": true,
+    "holidays": true,
+    "employee_documents": true,
+    "employee_offboarding": true,
+    "employee_reactivation": true,
+    "reporting_hierarchy_manage": true,
+    "reporting_designation": true,
+    "multiple_designations": true,
+    "price_distribution_report": true,
+    "notification_read_state": true,
+    "announcement_acknowledgement": true,
+    "push_device_registry": true,
+    "task_management": true,
+    "app_version_policy": true,
+    "session_management": true,
+    "employee_login_management": true,
+    "holiday_management": true,
+    "employee_document_upload": true,
+    "communication_management": true,
+    "master_data_maintenance": true,
+    "system_diagnostics": true,
+    "automatic_cleanup": true,
+    "whole_pcs_validation": true,
+    "payload_bound_idempotency": true,
+    "stable_device_identity": true,
+    "transfer_accounting_repair": true,
+    "acting_duty_delegation": true,
+    "acting_duty_fallback": true,
+    "acting_duty_inbox": true,
+    "acting_unavailability": true,
+    "hr_candidate_lifecycle": true,
+    "hr_candidate_documents": true,
+    "hr_separation_workflow": true,
+    "salary_revision_approval": true,
+    "payroll_working_day_proration": true,
+    "private_document_download": true,
+    "field_upi_manual_bank_verification": true
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "auth": false,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/app/capabilities",
+      "auth": false,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/setup/status",
+      "auth": false,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/setup/initialize",
+      "auth": false,
+      "idempotency_required": false,
+      "required_params": [
+        "company_name",
+        "branch_code",
+        "branch_name",
+        "employee_code",
+        "employee_name"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "auth": false,
+      "idempotency_required": false,
+      "required_params": [
+        "mobile",
+        "password"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/auth/refresh",
+      "auth": false,
+      "idempotency_required": false,
+      "required_params": [
+        "refresh_token"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/auth/sessions",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/auth/sessions/(?P<id>\\d+)/revoke",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout-all",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/bootstrap",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/app/version-policy",
+      "auth": false,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/app/version-policy",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/branches",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/branches",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "code",
+        "name"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/branches/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/branches/(?P<id>\\d+)/status",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "active"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/organization/employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "assigned_branch_id",
+        "employee_code",
+        "full_name",
+        "designation_code"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/login-credentials",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "password"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/organization/employees/(?P<id>\\d+)/login-status",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/revoke-sessions",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/employees/(?P<id>\\d+)/offboarding-preflight",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/offboard",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "separation_date",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/reactivate",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reactivation_date",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/reporting-manager",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/organization/employees/(?P<id>\\d+)/designations",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/designations",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "designation_code",
+        "assignment_type",
+        "effective_from"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/designations/(?P<assignment_id>\\d+)/deactivate",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/employees/(?P<id>\\d+)/branch-history",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/transfer-branch",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/organization/master-data",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/designations",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/roles",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/branch-authority",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "employee_id",
+        "branch_id",
+        "active"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/organization/employees/(?P<id>\\d+)/documents",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/documents",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "attachment_id",
+        "document_type",
+        "title"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/documents/upload",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "document_type",
+        "title"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/documents/(?P<document_id>\\d+)/deactivate",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/employees/(?P<id>\\d+)/documents/(?P<document_id>\\d+)/download",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/candidates/(?P<id>\\d+)/documents/(?P<document_id>\\d+)/download",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/candidates",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/candidates",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "full_name",
+        "proposed_designation_code"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/organization/candidates/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/candidates/(?P<id>\\d+)/review",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "decision",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/candidates/(?P<id>\\d+)/joining",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "joining_date"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/candidates/(?P<id>\\d+)/credentials",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "password"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/candidates/(?P<id>\\d+)/no-show",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/organization/candidates/(?P<id>\\d+)/documents",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/candidates/(?P<id>\\d+)/documents/upload",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "document_type",
+        "title"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/candidates/(?P<id>\\d+)/documents/(?P<document_id>\\d+)/deactivate",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/separations",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/organization/employees/(?P<id>\\d+)/separations",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "separation_date",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/separations/(?P<id>\\d+)/review",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "approve",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/organization/separations/(?P<id>\\d+)/complete",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/attendance/today",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/attendance/check-in",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/attendance/check-out",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/attendance/report",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/field-visits/current",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/field-visits/start",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "purpose"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/field-visits/(?P<id>\\d+)/complete",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/leave",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/leave/pending",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/leave",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "leave_type",
+        "date_from",
+        "date_to"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/leave/mine",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/leave/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "approve"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/gps/points",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/gps/route",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/gps/team",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/holidays",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/holidays",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "holiday_date",
+        "name"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/holidays/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/holidays/(?P<id>\\d+)/deactivate",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/catalog/products",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/catalog/products",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "sku",
+        "name"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/catalog/products/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/catalog/products/(?P<id>\\d+)/status",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "active"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/catalog/products/(?P<id>\\d+)/commercial-history",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/catalog/products/(?P<id>\\d+)/commercial-revision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "mrp",
+        "sale_price",
+        "ho_amount",
+        "bm_profit",
+        "salary_fund",
+        "office_expense",
+        "points",
+        "purchase_cost"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/daily/cycles",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "employee_id",
+        "business_date",
+        "lines"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/daily/cycles/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/submit",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/additional",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/daily/requests/(?P<id>\\d+)/receive",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/requests/(?P<id>\\d+)/review",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/requests/(?P<id>\\d+)/approve",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/requests/(?P<id>\\d+)/issue",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "allocations"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/evening/start",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/evening/save",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/evening/submit",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/final-post",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/stock",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/transfers",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/transfers/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/transfers",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "source_branch_id",
+        "destination_branch_id",
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/transfers/(?P<id>\\d+)/pack",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/transfers/(?P<id>\\d+)/dispatch",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/transfers/(?P<id>\\d+)/receive",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/transfers/(?P<id>\\d+)/approve-correction",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "note"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/transfers/(?P<id>\\d+)/cancel",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/adjustments",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/adjustments",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "reason",
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/adjustments/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "approve"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/quarantine",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/quarantine/(?P<id>\\d+)/resolve",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "action",
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/sales/customers",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/sales/available-stock",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/sales/open-sales",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/sales/customers",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "name"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/sales/customers/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/sales/customers/(?P<id>\\d+)/status",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "active"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/sales/counter",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/sales/receipts",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "sale_id",
+        "amount",
+        "payment_account_id"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/purchase/suppliers",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/purchase/suppliers",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "name"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/purchase/suppliers/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/purchase/suppliers/(?P<id>\\d+)/status",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "active"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/purchase/open-bills",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/purchase/bills",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "supplier_id",
+        "bill_no",
+        "bill_date",
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/purchase/payments",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "purchase_bill_id",
+        "amount",
+        "payment_account_id"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/finance/bootstrap",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/finance/accounts",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "code",
+        "name",
+        "type"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/expense-heads",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "code",
+        "name",
+        "expense_account_id"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/finance/expenses",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/finance/branch-closing",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/finance/periods",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/finance/bank-reconciliations",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/finance/bank-reconciliations/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/finance/expenses",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "expense_head_id",
+        "amount",
+        "payment_account_id",
+        "expense_date"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/expenses/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "approve"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/finance/branch-closing/preflight",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/finance/branch-closing",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "business_date"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/branch-closing/(?P<id>\\d+)/close",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/finance/branch-closing/(?P<id>\\d+)/reopen",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/finance/reversals",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/finance/reversals",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "source_type",
+        "source_id",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/reversals/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "approve"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/reversals/(?P<id>\\d+)/execute",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/finance/periods/close",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "date_from",
+        "date_to"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/periods/(?P<id>\\d+)/reopen",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/bank-reconciliations",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "account_id",
+        "statement_from",
+        "statement_to",
+        "opening_balance",
+        "closing_balance"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/bank-reconciliations/(?P<id>\\d+)/import",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/bank-lines/(?P<id>\\d+)/match",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "journal_line_id"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/bank-lines/(?P<id>\\d+)/exclude",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/finance/bank-reconciliations/(?P<id>\\d+)/finalize",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/payroll/policy",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/policy",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "leave_types",
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/payroll/employees/(?P<id>\\d+)/salary-revisions",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/employees/(?P<id>\\d+)/salary-revisions",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "monthly_salary",
+        "effective_from",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/salary-revisions/(?P<id>\\d+)/review",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "approve"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/runs/(?P<id>\\d+)/discard",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/payroll/runs",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/runs",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "period_start",
+        "period_end"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/payroll/runs/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/runs/(?P<id>\\d+)/items/(?P<item_id>\\d+)",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "bonus",
+        "allowances",
+        "deductions"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/runs/(?P<id>\\d+)/approve",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/runs/(?P<id>\\d+)/pay",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "payment_account_id",
+        "payment_date"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/performance/summary",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/performance/targets",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/performance/targets",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "employee_id",
+        "period_start",
+        "period_end",
+        "target_points"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/performance/targets/(?P<id>\\d+)/approve",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/sales",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/purchase",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/stock",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/stock-reconciliation",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/finance",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/trial-balance",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/account-ledger",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/profit-loss",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/balance-sheet",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/receivables",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/payables",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/finance-reconciliation",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/reports/price-distribution",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/communication/summary",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/communication/tasks/manage",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/communication/announcements/manage",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/communication/announcements",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "title",
+        "body"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/communication/announcements/(?P<id>\\d+)/expire",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/communication/notifications",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "employee_id",
+        "title"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/communication/notifications/(?P<id>\\d+)/read",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/communication/notifications/read-all",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/communication/announcements/(?P<id>\\d+)/acknowledge",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/communication/push-devices",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/communication/push-devices",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "token",
+        "platform"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/communication/push-devices/deactivate",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/communication/tasks",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "assigned_employee_id",
+        "title"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/communication/tasks/(?P<id>\\d+)/assign",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "employee_id"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/communication/tasks/(?P<id>\\d+)/reassign",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "employee_id"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/communication/tasks/(?P<id>\\d+)/complete",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/administration/delegations",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/administration/acting-inbox",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/administration/delegations",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "delegate_employee_id",
+        "branch_id",
+        "action_code",
+        "starts_at",
+        "ends_at",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/administration/delegations/(?P<id>\\d+)/revoke",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/administration/authority-status",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": [
+        "branch_id",
+        "action_code"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/administration/unavailability",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/administration/unavailability",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "starts_at",
+        "ends_at",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/administration/unavailability/(?P<id>\\d+)/revoke",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/administration/access",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/administration/roles",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "code",
+        "name"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/administration/roles/(?P<id>\\d+)/capabilities",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "capabilities",
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/administration/employees/(?P<id>\\d+)/access",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/administration/employees/(?P<id>\\d+)/roles",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "role_ids",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/administration/employees/(?P<id>\\d+)/overrides",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "grants",
+        "denies",
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/administration/audit",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/administration/diagnostics",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/administration/maintenance/cleanup",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/administration/transfer-accounting-repair",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/administration/transfer-accounting-repair",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "confirmation"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/upi-receipts",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reference",
+        "amount"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/daily/upi-receipts/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "approve"
+      ]
+    }
+  ]
+}
