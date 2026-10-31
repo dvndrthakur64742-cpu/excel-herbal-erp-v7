@@ -6,8 +6,8 @@ $checks = [
         [
             'LEFT JOIN {$db->users} u ON u.ID=e.wp_user_id',
             'CASE WHEN u.ID IS NULL THEN 0 ELSE 1 END AS login_enabled',
-            "get_user_by('id',(int)$e['wp_user_id'])!==false",
-            "user_can($linkedUser,'manage_options')",
+            'get_user_by(\'id\',(int)$e[\'wp_user_id\'])!==false',
+            'user_can($linkedUser,\'manage_options\')',
             'privileged_account_password_protected',
         ],
     ],
