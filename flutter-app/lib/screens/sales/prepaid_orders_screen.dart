@@ -218,11 +218,10 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
   Future<void> _collect(Map<String, dynamic> order) async {
     try {
       final api = ref.read(apiClientProvider);
-      final finance = _map(await api.get(ApiPaths.financeBootstrap));
-      final accounts = (finance['accounts'] as List).map(_map)
-          .where((a) => a['type'] == 'asset' &&
-              ['cash', 'upi'].contains(a['subtype'].toString().toLowerCase()))
-          .toList();
+      final branch = ref.read(appStateProvider).currentBranchId;
+      if (branch == null) return;
+      final accounts = (await api.get(ApiPaths.prepaidPaymentAccounts,
+          query: {'branch_id': branch}) as List).map(_map).toList();
       if (!mounted) return;
       int? accountId;
       final amount = TextEditingController();
