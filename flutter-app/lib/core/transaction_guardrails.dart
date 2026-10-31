@@ -18,12 +18,11 @@ abstract final class TransactionGuardrails {
     if (paidValue > grossValue + moneyTolerance) {
       return 'Paid amount sale total se zyada nahi ho sakta.';
     }
-    final outstanding = grossValue - paidValue;
-    if (outstanding > moneyTolerance && customerId == null) {
-      return 'Credit sale ke liye registered customer select karein.';
+    if (grossValue - paidValue > moneyTolerance) {
+      return 'Invoice ke liye 100% confirmed payment required hai. Credit/partial payment disabled hai.';
     }
-    if (paidValue > moneyTolerance && paymentAccountId == null) {
-      return 'Received amount ke liye Cash / Bank / UPI account select karein.';
+    if (paymentAccountId == null) {
+      return 'Full payment ke liye verified Cash account select karein.';
     }
     return null;
   }
