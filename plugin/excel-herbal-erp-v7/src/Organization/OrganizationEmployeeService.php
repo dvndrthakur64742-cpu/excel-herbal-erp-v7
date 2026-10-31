@@ -4,9 +4,10 @@ use ExcelHerbal\ERP7\Security\DesignationDefaults;use ExcelHerbal\ERP7\Core\Inpu
 final class OrganizationEmployeeService{
  public static function employees(Actor $a,int $branch,string $status='active'):array{
   Guard::branch($a,$branch,Capabilities::EMP_VIEW);$status=strtolower(trim($status))?:'active';if(!in_array($status,['active','inactive','all'],true))throw new DomainException('Employee status filter is invalid.','employee_status_invalid',422);
-  $where=$status==='all'?"status IN ('active','inactive')":"status='".$status."'";
-  $rows=(array)Db::wpdb()->get_results(Db::wpdb()->prepare(
-   "SELECT id,employee_code,full_name,mobile,email,designation_code,reporting_designation_code,assigned_branch_id,reporting_employee_id,monthly_salary,joining_date,separation_date,status,CASE WHEN wp_user_id IS NULL THEN 0 ELSE 1 END login_enabled FROM ".Db::table('employees')." WHERE company_id=%d AND assigned_branch_id=%d AND {$where} ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,full_name",
+  $db=Db::wpdb();
+  $where=$status==='all'?"e.status IN ('active','inactive')":"e.status='".$status."'";
+  $rows=(array)$db->get_results($db->prepare(
+   "SELECT e.id,e.employee_code,e.full_name,e.mobile,e.email,e.designation_code,e.reporting_designation_code,e.assigned_branch_id,e.reporting_employee_id,e.monthly_salary,e.joining_date,e.separation_date,e.status,CASE WHEN u.ID IS NULL THEN 0 ELSE 1 END AS login_enabled FROM ".Db::table('employees')." e LEFT JOIN {$db->users} u ON u.ID=e.wp_user_id WHERE e.company_id=%d AND e.assigned_branch_id=%d AND {$where} ORDER BY CASE WHEN e.status='active' THEN 0 ELSE 1 END,e.full_name",
    $a->companyId,$branch
   ),ARRAY_A);
   $visible=array_flip(HierarchyScope::visibleEmployeeIds($a,$branch));
@@ -91,7 +92,7 @@ final class OrganizationEmployeeService{
    Db::mustUpdate($db,$t,['status'=>'active','assigned_branch_id'=>$branch,'separation_date'=>null,'updated_at'=>Db::now()],['id'=>$employeeId,'company_id'=>$a->companyId]);
    Db::mustInsert($db,Db::table('employee_branch_history'),['company_id'=>$a->companyId,'employee_id'=>$employeeId,'branch_id'=>$branch,'effective_from'=>$date,'effective_to'=>null,'reason'=>'Employee reactivation: '.$reason,'changed_by'=>$a->employeeId,'created_at'=>Db::now()]);
    Audit::add($a,'employee.reactivate','employee',$employeeId,['branch_id'=>$branch,'reactivation_date'=>$date,'reason'=>$reason,'roles_restored'=>false,'extra_branch_authorities_restored'=>false]);
-   return['id'=>$employeeId,'employee_code'=>(string)$e['employee_code'],'status'=>'active','assigned_branch_id'=>$branch,'reactivation_date'=>$date,'login_enabled'=>(int)($e['wp_user_id']??0)>0,'roles_restored'=>false,'extra_branch_authorities_restored'=>false];
+   return['id'=>$employeeId,'employee_code'=>(string)$e['employee_code'],'status'=>'active','assigned_branch_id'=>$branch,'reactivation_date'=>$date,'login_enabled'=>(int)($e['wp_user_id']??0)>0&&get_user_by('id',(int)$e['wp_user_id'])!==false,'roles_restored'=>false,'extra_branch_authorities_restored'=>false];
   });
  }
  public static function setReportingManager(Actor $a,int $employeeId,?int $managerId,string $reason):array{

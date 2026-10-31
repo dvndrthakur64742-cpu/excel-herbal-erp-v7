@@ -5,4 +5,5 @@ php -r 'if (PHP_VERSION_ID < 80100) {fwrite(STDERR, "PHP 8.1+ required\n"); exit
 while IFS= read -r file; do php -l "$file"; done < <(find src tests -type f -name '*.php')
 php -l excel-herbal-erp-v7.php
 php tests/field_sales_rules.php
+php tests/employee_link_integrity.php
 php tests/regression.php
