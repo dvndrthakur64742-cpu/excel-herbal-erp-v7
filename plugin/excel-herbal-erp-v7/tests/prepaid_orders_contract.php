@@ -19,6 +19,7 @@ $expected=[
     'sales.distributor_slabs'=>'POST',
     'sales.discount_policy'=>'GET',
     'sales.discount_policy_set'=>'POST',
+    'sales.order_list'=>'GET',
     'sales.order_create'=>'POST',
     'sales.order_detail'=>'GET',
     'sales.discount_approve'=>'POST',
@@ -45,6 +46,7 @@ assertRule(str_contains($tables['prepaid_sales_order_payments'],'UNIQUE KEY uq_b
 assertRule(str_contains($tables['prepaid_sales_orders'],'UNIQUE KEY uq_sale_link'),'single invoice link per order');
 $service=file_get_contents(__DIR__.'/../src/Sales/PrepaidOrderService.php');
 foreach([
+  'function list('=>'branch-scoped order queue',
   'function create('=>'create draft/approved order',
   'function approveDiscount('=>'independent discount approval',
   'function collect('=>'record cash and pending UPI',
