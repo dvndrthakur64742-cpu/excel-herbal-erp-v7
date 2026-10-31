@@ -2,6 +2,12 @@
 namespace ExcelHerbal\ERP7\Security;
 use ExcelHerbal\ERP7\Database\Db;
 final class BranchAuthority {
+    public static function isCompanyWideAdmin(int $employeeId,int $companyId,string $designation):bool{
+        $code=strtoupper(trim($designation));
+        if(in_array($code,['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true))return true;
+        $db=Db::wpdb();
+        return (bool)$db->get_var($db->prepare("SELECT 1 FROM ".Db::table('employee_roles')." er JOIN ".Db::table('roles')." r ON r.id=er.role_id AND r.company_id=er.company_id AND r.active=1 WHERE er.company_id=%d AND er.employee_id=%d AND er.active=1 AND UPPER(r.code) IN ('SYSTEM_ADMIN','SYSADMIN','ADMIN','ADMINISTRATOR') LIMIT 1",$companyId,$employeeId));
+    }
     /** @return int[] */
     public static function ids(int $employeeId,int $companyId):array{
         $db=Db::wpdb();$emp=Db::table('employees');$auth=Db::table('employee_branch_authorities');$branches=Db::table('branches');

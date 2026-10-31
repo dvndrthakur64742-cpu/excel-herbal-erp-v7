@@ -50,6 +50,10 @@ final class HierarchyScope {
         return self::reportingCategoryForCode((string)$row['designation_code'],(string)($row['reporting_designation_code']??''));
     }
 
+    public static function hasCompanyWideSystemAuthority(Actor $a):bool {
+        return $a->can(Capabilities::ACCESS_MANAGE) && BranchAuthority::isCompanyWideAdmin($a->employeeId,$a->companyId,$a->designationCode);
+    }
+
     /** @return int[] */
     public static function visibleEmployeeIds(Actor $a,?int $branchId=null):array {
         $db=Db::wpdb();
@@ -118,6 +122,7 @@ final class HierarchyScope {
             $db=Db::wpdb();
             $targetCode=(string)$db->get_var($db->prepare("SELECT designation_code FROM ".Db::table('employees')." WHERE company_id=%d AND id=%d AND status='active'",$a->companyId,$employeeId));
             if(in_array(self::normaliseCode($targetCode),['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true))throw new DomainException('Only system administrators can manage another system administrator.','reserved_system_role_forbidden',403);
+            if(!in_array($employeeId,self::manageableEmployeeIds($a),true))throw new DomainException('Employee access is outside delegated reporting authority.','employee_access_scope_forbidden',403);
         }
     }
 }

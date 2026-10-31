@@ -9,6 +9,7 @@ php tests/employee_link_integrity.php
 php tests/employee_credential_authorization.php
 php tests/attendance_schedule_contract.php
 php tests/security_scope_regression.php
+php tests/access_escalation_regression.php
 php tests/reports_contract_regression.php
 php tests/employee_picker_contract.php
 php tests/distributor_volume_pricing.php
