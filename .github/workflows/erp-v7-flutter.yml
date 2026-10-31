@@ -23,7 +23,7 @@ jobs:
       - name: Install pinned Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.4'
+          flutter-version: '3.38.5'
           channel: stable
           cache: true
       - name: Check Flutter version
