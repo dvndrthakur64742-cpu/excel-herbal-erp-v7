@@ -1,5 +1,5 @@
 {
-  "contract_version": "7.3.9-contract-1",
+  "contract_version": "7.3.10-contract-1",
   "namespace": "excel-herbal-erp/v7",
   "authentication": "Bearer access token for authenticated routes",
   "idempotency_header": "X-Idempotency-Key",
@@ -1010,6 +1010,94 @@
         "action",
         "reason"
       ]
+    },
+    {
+      "method": "GET",
+      "path": "/sales/distributor/quote",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": [
+        "product_id",
+        "quantity"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/sales/distributor/slabs",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "product_id",
+        "slabs"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/sales/discount-policy",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/sales/discount-policy",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "ho_threshold_percent"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/sales/orders",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "channel",
+        "lines"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/sales/orders/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/sales/orders/(?P<id>\\d+)/approve-discount",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/sales/orders/(?P<id>\\d+)/payments",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "payment_account_id",
+        "amount",
+        "method"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/sales/payments/(?P<id>\\d+)/verify-upi",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "bank_evidence_ref"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/sales/orders/(?P<id>\\d+)/post",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
     },
     {
       "method": "GET",

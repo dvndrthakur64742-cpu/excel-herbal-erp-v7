@@ -68,7 +68,7 @@ for metric in [
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
 print('PASS operational diagnostics anomaly coverage')
 schema=(root/'src/Database/Schema.php').read_text()
-assert "7.3.6-field-sales-2" in schema,'schema version was not advanced for checkout exception migration'
+assert "7.3.10-prepaid-sales-1" in schema,'schema version was not advanced for checkout exception migration'
 for token in [
  'checkout_exception',
  'checkout_exception_reason',

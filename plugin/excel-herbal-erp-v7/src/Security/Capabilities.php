@@ -5,6 +5,7 @@ final class Capabilities {
     public const EMP_CONTACT_VIEW='organization.employee.contact.view', EMP_DOCUMENT_DOWNLOAD='organization.employee.document.download', HR_DOCUMENT_DOWNLOAD='organization.hr.document.download', GPS_TEAM_VIEW='workforce.gps.team.view', SALARY_VIEW='payroll.salary.view', SALARY_MANAGE='payroll.salary.manage', SALARY_APPROVE='payroll.salary.approve';
     public const ATT_SELF='workforce.attendance.self', ATT_MANAGE='workforce.attendance.manage', FIELD_SELF='workforce.field_visit.self', LEAVE_SELF='workforce.leave.self', LEAVE_MANAGE='workforce.leave.manage';
     public const DAILY_SELF='daily_order.self', DAILY_OTHERS='daily_order.others', DAILY_APPROVE='daily_order.approve', DAILY_ISSUE='daily_order.issue', DAILY_REVIEW='daily_order.review';
+    public const SALES_DISCOUNT_APPROVE='sales.discount.approve', SALES_DISCOUNT_HO_APPROVE='sales.discount.ho.approve';
     public const PRODUCT_VIEW='catalog.product.view', PRODUCT_MANAGE='catalog.product.manage', SALES_VIEW='sales.view', SALES_CREATE='sales.create', RECEIPT_CREATE='sales.receipt.create';
     public const INVENTORY_VIEW='inventory.view', TRANSFER_CREATE='inventory.transfer.create', TRANSFER_RECEIVE='inventory.transfer.receive', TRANSFER_CANCEL='inventory.transfer.cancel', ADJ_CREATE='inventory.adjustment.create', ADJ_APPROVE='inventory.adjustment.approve';
     public const PURCHASE_VIEW='purchase.view', PURCHASE_CREATE='purchase.create', SUPPLIER_PAYMENT='finance.supplier_payment.create';

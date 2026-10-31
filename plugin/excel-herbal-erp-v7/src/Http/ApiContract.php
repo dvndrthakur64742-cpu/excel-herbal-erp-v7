@@ -10,12 +10,16 @@ use ExcelHerbal\ERP7\Domain\DomainException;
  */
 final class ApiContract
 {
-    public const VERSION='7.3.9-contract-1';
+    public const VERSION='7.3.10-contract-1';
 
     /** @return array<string,bool> */
     public static function featureFlags():array
     {
         return [
+            'prepaid_sales_orders_v1'=>true,
+            'distributor_volume_price_list'=>true,
+            'discount_ho_threshold_fail_closed'=>true,
+            'independent_sales_upi_verification'=>true,
             'field_upi_manual_bank_verification'=>true,
             'field_sales_three_step_review'=>true,
             'employee_stock_receipt_confirmation'=>true,
@@ -121,6 +125,12 @@ final class ApiContract
             'inventory.quarantine_resolve'=>['action','reason'],
             'sales.customer_create'=>['branch_id','name'],
             'sales.customer_status'=>['active'],
+            'sales.distributor_quote'=>['product_id','quantity'],
+            'sales.distributor_slabs'=>['product_id','slabs'],
+            'sales.discount_policy_set'=>['ho_threshold_percent'],
+            'sales.order_create'=>['branch_id','channel','lines'],
+            'sales.order_collect'=>['payment_account_id','amount','method'],
+            'sales.upi_verify'=>['bank_evidence_ref'],
             'sales.counter'=>['branch_id','lines'],
             'sales.receipt'=>['branch_id','sale_id','amount','payment_account_id'],
             'purchase.supplier_create'=>['name'],

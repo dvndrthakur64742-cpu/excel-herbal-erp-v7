@@ -10,5 +10,7 @@ php tests/security_scope_regression.php
 php tests/reports_contract_regression.php
 php tests/employee_picker_contract.php
 php tests/distributor_volume_pricing.php
+php tests/prepaid_order_rules.php
+php tests/prepaid_orders_contract.php
 php tests/bootstrap_contract.php
 php tests/regression.php
