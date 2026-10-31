@@ -267,8 +267,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 '${e['type']}' == 'asset' &&
                 const {
                   'cash',
-                  'bank',
-                  'upi',
                 }.contains('${e['subtype']}'.toLowerCase()),
           )
           .toList();
@@ -300,7 +298,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     DropdownButtonFormField<int?>(
                       initialValue: customerId,
                       decoration: const InputDecoration(
-                        labelText: 'Customer (required for credit)',
+                        labelText: 'Customer (optional; full payment required)',
                       ),
                       items: <DropdownMenuItem<int?>>[
                         const DropdownMenuItem(
@@ -320,7 +318,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     DropdownButtonFormField<int?>(
                       initialValue: accountId,
                       decoration: const InputDecoration(
-                        labelText: 'Cash / Bank / UPI Account',
+                        labelText: 'Cash Account (legacy counter; UPI via Prepaid Orders)',
                       ),
                       items: accounts
                           .map(
@@ -339,7 +337,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         decimal: true,
                       ),
                       decoration: const InputDecoration(
-                        labelText: 'Paid Amount',
+                        labelText: 'Full Cash Payment (required)',
                       ),
                     ),
                     const SizedBox(height: 16),
