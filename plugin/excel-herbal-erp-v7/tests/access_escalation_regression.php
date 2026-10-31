@@ -24,4 +24,4 @@ verifyAuthority(true,'manager can manage own capability');
 AccessService::assertCanDelegateCapabilities($sysadmin,[Capabilities::SALARY_APPROVE]);
 verifyAuthority(true,'company-wide system authority can delegate role capabilities');
 $src=file_get_contents(__DIR__.'/../src/Security/AccessService.php');
-foreach(['assertRoleWithinAuthority($a,$roleId)','array_merge($before,$wanted)','array_merge($currentRoleIds,$wanted)',"array_column($before,'capability')",'assertCanAdministerEmployeeIdentity'] as $needle){verifyAuthority(str_contains($src,$needle),'revocation and role mutation guard: '.$needle);}
+foreach(['assertRoleWithinAuthority($a,$roleId)','array_merge($before,$wanted)','array_merge($currentRoleIds,$wanted)','array_column($before,\'capability\')','assertCanAdministerEmployeeIdentity'] as $needle){verifyAuthority(str_contains($src,$needle),'revocation and role mutation guard: '.$needle);}
