@@ -490,9 +490,20 @@ void main() {
         'Guard::branchAny(\$a,\$branch,[Capabilities::SALARY_VIEW,Capabilities::SALARY_MANAGE,Capabilities::SALARY_APPROVE])',
       ),
     );
+    final employeeChoices = File(
+      '../backend/excel-herbal-erp-v7/src/Organization/EmployeeChoiceService.php',
+    ).readAsStringSync();
     expect(
       salaryService,
+      contains('EmployeeChoiceService::list(\$a,\$branch,false,true)'),
+    );
+    expect(
+      employeeChoices,
       contains('HierarchyScope::visibleEmployeeIds(\$a,\$branch)'),
+    );
+    expect(
+      salaryService,
+      contains('HierarchyScope::assertCanViewEmployee(\$a,\$id)'),
     );
   });
 

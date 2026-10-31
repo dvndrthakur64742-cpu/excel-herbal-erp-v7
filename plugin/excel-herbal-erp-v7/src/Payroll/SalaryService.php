@@ -8,6 +8,7 @@ use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Audit;
 use ExcelHerbal\ERP7\Security\Capabilities;
 use ExcelHerbal\ERP7\Security\Guard;
+use ExcelHerbal\ERP7\Security\HierarchyScope;
 
 final class SalaryService {
     public static function employeeChoices(Actor $a,?int $branch=null):array{
@@ -22,19 +23,21 @@ final class SalaryService {
     }
     public static function history(Actor $a,int $employee):array {
         Guard::cap($a,Capabilities::SALARY_VIEW);
-        self::employee($a,$employee,Capabilities::PAYROLL_GENERATE);
+        self::employee($a,$employee,Capabilities::SALARY_VIEW);
         $db=Db::wpdb();
         return (array)$db->get_results($db->prepare('SELECT * FROM '.Db::table('salary_revisions').' WHERE company_id=%d AND employee_id=%d ORDER BY effective_from,id',$a->companyId,$employee),ARRAY_A);
     }
     private static function employee(Actor $a,int $id,string $cap):array {
         $db=Db::wpdb();$e=$db->get_row($db->prepare('SELECT * FROM '.Db::table('employees').' WHERE company_id=%d AND id=%d',$a->companyId,$id),ARRAY_A);
         if (!$e) throw new DomainException('Employee not found.','employee_not_found',404);
-        Guard::branch($a,(int)$e['assigned_branch_id'],$cap);return $e;
+        Guard::branch($a,(int)$e['assigned_branch_id'],$cap);
+        HierarchyScope::assertCanViewEmployee($a,$id);
+        return $e;
     }
     public static function request(Actor $a,int $employee,array $data):array {
         Guard::cap($a,Capabilities::SALARY_MANAGE);
         return Transaction::run(function()use($a,$employee,$data){
-            self::lockCompany($a->companyId);$e=self::employee($a,$employee,Capabilities::PAYROLL_GENERATE);
+            self::lockCompany($a->companyId);$e=self::employee($a,$employee,Capabilities::SALARY_MANAGE);
             if($employee===$a->employeeId)throw new DomainException('Use another authorized maker for your salary change.','salary_self_change',403);
             $amount=$data['monthly_salary']??null;$date=Input::date((string)($data['effective_from']??''),'Salary effective date');$reason=trim((string)($data['reason']??''));
             if(!is_numeric($amount)||!is_finite((float)$amount)||(float)$amount<=0||(float)$amount>999999999999.99||strlen($reason)<5||strlen($reason)>255)throw new DomainException('Positive salary and a reason of 5–255 characters are required.','salary_revision_invalid',422);
@@ -49,7 +52,7 @@ final class SalaryService {
             self::lockCompany($a->companyId);$db=Db::wpdb();$t=Db::table('salary_revisions');
             $r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE company_id=%d AND id=%d FOR UPDATE",$a->companyId,$id),ARRAY_A);
             if(!$r)throw new DomainException('Salary revision not found.','salary_revision_not_found',404);
-            $e=self::employee($a,(int)$r['employee_id'],Capabilities::PAYROLL_APPROVE);
+            $e=self::employee($a,(int)$r['employee_id'],Capabilities::SALARY_APPROVE);
             if($r['status']!=='pending')throw new DomainException('Only pending revisions can be reviewed.','salary_revision_state',409);
             if((int)$r['created_by']===$a->employeeId||(int)$r['employee_id']===$a->employeeId)throw new DomainException('Salary review requires an independent checker.','maker_checker_required',409);
             if($approve){
