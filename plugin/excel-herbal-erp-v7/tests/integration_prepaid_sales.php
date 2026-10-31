@@ -20,6 +20,18 @@ if(getenv('EH7_INTEGRATION_MODE')!=='synthetic' || !str_starts_with($database,'e
     fwrite(STDERR,"REFUSED: synthetic-only test requires EH7_INTEGRATION_MODE=synthetic and eh7_test_* database\n");
     exit(2);
 }
+if(($argv[1]??'')==='post-worker'){
+    try {
+        $workerDb=eh7_setup_global_db();
+        $workerActor=new Actor(101,101,1,1,[1],[C::SALES_CREATE,C::SALES_VIEW],'SALES');
+        $result=PrepaidOrderService::post($workerActor,(int)($argv[2]??0));
+        echo json_encode($result,JSON_THROW_ON_ERROR)."\n";
+        exit(0);
+    }catch(Throwable $e){
+        fwrite(STDERR,get_class($e).': '.$e->getMessage()."\n");
+        exit(3);
+    }
+}
 $db=eh7_setup_global_db();
 $tables=[
     'audit_log','journal_lines','journal_entries','counter_sale_lines','counter_sales','stock_ledger','stock_balances',
@@ -128,4 +140,35 @@ denySales(fn()=>PrepaidOrderService::post($seller,$failed['id']),'insufficient_s
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('counter_sales'))===3,'failed posting rolled invoice back');
 checkSales(abs((float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE product_id=1')-4.)<0.0001,'failed posting rolled stock back');
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'))===3,'failed posting rolled journal back');
-echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction integration (synthetic only)\n";
+// 20% discount exceeds configured 10% HO cutoff. Branch manager cannot approve it.
+$hoOrder=PrepaidOrderService::create($seller,1,'b2b',5,[['product_id'=>1,'quantity'=>'1']],'20.00','Head Office special campaign');
+denySales(fn()=>PrepaidOrderService::approveDiscount($cashier,$hoOrder['id']),'permission_denied');
+$hoDecision=PrepaidOrderService::approveDiscount($admin,$hoOrder['id']);
+checkSales($hoDecision['approval_scope']==='head_office','larger discount requires separate Head Office authority');
+PrepaidOrderService::collect($cashier,$hoOrder['id'],10,'80.00','cash');
+PrepaidOrderService::post($seller,$hoOrder['id']);
+
+// Two independent PHP processes race to post the same fully paid order.
+// Row-level locking must serialize both posts; exactly one stock and journal posting.
+$race=PrepaidOrderService::create($seller,1,'b2c',null,[['product_id'=>1,'quantity'=>'1']]);
+PrepaidOrderService::collect($cashier,$race['id'],10,'100.00','cash');
+$cmd=[PHP_BINARY,__FILE__,'post-worker',(string)$race['id']];
+$processes=[];
+foreach([1,2] as $worker){
+    $pipes=[];$proc=proc_open($cmd,[1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__);
+    if(!is_resource($proc))throw new RuntimeException('Cannot start concurrent posting worker.');
+    $processes[]=[$proc,$pipes];
+}
+$workerResults=[];
+foreach($processes as [$proc,$pipes]){
+    $stdout=stream_get_contents($pipes[1]);$stderr=stream_get_contents($pipes[2]);
+    fclose($pipes[1]);fclose($pipes[2]);
+    $code=proc_close($proc);
+    if($code!==0)throw new RuntimeException('Concurrent posting failed: '.$stderr);
+    $workerResults[]=json_decode($stdout,true,512,JSON_THROW_ON_ERROR);
+}
+checkSales(count($workerResults)===2 && $workerResults[0]['sale_id']===$workerResults[1]['sale_id'],'concurrent invoice calls share one sale ID');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('counter_sales'))===5,'concurrent posting created one additional invoice only');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'))===5,'concurrent posting created one additional journal only');
+checkSales(abs((float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE product_id=1')-2.)<0.0001,'concurrent posting deducts stock exactly once');
+echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction and concurrent posting integration (synthetic only)\n";
