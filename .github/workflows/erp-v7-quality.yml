@@ -43,6 +43,9 @@ jobs:
       - name: Contract and route static checks
         working-directory: plugin/excel-herbal-erp-v7
         run: python3 tests/static_checks.py
+      - name: Verify API snapshot is in sync with PHP routes
+        working-directory: plugin/excel-herbal-erp-v7
+        run: node tools/sync-contract-snapshot.mjs --check
       - name: Package installable WordPress plugin
         if: matrix.php == '8.3'
         run: |

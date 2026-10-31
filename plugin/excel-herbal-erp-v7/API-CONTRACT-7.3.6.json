@@ -1,5 +1,5 @@
 {
-  "contract_version": "7.3.6-contract-2",
+  "contract_version": "7.3.9-contract-1",
   "namespace": "excel-herbal-erp/v7",
   "authentication": "Bearer access token for authenticated routes",
   "idempotency_header": "X-Idempotency-Key",
@@ -158,6 +158,55 @@
       "path": "/app/version-policy",
       "auth": true,
       "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/performance/target-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/communication/target-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/daily/target-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/organization/hr/employee-choices",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/administration/acting-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/administration/access-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/payroll/salary-employees",
+      "auth": true,
+      "idempotency_required": false,
       "required_params": []
     },
     {
@@ -768,13 +817,6 @@
     },
     {
       "method": "POST",
-      "path": "/daily/requests/(?P<id>\\d+)/receive",
-      "auth": true,
-      "idempotency_required": true,
-      "required_params": []
-    },
-    {
-      "method": "POST",
       "path": "/daily/requests/(?P<id>\\d+)/review",
       "auth": true,
       "idempotency_required": true,
@@ -798,6 +840,13 @@
     },
     {
       "method": "POST",
+      "path": "/daily/requests/(?P<id>\\d+)/receive",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "POST",
       "path": "/daily/cycles/(?P<id>\\d+)/evening/start",
       "auth": true,
       "idempotency_required": true,
@@ -818,6 +867,25 @@
       "auth": true,
       "idempotency_required": true,
       "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/upi-receipts",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reference",
+        "amount"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/daily/upi-receipts/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "approve"
+      ]
     },
     {
       "method": "POST",
@@ -1482,7 +1550,11 @@
       "path": "/reports/account-ledger",
       "auth": true,
       "idempotency_required": false,
-      "required_params": []
+      "required_params": [
+        "account_id",
+        "from",
+        "to"
+      ]
     },
     {
       "method": "GET",
@@ -1819,25 +1891,6 @@
       "idempotency_required": true,
       "required_params": [
         "confirmation"
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/daily/cycles/(?P<id>\\d+)/upi-receipts",
-      "auth": true,
-      "idempotency_required": true,
-      "required_params": [
-        "reference",
-        "amount"
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/daily/upi-receipts/(?P<id>\\d+)/decision",
-      "auth": true,
-      "idempotency_required": true,
-      "required_params": [
-        "approve"
       ]
     }
   ]
