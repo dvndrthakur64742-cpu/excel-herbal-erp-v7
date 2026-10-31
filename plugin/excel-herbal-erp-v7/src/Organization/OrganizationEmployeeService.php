@@ -36,7 +36,8 @@ final class OrganizationEmployeeService{
   $result=Transaction::run(function()use($a,$data,$branch,$code,$name,$designation,$reportingDesignation,$reporting,$mobile,$email,$roleIds,$joining,$salary){
    $db=Db::wpdb();$requestedUid=(int)($data['wp_user_id']??0);$password=(string)($data['password']??'');$provisionLogin=array_key_exists('provision_login',$data)&&!empty($data['provision_login']);$provisioned=false;$generatedPassword=false;$notify=false;$uid=null;
    if($requestedUid>0){
-    if(!get_user_by('id',$requestedUid))throw new DomainException('WordPress user not found.','wp_user_invalid',422);
+    $requestedUser=get_user_by('id',$requestedUid);if(!$requestedUser)throw new DomainException('WordPress user not found.','wp_user_invalid',422);
+    if(self::isPrivilegedWordPressIdentity($requestedUser)&&(!user_can($a->userId,'manage_options')||!user_can($a->userId,'edit_users')))throw new DomainException('WordPress administrator authorization is required to link a privileged login identity.','privileged_existing_account_link_forbidden',403);
     $linked=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('employees')." WHERE wp_user_id=%d",$requestedUid));
     if($linked)throw new DomainException('WordPress user is already linked to an employee.','wp_user_linked',409);
     $uid=$requestedUid;
@@ -72,9 +73,9 @@ final class OrganizationEmployeeService{
    Db::mustUpdate($db,$table,['wp_user_id'=>$uid,'mobile'=>$mobile,'updated_at'=>Db::now()],['id'=>$employeeId,'company_id'=>$a->companyId]);
    Audit::add($a,'employee.login_identity_repaired','employee',$employeeId,['previous_wp_user_id'=>$previousUid,'new_wp_user_id'=>$uid]);
   }else{
-   // ERP employee managers may not reset a privileged WordPress identity.
+   // ERP login maintenance can only reset dedicated WordPress subscriber accounts.
    $linkedUser=get_user_by('id',$uid);
-   if($linkedUser&&user_can($linkedUser,'manage_options'))throw new DomainException('Privileged WordPress account passwords must be managed in WordPress.','privileged_account_password_protected',403);
+   if($linkedUser&&self::isPrivilegedWordPressIdentity($linkedUser))throw new DomainException('Privileged WordPress account passwords must be managed in WordPress.','privileged_account_password_protected',403);
    wp_set_password($password,$uid);
   }
   $revoked=$db->update(Db::table('mobile_sessions'),['revoked_at'=>Db::now()],['employee_id'=>$employeeId]);if($revoked===false)throw new DomainException('Existing mobile sessions could not be revoked.','session_revoke_failed',500);
@@ -174,6 +175,11 @@ final class OrganizationEmployeeService{
   $leave=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('leave_requests')." WHERE company_id=%d AND employee_id=%d AND status='submitted' AND date_to>=%s",$company,$eid,$date));
   if($leave)$out[]=['code'=>'leave_requests_open','message'=>'Employee has submitted leave requests on/after separation date.','count'=>$leave];
   return$out;
+ }
+ /** Only dedicated subscriber identities may have their passwords reset via ERP. */
+ private static function isPrivilegedWordPressIdentity(object $target):bool{
+  $roles=(array)($target->roles??[]);
+  return $roles!==['subscriber']||user_can($target,'edit_posts')||user_can($target,'edit_users')||user_can($target,'manage_options')||user_can($target,'activate_plugins');
  }
  private static function createWordPressUser(int $companyId,string $employeeCode,string $name,string $email,string $password):int{
   if($email!==''&&email_exists($email))throw new DomainException('Employee email is already used by another WordPress account.','wp_email_in_use',409);
