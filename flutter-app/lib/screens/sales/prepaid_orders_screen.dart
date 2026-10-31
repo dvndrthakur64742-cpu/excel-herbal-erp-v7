@@ -132,8 +132,7 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                   decoration: const InputDecoration(labelText: 'Product / batch *'),
                   items: List.generate(stock.length, (i) => DropdownMenuItem(
                     value: i,
-                    child: Text(stock[i]['product_name'].toString() +
-                        ' · Available ' + stock[i]['quantity'].toString(),
+                    child: Text("${stock[i]['product_name']} · Available ${stock[i]['quantity']}",
                         overflow: TextOverflow.ellipsis),
                   )),
                   onChanged: (v) => change(() => stockIndex = v),
@@ -237,7 +236,7 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
             title: const Text('Record Cash / UPI collection'),
             content: SizedBox(width: 440, child: Form(key: form, child:
               Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('Net payable: ₹' + order['net_amount'].toString()),
+                Text("Net payable: ₹${order['net_amount']}"),
                 DropdownButtonFormField<int>(
                   initialValue: accountId,
                   decoration: const InputDecoration(labelText: 'Payment account *'),
@@ -372,10 +371,9 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
         if (order != null) Card(margin: const EdgeInsets.all(12),
           child: Padding(padding: const EdgeInsets.all(12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Order ' + order['order_no'].toString(),
+              Text("Order ${order['order_no']}",
                 style: Theme.of(context).textTheme.titleMedium),
-              Text('Status: ' + order['status'].toString() +
-                ' · Net ₹' + order['net_amount'].toString()),
+              Text("Status: ${order['status']} · Net ₹${order['net_amount']}"),
               Wrap(spacing: 8, children: [
                 if (order['status'] == 'discount_pending' &&
                     (app.can('sales.discount.approve') ||
@@ -397,15 +395,13 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
               ]),
               for (final p in payments)
                 ListTile(dense: true,
-                  title: Text(p['method'].toString() + ' ₹' +
-                      p['amount'].toString() + ' · ' + p['status'].toString()),
+                  title: Text("${p['method']} ₹${p['amount']} · ${p['status']}"),
                   trailing: p['method'] == 'upi' && p['status'] == 'pending' &&
                       app.can('finance.bank_reconcile')
                     ? TextButton(onPressed: _busy ? null : () => _verify(p),
                         child: const Text('Verify bank')) : null),
               if (order['status'] == 'posted')
-                Text('Invoice #' + order['sale_id'].toString() +
-                  ' posted with stock and journal.'),
+                Text("Invoice #${order['sale_id']} posted with stock and journal."),
             ]),
           )),
         const Divider(),
@@ -420,8 +416,8 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                   final id = _id(o['id']);
                   return ListTile(
                     selected: _orderId == id,
-                    title: Text(o['order_no'].toString() + ' · ' + o['channel'].toString()),
-                    subtitle: Text(o['status'].toString() + ' · ₹' + o['net_amount'].toString()),
+                    title: Text("${o['order_no']} · ${o['channel']}"),
+                    subtitle: Text("${o['status']} · ₹${o['net_amount']}"),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _busy || id == null ? null : () => _reload(id: id),
                   );
