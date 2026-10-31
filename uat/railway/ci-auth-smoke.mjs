@@ -16,6 +16,23 @@ async function api(route, { method='GET', payload, token } = {}) {
   return { code: response.status, body };
 }
 function must(condition, message) { if (!condition) throw new Error(message); }
+// Access controls must fail closed before we exercise a real synthetic identity.
+const anonymous = await api('/bootstrap');
+must([401,403].includes(anonymous.code),
+  'Unauthenticated employee bootstrap unexpectedly allowed: ' + anonymous.code);
+const wrongPassword = await api('/auth/login', {
+  method: 'POST',
+  payload: {
+    mobile: '9000000002',
+    password: 'incorrect_synthetic_password',
+    device: 'CI Wrong Password Probe',
+    device_id: 'CI-NEGATIVE-1',
+  },
+});
+must(wrongPassword.code === 401 && wrongPassword.body.ok !== true,
+  'Invalid synthetic employee password unexpectedly accepted: ' + wrongPassword.code);
+console.log('PASS anonymous bootstrap and wrong-password login fail closed');
+
 const login = await api('/auth/login', {
   method: 'POST',
   payload: {
@@ -50,7 +67,17 @@ must(bootstrapAfter.code === 200 && bootstrapAfter.body.data?.business_date,
   'Bootstrap failed after refresh');
 const oldToken = await api('/bootstrap', { token: initial.access_token });
 must([401,403].includes(oldToken.code), 'Rotated old access token was still accepted: ' + oldToken.code);
-console.log('PASS mobile token refresh and old-token revocation');
+const replay = await api('/auth/refresh', {
+  method: 'POST',
+  payload: {
+    refresh_token: initial.refresh_token,
+    device: 'CI Flutter UAT',
+    device_id: 'CI-MOBILE-1',
+  },
+});
+must([401,403].includes(replay.code) && replay.body.ok !== true,
+  'Already rotated refresh token was replayable: ' + replay.code);
+console.log('PASS mobile token refresh, old-token revocation and refresh replay denial');
 
 
 const adminLogin = await api('/auth/login', {
