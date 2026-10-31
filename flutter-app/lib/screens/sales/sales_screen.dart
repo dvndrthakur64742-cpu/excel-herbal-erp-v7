@@ -12,6 +12,7 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import 'prepaid_orders_screen.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key, this.initialAction});
@@ -53,6 +54,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final app = ref.watch(appStateProvider);
     final api = ref.watch(apiClientProvider);
     final actions = <Widget>[
+      if (app.can('sales.create') || app.can('sales.view') ||
+          app.can('sales.receipt.create') || app.can('sales.discount.approve') ||
+          app.can('sales.discount.ho.approve'))
+        FilledButton.icon(
+          onPressed: app.currentBranchId == null ? null : () {
+            Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => const PrepaidOrdersScreen()));
+          },
+          icon: const Icon(Icons.receipt_long_outlined, size: 18),
+          label: const Text('Prepaid Orders'),
+        ),
       if (app.can('sales.create'))
         FilledButton.icon(
           onPressed: app.currentBranchId == null ? null : _counterSale,
@@ -81,7 +93,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
               child: ModuleWorkspaceHeader(
                 title: 'Sales Desk',
-                subtitle: 'Counter billing, customer accounts and collections.',
+                subtitle: 'Full-payment orders, approval and collections.',
                 icon: Icons.point_of_sale_outlined,
                 contextLabel: 'Business date · ${app.businessDate}',
               ),
