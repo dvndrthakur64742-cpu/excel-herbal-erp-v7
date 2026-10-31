@@ -1,0 +1,27 @@
+.dart_tool/
+.packages
+.pub/
+build/
+coverage/
+*.log
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Android local/generated
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# Platform ephemeral output
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/

@@ -1,0 +1,3 @@
+# Copy to local.properties on a build machine. Never commit workstation-specific paths.
+flutter.sdk=/absolute/path/to/flutter
+sdk.dir=/absolute/path/to/Android/Sdk
