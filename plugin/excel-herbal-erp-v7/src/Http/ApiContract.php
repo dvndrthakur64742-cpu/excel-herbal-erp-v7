@@ -10,7 +10,7 @@ use ExcelHerbal\ERP7\Domain\DomainException;
  */
 final class ApiContract
 {
-    public const VERSION='7.3.6-contract-2';
+    public const VERSION='7.3.8-contract-1';
 
     /** @return array<string,bool> */
     public static function featureFlags():array
@@ -68,6 +68,7 @@ final class ApiContract
     private static function required():array
     {
         return [
+            'reports.ledger'=>['account_id','from','to'],
             'payroll.salary_request'=>['monthly_salary','effective_from','reason'],
             'payroll.salary_review'=>['approve'],
             'payroll.discard'=>['reason'],
@@ -234,7 +235,7 @@ final class ApiContract
             throw new DomainException($key.' must be a boolean.','parameter_invalid',422);
         }
 
-        foreach(['business_date','date_from','date_to','bill_date','expense_date','statement_from','statement_to','period_start','period_end','payment_date','effective_date','effective_from','effective_to','joining_date','reactivation_date','manufactured_on','expires_on','holiday_date','separation_date','expected_joining_date'] as$key){
+        foreach(['business_date','from','to','date_from','date_to','bill_date','expense_date','statement_from','statement_to','period_start','period_end','payment_date','effective_date','effective_from','effective_to','joining_date','reactivation_date','manufactured_on','expires_on','holiday_date','separation_date','expected_joining_date'] as$key){
             $v=$request->get_param($key);if($v===null||trim((string)$v)==='')continue;
             Input::date((string)$v,str_replace('_',' ',$key));
         }
