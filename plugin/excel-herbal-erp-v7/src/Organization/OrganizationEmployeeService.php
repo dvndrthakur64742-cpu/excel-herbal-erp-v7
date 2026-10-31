@@ -67,6 +67,9 @@ final class OrganizationEmployeeService{
    Db::mustUpdate($db,$table,['wp_user_id'=>$uid,'mobile'=>$mobile,'updated_at'=>Db::now()],['id'=>$employeeId,'company_id'=>$a->companyId]);
    Audit::add($a,'employee.login_identity_repaired','employee',$employeeId,['previous_wp_user_id'=>$previousUid,'new_wp_user_id'=>$uid]);
   }else{
+   // ERP employee managers may not reset a privileged WordPress identity.
+   $linkedUser=get_user_by('id',$uid);
+   if($linkedUser&&user_can($linkedUser,'manage_options'))throw new DomainException('Privileged WordPress account passwords must be managed in WordPress.','privileged_account_password_protected',403);
    wp_set_password($password,$uid);
   }
   $revoked=$db->update(Db::table('mobile_sessions'),['revoked_at'=>Db::now()],['employee_id'=>$employeeId]);if($revoked===false)throw new DomainException('Existing mobile sessions could not be revoked.','session_revoke_failed',500);
