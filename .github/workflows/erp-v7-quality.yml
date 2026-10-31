@@ -46,6 +46,9 @@ jobs:
       - name: Package installable WordPress plugin
         if: matrix.php == '8.3'
         run: |
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+          printf "<?php\nif(!defined('ABSPATH'))exit;\ndefine('EH7_SOURCE_HEAD','%s');\n" "$SOURCE_COMMIT" > plugin/excel-herbal-erp-v7/build-meta.php
+          php -l plugin/excel-herbal-erp-v7/build-meta.php
           cd plugin
           zip -qr ../excel-herbal-erp-v7-staging.zip excel-herbal-erp-v7 -x '*/tests/*' '*/tools/*'
           sha256sum ../excel-herbal-erp-v7-staging.zip > ../excel-herbal-erp-v7-staging.sha256

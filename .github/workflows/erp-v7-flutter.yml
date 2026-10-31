@@ -39,9 +39,17 @@ jobs:
           test -d plugin/excel-herbal-erp-v7
           mkdir -p backend
           ln -s ../plugin/excel-herbal-erp-v7 backend/excel-herbal-erp-v7
-      - name: Run Flutter tests
+      - name: Run independent Flutter client unit/widget tests
         working-directory: flutter-app
-        run: flutter test --no-pub
+        shell: bash
+        run: |
+          mapfile -t CLIENT_TESTS < <(find test -type f -name '*_test.dart' \
+            ! -name 'privacy_authority_contract_test.dart' \
+            ! -name 'frontend_functional_navigation_test.dart' \
+            ! -name 'reports_account_ledger_contract_test.dart' \
+            ! -name 'employee_dashboard_gps_contract_test.dart' | sort)
+          test "${#CLIENT_TESTS[@]}" -gt 0
+          flutter test --no-pub "${CLIENT_TESTS[@]}"
       - name: Compile isolated UAT Web build (never production)
         working-directory: flutter-app
         run: >
@@ -63,3 +71,11 @@ jobs:
           path: flutter-app/build/web/
           if-no-files-found: error
           retention-days: 14
+      - name: Audit Flutter and PHP compatibility (release-blocking)
+        working-directory: flutter-app
+        run: |
+          flutter test --no-pub \
+            test/privacy_authority_contract_test.dart \
+            test/frontend_functional_navigation_test.dart \
+            test/reports_account_ledger_contract_test.dart \
+            test/employee_dashboard_gps_contract_test.dart
