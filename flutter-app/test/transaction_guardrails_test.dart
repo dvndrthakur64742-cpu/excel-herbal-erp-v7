@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('counter sale', () {
-    test('credit requires registered customer', () {
+    test('partial payments are blocked even for registered customers', () {
       expect(
         TransactionGuardrails.counterSale(
           gross: 1000,
@@ -17,6 +17,15 @@ void main() {
         TransactionGuardrails.counterSale(
           gross: 1000,
           paid: 500,
+          customerId: 7,
+          paymentAccountId: 1,
+        ),
+        isNotNull,
+      );
+      expect(
+        TransactionGuardrails.counterSale(
+          gross: 1000,
+          paid: 1000,
           customerId: 7,
           paymentAccountId: 1,
         ),
