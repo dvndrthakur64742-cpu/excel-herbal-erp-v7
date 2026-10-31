@@ -10,6 +10,7 @@ php tests/employee_credential_authorization.php
 php tests/attendance_schedule_contract.php
 php tests/security_scope_regression.php
 php tests/access_escalation_regression.php
+php tests/workforce_scope_contract.php
 php tests/self_performance_contract.php
 php tests/reports_contract_regression.php
 php tests/employee_picker_contract.php
