@@ -12,6 +12,11 @@ use ExcelHerbal\ERP7\Security\DesignationDefaults;
 use ExcelHerbal\ERP7\Security\Guard;
 
 final class HrLifecycleService {
+    public static function employeeChoices(Actor $a,?int $branch=null,string $purpose='reporting'):array{
+        Guard::any($a,[Capabilities::HR_MANAGE,Capabilities::HR_REVIEW]);
+        if(!in_array($purpose,['reporting','separation','candidate'],true))throw new DomainException('Invalid HR employee selection purpose.','hr_purpose_invalid',422);
+        return EmployeeChoiceService::list($a,$branch,false,$purpose==='separation');
+    }
     private const CANDIDATE_OPEN=['registered','selected'];
     private const CANDIDATE_STATUSES=['registered','selected','rejected','joined','no_show','cancelled'];
     private const SEPARATION_STATUSES=['submitted','approved','rejected','completed'];

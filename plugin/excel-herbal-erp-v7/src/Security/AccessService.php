@@ -5,6 +5,11 @@ use ExcelHerbal\ERP7\Database\Transaction;
 use ExcelHerbal\ERP7\Domain\DomainException;
 
 final class AccessService {
+    public static function employeeChoices(Actor $a,?int $branch=null):array {
+        Guard::cap($a,Capabilities::ACCESS_MANAGE);
+        $ids=HierarchyScope::manageableEmployeeIds($a);
+        return \ExcelHerbal\ERP7\Organization\EmployeeChoiceService::list($a,$branch,false,true,$ids);
+    }
     private static function isReservedRole(string $code):bool{return in_array(strtoupper(trim($code)),['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true);}
     /** @return string[] */ private static function knownCapabilities():array{return array_values(array_unique(array_values((new \ReflectionClass(Capabilities::class))->getConstants())));}
     public static function matrix(Actor $a):array{Guard::cap($a,Capabilities::ACCESS_MANAGE);$db=Db::wpdb();$roles=(array)$db->get_results($db->prepare("SELECT id,code,name,active FROM ".Db::table('roles')." WHERE company_id=%d ORDER BY name",$a->companyId),ARRAY_A);foreach($roles as&$r){$r['capabilities']=(array)$db->get_col($db->prepare("SELECT capability FROM ".Db::table('role_capabilities')." WHERE role_id=%d AND active=1 ORDER BY capability",(int)$r['id']));}unset($r);return['capabilities'=>self::knownCapabilities(),'roles'=>$roles,'designation_defaults'=>DesignationDefaults::profiles()];}

@@ -18,6 +18,10 @@ use ExcelHerbal\ERP7\Security\HierarchyScope;
  */
 final class ActingDutyService
 {
+    public static function employeeChoices(Actor $a,?int $branch=null):array{
+        Guard::cap($a,Capabilities::DELEGATION_MANAGE);
+        return \ExcelHerbal\ERP7\Organization\EmployeeChoiceService::list($a,$branch,false,true);
+    }
     /** @return array<string,string> action => permanent capability */
     public static function actionCapabilities(): array
     {

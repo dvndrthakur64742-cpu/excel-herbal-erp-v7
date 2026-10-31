@@ -10,6 +10,11 @@ use ExcelHerbal\ERP7\Security\Capabilities;
 use ExcelHerbal\ERP7\Security\Guard;
 
 final class SalaryService {
+    public static function employeeChoices(Actor $a,?int $branch=null):array{
+        Guard::any($a,[Capabilities::SALARY_VIEW,Capabilities::SALARY_MANAGE,Capabilities::SALARY_APPROVE]);
+        if($branch!==null)Guard::branchAny($a,$branch,[Capabilities::SALARY_VIEW,Capabilities::SALARY_MANAGE,Capabilities::SALARY_APPROVE]);
+        return \ExcelHerbal\ERP7\Organization\EmployeeChoiceService::list($a,$branch,false,true);
+    }
     public static function lockCompany(int $company):void {
         $db=Db::wpdb();
         $id=$db->get_var($db->prepare('SELECT id FROM '.Db::table('companies').' WHERE id=%d FOR UPDATE',$company));

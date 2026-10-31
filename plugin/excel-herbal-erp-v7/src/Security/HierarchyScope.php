@@ -80,6 +80,27 @@ final class HierarchyScope {
         sort($ids);return$ids;
     }
 
+    /** @return int[] Branch- and hierarchy-scoped employees whose access may be administered. */
+    public static function manageableEmployeeIds(Actor $a):array {
+        Guard::cap($a,Capabilities::ACCESS_MANAGE);
+        $ids=array_values(array_diff(self::visibleEmployeeIds($a),[$a->employeeId]));
+        if(!$ids)return [];
+        $actorCode=self::normaliseCode($a->designationCode);
+        if(in_array($actorCode,['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true))return $ids;
+        $db=Db::wpdb();$marks=implode(',',array_fill(0,count($ids),'%d'));
+        $rows=(array)$db->get_results($db->prepare(
+            "SELECT id,designation_code FROM ".Db::table('employees')." WHERE company_id=%d AND status='active' AND id IN ({$marks})",
+            ...array_merge([$a->companyId],$ids)
+        ),ARRAY_A);
+        $allowed=[];
+        foreach($rows as $row){
+            if(!in_array(self::normaliseCode((string)$row['designation_code']),['SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'],true)){
+                $allowed[]=(int)$row['id'];
+            }
+        }
+        return array_values(array_intersect($ids,$allowed));
+    }
+
     public static function canViewEmployee(Actor $a,int $employeeId):bool {
         return in_array($employeeId,self::visibleEmployeeIds($a),true);
     }

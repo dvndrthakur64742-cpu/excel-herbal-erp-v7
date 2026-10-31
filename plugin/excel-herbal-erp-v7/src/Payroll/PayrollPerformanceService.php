@@ -15,6 +15,11 @@ use ExcelHerbal\ERP7\Security\HierarchyScope;
 
 final class PayrollPerformanceService
 {
+    public static function targetEmployees(Actor $a,?int $branch=null):array {
+        Guard::cap($a,Capabilities::PERFORMANCE_MANAGE);
+        if($branch!==null)Guard::branchAny($a,$branch,[Capabilities::PERFORMANCE_VIEW,Capabilities::PERFORMANCE_MANAGE]);
+        return \ExcelHerbal\ERP7\Organization\EmployeeChoiceService::list($a,$branch);
+    }
     public static function runs(Actor $a, int $branch): array
     {
         self::guardPayrollBranch($a, $branch);
