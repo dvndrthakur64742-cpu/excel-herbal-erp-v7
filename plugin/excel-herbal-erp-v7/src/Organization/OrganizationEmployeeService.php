@@ -12,7 +12,11 @@ final class OrganizationEmployeeService{
   ),ARRAY_A);
   $visible=array_flip(HierarchyScope::visibleEmployeeIds($a,$branch));
   $rows=array_values(array_filter($rows,fn($r)=>isset($visible[(int)$r['id']])));
-  foreach($rows as&$r)$r['reporting_category']=HierarchyScope::reportingCategoryForCode((string)$r['designation_code'],(string)($r['reporting_designation_code']??''));unset($r);return $rows;
+  foreach($rows as&$r){
+   $r['reporting_category']=HierarchyScope::reportingCategoryForCode((string)$r['designation_code'],(string)($r['reporting_designation_code']??''));
+   if(!$a->can(Capabilities::EMP_CONTACT_VIEW)){$r['mobile']=null;$r['email']=null;}
+   if(!$a->can(Capabilities::SALARY_VIEW))$r['monthly_salary']=null;
+  }unset($r);return $rows;
  }
  public static function createEmployee(Actor $a,array $data,string $requiredCapability=Capabilities::EMP_MANAGE):array{
   $branch=(int)($data['assigned_branch_id']??0);Guard::branch($a,$branch,$requiredCapability);

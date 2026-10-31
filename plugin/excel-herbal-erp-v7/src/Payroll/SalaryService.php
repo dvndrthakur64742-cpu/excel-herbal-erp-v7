@@ -16,6 +16,7 @@ final class SalaryService {
         if (!$id || !empty($db->last_error)) throw new DomainException('Unable to lock payroll company.', 'payroll_lock_failed', 500);
     }
     public static function history(Actor $a,int $employee):array {
+        Guard::cap($a,Capabilities::SALARY_VIEW);
         self::employee($a,$employee,Capabilities::PAYROLL_GENERATE);
         $db=Db::wpdb();
         return (array)$db->get_results($db->prepare('SELECT * FROM '.Db::table('salary_revisions').' WHERE company_id=%d AND employee_id=%d ORDER BY effective_from,id',$a->companyId,$employee),ARRAY_A);
@@ -26,6 +27,7 @@ final class SalaryService {
         Guard::branch($a,(int)$e['assigned_branch_id'],$cap);return $e;
     }
     public static function request(Actor $a,int $employee,array $data):array {
+        Guard::cap($a,Capabilities::SALARY_MANAGE);
         return Transaction::run(function()use($a,$employee,$data){
             self::lockCompany($a->companyId);$e=self::employee($a,$employee,Capabilities::PAYROLL_GENERATE);
             if($employee===$a->employeeId)throw new DomainException('Use another authorized maker for your salary change.','salary_self_change',403);
@@ -37,6 +39,7 @@ final class SalaryService {
         });
     }
     public static function approve(Actor $a,int $id,bool $approve):array {
+        Guard::cap($a,Capabilities::SALARY_APPROVE);
         return Transaction::run(function()use($a,$id,$approve){
             self::lockCompany($a->companyId);$db=Db::wpdb();$t=Db::table('salary_revisions');
             $r=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE company_id=%d AND id=%d FOR UPDATE",$a->companyId,$id),ARRAY_A);

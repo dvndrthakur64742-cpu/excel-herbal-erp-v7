@@ -32,13 +32,13 @@ final class RecoveryService {
     public static function gpsRoute(Actor $a,?int $employeeId,string $from,string $to):array {
         $employeeId=$employeeId?:$a->employeeId;$db=Db::wpdb();$e=$db->get_row($db->prepare("SELECT id,assigned_branch_id FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d AND status='active'",$employeeId,$a->companyId),ARRAY_A);if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);
         $self=$employeeId===$a->employeeId;
-        if($self)Guard::cap($a,Capabilities::ATT_SELF);else {Guard::cap($a,Capabilities::ATT_MANAGE);HierarchyScope::assertCanViewEmployee($a,$employeeId);}
+        if($self)Guard::cap($a,Capabilities::ATT_SELF);else {Guard::cap($a,Capabilities::ATT_MANAGE);Guard::cap($a,Capabilities::GPS_TEAM_VIEW);HierarchyScope::assertCanViewEmployee($a,$employeeId);}
         [$from,$to]=Input::utcDateTimeRange($from,$to,'GPS route period');
         $sql="SELECT id,branch_id,employee_id,attendance_id,field_visit_id,latitude,longitude,accuracy_m,source,recorded_at FROM ".Db::table('gps_points')." WHERE company_id=%d AND employee_id=%d AND recorded_at BETWEEN %s AND %s";$args=[$a->companyId,$employeeId,$from,$to];
         $sql.=" ORDER BY recorded_at,id";return (array)$db->get_results($db->prepare($sql,...$args),ARRAY_A);
     }
     public static function gpsTeam(Actor $a,?int $branchId=null):array {
-        Guard::cap($a,Capabilities::ATT_MANAGE);$db=Db::wpdb();$ids=HierarchyScope::visibleEmployeeIds($a,$branchId);if(!$ids)return[];$ph=implode(',',array_fill(0,count($ids),'%d'));$args=array_merge([$a->companyId,Db::today()],$ids);
+        Guard::cap($a,Capabilities::ATT_MANAGE);Guard::cap($a,Capabilities::GPS_TEAM_VIEW);$db=Db::wpdb();$ids=HierarchyScope::visibleEmployeeIds($a,$branchId);if(!$ids)return[];$ph=implode(',',array_fill(0,count($ids),'%d'));$args=array_merge([$a->companyId,Db::today()],$ids);
         $sql="SELECT e.id employee_id,e.employee_code,e.full_name,e.designation_code,e.reporting_designation_code,e.assigned_branch_id,a.id attendance_id,a.check_in_at,a.check_out_at,a.status attendance_status,g.latitude,g.longitude,g.accuracy_m,g.recorded_at latest_gps_at FROM ".Db::table('employees')." e LEFT JOIN ".Db::table('attendance')." a ON a.company_id=e.company_id AND a.employee_id=e.id AND a.business_date=%s LEFT JOIN ".Db::table('gps_points')." g ON g.id=(SELECT gp.id FROM ".Db::table('gps_points')." gp WHERE gp.company_id=e.company_id AND gp.employee_id=e.id AND gp.attendance_id=a.id ORDER BY gp.recorded_at DESC,gp.id DESC LIMIT 1) WHERE e.company_id=%d AND e.status='active' AND e.id IN ({$ph}) ORDER BY e.full_name";
         $args2=array_merge([Db::today(),$a->companyId],$ids);$rows=(array)$db->get_results($db->prepare($sql,...$args2),ARRAY_A);foreach($rows as&$r){$att=['business_date'=>Db::today(),'check_in_at'=>$r['check_in_at'],'check_out_at'=>$r['check_out_at']];$r=array_merge($r,GpsDutyPolicy::state($att));$r['reporting_category']=HierarchyScope::reportingCategoryForCode((string)$r['designation_code'],(string)($r['reporting_designation_code']??''));}unset($r);return$rows;
     }
