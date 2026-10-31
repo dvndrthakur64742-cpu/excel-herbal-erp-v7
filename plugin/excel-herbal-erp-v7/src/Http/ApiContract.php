@@ -10,7 +10,7 @@ use ExcelHerbal\ERP7\Domain\DomainException;
  */
 final class ApiContract
 {
-    public const VERSION='7.3.10-contract-2';
+    public const VERSION='7.3.10-contract-3';
 
     /** @return array<string,bool> */
     public static function featureFlags():array
