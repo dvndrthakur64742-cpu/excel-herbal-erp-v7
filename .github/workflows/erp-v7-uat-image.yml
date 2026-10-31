@@ -35,3 +35,5 @@ jobs:
             php -l /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
             /usr/local/bin/wp --version --allow-root
           '
+      - name: Full isolated WordPress activation, database migration and REST smoke
+        run: bash uat/railway/ci-wordpress-smoke.sh
