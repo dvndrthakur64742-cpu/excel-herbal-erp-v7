@@ -1,5 +1,5 @@
 {
-  "contract_version": "7.3.10-contract-2",
+  "contract_version": "7.3.10-contract-3",
   "namespace": "excel-herbal-erp/v7",
   "authentication": "Bearer access token for authenticated routes",
   "idempotency_header": "X-Idempotency-Key",
@@ -1046,6 +1046,13 @@
       "required_params": [
         "ho_threshold_percent"
       ]
+    },
+    {
+      "method": "GET",
+      "path": "/sales/payment-accounts",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
     },
     {
       "method": "GET",
