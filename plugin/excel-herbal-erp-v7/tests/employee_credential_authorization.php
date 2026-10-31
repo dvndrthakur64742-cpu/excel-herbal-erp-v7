@@ -28,13 +28,14 @@ function wp_set_password($password,$uid){$GLOBALS['changed_password_for'][]=$uid
 function wp_json_encode($v){return json_encode($v);}
 function current_time($fmt,$gmt=false){return '2026-10-31 12:00:00';}
 final class CredentialSecurityDb{
-  public string $prefix='wp_';public string $last_error='';public int $target=1;public array $updates=[];
+  public string $prefix='wp_';public string $last_error='';public int $target=1;public array $updates=[];public int $insert_id=0;public array $inserted=[];public array $queries=[];
   public function prepare($q,...$args){return $q;}
   public function get_row($q,$mode){return ['id'=>8,'company_id'=>10,'assigned_branch_id'=>20,'status'=>'active','mobile'=>'9876543210','wp_user_id'=>$this->target,'employee_code'=>'TEST-8','full_name'=>'Synthetic Employee','email'=>''];}
-  public function get_var($q){return 0;}
+  public function get_var($q){return str_contains($q,'designations')?1:0;}
   public function get_results($q,$mode){return [['id'=>8,'mobile'=>'9876543210']];}
   public function update($table,$values,$where){$this->updates[]=$table;return 1;}
-  public function insert($table,$values){return 1;}
+  public function insert($table,$values){$this->inserted[]=$table;$this->insert_id++;return 1;}
+  public function query($q){$this->queries[]=$q;return 1;}
 }
 $wpdb=new CredentialSecurityDb();
 $manager=new Actor(2,6,10,20,[20],[Capabilities::EMP_MANAGE],'BM');
@@ -58,4 +59,14 @@ foreach($cases as [$label,$actor,$target,$expectedError]){
     else echo "PASS $label\n";
   }catch(Throwable $e){$failed++;echo "FAIL $label: {$e->getMessage()}\n";}
 }
+// Prevent ERP managers from linking a privileged WordPress account to a newly created employee.
+$wpdb->inserted=[];$wpdb->queries=[];
+$employee=['assigned_branch_id'=>20,'employee_code'=>'SYN-99','full_name'=>'Synthetic New Hire','designation_code'=>'EMPLOYEE','monthly_salary'=>10000,'mobile'=>'','joining_date'=>'2026-10-30','wp_user_id'=>1];
+try{
+ OrganizationEmployeeService::createEmployee($manager,$employee);
+ $failed++;echo "FAIL manager_cannot_link_wp_administrator: unexpected success\n";
+}catch(DomainException $e){
+ if($e->codeKey!=='privileged_existing_account_link_forbidden'||$wpdb->inserted||$wpdb->queries!==['START TRANSACTION','ROLLBACK']){$failed++;echo "FAIL manager_cannot_link_wp_administrator: {$e->codeKey} / mutation\n";}
+ else echo "PASS manager_cannot_link_wp_administrator\n";
+}catch(Throwable $e){$failed++;echo "FAIL manager_cannot_link_wp_administrator: {$e->getMessage()}\n";}
 if($failed)exit(1);
