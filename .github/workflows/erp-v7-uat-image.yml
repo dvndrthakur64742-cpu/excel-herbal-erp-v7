@@ -1,0 +1,39 @@
+name: ERP V7 Isolated UAT WordPress Image
+
+on:
+  pull_request:
+    paths:
+      - 'uat/railway/**'
+      - 'plugin/excel-herbal-erp-v7/**'
+      - '.github/workflows/erp-v7-uat-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-uat-wordpress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate UAT-only startup shell
+        run: |
+          bash -n uat/railway/eh7-uat-entrypoint.sh
+          grep -q 'RAILWAY_GIT_COMMIT_SHA' uat/railway/eh7-uat-entrypoint.sh
+          grep -q 'rotate_synthetic_marker' uat/railway/eh7-uat-entrypoint.sh
+          grep -q 'wordpress-uat-production.up.railway.app' uat/railway/eh7-uat-entrypoint.sh
+      - name: Build WordPress UAT image from current plugin
+        run: docker build --pull -f uat/railway/Dockerfile -t eh7-uat:review .
+      - name: Verify immutable plugin version and Apache rewrite
+        run: |
+          docker run --rm --entrypoint sh eh7-uat:review -ec '
+            test -f /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
+            grep -q "7.3.10-rc2" /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
+            test -e /etc/apache2/mods-enabled/rewrite.load
+            test -e /etc/apache2/conf-enabled/eh7-uat-rewrite.conf
+            php -l /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
+            /usr/local/bin/wp --version --allow-root
+          '
+      - name: Full isolated WordPress activation, database migration and REST smoke
+        run: bash uat/railway/ci-wordpress-smoke.sh

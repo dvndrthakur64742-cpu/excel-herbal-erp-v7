@@ -1,0 +1,6 @@
+# Copy to android/key.properties only on the approved release-signing machine.
+# Never commit the real keystore or passwords.
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=excel_herbal_erp
+storeFile=/absolute/path/to/excel-herbal-erp-release.jks

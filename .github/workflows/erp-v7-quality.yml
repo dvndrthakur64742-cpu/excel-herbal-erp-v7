@@ -1,0 +1,104 @@
+name: ERP V7 Staging Quality Gates
+
+on:
+  pull_request:
+    paths:
+      - 'plugin/**'
+      - '.github/workflows/erp-v7-quality.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'plugin/**'
+      - '.github/workflows/erp-v7-quality.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: erp-v7-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php-qa:
+    name: PHP ${{ matrix.php }} regression
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, json, openssl, mysqli
+          tools: none
+          coverage: none
+      - name: PHP syntax, field rules, regression suite
+        working-directory: plugin/excel-herbal-erp-v7
+        shell: bash
+        run: bash tests/run.sh
+      - name: Contract and route static checks
+        working-directory: plugin/excel-herbal-erp-v7
+        run: python3 tests/static_checks.py
+      - name: Verify API snapshot is in sync with PHP routes
+        working-directory: plugin/excel-herbal-erp-v7
+        run: node tools/sync-contract-snapshot.mjs --check
+      - name: Package installable WordPress plugin
+        if: matrix.php == '8.3'
+        run: |
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+          printf "<?php\nif(!defined('ABSPATH'))exit;\ndefine('EH7_SOURCE_HEAD','%s');\n" "$SOURCE_COMMIT" > plugin/excel-herbal-erp-v7/build-meta.php
+          php -l plugin/excel-herbal-erp-v7/build-meta.php
+          cd plugin
+          zip -qr ../excel-herbal-erp-v7-staging.zip excel-herbal-erp-v7 -x '*/tests/*' '*/tools/*'
+          sha256sum ../excel-herbal-erp-v7-staging.zip > ../excel-herbal-erp-v7-staging.sha256
+      - name: Upload staging package for review only
+        if: matrix.php == '8.3'
+        uses: actions/upload-artifact@v4
+        with:
+          name: erp-v7-staging-candidate
+          path: |
+            excel-herbal-erp-v7-staging.zip
+            excel-herbal-erp-v7-staging.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  prepaid-mariadb-integration:
+    name: MariaDB prepaid order/stock/journal integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: synthetic_only_root
+          MARIADB_DATABASE: eh7_test_prepaid
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      EH7_MARIADB_HOST: 127.0.0.1
+      EH7_MARIADB_PORT: 3306
+      EH7_MARIADB_USER: root
+      EH7_MARIADB_PASSWORD: synthetic_only_root
+      EH7_MARIADB_DATABASE: eh7_test_prepaid
+      EH7_INTEGRATION_MODE: synthetic
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PHP 8.3 with MariaDB client
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, mbstring
+          tools: none
+          coverage: none
+      - name: Run real MariaDB order -> receipts -> invoice -> stock -> ledger tests
+        working-directory: plugin/excel-herbal-erp-v7
+        run: php tests/integration_prepaid_sales.php
