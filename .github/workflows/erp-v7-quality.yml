@@ -65,3 +65,40 @@ jobs:
             excel-herbal-erp-v7-staging.sha256
           if-no-files-found: error
           retention-days: 14
+
+  prepaid-mariadb-integration:
+    name: MariaDB prepaid order/stock/journal integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: synthetic_only_root
+          MARIADB_DATABASE: eh7_test_prepaid
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      EH7_MARIADB_HOST: 127.0.0.1
+      EH7_MARIADB_PORT: 3306
+      EH7_MARIADB_USER: root
+      EH7_MARIADB_PASSWORD: synthetic_only_root
+      EH7_MARIADB_DATABASE: eh7_test_prepaid
+      EH7_INTEGRATION_MODE: synthetic
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PHP 8.3 with MariaDB client
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, mbstring
+          tools: none
+          coverage: none
+      - name: Run real MariaDB order -> receipts -> invoice -> stock -> ledger tests
+        working-directory: plugin/excel-herbal-erp-v7
+        run: php tests/integration_prepaid_sales.php
