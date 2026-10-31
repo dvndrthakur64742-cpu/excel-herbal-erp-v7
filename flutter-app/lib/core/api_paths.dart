@@ -50,6 +50,7 @@ abstract final class ApiPaths {
       counterSale = '/sales/counter',
       customerReceipt = '/sales/receipts',
       prepaidOrders = '/sales/orders',
+      prepaidPaymentAccounts = '/sales/payment-accounts',
       distributorQuote = '/sales/distributor/quote',
       prepaidDiscountPolicy = '/sales/discount-policy';
 
