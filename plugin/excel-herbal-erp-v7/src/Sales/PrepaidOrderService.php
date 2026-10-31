@@ -167,7 +167,7 @@ final class PrepaidOrderService {
         ),ARRAY_A);
     }
     public static function detail(Actor $a,int $id):array {
-        Guard::any($a,[Capabilities::SALES_VIEW,Capabilities::SALES_CREATE,Capabilities::RECEIPT_CREATE]);
+        Guard::any($a,[Capabilities::SALES_VIEW,Capabilities::SALES_CREATE,Capabilities::RECEIPT_CREATE,Capabilities::BANK_RECONCILE,Capabilities::SALES_DISCOUNT_APPROVE,Capabilities::SALES_DISCOUNT_HO_APPROVE]);
         $o=self::row($a,$id);if(!$a->hasBranch((int)$o['branch_id']))throw new DomainException('Order branch outside authority.','branch_forbidden',403);
         $payments=self::payments($a,$id);
         if(!$a->can(Capabilities::RECEIPT_CREATE)&&!$a->can(Capabilities::BANK_RECONCILE))foreach($payments as &$payment){unset($payment['reference'],$payment['bank_evidence_ref'],$payment['verified_by']);}unset($payment);
@@ -178,6 +178,7 @@ final class PrepaidOrderService {
             $o=self::row($a,$id,true);
             if($o['status']!=='discount_pending')throw new DomainException('Order is not awaiting discount review.','discount_state_invalid',409);
             if((int)$o['created_by']===$a->employeeId)throw new DomainException('A different employee must approve the discount.','maker_checker_required',409);
+            if(!$a->hasBranch((int)$o['branch_id']))throw new DomainException('Order branch outside authority.','branch_forbidden',403);
             $scope=Money::discountAuthority(Money::minor((string)$o['gross_amount']),Money::minor((string)$o['discount_amount']),self::percentagePolicy($a));
             if($scope==='head_office')Guard::cap($a,Capabilities::SALES_DISCOUNT_HO_APPROVE);
             else Guard::branch($a,(int)$o['branch_id'],Capabilities::SALES_DISCOUNT_APPROVE);
