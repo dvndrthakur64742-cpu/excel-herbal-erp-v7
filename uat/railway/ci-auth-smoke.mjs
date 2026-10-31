@@ -51,3 +51,36 @@ must(bootstrapAfter.code === 200 && bootstrapAfter.body.data?.business_date,
 const oldToken = await api('/bootstrap', { token: initial.access_token });
 must([401,403].includes(oldToken.code), 'Rotated old access token was still accepted: ' + oldToken.code);
 console.log('PASS mobile token refresh and old-token revocation');
+
+
+const adminLogin = await api('/auth/login', {
+  method: 'POST',
+  payload: {
+    mobile: '9000000001',
+    password: 'eh7_ci_admin_password_only',
+    device: 'CI Flutter UAT Admin',
+    device_id: 'CI-ADMIN-1',
+  },
+});
+must(adminLogin.code === 200 && adminLogin.body.data?.access_token,
+  'Synthetic administrator login rejected');
+const adminToken = adminLogin.body.data.access_token;
+const adminBootstrap = await api('/bootstrap', { token: adminToken });
+must(adminBootstrap.code === 200 && Array.isArray(adminBootstrap.body.data?.branches),
+  'Synthetic administrator bootstrap missing branches');
+const activeBranch = adminBootstrap.body.data.branches[0]?.id;
+must(Number(activeBranch) > 0, 'Synthetic administrator has no scoped branch');
+const orders = await api('/sales/orders?branch_id=' + activeBranch, { token: adminToken });
+must(orders.code === 200 && orders.body.ok && Array.isArray(orders.body.data),
+  'Prepaid sales order queue REST contract failed');
+const accounts = await api('/sales/payment-accounts?branch_id=' + activeBranch,
+  { token: adminToken });
+must(accounts.code === 200 && accounts.body.ok && Array.isArray(accounts.body.data),
+  'Minimal prepaid Cash/UPI account REST contract failed');
+for (const row of accounts.body.data) {
+  must(['cash', 'upi'].includes(row.subtype), 'Unexpected collection account subtype');
+  must(!Object.hasOwn(row, 'bank_account_number') &&
+      !Object.hasOwn(row, 'private_credentials'),
+      'Collection lookup leaked sensitive account metadata');
+}
+console.log('PASS admin branch-scoped prepaid order and Cash/UPI account REST APIs');
