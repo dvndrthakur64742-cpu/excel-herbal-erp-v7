@@ -6,4 +6,5 @@ while IFS= read -r file; do php -l "$file"; done < <(find src tests -type f -nam
 php -l excel-herbal-erp-v7.php
 php tests/field_sales_rules.php
 php tests/employee_link_integrity.php
+php tests/bootstrap_contract.php
 php tests/regression.php
