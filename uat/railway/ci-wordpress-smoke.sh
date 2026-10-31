@@ -91,4 +91,5 @@ if(!x.ok)throw new Error("Health JSON is not ok");
 if(!JSON.stringify(x).includes("7.3.10"))throw new Error("Old plugin health");
 console.log("PASS pretty REST health JSON and 7.3.10 plugin");
 '
+node uat/railway/ci-auth-smoke.mjs
 echo 'PASS isolated Docker WordPress + MariaDB smoke test'
