@@ -23,6 +23,7 @@ final class RouteRegistry{
  ['POST','/sales/distributor/slabs','sales.distributor_slabs',true],
  ['GET','/sales/discount-policy','sales.discount_policy',true],
  ['POST','/sales/discount-policy','sales.discount_policy_set',true],
+ ['GET','/sales/orders','sales.order_list',true],
  ['POST','/sales/orders','sales.order_create',true],
  ['GET','/sales/orders/(?P<id>\\d+)','sales.order_detail',true],
  ['POST','/sales/orders/(?P<id>\\d+)/approve-discount','sales.discount_approve',true],
