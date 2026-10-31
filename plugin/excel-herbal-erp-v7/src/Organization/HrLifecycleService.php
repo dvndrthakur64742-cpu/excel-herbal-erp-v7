@@ -24,11 +24,11 @@ final class HrLifecycleService {
     private const DOCUMENT_EXTENSIONS=['pdf','jpg','jpeg','png','webp'];
 
     public static function candidates(Actor $a,?int $branchId,string $status='open'):array {
-        Guard::cap($a,Capabilities::HR_VIEW);
+        Guard::any($a,[Capabilities::HR_VIEW,Capabilities::HR_MANAGE,Capabilities::HR_REVIEW]);
         $db=Db::wpdb();$status=strtolower(trim($status))?:'open';
         if($status!=='open'&&$status!=='all'&&!in_array($status,self::CANDIDATE_STATUSES,true))throw new DomainException('Candidate status filter is invalid.','candidate_status_invalid',422);
         $branchIds=$branchId!==null?[$branchId]:array_values(array_unique(array_map('intval',$a->branchIds)));
-        if($branchId!==null)Guard::branch($a,$branchId,Capabilities::HR_VIEW);
+        if($branchId!==null)Guard::branchAny($a,$branchId,[Capabilities::HR_VIEW,Capabilities::HR_MANAGE,Capabilities::HR_REVIEW]);
         if(!$branchIds)return[];
         $ids=implode(',',array_map('intval',$branchIds));
         $where=$status==='all'?'1=1':($status==='open'?"c.status IN ('registered','selected')":$db->prepare('c.status=%s',$status));
@@ -39,7 +39,7 @@ final class HrLifecycleService {
     }
 
     public static function candidate(Actor $a,int $candidateId):array {
-        $c=self::candidateRow($a,$candidateId,Capabilities::HR_VIEW);
+        $c=self::candidateRowAny($a,$candidateId,[Capabilities::HR_VIEW,Capabilities::HR_MANAGE,Capabilities::HR_REVIEW]);
         $c['documents']=self::candidateDocuments($a,$candidateId);
         return$c;
     }
@@ -55,7 +55,7 @@ final class HrLifecycleService {
         $db=Db::wpdb();$valid=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('designations')." WHERE company_id=%d AND code=%s AND status='active'",$a->companyId,$designation));if(!$valid)throw new DomainException('Active proposed designation not found.','designation_invalid',422);if(DesignationDefaults::requiresAccessManagement($designation))Guard::cap($a,Capabilities::ACCESS_MANAGE);
         if($mobile!==''){$dup=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('hr_candidates')." WHERE company_id=%d AND mobile=%s AND status IN ('registered','selected')",$a->companyId,$mobile));if($dup)throw new DomainException('An open candidate already uses this mobile number.','candidate_duplicate',409);}
         if($email!==''){$dup=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('hr_candidates')." WHERE company_id=%d AND email=%s AND status IN ('registered','selected')",$a->companyId,$email));if($dup)throw new DomainException('An open candidate already uses this email address.','candidate_duplicate',409);}
-        $salary=max(0,round((float)($data['offered_monthly_salary']??0),2));$source=trim((string)($data['source']??''));$notes=trim((string)($data['notes']??''));
+        $salaryRaw=$data['offered_monthly_salary']??0;if(!is_numeric($salaryRaw)||!is_finite((float)$salaryRaw)||(float)$salaryRaw<0||(float)$salaryRaw>1000000000)throw new DomainException('Offered monthly salary must be a finite non-negative amount.','salary_invalid',422);$salary=round((float)$salaryRaw,2);$source=trim((string)($data['source']??''));$notes=trim((string)($data['notes']??''));
         return Transaction::run(function()use($a,$branch,$name,$mobile,$email,$designation,$salary,$source,$notes){
             $db=Db::wpdb();$t=Db::table('hr_candidates');$now=Db::now();
             Db::mustInsert($db,$t,['company_id'=>$a->companyId,'candidate_code'=>null,'branch_id'=>$branch,'full_name'=>$name,'mobile'=>$mobile?:null,'email'=>$email?:null,'proposed_employee_code'=>null,'proposed_designation_code'=>$designation,'offered_monthly_salary'=>$salary,'expected_joining_date'=>null,'status'=>'registered','source'=>$source?:null,'notes'=>$notes?:null,'created_by'=>$a->employeeId,'created_at'=>$now,'updated_at'=>$now]);
@@ -109,7 +109,7 @@ final class HrLifecycleService {
     }
 
     public static function candidateDocuments(Actor $a,int $candidateId):array {
-        $c=self::candidateRow($a,$candidateId,Capabilities::HR_VIEW);$db=Db::wpdb();$rows=(array)$db->get_results($db->prepare("SELECT id,attachment_id,private_file_id,document_type,title,status,uploaded_by,created_at,updated_at FROM ".Db::table('hr_candidate_documents')." WHERE company_id=%d AND candidate_id=%d AND status='active' ORDER BY id DESC",$a->companyId,$candidateId),ARRAY_A);foreach($rows as&$row){$row['url']=!empty($row['private_file_id'])?DocumentVault::url('candidate',$candidateId,(int)$row['id']):null;$row['requires_auth']=true;$row['migration_required']=empty($row['private_file_id']);}unset($row);return$rows;
+        $c=self::candidateRowAny($a,$candidateId,[Capabilities::HR_VIEW,Capabilities::HR_MANAGE,Capabilities::HR_REVIEW]);$db=Db::wpdb();$rows=(array)$db->get_results($db->prepare("SELECT id,attachment_id,private_file_id,document_type,title,status,uploaded_by,created_at,updated_at FROM ".Db::table('hr_candidate_documents')." WHERE company_id=%d AND candidate_id=%d AND status='active' ORDER BY id DESC",$a->companyId,$candidateId),ARRAY_A);foreach($rows as&$row){$row['url']=!empty($row['private_file_id'])?DocumentVault::url('candidate',$candidateId,(int)$row['id']):null;$row['requires_auth']=true;$row['migration_required']=empty($row['private_file_id']);}unset($row);return$rows;
     }
 
     public static function uploadCandidateDocument(Actor $a,int $candidateId,array $data):array {
@@ -123,7 +123,7 @@ final class HrLifecycleService {
     }
 
     public static function separations(Actor $a,?int $branchId,string $status='open'):array {
-        Guard::cap($a,Capabilities::HR_VIEW);$db=Db::wpdb();$status=strtolower(trim($status))?:'open';if($status!=='open'&&$status!=='all'&&!in_array($status,self::SEPARATION_STATUSES,true))throw new DomainException('Separation status filter is invalid.','separation_status_invalid',422);$branchIds=$branchId!==null?[$branchId]:array_values(array_unique(array_map('intval',$a->branchIds)));if($branchId!==null)Guard::branch($a,$branchId,Capabilities::HR_VIEW);if(!$branchIds)return[];$ids=implode(',',array_map('intval',$branchIds));$where=$status==='all'?'1=1':($status==='open'?"s.status IN ('submitted','approved')":$db->prepare('s.status=%s',$status));return(array)$db->get_results($db->prepare("SELECT s.*,e.employee_code,e.full_name,e.designation_code FROM ".Db::table('hr_separations')." s JOIN ".Db::table('employees')." e ON e.id=s.employee_id AND e.company_id=s.company_id WHERE s.company_id=%d AND s.branch_id IN ({$ids}) AND {$where} ORDER BY s.id DESC",$a->companyId),ARRAY_A);
+        Guard::any($a,[Capabilities::HR_VIEW,Capabilities::HR_MANAGE,Capabilities::HR_REVIEW]);$db=Db::wpdb();$status=strtolower(trim($status))?:'open';if($status!=='open'&&$status!=='all'&&!in_array($status,self::SEPARATION_STATUSES,true))throw new DomainException('Separation status filter is invalid.','separation_status_invalid',422);$branchIds=$branchId!==null?[$branchId]:array_values(array_unique(array_map('intval',$a->branchIds)));if($branchId!==null)Guard::branchAny($a,$branchId,[Capabilities::HR_VIEW,Capabilities::HR_MANAGE,Capabilities::HR_REVIEW]);if(!$branchIds)return[];$ids=implode(',',array_map('intval',$branchIds));$where=$status==='all'?'1=1':($status==='open'?"s.status IN ('submitted','approved')":$db->prepare('s.status=%s',$status));return(array)$db->get_results($db->prepare("SELECT s.*,e.employee_code,e.full_name,e.designation_code FROM ".Db::table('hr_separations')." s JOIN ".Db::table('employees')." e ON e.id=s.employee_id AND e.company_id=s.company_id WHERE s.company_id=%d AND s.branch_id IN ({$ids}) AND {$where} ORDER BY s.id DESC",$a->companyId),ARRAY_A);
     }
 
     public static function initiateSeparation(Actor $a,int $employeeId,array $data):array {
@@ -139,6 +139,7 @@ final class HrLifecycleService {
         return Transaction::run(function()use($a,$separationId){$db=Db::wpdb();$t=Db::table('hr_separations');$s=$db->get_row($db->prepare("SELECT * FROM {$t} WHERE id=%d AND company_id=%d FOR UPDATE",$separationId,$a->companyId),ARRAY_A);if(!$s)throw new DomainException('Separation request not found.','separation_not_found',404);Guard::branch($a,(int)$s['branch_id'],Capabilities::HR_REVIEW);if($s['status']!=='approved')throw new DomainException('Only approved separation requests can be completed.','separation_state_invalid',409);if((string)$s['separation_date']>Db::today())throw new DomainException('Separation cannot complete before the approved separation date.','separation_date_not_due',409);$preflight=OrganizationService::offboardingPreflight($a,(int)$s['employee_id'],(string)$s['separation_date'],Capabilities::HR_REVIEW);if(!empty($preflight['blockers']))throw new DomainException('Separation still has unresolved offboarding blockers.','employee_offboarding_blocked',409);$result=OrganizationService::offboardEmployee($a,(int)$s['employee_id'],(string)$s['separation_date'],(string)$s['reason'],Capabilities::HR_REVIEW);Db::mustUpdate($db,$t,['status'=>'completed','completed_by'=>$a->employeeId,'completed_at'=>Db::now()],['id'=>$separationId,'company_id'=>$a->companyId]);Audit::add($a,'hr.separation.complete','hr_separation',$separationId,['employee_id'=>(int)$s['employee_id'],'separation_date'=>(string)$s['separation_date']]);return['id'=>$separationId,'status'=>'completed','employee'=>$result];});
     }
 
+    private static function candidateRowAny(Actor $a,int $candidateId,array $capabilities):array {$db=Db::wpdb();$c=$db->get_row($db->prepare("SELECT * FROM ".Db::table('hr_candidates')." WHERE id=%d AND company_id=%d",$candidateId,$a->companyId),ARRAY_A);if(!$c)throw new DomainException('Candidate not found.','candidate_not_found',404);Guard::branchAny($a,(int)$c['branch_id'],$capabilities);return$c;}
     private static function candidateRow(Actor $a,int $candidateId,string $capability):array {$db=Db::wpdb();$c=$db->get_row($db->prepare("SELECT * FROM ".Db::table('hr_candidates')." WHERE id=%d AND company_id=%d",$candidateId,$a->companyId),ARRAY_A);if(!$c)throw new DomainException('Candidate not found.','candidate_not_found',404);Guard::branch($a,(int)$c['branch_id'],$capability);return$c;}
     private static function normaliseMobile(string $mobile):string{return preg_replace('/\D+/','',$mobile)?:'';}
     private static function boolValue(mixed $v,string $field):bool{if(is_bool($v))return$v;if(is_int($v)&&($v===0||$v===1))return$v===1;if(is_string($v)){if(in_array(strtolower(trim($v)),['true','1'],true))return true;if(in_array(strtolower(trim($v)),['false','0'],true))return false;}throw new DomainException($field.' must be a boolean.','parameter_invalid',422);}
