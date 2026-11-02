@@ -2,6 +2,18 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+
+void expectSharedEmployeeChoiceScope() {
+  final source = File(
+    '../backend/excel-herbal-erp-v7/src/Organization/EmployeeChoiceService.php',
+  ).readAsStringSync();
+  // All target pickers must use active, hierarchy-and-branch-scoped rows.
+  expect(source, contains('HierarchyScope::visibleEmployeeIds(\$a,\$branch)'));
+  expect(source, contains('SELECT id,employee_code,full_name,designation_code'));
+  expect(source, contains("AND status='active' AND id IN"));
+  expect(source, contains('throw new DomainException'));
+}
+
 void main() {
   test('quick actions route to their intended connected workflows', () {
     final source = File('lib/screens/home/actions_screen.dart').readAsStringSync();
@@ -94,25 +106,13 @@ void main() {
       ),
     );
     expect(service, contains('public static function targetEmployees'));
-    expect(service, contains('Capabilities::PERFORMANCE_MANAGE'));
+    expect(service, contains('Guard::cap(\$a,Capabilities::PERFORMANCE_MANAGE)'));
     expect(
       service,
-      contains(
-        'Guard::branchAny(\$a, \$branch, [Capabilities::PERFORMANCE_VIEW,Capabilities::PERFORMANCE_MANAGE])',
-      ),
+      contains('Guard::branchAny(\$a,\$branch,[Capabilities::PERFORMANCE_VIEW,Capabilities::PERFORMANCE_MANAGE])'),
     );
-    expect(
-      service,
-      contains("t.employee_id IN ('.implode(',', array_fill(0, count(\$visible), '%d')).')"),
-    );
-    expect(
-      service,
-      contains(
-        "HierarchyScope::assertCanViewEmployee(\$a, (int) \$row['employee_id'])",
-      ),
-    );
-    expect(service, contains('HierarchyScope::visibleEmployeeIds(\$a, \$branch)'));
-    expect(service, contains('SELECT id,employee_code,full_name,designation_code'));
+    expect(service, contains('EmployeeChoiceService::list(\$a,\$branch)'));
+    expectSharedEmployeeChoiceScope();
   });
 
   test('communication employee targeting is hierarchy scoped end to end', () {
@@ -143,23 +143,10 @@ void main() {
       ),
     );
     expect(adminService, contains('public static function targetEmployees'));
-    expect(adminService, contains('Capabilities::COMM_MANAGE'));
-    expect(
-      adminService,
-      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branchId)'),
-    );
-    expect(
-      adminService,
-      contains('HierarchyScope::assertCanViewEmployee(\$a,\$employeeId)'),
-    );
-    expect(
-      adminService,
-      contains('SELECT id,employee_code,full_name,designation_code'),
-    );
-    expect(
-      recoveryService,
-      contains('HierarchyScope::assertCanViewEmployee(\$a,\$employeeId)'),
-    );
+    expect(adminService, contains('Guard::cap(\$a,Capabilities::COMM_MANAGE)'));
+    expect(adminService, contains('EmployeeChoiceService::list(\$a,\$branchId)'));
+    expectSharedEmployeeChoiceScope();
+    expect(recoveryService, contains('HierarchyScope::assertCanViewEmployee(\$a,\$employeeId)'));
   });
 
   test('acting duty mutations cannot bypass reporting hierarchy', () {
@@ -167,26 +154,10 @@ void main() {
       '../backend/excel-herbal-erp-v7/src/Administration/ActingDutyService.php',
     ).readAsStringSync();
 
-    expect(
-      service,
-      contains('HierarchyScope::assertCanViewEmployee(\$a,\$delegator)'),
-    );
-    expect(
-      service,
-      contains('HierarchyScope::assertCanViewEmployee(\$a,\$delegate)'),
-    );
-    expect(
-      service,
-      contains('HierarchyScope::assertCanViewEmployee(\$a,\$employee)'),
-    );
-    expect(
-      service,
-      contains("HierarchyScope::canViewEmployee(\$a,(int)\$r['employee_id'])"),
-    );
-    expect(
-      service,
-      contains("HierarchyScope::canViewEmployee(\$a,(int)\$row['delegate_employee_id'])"),
-    );
+    expect(service, contains('HierarchyScope::assertCanViewEmployee(\$a,\$delegator)'));
+    expect(service, contains('HierarchyScope::assertCanViewEmployee(\$a,\$delegate)'));
+    expect(service, contains('HierarchyScope::visibleEmployeeIds(\$a)'));
+    expect(service, contains('self::canRevokeRow(\$a,\$r)'));
   });
 
   test('reporting manager changes cannot target hidden employees', () {
@@ -194,14 +165,9 @@ void main() {
       '../backend/excel-herbal-erp-v7/src/Organization/OrganizationEmployeeService.php',
     ).readAsStringSync();
 
-    expect(
-      service,
-      contains('HierarchyScope::assertCanViewEmployee(\$a,\$managerId)'),
-    );
-    expect(
-      service,
-      contains('HierarchyScope::assertCanManageEmployeeAccess(\$a,\$employeeId)'),
-    );
+    expect(service, contains('HierarchyScope::assertCanViewEmployee(\$a,\$managerId)'));
+    expect(service, contains('HierarchyScope::assertCanViewEmployee(\$a,\$employeeId)'));
+    expect(service, contains('Guard::branch(\$a,(int)\$e[\'assigned_branch_id\'],Capabilities::EMP_MANAGE)'));
   });
 
   test('employee creation keeps designation baseline and extra role optional', () {
@@ -289,21 +255,9 @@ void main() {
       ),
     );
     expect(service, contains('public static function targetEmployees'));
-    expect(service, contains('Capabilities::DAILY_OTHERS'));
-    expect(
-      service,
-      contains(
-        'Guard::any(\$a,[Capabilities::DAILY_SELF,Capabilities::DAILY_OTHERS])',
-      ),
-    );
-    expect(
-      service,
-      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branch)'),
-    );
-    expect(
-      service,
-      contains('SELECT id,employee_code,full_name,designation_code'),
-    );
+    expect(service, contains('Guard::any(\$a,[Capabilities::DAILY_SELF,Capabilities::DAILY_OTHERS])'));
+    expect(service, contains('EmployeeChoiceService::list(\$a,\$branch,!'));
+    expectSharedEmployeeChoiceScope();
   });
 
   test('daily order issue is independent from inventory view and keeps actions clear', () {
@@ -381,20 +335,10 @@ void main() {
       ),
     );
     expect(service, contains('public static function employeeChoices'));
-    expect(service, contains('Capabilities::HR_REVIEW'));
-    expect(service, contains('Capabilities::HR_MANAGE'));
-    expect(
-      service,
-      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branch)'),
-    );
-    expect(
-      service,
-      contains('HierarchyScope::manageableEmployeeIds(\$a)'),
-    );
-    expect(
-      service,
-      contains('HierarchyScope::assertCanManageEmployeeAccess(\$a,\$employeeId)'),
-    );
+    expect(service, contains('Guard::any(\$a,[Capabilities::HR_MANAGE,Capabilities::HR_REVIEW])'));
+    expect(service, contains("!in_array(\$purpose,['reporting','separation','candidate'],true)"));
+    expect(service, contains("EmployeeChoiceService::list(\$a,\$branch,false,\$purpose==='separation')"));
+    expectSharedEmployeeChoiceScope();
   });
 
   test('acting duty employee picker uses delegation capability scope', () {
@@ -422,15 +366,9 @@ void main() {
       ),
     );
     expect(service, contains('public static function employeeChoices'));
-    expect(service, contains('Capabilities::DELEGATION_MANAGE'));
-    expect(
-      service,
-      contains('HierarchyScope::visibleEmployeeIds(\$a,\$branchId)'),
-    );
-    expect(
-      service,
-      contains('SELECT id,employee_code,full_name,designation_code'),
-    );
+    expect(service, contains('Guard::cap(\$a,Capabilities::DELEGATION_MANAGE)'));
+    expect(service, contains('EmployeeChoiceService::list(\$a,\$branch,false,true)'));
+    expectSharedEmployeeChoiceScope();
   });
 
   test('access and salary employee pickers use their own authority scopes', () {
