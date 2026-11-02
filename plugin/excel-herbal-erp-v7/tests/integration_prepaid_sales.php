@@ -35,7 +35,7 @@ if(($argv[1]??'')==='post-worker'){
 $db=eh7_setup_global_db();
 $tables=[
     'audit_log','journal_lines','journal_entries','reversals','counter_sale_lines','counter_sales','stock_ledger','stock_balances',
-    'prepaid_return_requests','prepaid_sales_order_payments','prepaid_sales_order_lines','prepaid_sales_orders','distributor_price_slabs',
+    'prepaid_refund_evidence','prepaid_return_requests','prepaid_sales_order_payments','prepaid_sales_order_lines','prepaid_sales_orders','distributor_price_slabs',
     'product_commercial_revisions','products','parties','accounts','number_series','settings','accounting_periods',
     'branch_closings','employees','branches','companies',
 ];
@@ -229,6 +229,70 @@ denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::decide(
 ),'prepaid_return_state_invalid');
 checkSales(count(\ExcelHerbal\ERP7\Sales\PrepaidReturnService::list($returnApprover,1))===1,
  'scoped return queue readable');
+
+ // Record the two ORIGINAL tender portions (Cash and confirmed UPI).
+ // Both are evidence only: even verified documents cannot post a refund.
+$evidenceMaker=new Actor(104,104,1,1,[1],[C::REVERSAL_CREATE,C::REVERSAL_APPROVE,C::SALES_VIEW],'SYSADMIN');
+$evidenceCashChecker=new Actor(102,102,1,1,[1],[C::REVERSAL_APPROVE,C::SALES_VIEW],'BM');
+$evidenceUpiChecker=new Actor(103,103,1,1,[1],[C::BANK_RECONCILE,C::SALES_VIEW],'FINANCE');
+$evidenceForeign=new Actor(104,104,1,99,[99],[C::REVERSAL_CREATE,C::SALES_VIEW],'SYSADMIN');
+$originals=(array)$db->get_results($db->prepare(
+  'SELECT id,method,amount FROM '.Db::table('prepaid_sales_order_payments').
+  ' WHERE company_id=1 AND order_id=%d ORDER BY id',(int)$post['id']
+),ARRAY_A);
+checkSales(count($originals)===2 && $originals[0]['method']==='cash' &&
+ $originals[1]['method']==='upi','return source has original Cash and UPI tender lines');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::submit(
+ $evidenceMaker,$returnId,(int)$originals[0]['id'],'101.00','UAT-CASH-REF-001'
+),'refund_amount_mismatch');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::submit(
+ $evidenceForeign,$returnId,(int)$originals[0]['id'],'100.00','UAT-CASH-REF-001'
+),'branch_forbidden');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::submit(
+ $evidenceMaker,$returnId,999999,'100.00','UAT-UNKNOWN-001'
+),'refund_original_payment_invalid');
+$cashEvidence=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::submit(
+ $evidenceMaker,$returnId,(int)$originals[0]['id'],'100.00','UAT-CASH-REF-001'
+);
+checkSales($cashEvidence['status']==='evidence_submitted' &&
+ $cashEvidence['refund_disbursed']===false,'cash proof intake does not imply payout');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::submit(
+ $evidenceMaker,$returnId,(int)$originals[0]['id'],'100.00','UAT-CASH-REF-002'
+),'refund_evidence_duplicate');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
+ $evidenceMaker,(int)$cashEvidence['id'],'UAT-CASH-CHECK-001'
+),'maker_checker_required');
+$verifiedCash=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
+ $evidenceCashChecker,(int)$cashEvidence['id'],'UAT-CASH-CHECK-001'
+);
+checkSales($verifiedCash['status']==='evidence_verified' &&
+ $verifiedCash['refund_disbursed']===false,'independent manual cash proof check is NOT disbursement');
+$upiEvidence=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::submit(
+ $evidenceMaker,$returnId,(int)$originals[1]['id'],'100.00','UAT-UPI-REF-001'
+);
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
+ $evidenceCashChecker,(int)$upiEvidence['id'],'UAT-UPI-BANK-CHECK'
+),'permission_denied');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
+ $evidenceUpiChecker,(int)$upiEvidence['id'],'bad'
+),'refund_verification_reference_required');
+$verifiedUpi=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
+ $evidenceUpiChecker,(int)$upiEvidence['id'],'UAT-UPI-BANK-CHECK'
+);
+checkSales($verifiedUpi['status']==='evidence_verified' &&
+ $verifiedUpi['manual_evidence_only']===true,'independent manual UPI check NOT bank API proof');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
+ $evidenceUpiChecker,(int)$upiEvidence['id'],'UAT-UPI-CHECK-REPEAT'
+),'refund_evidence_state_invalid');
+$evidenceList=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::list($evidenceCashChecker,$returnId);
+checkSales(count($evidenceList)===2 && $evidenceList[0]['status']==='evidence_verified' &&
+ $evidenceList[1]['status']==='evidence_verified','split-tender refund evidence independently verified');
+checkSales((string)$db->get_var('SELECT status FROM '.Db::table('prepaid_return_requests').
+ ' WHERE id='.(int)$returnId)==='refund_pending','verified documents do not mark refund paid');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('prepaid_refund_evidence'))===2,
+ 'one evidence row per original confirmed payment');
+echo "PASS synthetic cash/UPI evidence traceability; NO refund or credit note posting\n";
+
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('prepaid_return_requests'))===1,
  'full-return uniqueness enforced');
 checkSales((float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE product_id=1')===$returnStock,
