@@ -1,0 +1,39 @@
+name: ERP V7 Windows Local Development QA
+
+on:
+  pull_request:
+    paths:
+      - 'uat/windows/**'
+      - '.vscode/tasks.json'
+      - '.github/workflows/erp-v7-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eh7-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-dev-scripts:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify local readiness doctor works on Windows PowerShell
+        shell: pwsh
+        run: |
+          $report = & .\uat\windows\doctor.ps1 -Workspace $PWD.Path -Json | ConvertFrom-Json
+          if (-not $report.workspace.present -or -not $report.tools.node.ready -or -not $report.tools.git.ready) {
+            throw 'Windows native doctor failed to detect build prerequisites'
+          }
+          Write-Host "PASS native readiness doctor"
+      - name: Run fast local QA in Windows PowerShell
+        shell: pwsh
+        run: |
+          & .\uat\windows\run-tests.ps1 -Workspace $PWD.Path -Mode quick
+          if ($LASTEXITCODE -ne 0) { throw 'Windows local QA failed' }
