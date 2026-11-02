@@ -1,0 +1,52 @@
+# Local, persistent, SYNTHETIC-ONLY UAT. Never attach production data.
+# Use: docker compose --env-file uat/local/.env -f uat/local/compose.yml up -d --build
+name: eh7-local-uat
+
+services:
+  uat-db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${EH7_LOCAL_DB_ROOT_PASSWORD:?Set EH7_LOCAL_DB_ROOT_PASSWORD in uat/local/.env}
+      MARIADB_DATABASE: eh7_local_uat
+      MARIADB_USER: eh7_local_uat
+      MARIADB_PASSWORD: ${EH7_LOCAL_DB_PASSWORD:?Set EH7_LOCAL_DB_PASSWORD in uat/local/.env}
+    volumes:
+      - eh7_ledger_db:/var/lib/mysql
+    networks:
+      - eh7_private
+  uat-wordpress:
+    build:
+      context: ../..
+      dockerfile: uat/railway/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - uat-db
+    environment:
+      WP_ENVIRONMENT_TYPE: staging
+      EH7_UAT_MODE: local
+      EH7_LOCAL_SOURCE_SHA: ${EH7_LOCAL_SOURCE_SHA:?Set exact current Git SHA in uat/local/.env}
+      EH7_UAT_SITE_URL: http://127.0.0.1:18880
+      EH7_UAT_SITE_TITLE: Excel Herbal ERP Local Synthetic UAT
+      EH7_UAT_WP_ADMIN_LOGIN: eh7_local_admin
+      EH7_UAT_ADMIN_PASSWORD: ${EH7_LOCAL_ADMIN_PASSWORD:?Set EH7_LOCAL_ADMIN_PASSWORD in uat/local/.env}
+      EH7_UAT_ADMIN_MOBILE: "9000000001"
+      EH7_UAT_LIMITED_PASSWORD: ${EH7_LOCAL_LIMITED_PASSWORD:?Set EH7_LOCAL_LIMITED_PASSWORD in uat/local/.env}
+      EH7_UAT_LIMITED_MOBILE: "9000000002"
+      WORDPRESS_DB_HOST: uat-db:3306
+      WORDPRESS_DB_USER: eh7_local_uat
+      WORDPRESS_DB_PASSWORD: ${EH7_LOCAL_DB_PASSWORD:?Set EH7_LOCAL_DB_PASSWORD in uat/local/.env}
+      WORDPRESS_DB_NAME: eh7_local_uat
+    ports:
+      - "127.0.0.1:18880:80"
+    volumes:
+      - eh7_wordpress_data:/var/www/html
+    networks:
+      - eh7_private
+
+volumes:
+  eh7_ledger_db:
+  eh7_wordpress_data:
+
+networks:
+  eh7_private:
