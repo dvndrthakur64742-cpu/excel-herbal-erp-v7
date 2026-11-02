@@ -61,6 +61,8 @@ final class ActingDutyService
         if(strlen($reason)<5)throw new DomainException('Delegation reason is required.','delegation_reason_required',422);
         if(!isset(self::actionCapabilities()[$action]))throw new DomainException('Unsupported delegation action.','delegation_action_invalid',422);
         if($delegator!==$a->employeeId&&!$a->can(Capabilities::ACCESS_MANAGE))throw new DomainException('Only access administrators may create delegation for another delegator.','delegator_forbidden',403);
+        HierarchyScope::assertCanViewEmployee($a,$delegator);
+        HierarchyScope::assertCanViewEmployee($a,$delegate);
         [$starts,$ends]=self::window((string)($data['starts_at']??''),(string)($data['ends_at']??''));
         if(!self::employeeHasPermanentAuthority($a->companyId,$delegator,$branch,$action))throw new DomainException('Delegator does not own this exact action in this branch.','delegator_authority_missing',403);
         $db=Db::wpdb();$emp=$db->get_row($db->prepare("SELECT id,status FROM ".Db::table('employees')." WHERE id=%d AND company_id=%d",$delegate,$a->companyId),ARRAY_A);if(!$emp||$emp['status']!=='active')throw new DomainException('Delegate must be an active employee.','delegate_invalid',422);
