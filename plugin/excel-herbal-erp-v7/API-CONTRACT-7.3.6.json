@@ -1,9 +1,17 @@
 {
-  "contract_version": "7.3.10-contract-3",
+  "contract_version": "7.3.11-contract-return-intake-1",
   "namespace": "excel-herbal-erp/v7",
   "authentication": "Bearer access token for authenticated routes",
   "idempotency_header": "X-Idempotency-Key",
   "features": {
+    "prepaid_sales_orders_v1": true,
+    "prepaid_return_intake_v1": true,
+    "prepaid_refund_disbursement_v1": false,
+    "prepaid_credit_note_posting_v1": false,
+    "distributor_volume_price_list": true,
+    "discount_ho_threshold_fail_closed": true,
+    "independent_sales_upi_verification": true,
+    "field_upi_manual_bank_verification": true,
     "field_sales_three_step_review": true,
     "employee_stock_receipt_confirmation": true,
     "field_sales_gps_attendance_gate": true,
@@ -47,8 +55,7 @@
     "hr_separation_workflow": true,
     "salary_revision_approval": true,
     "payroll_working_day_proration": true,
-    "private_document_download": true,
-    "field_upi_manual_bank_verification": true
+    "private_document_download": true
   },
   "routes": [
     {
@@ -1112,6 +1119,49 @@
       "auth": true,
       "idempotency_required": true,
       "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/sales/returns",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": [
+        "branch_id"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/sales/returns/(?P<id>\\d+)",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/sales/orders/(?P<id>\\d+)/return",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/sales/returns/(?P<id>\\d+)/inspect",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "inspection_reference"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/sales/returns/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "approve"
+      ]
     },
     {
       "method": "GET",
