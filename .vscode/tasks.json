@@ -111,6 +111,22 @@
       },
       "group": "test",
       "problemMatcher": []
+    },
+    {
+      "label": "ERP: Local Synthetic Login UAT",
+      "type": "shell",
+      "command": "node",
+      "args": [
+        "${workspaceFolder}\\uat\\windows\\local-auth-smoke.mjs"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "presentation": {
+        "reveal": "always"
+      },
+      "problemMatcher": []
     }
   ]
 }
