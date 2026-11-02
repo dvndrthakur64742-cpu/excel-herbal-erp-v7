@@ -71,6 +71,15 @@ foreach(["prepaid_sales_orders","prepaid_sales_order_lines","prepaid_sales_order
     fwrite(STDERR,"MISSING TABLE: ".$name."\n");exit(1);
  }
 }
+$field=$wpdb->get_row($wpdb->prepare("SELECT wp_user_id,mobile FROM ".$wpdb->prefix."eh7_employees WHERE employee_code=%s AND status=%s","UAT-FIELD","active"));
+$fieldUser=$field?get_userdata((int)$field->wp_user_id):false;
+$expectedMobile=$field?preg_replace("/\\D+/", "",(string)$field->mobile):"";
+if(!$fieldUser||!preg_match("/^[0-9]{8,15}$/D",$expectedMobile)||
+   (string)$fieldUser->user_login!==$expectedMobile||
+   !in_array("subscriber",(array)$fieldUser->roles,true)){
+   fwrite(STDERR,"SYNTHETIC MOBILE USERNAME / SUBSCRIBER MISMATCH\n");exit(1);
+}
+echo "PASS actual WordPress subscriber identity uses mobile number as username\n";
 echo "PASS real WordPress activation, MariaDB migration, isolated synthetic seed\n";
 ' --path=/var/www/html --allow-root
 
