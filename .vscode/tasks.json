@@ -2,6 +2,25 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "ERP: Start Local ERP",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\uat\\windows\\start-native-uat.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "ERP: Health Check (Free Local Setup)",
       "type": "shell",
       "command": "powershell.exe",
