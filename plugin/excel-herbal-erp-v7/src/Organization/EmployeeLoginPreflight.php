@@ -13,7 +13,8 @@ final class EmployeeLoginPreflight {
         bool $linkedUserPrivileged,
         string $normalizedMobile,
         bool $mobileUsernameTaken,
-        bool $employeeEmailTaken
+        bool $employeeEmailTaken,
+        bool $sharedWpIdentity = false
     ):array {
         $linked = $linkedUserId > 0 && $linkedUserExists;
         $identity = $linked ? 'linked' : ($linkedUserId > 0 ? 'broken' : 'unlinked');
@@ -23,12 +24,13 @@ final class EmployeeLoginPreflight {
         if (!$active) $blockers[]='employee_inactive';
         if (!$mobileValid) $blockers[]='mobile_missing_or_invalid';
         if ($linked && $linkedUserPrivileged) $blockers[]='privileged_wordpress_identity';
+        if ($linked && $sharedWpIdentity) $blockers[]='wp_identity_duplicate_link';
         if (!$linked && $mobileValid && $mobileUsernameTaken) $blockers[]='mobile_username_claimed';
         if (!$linked && $employeeEmailTaken) $blockers[]='employee_email_claimed';
         return [
             'identity_state'=>$identity,
             'mobile_valid'=>$mobileValid,
-            'can_reset_subscriber_password'=>$active && $linked && !$linkedUserPrivileged && $mobileValid,
+            'can_reset_subscriber_password'=>$active && $linked && !$linkedUserPrivileged && !$sharedWpIdentity && $mobileValid,
             'new_subscriber_candidate'=>$active && !$linked && $mobileValid && !$mobileUsernameTaken && !$employeeEmailTaken,
             'identity_owner_verification_required'=>true,
             'blockers'=>$blockers,
