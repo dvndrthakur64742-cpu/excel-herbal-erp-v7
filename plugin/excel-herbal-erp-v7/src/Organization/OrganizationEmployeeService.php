@@ -3,7 +3,7 @@ namespace ExcelHerbal\ERP7\Organization;
 use ExcelHerbal\ERP7\Security\DesignationDefaults;use ExcelHerbal\ERP7\Core\Input;use ExcelHerbal\ERP7\Database\Db;use ExcelHerbal\ERP7\Database\Transaction;use ExcelHerbal\ERP7\Domain\DomainException;use ExcelHerbal\ERP7\Security\Actor;use ExcelHerbal\ERP7\Security\Audit;use ExcelHerbal\ERP7\Security\AccessService;use ExcelHerbal\ERP7\Security\BranchAuthority;use ExcelHerbal\ERP7\Security\Capabilities;use ExcelHerbal\ERP7\Security\Guard;use ExcelHerbal\ERP7\Security\HierarchyScope;
 final class OrganizationEmployeeService{
  public static function employees(Actor $a,int $branch,string $status='active'):array{
-  Guard::branch($a,$branch,Capabilities::EMP_VIEW);$status=strtolower(trim($status))?:'active';if(!in_array($status,['active','inactive','all'],true))throw new DomainException('Employee status filter is invalid.','employee_status_invalid',422);
+  Guard::branchAny($a,$branch,[Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE]);$status=strtolower(trim($status))?:'active';if(!in_array($status,['active','inactive','all'],true))throw new DomainException('Employee status filter is invalid.','employee_status_invalid',422);
   $db=Db::wpdb();
   $where=$status==='all'?"e.status IN ('active','inactive')":"e.status='".$status."'";
   $rows=(array)$db->get_results($db->prepare(
