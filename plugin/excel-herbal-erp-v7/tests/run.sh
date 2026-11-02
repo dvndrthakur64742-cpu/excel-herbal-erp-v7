@@ -7,6 +7,7 @@ php -l excel-herbal-erp-v7.php
 php tests/field_sales_rules.php
 php tests/employee_link_integrity.php
 php tests/employee_credential_authorization.php
+php tests/employee_identity_attestation.php
 php tests/employee_mobile_username.php
 php tests/employee_login_preflight.php
 php tests/staging_safety.php
