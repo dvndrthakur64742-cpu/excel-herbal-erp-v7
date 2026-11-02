@@ -5,7 +5,7 @@ use ExcelHerbal\ERP7\Database\Db;
 use ExcelHerbal\ERP7\Database\Transaction;
 use ExcelHerbal\ERP7\Domain\DomainException;
 use ExcelHerbal\ERP7\Finance\BranchDayGuard;
-use ExcelHerbal\ERP7\Policy\Money;
+use ExcelHerbal\ERP7\Policy\PrepaidOrderRules as Money;
 use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Audit;
 use ExcelHerbal\ERP7\Security\Capabilities;
