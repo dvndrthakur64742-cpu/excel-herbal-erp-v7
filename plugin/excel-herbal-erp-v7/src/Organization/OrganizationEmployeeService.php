@@ -66,7 +66,11 @@ final class OrganizationEmployeeService{
   if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],$requiredCapability);
   $mobile=self::normaliseMobile((string)($e['mobile']??''));if($mobile==='')throw new DomainException('Employee mobile is required before enabling mobile login.','mobile_required',422);self::assertMobileAvailable($mobile,$employeeId);
   $password=(string)($data['password']??'');if(trim($password)==='')throw new DomainException('Password is required to enable or reset mobile login.','password_required',422);if(strlen($password)<10)throw new DomainException('Mobile login password must be at least 10 characters.','password_too_short',422);
-  $uid=(int)($e['wp_user_id']??0);if($uid<1||!get_user_by('id',$uid)){
+  $uid=(int)($e['wp_user_id']??0);
+  // WordPress identity ownership is global, even when employee company IDs differ.
+  // Never reset credentials for a WP account referenced by another employee row.
+  if($uid>0&&self::wpIdentityHasOtherEmployeeLink($uid,$employeeId))throw new DomainException('WordPress identity is linked to more than one employee. Manual ownership review required.','wp_identity_duplicate_link',409);
+  if($uid<1||!get_user_by('id',$uid)){
    // Re-provision only a missing account. Never repurpose another existing WordPress identity.
    $previousUid=$uid;
    $uid=self::createWordPressUser($a->companyId,(string)$e['employee_code'],(string)$e['full_name'],(string)($e['email']??''),$password,$mobile);
@@ -86,13 +90,14 @@ final class OrganizationEmployeeService{
   $db=Db::wpdb();$t=Db::table('employees');$e=$db->get_row($db->prepare("SELECT id,employee_code,full_name,mobile,email,assigned_branch_id,status,wp_user_id FROM {$t} WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);
   if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::EMP_MANAGE);$uid=(int)($e['wp_user_id']??0);$activeSessions=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('mobile_sessions')." WHERE employee_id=%d AND revoked_at IS NULL AND refresh_expires_at>%s",$employeeId,Db::now()));
   $linkedUser=$uid>0?get_user_by('id',$uid):false;
+  $sharedWpIdentity=$linkedUser!==false&&self::wpIdentityHasOtherEmployeeLink($uid,$employeeId);
   $mobile=self::normaliseMobile((string)($e['mobile']??''));
   $validMobile=preg_match('/^[0-9]{8,15}$/D',$mobile)===1;
   // Never adopt an unrelated WordPress user; report collisions for manual review only.
   $mobileTaken=!$linkedUser&&$validMobile&&username_exists($mobile)!==false;
   $email=trim((string)($e['email']??''));
   $emailTaken=!$linkedUser&&$email!==''&&email_exists($email)!==false;
-  $preflight=EmployeeLoginPreflight::assess((string)$e['status'],$uid,$linkedUser!==false,$linkedUser!==false&&self::isPrivilegedWordPressIdentity($linkedUser),$mobile,$mobileTaken,$emailTaken);
+  $preflight=EmployeeLoginPreflight::assess((string)$e['status'],$uid,$linkedUser!==false,$linkedUser!==false&&self::isPrivilegedWordPressIdentity($linkedUser),$mobile,$mobileTaken,$emailTaken,$sharedWpIdentity);
   return['id'=>$employeeId,'employee_code'=>(string)$e['employee_code'],'full_name'=>(string)$e['full_name'],'status'=>(string)$e['status'],'mobile'=>(string)($e['mobile']??''),'email'=>(string)($e['email']??''),'login_enabled'=>$linkedUser!==false,'wp_user_id'=>$uid?:null,'active_sessions'=>$activeSessions,'repair_preflight'=>$preflight];
  }
  public static function revokeEmployeeSessions(Actor $a,int $employeeId):array{
@@ -198,6 +203,13 @@ final class OrganizationEmployeeService{
   if($email!==''&&email_exists($email))throw new DomainException('Employee email is already used by another WordPress account.','wp_email_in_use',409);
   $uid=wp_insert_user(['user_login'=>$login,'user_pass'=>$password,'user_email'=>$email,'display_name'=>$name,'role'=>'subscriber']);
   if(is_wp_error($uid))throw new DomainException('Unable to create employee login: '.$uid->get_error_message(),'wp_user_create_failed',500);return (int)$uid;
+ }
+ private static function wpIdentityHasOtherEmployeeLink(int $wpUserId,int $employeeId):bool{
+  if($wpUserId<1)return false;
+  $db=Db::wpdb();
+  // No company filter: a WordPress account is not scoped to an ERP company.
+  $sql=$db->prepare("SELECT COUNT(*) FROM ".Db::table('employees')." WHERE wp_user_id=%d AND id<>%d",$wpUserId,$employeeId);
+  return (int)$db->get_var($sql)>0;
  }
  private static function normaliseMobile(string $mobile):string{return preg_replace('/\D+/','',$mobile)?:'';}
  private static function assertMobileAvailable(string $mobile,?int $exceptEmployeeId=null):void{
