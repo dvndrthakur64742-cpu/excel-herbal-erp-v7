@@ -29,6 +29,10 @@ preflightCheck($collision['new_subscriber_candidate']===false && in_array('mobil
 $emailCollision=preflight('active',0,false,false,'9000000014',false,true);
 preflightCheck(!$emailCollision['new_subscriber_candidate'] && in_array('employee_email_claimed',$emailCollision['blockers'],true),'existing WP email blocks provisioning');
 
+$shared=EmployeeLoginPreflight::assess('active',41,true,false,'9000000099',false,false,true);
+preflightCheck($shared['identity_state']==='linked' && !$shared['can_reset_subscriber_password'],'duplicate WP link disables manual password reset');
+preflightCheck(in_array('wp_identity_duplicate_link',$shared['blockers'],true),'duplicate linked WP identity flagged for ownership review');
+
 $admin=preflight('active',17,true,true,'9000000015');
 preflightCheck($admin['identity_state']==='linked' && !$admin['can_reset_subscriber_password'] && in_array('privileged_wordpress_identity',$admin['blockers'],true),'privileged WP account cannot be reset through ERP');
 
