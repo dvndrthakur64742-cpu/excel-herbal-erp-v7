@@ -25,6 +25,7 @@ function user_can($user,$cap){
   );
 }
 function wp_set_password($password,$uid){$GLOBALS['changed_password_for'][]=$uid;}
+function username_exists($login){return false;}
 function wp_json_encode($v){return json_encode($v);}
 function current_time($fmt,$gmt=false){return '2026-10-31 12:00:00';}
 final class CredentialSecurityDb{
@@ -74,6 +75,20 @@ if(($status['repair_preflight']['can_reset_subscriber_password']??true)!==false 
    !in_array('wp_identity_duplicate_link',$status['repair_preflight']['blockers']??[],true)){
  $failed++;echo "FAIL duplicate WP linked status preflight\n";
 }else echo "PASS duplicate WP linked status preflight\n";
+$wpdb->target=777;$wpdb->updates=[];$wpdb->inserted=[];$GLOBALS['changed_password_for']=[];
+try{
+ OrganizationEmployeeService::setEmployeeCredentials($manager,8,['password'=>'strong-synthetic-pass-1234']);
+ $failed++;echo "FAIL missing_shared_wp_identity_reset: unexpected success\n";
+}catch(DomainException $e){
+ if($e->codeKey!=='wp_identity_duplicate_link'||$GLOBALS['changed_password_for']||$wpdb->updates||$wpdb->inserted){
+   $failed++;echo "FAIL missing_shared_wp_identity_reset: ".$e->codeKey." / side effect\n";
+ }else echo "PASS missing_shared_wp_identity_reset\n";
+}
+$brokenStatus=OrganizationEmployeeService::employeeLoginStatus($manager,8);
+if(($brokenStatus['repair_preflight']['new_subscriber_candidate']??true)!==false ||
+  !in_array('wp_identity_duplicate_link',$brokenStatus['repair_preflight']['blockers']??[],true)){
+ $failed++;echo "FAIL missing shared WP identity preflight\n";
+}else echo "PASS missing shared WP identity preflight\n";
 $wpdb->sharedWpLink=false;
 
 // Prevent ERP managers from linking a privileged WordPress account to a newly created employee.
