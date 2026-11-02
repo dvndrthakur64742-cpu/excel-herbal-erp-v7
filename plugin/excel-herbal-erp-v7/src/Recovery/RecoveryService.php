@@ -11,6 +11,7 @@ use ExcelHerbal\ERP7\Security\Capabilities;
 use ExcelHerbal\ERP7\Security\Guard;
 use ExcelHerbal\ERP7\Security\HierarchyScope;
 use ExcelHerbal\ERP7\Workforce\GpsDutyPolicy;
+use ExcelHerbal\ERP7\Workforce\AttendanceGpsEvidence;
 
 final class RecoveryService {
     public static function gpsPoint(Actor $a,array $data):array {
@@ -26,7 +27,9 @@ final class RecoveryService {
             $visitId=isset($data['field_visit_id'])?(int)$data['field_visit_id']:0;
             if($visitId){$v=$db->get_row($db->prepare("SELECT id FROM ".Db::table('field_visits')." WHERE id=%d AND company_id=%d AND employee_id=%d AND status='in_progress'",$visitId,$a->companyId,$a->employeeId),ARRAY_A);if(!$v)throw new DomainException('Active field visit not found.','field_visit_not_found',404);}
             Db::mustInsert($db,Db::table('gps_points'),['company_id'=>$a->companyId,'branch_id'=>$branch,'employee_id'=>$a->employeeId,'attendance_id'=>(int)$att['id'],'field_visit_id'=>$visitId?:null,'latitude'=>$gps['latitude'],'longitude'=>$gps['longitude'],'accuracy_m'=>$gps['accuracy_m'],'source'=>$gps['source'],'recorded_at'=>$recorded,'created_at'=>Db::now()]);
-            return ['id'=>(int)$db->insert_id,'recorded_at'=>$recorded]+$gps;
+            $pointId=(int)$db->insert_id;
+            AttendanceGpsEvidence::captureFirstPoint($db,(int)$att['id'],$a->companyId,$a->employeeId,$gps['latitude'],$gps['longitude']);
+            return ['id'=>$pointId,'recorded_at'=>$recorded]+$gps;
         });
     }
     public static function gpsRoute(Actor $a,?int $employeeId,string $from,string $to):array {
