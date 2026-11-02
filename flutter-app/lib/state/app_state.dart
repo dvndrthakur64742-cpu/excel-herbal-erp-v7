@@ -145,6 +145,19 @@ class AppState {
     return null;
   }
 
+
+  /// A failed authenticated bootstrap retains the user session, but the
+  /// recovery screen must show the actual safe API/network error first.
+  /// Otherwise a null bootstrap masks it as "startup data unavailable".
+  /// Keep the compatibility validator authoritative for business posting:
+  /// this getter only controls the explanatory text, not bootstrapReady.
+  String get bootstrapFailureMessage {
+    final requestError = error?.trim();
+    if (requestError != null && requestError.isNotEmpty) return requestError;
+    return bootstrapCompatibilityError ??
+        'Required ERP startup information is temporarily unavailable.';
+  }
+
   bool get bootstrapReady => bootstrapCompatibilityError == null;
 
   /// Production must never post ERP transactions using an untrusted device
