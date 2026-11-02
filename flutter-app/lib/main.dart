@@ -84,10 +84,7 @@ class _BootstrapRecoveryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final app = ref.watch(appStateProvider);
-    final reason =
-        app.bootstrapCompatibilityError ??
-        app.error ??
-        'Required ERP startup information is temporarily unavailable.';
+    final reason = app.bootstrapFailureMessage;
 
     return Scaffold(
       body: SafeArea(
