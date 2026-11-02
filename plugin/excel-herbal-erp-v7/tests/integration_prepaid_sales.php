@@ -34,7 +34,7 @@ if(($argv[1]??'')==='post-worker'){
 }
 $db=eh7_setup_global_db();
 $tables=[
-    'audit_log','journal_lines','journal_entries','counter_sale_lines','counter_sales','stock_ledger','stock_balances',
+    'audit_log','journal_lines','journal_entries','reversals','counter_sale_lines','counter_sales','stock_ledger','stock_balances',
     'prepaid_sales_order_payments','prepaid_sales_order_lines','prepaid_sales_orders','distributor_price_slabs',
     'product_commercial_revisions','products','parties','accounts','number_series','settings','accounting_periods',
     'branch_closings','employees','branches','companies',
@@ -172,4 +172,46 @@ checkSales(count($workerResults)===2 && $workerResults[0]['sale_id']===$workerRe
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('counter_sales'))===5,'concurrent posting created one additional invoice only');
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'))===5,'concurrent posting created one additional journal only');
 checkSales(abs((float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE product_id=1')-2.)<0.0001,'concurrent posting deducts stock exactly once');
+
+ // A paid prepaid invoice cannot be reversed by the generic finance route:
+ // there is no verified refund record / prepaid order state transition yet.
+ // A plain counter-sale reversal would restore stock and reverse the journal
+ // while leaving an already-paid, still-posted order and confirmed payments.
+$reversalMaker=new Actor(101,101,1,1,[1],[C::REVERSAL_CREATE],'SALES');
+$reversalApprover=new Actor(102,102,1,1,[1],[C::REVERSAL_APPROVE],'BM');
+$protectedSale=(int)$post['sale_id'];
+checkSales($protectedSale>0,'fully paid synthetic counter sale exists');
+$reversalStartStock=(float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE product_id=1');
+$reversalStartJournal=(int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'));
+$reversalStartLedger=(int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger'));
+denySales(fn()=>\\ExcelHerbal\\ERP7\\Finance\\FinanceReversalService::requestReversal(
+ $reversalMaker,'counter_sale',$protectedSale,'Synthetic prepaid refund must be reconciled'
+),'prepaid_refund_workflow_required');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('reversals'))===0,
+    'prepaid reversal request did not leave a pending reversal row');
+// Mimic an approved legacy reversal request created before the new guard.
+// The execute path independently blocks it: approval cannot bypass protection.
+$legacyRequest=seed('reversals',[
+ 'company_id'=>1,'branch_id'=>1,'source_type'=>'counter_sale',
+ 'source_id'=>$protectedSale,'reason'=>'Legacy test-only refund reversal',
+ 'status'=>'approved','requested_by'=>101,'requested_at'=>Db::now(),
+ 'decided_by'=>102,'decided_at'=>Db::now()
+]);
+denySales(fn()=>\\ExcelHerbal\\ERP7\\Finance\\FinanceReversalService::executeReversal(
+ $reversalApprover,$legacyRequest
+),'prepaid_refund_workflow_required');
+checkSales((string)$db->get_var('SELECT status FROM '.Db::table('reversals').
+    ' WHERE id='.(int)$legacyRequest)==='approved','legacy reversal remains unexecuted');
+checkSales((string)$db->get_var('SELECT status FROM '.Db::table('counter_sales').
+    ' WHERE id='.$protectedSale)==='posted','paid prepaid invoice remains posted');
+checkSales((string)$db->get_var('SELECT status FROM '.Db::table('prepaid_sales_orders').
+    ' WHERE sale_id='.$protectedSale)==='posted','prepaid order status preserved');
+checkSales(abs((float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').
+    ' WHERE product_id=1')-$reversalStartStock)<.0001,'paid reversal did not change stock');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'))===$reversalStartJournal,
+    'paid reversal did not create or reverse a journal');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger'))===$reversalStartLedger,
+    'paid reversal did not change stock ledger');
+echo "PASS generic reversal refused fully paid prepaid invoice until verified refund workflow exists\\n";
+
 echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction and concurrent posting integration (synthetic only)\n";
