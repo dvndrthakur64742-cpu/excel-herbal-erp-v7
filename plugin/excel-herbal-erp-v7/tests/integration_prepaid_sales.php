@@ -35,7 +35,7 @@ if(($argv[1]??'')==='post-worker'){
 $db=eh7_setup_global_db();
 $tables=[
     'audit_log','journal_lines','journal_entries','reversals','counter_sale_lines','counter_sales','stock_ledger','stock_balances',
-    'prepaid_sales_order_payments','prepaid_sales_order_lines','prepaid_sales_orders','distributor_price_slabs',
+    'prepaid_return_requests','prepaid_sales_order_payments','prepaid_sales_order_lines','prepaid_sales_orders','distributor_price_slabs',
     'product_commercial_revisions','products','parties','accounts','number_series','settings','accounting_periods',
     'branch_closings','employees','branches','companies',
 ];
@@ -172,6 +172,74 @@ checkSales(count($workerResults)===2 && $workerResults[0]['sale_id']===$workerRe
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('counter_sales'))===5,'concurrent posting created one additional invoice only');
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'))===5,'concurrent posting created one additional journal only');
 checkSales(abs((float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE product_id=1')-2.)<0.0001,'concurrent posting deducts stock exactly once');
+
+
+ // Phase 1 Return Intake: no payment, stock or accounting writes until a
+ // verified, separate refund+credit-note posting flow is released.
+$returnMaker=new Actor(101,101,1,1,[1],[C::REVERSAL_CREATE,C::REVERSAL_APPROVE,C::SALES_VIEW],'SALES');
+$returnInspector=new Actor(102,102,1,1,[1],[C::REVERSAL_APPROVE,C::SALES_VIEW],'BM');
+$returnApprover=new Actor(103,103,1,1,[1],[C::REVERSAL_APPROVE,C::SALES_VIEW],'FINANCE');
+$returnForeign=new Actor(104,104,1,99,[99],[C::REVERSAL_APPROVE,C::SALES_VIEW],'SYSADMIN');
+$returnStock=(float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE product_id=1');
+$returnLedger=(int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger'));
+$returnJournal=(int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'));
+$returnPayment=(int)$db->get_var("SELECT COUNT(*) FROM ".Db::table('prepaid_sales_order_payments')." WHERE order_id=".(int)$post['id']." AND status='confirmed'");
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::request(
+ $returnMaker,(int)$post['id'],'bad'
+),'prepaid_return_reason_required');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::request(
+ $returnMaker,(int)$failed['id'],'Full refund for an unposted order'
+),'prepaid_return_invoice_not_posted');
+$return=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::request(
+ $returnMaker,(int)$post['id'],'Synthetic full return of prepaid B2C goods'
+);
+checkSales($return['status']==='requested' && $return['financial_posted']===false,
+ 'return request recorded without money or stock posting');
+$returnId=(int)$return['id'];
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::request(
+ $returnMaker,(int)$post['id'],'Repeat synthetic return request'
+),'prepaid_return_already_requested');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::inspect(
+ $returnMaker,$returnId,'UAT-PHYSICAL-001'
+),'maker_checker_required');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::inspect(
+ $returnInspector,$returnId,'bad'
+),'prepaid_return_inspection_required');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::inspect(
+ $returnForeign,$returnId,'UAT-PHYSICAL-001'
+),'permission_denied');
+$returnPhysical=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::inspect(
+ $returnInspector,$returnId,'UAT-PHYSICAL-001','Fixture goods physically checked'
+);
+checkSales($returnPhysical['status']==='received' && $returnPhysical['stock_posted']===false,
+ 'independent physical inspection stored without stock posting');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::decide(
+ $returnInspector,$returnId,true
+),'maker_checker_required');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::decide(
+ $returnMaker,$returnId,true
+),'maker_checker_required');
+$returnDecision=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::decide(
+ $returnApprover,$returnId,true
+);
+checkSales($returnDecision['status']==='refund_pending' && $returnDecision['refund_posted']===false &&
+ $returnDecision['credit_note_posted']===false,'third independent approver keeps refund pending');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::decide(
+ $returnApprover,$returnId,true
+),'prepaid_return_state_invalid');
+checkSales(count(\ExcelHerbal\ERP7\Sales\PrepaidReturnService::list($returnApprover,1))===1,
+ 'scoped return queue readable');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('prepaid_return_requests'))===1,
+ 'full-return uniqueness enforced');
+checkSales((float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE product_id=1')===$returnStock,
+ 'return intake did not inflate warehouse stock');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger'))===$returnLedger,
+ 'return intake did not change custody or stock ledger');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'))===$returnJournal,
+ 'return intake did not reverse sales or disburse money');
+checkSales((int)$db->get_var("SELECT COUNT(*) FROM ".Db::table('prepaid_sales_order_payments')." WHERE order_id=".(int)$post['id']." AND status='confirmed'")===$returnPayment,
+ 'confirmed original payment evidence remains immutable');
+echo "PASS prepaid return physical receipt and independent approval remain refund_pending until verified refund posting exists\n";
 
  // A paid prepaid invoice cannot be reversed by the generic finance route:
  // there is no verified refund record / prepaid order state transition yet.
