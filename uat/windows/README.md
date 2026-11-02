@@ -59,3 +59,18 @@ Commit in small batches. Let GitHub Actions automatically run the full PHP/Maria
 - Back up the **synthetic UAT database** plus plugin release artifacts to E:, and test restore before migration. Windows Task Scheduler can run locally after backup jobs are audited; the PC must be powered on.
 - No Railway paid upgrade, new cloud server, Docker Desktop license, domain or remote-tunnel service is required for **local development**.
 - **Limitations:** a localhost site is not visible publicly or on a different phone without an explicitly secured networking plan; production still requires existing live hosting, tested migration and release approval. The currently prepared `uat/local/compose.yml` requires Docker and is not the preferred path while BIOS virtualization remains unavailable.
+
+### Running the actual local ERP employee login smoke
+
+The local site has been created using **WordPress 7.1.4 / PHP 8.3.36 / MariaDB 10.11** at `http://127.0.0.1:18880/erp-uat`. Only synthetic users may be used. Before running, check that the official WordPress package hash matches, the ERP staging health is sanitized/seeded, and the exact source Git SHA is pinned in `wp-config.php`.
+
+The operator's synthetic local credentials are kept in `D:\ERP-Local-Secrets\local-uat-app.json` (outside Git and with user-only filesystem ACLs). The script reads the file without printing secrets or tokens; do **not** upload or paste it. Never use live/real employee credentials.
+
+```powershell
+cd D:\ERP7-Development
+node .\uat\windows\local-auth-smoke.mjs
+```
+
+Or open VS Code **Terminal → Run Task → ERP: Local Synthetic Login UAT**. Tests include localhost-only health and source verification, denial of anonymous/wrong-password access, synthetic mobile login and Flutter bootstrap, refresh-token rotation and replay denial, logout, administrator branch-scoped sales/payment lookups, and final session cleanup. This script was added to GitHub while Desktop Commander was disconnected: **its end-to-end execution is pending until the authorized PC is online again**.
+
+**Source pin caution:** New GitHub commits are not automatically the locally deployed PHP source. `git pull` can alter the plugin's junction target. Before updating the local UAT checkout, back up its synthetic database, review migrations and intentionally update `EH7_SOURCE_HEAD` and staging markers for the new tested commit. Do not bypass the source-match guard or import production records.
