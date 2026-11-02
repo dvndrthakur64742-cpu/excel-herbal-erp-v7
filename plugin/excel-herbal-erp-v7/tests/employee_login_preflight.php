@@ -33,6 +33,10 @@ $shared=EmployeeLoginPreflight::assess('active',41,true,false,'9000000099',false
 preflightCheck($shared['identity_state']==='linked' && !$shared['can_reset_subscriber_password'],'duplicate WP link disables manual password reset');
 preflightCheck(in_array('wp_identity_duplicate_link',$shared['blockers'],true),'duplicate linked WP identity flagged for ownership review');
 
+$brokenShared=EmployeeLoginPreflight::assess('active',86,false,false,'9000000098',false,false,true);
+preflightCheck($brokenShared['identity_state']==='broken' && !$brokenShared['new_subscriber_candidate'],'shared orphaned WP ID cannot be marked safe for a new subscriber');
+preflightCheck(in_array('wp_identity_duplicate_link',$brokenShared['blockers'],true),'broken duplicate WP identity is held for manual review');
+
 $admin=preflight('active',17,true,true,'9000000015');
 preflightCheck($admin['identity_state']==='linked' && !$admin['can_reset_subscriber_password'] && in_array('privileged_wordpress_identity',$admin['blockers'],true),'privileged WP account cannot be reset through ERP');
 
