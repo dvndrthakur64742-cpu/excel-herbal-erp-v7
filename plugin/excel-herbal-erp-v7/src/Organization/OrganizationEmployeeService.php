@@ -64,6 +64,7 @@ final class OrganizationEmployeeService{
  public static function setEmployeeCredentials(Actor $a,int $employeeId,array $data,string $requiredCapability=Capabilities::EMP_MANAGE):array{
   $db=Db::wpdb();$table=Db::table('employees');$e=$db->get_row($db->prepare("SELECT * FROM {$table} WHERE id=%d AND company_id=%d AND status='active'",$employeeId,$a->companyId),ARRAY_A);
   if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],$requiredCapability);
+  $verified=EmployeeIdentityAttestation::requireForCredentialChange($data);
   $mobile=self::normaliseMobile((string)($e['mobile']??''));if($mobile==='')throw new DomainException('Employee mobile is required before enabling mobile login.','mobile_required',422);self::assertMobileAvailable($mobile,$employeeId);
   $password=(string)($data['password']??'');if(trim($password)==='')throw new DomainException('Password is required to enable or reset mobile login.','password_required',422);if(strlen($password)<10)throw new DomainException('Mobile login password must be at least 10 characters.','password_too_short',422);
   $uid=(int)($e['wp_user_id']??0);
@@ -71,6 +72,8 @@ final class OrganizationEmployeeService{
   // Never reset credentials for a WP account referenced by another employee row.
   if($uid>0&&self::wpIdentityHasOtherEmployeeLink($uid,$employeeId))throw new DomainException('WordPress identity is linked to more than one employee. Manual ownership review required.','wp_identity_duplicate_link',409);
   if($uid<1||!get_user_by('id',$uid)){
+   // Broken/unlinked accounts require an access administrator, not just branch staff.
+   Guard::cap($a,Capabilities::ACCESS_MANAGE);
    // Re-provision only a missing account. Never repurpose another existing WordPress identity.
    $previousUid=$uid;
    $uid=self::createWordPressUser($a->companyId,(string)$e['employee_code'],(string)$e['full_name'],(string)($e['email']??''),$password,$mobile);
@@ -83,7 +86,7 @@ final class OrganizationEmployeeService{
    wp_set_password($password,$uid);
   }
   $revoked=$db->update(Db::table('mobile_sessions'),['revoked_at'=>Db::now()],['employee_id'=>$employeeId]);if($revoked===false)throw new DomainException('Existing mobile sessions could not be revoked.','session_revoke_failed',500);
-  Audit::add($a,'employee.login_credentials_reset','employee',$employeeId,['branch_id'=>(int)$e['assigned_branch_id'],'wp_user_id'=>$uid]);
+  Audit::add($a,'employee.login_credentials_reset','employee',$employeeId,['branch_id'=>(int)$e['assigned_branch_id'],'wp_user_id'=>$uid,'verification_method'=>$verified['method'],'verification_reference'=>$verified['reference']]);
   return['id'=>$employeeId,'login_enabled'=>true,'sessions_revoked'=>true,'password_updated'=>true];
  }
  public static function employeeLoginStatus(Actor $a,int $employeeId):array{
