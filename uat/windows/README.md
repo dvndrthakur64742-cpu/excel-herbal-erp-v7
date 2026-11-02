@@ -71,6 +71,12 @@ cd D:\ERP7-Development
 node .\uat\windows\local-auth-smoke.mjs
 ```
 
-Or open VS Code **Terminal → Run Task → ERP: Local Synthetic Login UAT**. Tests include localhost-only health and source verification, denial of anonymous/wrong-password access, synthetic mobile login and Flutter bootstrap, refresh-token rotation and replay denial, logout, administrator branch-scoped sales/payment lookups, and final session cleanup. This script was added to GitHub while Desktop Commander was disconnected: **its end-to-end execution is pending until the authorized PC is online again**.
+Or open VS Code **Terminal → Run Task → ERP: Local Synthetic Login UAT**. Tests include localhost-only health and source verification, denial of anonymous/wrong-password access, synthetic mobile login and Flutter bootstrap, refresh-token rotation and replay denial, logout, administrator branch-scoped sales/payment lookups, and final session cleanup. **Executed on the authorized Windows PC (2026-11-02):** all localhost synthetic-login checks passed on the pinned local source `2e40eba61d97ef26b543c631682d0701af75b3bd`: incorrect login/anonymous denial, login, bootstrap, refresh rotation, token replay rejection, logout/revocation, branch-scoped sales/Cash/UPI and session cleanup. The development branch has since advanced; never silently substitute its head for the pinned local UAT release.
 
 **Source pin caution:** New GitHub commits are not automatically the locally deployed PHP source. `git pull` can alter the plugin's junction target. Before updating the local UAT checkout, back up its synthetic database, review migrations and intentionally update `EH7_SOURCE_HEAD` and staging markers for the new tested commit. Do not bypass the source-match guard or import production records.
+
+### Start the localhost ERP with one VS Code task
+
+In VS Code, open the reviewed D: workspace, then **Terminal → Run Task → ERP: Start Local ERP**. This calls `uat/windows/start-native-uat.ps1`. It checks that existing Apache and MariaDB ports belong to the localhost-only D: binaries; starts them if stopped; verifies the live localhost ERP staging/synthetic/source-matched health endpoint; then opens the local WordPress admin page. **Script passed an actual Windows localhost test on 2026-11-02** using `-NoBrowser`. It does not start Windows services or expose ports to the LAN.
+
+The local UAT is on `http://127.0.0.1:18880/erp-uat/wp-admin/` and is accessible only from the same Windows PC. The script checks the application's existing configured source marker, not that the current GitHub branch is deployed. After any Git pull, review the exact commit and migration/marker compatibility before starting again.
