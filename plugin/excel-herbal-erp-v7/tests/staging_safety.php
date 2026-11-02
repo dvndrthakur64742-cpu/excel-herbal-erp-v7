@@ -26,15 +26,15 @@ try{\ExcelHerbal\ERP7\Administration\StagingSafety::sanitize();fwrite(STDERR,"FA
 catch(\RuntimeException $e){if(!str_contains($e->getMessage(),'production office host')){fwrite(STDERR,"FAIL staging_safety_office_refusal_message\n");exit(1);}}
 echo "PASS staging_safety_refuses_office_host\n";
 
-\$testHost='uat.excelherbal.in';
-\$options['eh7_staging_sanitized_source_head']='outdated-staging-artifact';
-try{\ExcelHerbal\ERP7\Administration\StagingSafety::assertIsolatedUatMutationAllowed();fwrite(STDERR,"FAIL UAT cleanup stale source accepted\\n");exit(1);}
-catch(\ExcelHerbal\ERP7\Domain\DomainException \$e){if(\$e->codeKey!=='uat_cleanup_unsafe')throw \$e;}
-echo "PASS UAT cleanup refuses stale source marker\\n";
-\$options['eh7_staging_sanitized_source_head']=EH7_SOURCE_HEAD;
+$testHost='uat.excelherbal.in';
+$options['eh7_staging_sanitized_source_head']='outdated-staging-artifact';
+try{\ExcelHerbal\ERP7\Administration\StagingSafety::assertIsolatedUatMutationAllowed();fwrite(STDERR,"FAIL UAT cleanup stale source accepted\n");exit(1);}
+catch(\ExcelHerbal\ERP7\Domain\DomainException $e){if($e->codeKey!=='uat_cleanup_unsafe')throw $e;}
+echo "PASS UAT cleanup refuses stale source marker\n";
+$options['eh7_staging_sanitized_source_head']=EH7_SOURCE_HEAD;
 \ExcelHerbal\ERP7\Administration\StagingSafety::assertIsolatedUatMutationAllowed();
-echo "PASS UAT cleanup permits only sanitized isolated source-matched clone\\n";
-\$testHost='office.excelherbal.in';
-try{\ExcelHerbal\ERP7\Administration\StagingSafety::assertIsolatedUatMutationAllowed();fwrite(STDERR,"FAIL UAT cleanup production host accepted\\n");exit(1);}
-catch(\ExcelHerbal\ERP7\Domain\DomainException \$e){if(\$e->codeKey!=='uat_cleanup_host_forbidden')throw \$e;}
-echo "PASS UAT cleanup refuses office production host\\n";
+echo "PASS UAT cleanup permits only sanitized isolated source-matched clone\n";
+$testHost='office.excelherbal.in';
+try{\ExcelHerbal\ERP7\Administration\StagingSafety::assertIsolatedUatMutationAllowed();fwrite(STDERR,"FAIL UAT cleanup production host accepted\n");exit(1);}
+catch(\ExcelHerbal\ERP7\Domain\DomainException $e){if($e->codeKey!=='uat_cleanup_host_forbidden')throw $e;}
+echo "PASS UAT cleanup refuses office production host\n";
