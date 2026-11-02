@@ -44,7 +44,7 @@ final class OrganizationEmployeeService{
    }elseif($mobile!==''&&$provisionLogin){
     $generatedPassword=$password==='';if(!$generatedPassword&&strlen($password)<10)throw new DomainException('Mobile login password must be at least 10 characters.','password_too_short',422);
     $password=$generatedPassword?wp_generate_password(24,true,true):$password;
-    $uid=self::createWordPressUser($a->companyId,$code,$name,$email,$password);$provisioned=true;$notify=$generatedPassword&&$email!=='';
+    $uid=self::createWordPressUser($a->companyId,$code,$name,$email,$password,$mobile);$provisioned=true;$notify=$generatedPassword&&$email!=='';
    }
    Db::mustInsert($db,Db::table('employees'),[
     'company_id'=>$a->companyId,'employee_code'=>$code,'wp_user_id'=>$uid,'designation_code'=>$designation,'reporting_designation_code'=>$reportingDesignation?:null,'assigned_branch_id'=>$branch,'reporting_employee_id'=>$reporting,
@@ -69,7 +69,7 @@ final class OrganizationEmployeeService{
   $uid=(int)($e['wp_user_id']??0);if($uid<1||!get_user_by('id',$uid)){
    // Re-provision only a missing account. Never repurpose another existing WordPress identity.
    $previousUid=$uid;
-   $uid=self::createWordPressUser($a->companyId,(string)$e['employee_code'],(string)$e['full_name'],(string)($e['email']??''),$password);
+   $uid=self::createWordPressUser($a->companyId,(string)$e['employee_code'],(string)$e['full_name'],(string)($e['email']??''),$password,$mobile);
    Db::mustUpdate($db,$table,['wp_user_id'=>$uid,'mobile'=>$mobile,'updated_at'=>Db::now()],['id'=>$employeeId,'company_id'=>$a->companyId]);
    Audit::add($a,'employee.login_identity_repaired','employee',$employeeId,['previous_wp_user_id'=>$previousUid,'new_wp_user_id'=>$uid]);
   }else{
@@ -181,9 +181,13 @@ final class OrganizationEmployeeService{
   $roles=(array)($target->roles??[]);
   return $roles!==['subscriber']||user_can($target,'edit_posts')||user_can($target,'edit_users')||user_can($target,'manage_options')||user_can($target,'activate_plugins');
  }
- private static function createWordPressUser(int $companyId,string $employeeCode,string $name,string $email,string $password):int{
+ private static function createWordPressUser(int $companyId,string $employeeCode,string $name,string $email,string $password,string $mobile):int{
+  // New ERP subscribers use the exact normalized mobile as their WP login.
+  // Existing WordPress users are never renamed or silently adopted.
+  $login=self::normaliseMobile($mobile);
+  if(!preg_match('/^[0-9]{8,15}$/D',$login))throw new DomainException('Valid employee mobile is required for WordPress login.','mobile_invalid',422);
+  if(username_exists($login))throw new DomainException('This mobile number is already a WordPress username. Verify identity before linking.','wp_mobile_username_in_use',409);
   if($email!==''&&email_exists($email))throw new DomainException('Employee email is already used by another WordPress account.','wp_email_in_use',409);
-  $base=sanitize_user(strtolower('eh7_'.$companyId.'_'.$employeeCode),true);if($base==='')$base='eh7_'.$companyId.'_employee';$login=$base;$n=1;while(username_exists($login)){$login=$base.'_'.(++$n);if($n>1000)throw new DomainException('Unable to allocate WordPress login.','wp_user_create_failed',500);}
   $uid=wp_insert_user(['user_login'=>$login,'user_pass'=>$password,'user_email'=>$email,'display_name'=>$name,'role'=>'subscriber']);
   if(is_wp_error($uid))throw new DomainException('Unable to create employee login: '.$uid->get_error_message(),'wp_user_create_failed',500);return (int)$uid;
  }
