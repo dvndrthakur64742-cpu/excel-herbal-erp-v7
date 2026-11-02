@@ -42,18 +42,37 @@ if [[ "${WP_ENVIRONMENT_TYPE:-}" != "staging" ]]; then
   echo "FATAL isolated UAT requires WP_ENVIRONMENT_TYPE=staging" >&2
   exit 65
 fi
-# Railway provides the exact deployed Git commit for GitHub deployments.
-# Do not rely on the old EH7_SOURCE_HEAD variable, which can remain pinned
-# to a previous UAT candidate after a source change.
-if [[ ! "${RAILWAY_GIT_COMMIT_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
-  echo "FATAL UAT requires GitHub deployment with RAILWAY_GIT_COMMIT_SHA" >&2
-  exit 66
-fi
-export EH7_SOURCE_HEAD="${RAILWAY_GIT_COMMIT_SHA,,}"
-if [[ "${EH7_UAT_SITE_URL}" != "https://wordpress-uat-production.up.railway.app" ]]; then
-  echo "FATAL UAT is locked to the explicitly isolated Railway host" >&2
-  exit 66
-fi
+# Railway and local Docker share the same synthetic-only image and
+# WordPress startup checks, but each has an explicit isolated host allowlist.
+# Never accept office.excelherbal.in or arbitrary public URLs here.
+case "${EH7_UAT_MODE:-railway}" in
+  railway)
+    if [[ ! "${RAILWAY_GIT_COMMIT_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+      echo "FATAL Railway UAT requires exact RAILWAY_GIT_COMMIT_SHA" >&2
+      exit 66
+    fi
+    export EH7_SOURCE_HEAD="${RAILWAY_GIT_COMMIT_SHA,,}"
+    if [[ "${EH7_UAT_SITE_URL}" != "https://wordpress-uat-production.up.railway.app" ]]; then
+      echo "FATAL Railway UAT host is not on the allowlist" >&2
+      exit 66
+    fi
+    ;;
+  local)
+    if [[ ! "${EH7_LOCAL_SOURCE_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+      echo "FATAL local UAT requires exact EH7_LOCAL_SOURCE_SHA" >&2
+      exit 66
+    fi
+    export EH7_SOURCE_HEAD="${EH7_LOCAL_SOURCE_SHA,,}"
+    if [[ "${EH7_UAT_SITE_URL}" != "http://127.0.0.1:18880" ]]; then
+      echo "FATAL local UAT is allowed only on 127.0.0.1:18880" >&2
+      exit 66
+    fi
+    ;;
+  *)
+    echo "FATAL unknown UAT mode" >&2
+    exit 66
+    ;;
+esac
 
 /usr/local/bin/docker-entrypoint.sh "$@" &
 apache_pid=$!
