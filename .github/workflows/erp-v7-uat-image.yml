@@ -51,7 +51,7 @@ jobs:
         run: |
           docker run --rm --entrypoint sh eh7-uat:review -ec '
             test -f /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
-            grep -q "7.3.10-rc2" /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
+            grep -q "7.3.12-rc1" /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
             test -e /etc/apache2/mods-enabled/rewrite.load
             test -e /etc/apache2/conf-enabled/eh7-uat-rewrite.conf
             php -l /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
