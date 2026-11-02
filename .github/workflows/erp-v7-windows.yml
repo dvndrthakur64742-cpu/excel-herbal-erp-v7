@@ -32,6 +32,8 @@ jobs:
             throw 'Windows native doctor failed to detect build prerequisites'
           }
           Write-Host "PASS native readiness doctor"
+      - name: Syntax-check localhost-only login smoke test (no secrets or server)
+        run: node --check uat/windows/local-auth-smoke.mjs
       - name: Run fast local QA in Windows PowerShell
         shell: pwsh
         run: |
