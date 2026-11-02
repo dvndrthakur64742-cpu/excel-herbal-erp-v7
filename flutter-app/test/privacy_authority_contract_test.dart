@@ -190,7 +190,7 @@ void main() {
     expect(employee, contains('AccessService::assertCanDelegateCapabilities'));
     expect(employee, contains('AccessService::assertCanAdministerEmployeeIdentity'));
     expect(branch, contains('HierarchyScope::assertCanManageEmployeeAccess'));
-    expect(branch, contains('HierarchyScope::hasCompanyWideSystemAuthority'));
+    expect(branch, contains('Guard::branch(\$a,\$branch,Capabilities::ACCESS_MANAGE)'));
   });
 
   test('canonical communication and password UX stay aligned', () {
