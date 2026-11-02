@@ -1181,6 +1181,16 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       );
       if (!mounted) return;
       final password = TextEditingController();
+      final verificationCase = TextEditingController();
+      final preflight = status['repair_preflight'] is Map
+          ? Map<String, dynamic>.from(status['repair_preflight'] as Map)
+          : <String, dynamic>{};
+      final canReset = preflight['can_reset_subscriber_password'] == true;
+      final canProvision = preflight['new_subscriber_candidate'] == true &&
+          ref.read(appStateProvider).can('administration.access.manage');
+      final canSave = canReset || canProvision;
+      String? method;
+      bool verified = false;
       String? validation;
       await showDialog<void>(
         context: context,
@@ -1189,8 +1199,9 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
             title: Text('${employee['full_name']} · App Login'),
             content: SizedBox(
               width: 500,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -1216,6 +1227,30 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       helperText: 'Minimum 10 characters',
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: method,
+                    decoration: const InputDecoration(labelText: 'Identity verification method'),
+                    items: const [
+                      DropdownMenuItem(value: 'in_person', child: Text('In person')),
+                      DropdownMenuItem(value: 'registered_mobile_callback', child: Text('Registered mobile callback')),
+                    ],
+                    onChanged: (value) => setLocal(() => method = value),
+                  ),
+                  TextField(
+                    controller: verificationCase,
+                    maxLength: 64,
+                    decoration: const InputDecoration(labelText: 'Internal verification case reference', hintText: 'HR-CASE-1234'),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: verified,
+                    onChanged: (value) => setLocal(() => verified = value == true),
+                    title: const Text('Employee identity independently confirmed'),
+                  ),
+                  if (!canSave)
+                    const Text('Login repair requires administrator review or a compatible server.'),
                   if (validation != null) ...[
                     const SizedBox(height: 8),
                     Align(
@@ -1233,6 +1268,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                     'Share credentials only through an approved secure channel. Password reset automatically revokes existing mobile sessions.',
                   ),
                 ],
+                ),
               ),
             ),
             actions: [
@@ -1283,12 +1319,53 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                 label: const Text('Revoke Sessions'),
               ),
               FilledButton.icon(
-                onPressed: () async {
+                onPressed: !canSave ? null : () async {
                   if (password.text.length < 10) {
                     setLocal(
                       () => validation =
                           'Password must contain at least 10 characters.',
                     );
+                    return;
+                  }
+                  if (!verified || method == null ||
+                      !RegExp(r'^[A-Za-z][A-Za-z0-9_.-]{5,63}
+                      data: {
+                        'password': password.text,
+                        'identity_verified': true,
+                        'verification_method': method,
+                        'verification_reference': verificationCase.text.trim(),
+                      },
+                    );
+                    if (!mounted || !dialogContext.mounted) return;
+                    Navigator.pop(dialogContext);
+                    _setOrganizationState(() {
+                      refresh++;
+                      message = 'Employee app login password updated.';
+                    });
+                  } catch (e) {
+                    if (dialogContext.mounted) {
+                      setLocal(() => validation = UiError.message(e));
+                    }
+                  }
+                },
+                icon: const Icon(Icons.password_rounded),
+                label: const Text('Save Password'),
+              ),
+            ],
+          ),
+        ),
+      );
+      password.dispose();
+      verificationCase.dispose();
+    } catch (e) {
+      if (mounted) {
+        _setOrganizationState(() => message = UiError.message(e));
+      }
+    }
+  }
+
+).hasMatch(verificationCase.text.trim())) {
+                    setLocal(() => validation = 'Confirm identity, select a method, and enter an internal case reference.');
                     return;
                   }
                   try {
