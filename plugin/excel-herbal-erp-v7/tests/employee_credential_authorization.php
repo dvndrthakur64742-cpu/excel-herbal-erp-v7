@@ -41,6 +41,16 @@ final class CredentialSecurityDb{
 $wpdb=new CredentialSecurityDb();
 $manager=new Actor(2,6,10,20,[20],[Capabilities::EMP_MANAGE],'BM');
 $admin=new Actor(1,1,10,20,[20],[Capabilities::EMP_MANAGE],'SYSADMIN');
+// No password mutation before an explicit, auditable identity confirmation.
+$wpdb->target=4;$wpdb->sharedWpLink=false;$wpdb->updates=[];$GLOBALS['changed_password_for']=[];
+try{
+ OrganizationEmployeeService::setEmployeeCredentials($manager,8,['password'=>'strong-synthetic-pass-1234']);
+ $failed=1;echo "FAIL missing_identity_attestation: accepted\n";
+}catch(DomainException $e){
+ if($e->codeKey!=='employee_identity_confirmation_required'||$GLOBALS['changed_password_for']||$wpdb->updates){
+  $failed=1;echo "FAIL missing_identity_attestation: ".$e->codeKey." / mutation\n";
+ }else{$failed=0;echo "PASS missing_identity_attestation\n";}
+}
 $cases=[
   ['manager_cannot_reset_wp_administrator',$manager,1,'privileged_account_password_protected'],
   ['manager_cannot_reset_wp_editor',$manager,3,'privileged_account_password_protected'],
@@ -48,11 +58,11 @@ $cases=[
   ['manager_can_reset_subscriber',$manager,4,null],
   ['wp_admin_must_reset_wp_admin_via_wordpress',$admin,1,'privileged_account_password_protected'],
 ];
-$failed=0;
+// Preserve preceding attestation failure (do not reset $failed).
 foreach($cases as [$label,$actor,$target,$expectedError]){
   $wpdb->target=$target;$wpdb->updates=[];$GLOBALS['changed_password_for']=[];
   try{
-    $result=OrganizationEmployeeService::setEmployeeCredentials($actor,8,['password'=>'strong-synthetic-pass-1234']);
+    $result=OrganizationEmployeeService::setEmployeeCredentials($actor,8,['password'=>'strong-synthetic-pass-1234','identity_verified'=>true,'verification_method'=>'in_person','verification_reference'=>'HR-CASE-001']);
     if($expectedError!==null||$GLOBALS['changed_password_for']!==[$target]||!($result['password_updated']??false)||count($wpdb->updates)!==1)throw new RuntimeException('Unexpected credential mutation');
     echo "PASS $label\n";
   }catch(DomainException $e){
@@ -63,7 +73,7 @@ foreach($cases as [$label,$actor,$target,$expectedError]){
 // Even valid subscribers cannot be reset when the WordPress ID appears on another employee.
 $wpdb->target=4;$wpdb->sharedWpLink=true;$wpdb->updates=[];$GLOBALS['changed_password_for']=[];
 try{
- OrganizationEmployeeService::setEmployeeCredentials($manager,8,['password'=>'strong-synthetic-pass-1234']);
+ OrganizationEmployeeService::setEmployeeCredentials($manager,8,['password'=>'strong-synthetic-pass-1234','identity_verified'=>true,'verification_method'=>'in_person','verification_reference'=>'HR-CASE-001']);
  $failed++;echo "FAIL shared_wp_identity_password_reset: unexpected success\n";
 }catch(DomainException $e){
  if($e->codeKey!=='wp_identity_duplicate_link'||$GLOBALS['changed_password_for']||$wpdb->updates){
@@ -77,7 +87,7 @@ if(($status['repair_preflight']['can_reset_subscriber_password']??true)!==false 
 }else echo "PASS duplicate WP linked status preflight\n";
 $wpdb->target=777;$wpdb->updates=[];$wpdb->inserted=[];$GLOBALS['changed_password_for']=[];
 try{
- OrganizationEmployeeService::setEmployeeCredentials($manager,8,['password'=>'strong-synthetic-pass-1234']);
+ OrganizationEmployeeService::setEmployeeCredentials($manager,8,['password'=>'strong-synthetic-pass-1234','identity_verified'=>true,'verification_method'=>'in_person','verification_reference'=>'HR-CASE-001']);
  $failed++;echo "FAIL missing_shared_wp_identity_reset: unexpected success\n";
 }catch(DomainException $e){
  if($e->codeKey!=='wp_identity_duplicate_link'||$GLOBALS['changed_password_for']||$wpdb->updates||$wpdb->inserted){
@@ -91,6 +101,15 @@ if(($brokenStatus['repair_preflight']['new_subscriber_candidate']??true)!==false
 }else echo "PASS missing shared WP identity preflight\n";
 $wpdb->sharedWpLink=false;
 
+$wpdb->target=777;$wpdb->sharedWpLink=false;$wpdb->updates=[];$wpdb->inserted=[];$GLOBALS['changed_password_for']=[];
+try{
+ OrganizationEmployeeService::setEmployeeCredentials($manager,8,['password'=>'strong-synthetic-pass-1234','identity_verified'=>true,'verification_method'=>'in_person','verification_reference'=>'HR-CASE-001']);
+ $failed++;echo "FAIL missing_account_requires_access_admin: accepted\n";
+}catch(DomainException $e){
+ if($e->codeKey!=='permission_denied'||$GLOBALS['changed_password_for']||$wpdb->updates||$wpdb->inserted){
+  $failed++;echo "FAIL missing_account_requires_access_admin: ".$e->codeKey." / mutation\n";
+ }else echo "PASS missing_account_requires_access_admin\n";
+}
 // Prevent ERP managers from linking a privileged WordPress account to a newly created employee.
 $wpdb->inserted=[];$wpdb->queries=[];
 $employee=['assigned_branch_id'=>20,'employee_code'=>'SYN-99','full_name'=>'Synthetic New Hire','designation_code'=>'EMPLOYEE','monthly_salary'=>10000,'mobile'=>'','joining_date'=>'2026-10-30','wp_user_id'=>1];
