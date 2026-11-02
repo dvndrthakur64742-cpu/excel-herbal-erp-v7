@@ -207,7 +207,7 @@ denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::inspect(
 ),'prepaid_return_inspection_required');
 denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::inspect(
  $returnForeign,$returnId,'UAT-PHYSICAL-001'
-),'permission_denied');
+),'branch_forbidden');
 $returnPhysical=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::inspect(
  $returnInspector,$returnId,'UAT-PHYSICAL-001','Fixture goods physically checked'
 );
