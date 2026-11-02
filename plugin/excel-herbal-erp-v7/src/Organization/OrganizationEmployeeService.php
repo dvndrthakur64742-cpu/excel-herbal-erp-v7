@@ -90,7 +90,7 @@ final class OrganizationEmployeeService{
   $db=Db::wpdb();$t=Db::table('employees');$e=$db->get_row($db->prepare("SELECT id,employee_code,full_name,mobile,email,assigned_branch_id,status,wp_user_id FROM {$t} WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);
   if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::EMP_MANAGE);$uid=(int)($e['wp_user_id']??0);$activeSessions=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('mobile_sessions')." WHERE employee_id=%d AND revoked_at IS NULL AND refresh_expires_at>%s",$employeeId,Db::now()));
   $linkedUser=$uid>0?get_user_by('id',$uid):false;
-  $sharedWpIdentity=$linkedUser!==false&&self::wpIdentityHasOtherEmployeeLink($uid,$employeeId);
+  $sharedWpIdentity=$uid>0&&self::wpIdentityHasOtherEmployeeLink($uid,$employeeId);
   $mobile=self::normaliseMobile((string)($e['mobile']??''));
   $validMobile=preg_match('/^[0-9]{8,15}$/D',$mobile)===1;
   // Never adopt an unrelated WordPress user; report collisions for manual review only.
