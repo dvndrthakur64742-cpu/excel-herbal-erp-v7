@@ -23,6 +23,7 @@ final class MaintenanceService{
    $r=self::cleanupInternal();Audit::add($a,'maintenance.cleanup','system',0,$r);return$r;
   }
   if($operation!=='resolve_uat_anomalies')throw new DomainException('Unknown maintenance operation.','maintenance_operation_invalid',422);
+  StagingSafety::assertIsolatedUatMutationAllowed();
   $confirmation=trim((string)($input['confirmation']??''));$reason=trim((string)($input['reason']??''));
   if($confirmation!=='RESOLVE_UAT_ANOMALIES')throw new DomainException('Explicit UAT cleanup confirmation is required.','maintenance_confirmation_required',422);
   if(strlen($reason)<10)throw new DomainException('UAT cleanup reason must contain at least 10 characters.','reason_required',422);
