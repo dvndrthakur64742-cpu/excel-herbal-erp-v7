@@ -85,7 +85,15 @@ final class OrganizationEmployeeService{
  public static function employeeLoginStatus(Actor $a,int $employeeId):array{
   $db=Db::wpdb();$t=Db::table('employees');$e=$db->get_row($db->prepare("SELECT id,employee_code,full_name,mobile,email,assigned_branch_id,status,wp_user_id FROM {$t} WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);
   if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::EMP_MANAGE);$uid=(int)($e['wp_user_id']??0);$activeSessions=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('mobile_sessions')." WHERE employee_id=%d AND revoked_at IS NULL AND refresh_expires_at>%s",$employeeId,Db::now()));
-  return['id'=>$employeeId,'employee_code'=>(string)$e['employee_code'],'full_name'=>(string)$e['full_name'],'status'=>(string)$e['status'],'mobile'=>(string)($e['mobile']??''),'email'=>(string)($e['email']??''),'login_enabled'=>$uid>0&&get_user_by('id',$uid)!==false,'wp_user_id'=>$uid?:null,'active_sessions'=>$activeSessions];
+  $linkedUser=$uid>0?get_user_by('id',$uid):false;
+  $mobile=self::normaliseMobile((string)($e['mobile']??''));
+  $validMobile=preg_match('/^[0-9]{8,15}$/D',$mobile)===1;
+  // Never adopt an unrelated WordPress user; report collisions for manual review only.
+  $mobileTaken=!$linkedUser&&$validMobile&&username_exists($mobile)!==false;
+  $email=trim((string)($e['email']??''));
+  $emailTaken=!$linkedUser&&$email!==''&&email_exists($email)!==false;
+  $preflight=EmployeeLoginPreflight::assess((string)$e['status'],$uid,$linkedUser!==false,$linkedUser!==false&&self::isPrivilegedWordPressIdentity($linkedUser),$mobile,$mobileTaken,$emailTaken);
+  return['id'=>$employeeId,'employee_code'=>(string)$e['employee_code'],'full_name'=>(string)$e['full_name'],'status'=>(string)$e['status'],'mobile'=>(string)($e['mobile']??''),'email'=>(string)($e['email']??''),'login_enabled'=>$linkedUser!==false,'wp_user_id'=>$uid?:null,'active_sessions'=>$activeSessions,'repair_preflight'=>$preflight];
  }
  public static function revokeEmployeeSessions(Actor $a,int $employeeId):array{
   $db=Db::wpdb();$t=Db::table('employees');$e=$db->get_row($db->prepare("SELECT id,assigned_branch_id FROM {$t} WHERE id=%d AND company_id=%d",$employeeId,$a->companyId),ARRAY_A);if(!$e)throw new DomainException('Employee not found.','employee_not_found',404);Guard::branch($a,(int)$e['assigned_branch_id'],Capabilities::EMP_MANAGE);$sql=$db->prepare("UPDATE ".Db::table('mobile_sessions')." SET revoked_at=%s WHERE employee_id=%d AND revoked_at IS NULL",Db::now(),$employeeId);$count=Db::mustQuery($db,$sql);Audit::add($a,'employee.sessions.revoke','employee',$employeeId,['revoked'=>$count]);return['id'=>$employeeId,'sessions_revoked'=>$count];
