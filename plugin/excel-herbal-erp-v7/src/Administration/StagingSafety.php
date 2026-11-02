@@ -26,6 +26,32 @@ final class StagingSafety {
         ];
     }
 
+    /**
+     * Bulk UAT anomaly resolution is destructive and must never run on the office host
+     * or an unsanitized staging copy, even if an operator has ACCESS_MANAGE.
+     */
+    public static function assertIsolatedUatMutationAllowed():void {
+        if(self::environment()!=='staging'){
+            throw new \ExcelHerbal\ERP7\Domain\DomainException('UAT resolution is allowed only in staging.','uat_cleanup_environment_forbidden',403);
+        }
+        $host=strtolower((string)parse_url((string)home_url('/'),PHP_URL_HOST));
+        if($host===''||$host==='office.excelherbal.in'){
+            throw new \ExcelHerbal\ERP7\Domain\DomainException('UAT resolution refuses the office production host.','uat_cleanup_host_forbidden',403);
+        }
+        $source=defined('EH7_SOURCE_HEAD')?(string)EH7_SOURCE_HEAD:'';
+        if(!preg_match('/^[a-f0-9]{40}$/i',$source)){
+            throw new \ExcelHerbal\ERP7\Domain\DomainException('UAT resolution requires a verifiable source commit.','uat_cleanup_source_forbidden',403);
+        }
+        $state=self::status();
+        if(($state['sanitized']??false)!==true||
+           ($state['source_head_match']??false)!==true||
+           ($state['active_mobile_sessions_zero']??false)!==true||
+           ($state['active_push_devices_zero']??false)!==true||
+           ($state['search_indexing_disabled']??false)!==true){
+            throw new \ExcelHerbal\ERP7\Domain\DomainException('UAT must be sanitized, isolated and source-verified before bulk resolution.','uat_cleanup_unsafe',409);
+        }
+    }
+
     public static function sanitize():array {
         if(self::environment()!=='staging')throw new \RuntimeException('Staging sanitizer refuses non-staging environments.');
         $host=strtolower((string)parse_url((string)home_url('/'),PHP_URL_HOST));
