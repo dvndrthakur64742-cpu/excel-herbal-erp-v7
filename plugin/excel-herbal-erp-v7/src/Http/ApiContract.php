@@ -10,7 +10,7 @@ use ExcelHerbal\ERP7\Domain\DomainException;
  */
 final class ApiContract
 {
-    public const VERSION='7.3.11-contract-return-intake-1';
+    public const VERSION='7.3.12-contract-refund-evidence-1';
 
     /** @return array<string,bool> */
     public static function featureFlags():array
@@ -18,6 +18,7 @@ final class ApiContract
         return [
             'prepaid_sales_orders_v1'=>true,
             'prepaid_return_intake_v1'=>true,
+            'prepaid_manual_refund_evidence_v1'=>true,
             'prepaid_refund_disbursement_v1'=>false,
             'prepaid_credit_note_posting_v1'=>false,
             'distributor_volume_price_list'=>true,
@@ -138,6 +139,8 @@ final class ApiContract
             'sales.return_request'=>['reason'],
             'sales.return_inspect'=>['inspection_reference'],
             'sales.return_decision'=>['approve'],
+            'sales.refund_evidence_submit'=>['original_payment_id','amount','evidence_reference'],
+            'sales.refund_evidence_verify'=>['verification_reference'],
             'sales.counter'=>['branch_id','lines'],
             'sales.receipt'=>['branch_id','sale_id','amount','payment_account_id'],
             'purchase.supplier_create'=>['name'],
