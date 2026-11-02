@@ -8,6 +8,7 @@ php tests/field_sales_rules.php
 php tests/employee_link_integrity.php
 php tests/employee_credential_authorization.php
 php tests/employee_mobile_username.php
+php tests/staging_safety.php
 php tests/attendance_schedule_contract.php
 php tests/security_scope_regression.php
 php tests/salary_authority_regression.php
