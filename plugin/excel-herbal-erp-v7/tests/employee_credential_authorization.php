@@ -28,10 +28,10 @@ function wp_set_password($password,$uid){$GLOBALS['changed_password_for'][]=$uid
 function wp_json_encode($v){return json_encode($v);}
 function current_time($fmt,$gmt=false){return '2026-10-31 12:00:00';}
 final class CredentialSecurityDb{
-  public string $prefix='wp_';public string $last_error='';public int $target=1;public array $updates=[];public int $insert_id=0;public array $inserted=[];public array $queries=[];
+  public string $prefix='wp_';public string $last_error='';public int $target=1;public bool $sharedWpLink=false;public array $updates=[];public int $insert_id=0;public array $inserted=[];public array $queries=[];
   public function prepare($q,...$args){return $q;}
   public function get_row($q,$mode){return ['id'=>8,'company_id'=>10,'assigned_branch_id'=>20,'status'=>'active','mobile'=>'9876543210','wp_user_id'=>$this->target,'employee_code'=>'TEST-8','full_name'=>'Synthetic Employee','email'=>''];}
-  public function get_var($q){return str_contains($q,'designations')?1:0;}
+  public function get_var($q){if(str_contains($q,'wp_user_id=%d AND id<>%d'))return $this->sharedWpLink?1:0;return str_contains($q,'designations')?1:0;}
   public function get_results($q,$mode){return [['id'=>8,'mobile'=>'9876543210']];}
   public function update($table,$values,$where){$this->updates[]=$table;return 1;}
   public function insert($table,$values){$this->inserted[]=$table;$this->insert_id++;return 1;}
@@ -59,6 +59,23 @@ foreach($cases as [$label,$actor,$target,$expectedError]){
     else echo "PASS $label\n";
   }catch(Throwable $e){$failed++;echo "FAIL $label: {$e->getMessage()}\n";}
 }
+// Even valid subscribers cannot be reset when the WordPress ID appears on another employee.
+$wpdb->target=4;$wpdb->sharedWpLink=true;$wpdb->updates=[];$GLOBALS['changed_password_for']=[];
+try{
+ OrganizationEmployeeService::setEmployeeCredentials($manager,8,['password'=>'strong-synthetic-pass-1234']);
+ $failed++;echo "FAIL shared_wp_identity_password_reset: unexpected success\n";
+}catch(DomainException $e){
+ if($e->codeKey!=='wp_identity_duplicate_link'||$GLOBALS['changed_password_for']||$wpdb->updates){
+  $failed++;echo "FAIL shared_wp_identity_password_reset: ".$e->codeKey." / side effect\n";
+ }else echo "PASS shared_wp_identity_password_reset\n";
+}
+$status=OrganizationEmployeeService::employeeLoginStatus($manager,8);
+if(($status['repair_preflight']['can_reset_subscriber_password']??true)!==false ||
+   !in_array('wp_identity_duplicate_link',$status['repair_preflight']['blockers']??[],true)){
+ $failed++;echo "FAIL duplicate WP linked status preflight\n";
+}else echo "PASS duplicate WP linked status preflight\n";
+$wpdb->sharedWpLink=false;
+
 // Prevent ERP managers from linking a privileged WordPress account to a newly created employee.
 $wpdb->inserted=[];$wpdb->queries=[];
 $employee=['assigned_branch_id'=>20,'employee_code'=>'SYN-99','full_name'=>'Synthetic New Hire','designation_code'=>'EMPLOYEE','monthly_salary'=>10000,'mobile'=>'','joining_date'=>'2026-10-30','wp_user_id'=>1];
