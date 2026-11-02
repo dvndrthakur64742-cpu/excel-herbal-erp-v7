@@ -184,7 +184,7 @@ checkSales($protectedSale>0,'fully paid synthetic counter sale exists');
 $reversalStartStock=(float)$db->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE product_id=1');
 $reversalStartJournal=(int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'));
 $reversalStartLedger=(int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger'));
-denySales(fn()=>\\ExcelHerbal\\ERP7\\Finance\\FinanceReversalService::requestReversal(
+denySales(fn()=>\ExcelHerbal\ERP7\Finance\FinanceReversalService::requestReversal(
  $reversalMaker,'counter_sale',$protectedSale,'Synthetic prepaid refund must be reconciled'
 ),'prepaid_refund_workflow_required');
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('reversals'))===0,
@@ -197,7 +197,7 @@ $legacyRequest=seed('reversals',[
  'status'=>'approved','requested_by'=>101,'requested_at'=>Db::now(),
  'decided_by'=>102,'decided_at'=>Db::now()
 ]);
-denySales(fn()=>\\ExcelHerbal\\ERP7\\Finance\\FinanceReversalService::executeReversal(
+denySales(fn()=>\ExcelHerbal\ERP7\Finance\FinanceReversalService::executeReversal(
  $reversalApprover,$legacyRequest
 ),'prepaid_refund_workflow_required');
 checkSales((string)$db->get_var('SELECT status FROM '.Db::table('reversals').
@@ -212,6 +212,6 @@ checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'
     'paid reversal did not create or reverse a journal');
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger'))===$reversalStartLedger,
     'paid reversal did not change stock ledger');
-echo "PASS generic reversal refused fully paid prepaid invoice until verified refund workflow exists\\n";
+echo "PASS generic reversal refused fully paid prepaid invoice until verified refund workflow exists\n";
 
 echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction and concurrent posting integration (synthetic only)\n";
