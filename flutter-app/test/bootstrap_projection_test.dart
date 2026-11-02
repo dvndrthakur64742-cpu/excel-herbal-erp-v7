@@ -35,6 +35,53 @@ void main() {
     expect(projection.branches.last.isHeadOffice, isTrue);
   });
 
+
+  test('bootstrap failure shows API error rather than generic null-data error', () {
+    const failed = AppState(
+      loading: false,
+      authenticated: true,
+      error: 'Network connection unavailable. Please try again.',
+    );
+    expect(failed.bootstrapReady, isFalse);
+    expect(failed.bootstrapFailureMessage,
+        'Network connection unavailable. Please try again.');
+    expect(failed.bootstrapCompatibilityError, 'ERP startup data is unavailable.');
+  });
+
+  test('missing server date remains blocked with a specific contract error', () {
+    const invalid = AppState(
+      authenticated: true,
+      bootstrap: {
+        'business_date': '2026-02-30',
+        'business_timezone': 'Asia/Kolkata',
+        'server_timestamp': '2026-11-02T12:00:00Z',
+        'api_contract': 'v7',
+        'features': {'api_contract': 'v7'},
+      },
+    );
+    expect(invalid.bootstrapReady, isFalse);
+    expect(invalid.bootstrapFailureMessage,
+        'ERP server business date is unavailable or invalid.');
+  });
+
+  test('a valid server contract is ready without local date fallback', () {
+    const valid = AppState(
+      authenticated: true,
+      bootstrap: {
+        'business_date': '2026-11-02',
+        'business_timezone': 'Asia/Kolkata',
+        'server_timestamp': '2026-11-02T12:00:00+00:00',
+        'api_contract': '7.3.12-contract-refund-evidence-1',
+        'features': {
+          'api_contract': '7.3.12-contract-refund-evidence-1',
+        },
+      },
+    );
+    expect(valid.bootstrapReady, isTrue);
+    expect(valid.usingFallbackBusinessDate, isFalse);
+    expect(valid.businessDate, '2026-11-02');
+  });
+
   test('AppState keeps raw map compatibility while using typed projection', () {
     const state = AppState(
       bootstrap: {
