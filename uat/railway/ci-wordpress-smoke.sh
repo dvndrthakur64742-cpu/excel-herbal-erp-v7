@@ -162,4 +162,61 @@ if(!JSON.stringify(x).includes("7.3.10"))throw new Error("Old plugin health");
 console.log("PASS pretty REST health JSON and 7.3.10 plugin");
 '
 node uat/railway/ci-auth-smoke.mjs
+
+# Credential changes run only after synthetic user HTTP login tests complete.
+# These WP users and data live in this disposable CI container, not Railway/live.
+docker exec "$wp_container" wp eval '
+global $wpdb;
+$t=$wpdb->prefix."eh7_employees";
+$r=$wpdb->get_row($wpdb->prepare(
+ "SELECT id,company_id,assigned_branch_id,wp_user_id FROM {$t} WHERE employee_code=%s AND status=%s",
+ "UAT-FIELD","active"),ARRAY_A);
+if(!$r||!($user=get_userdata((int)$r["wp_user_id"]))) {
+ fwrite(STDERR,"SYNTHETIC LOGIN TEST USER MISSING\n");exit(1);
+}
+$actor=new \ExcelHerbal\ERP7\Security\Actor(
+ 99999,99999,(int)$r["company_id"],(int)$r["assigned_branch_id"],
+ [(int)$r["assigned_branch_id"]],
+ [\ExcelHerbal\ERP7\Security\Capabilities::EMP_MANAGE,
+  \ExcelHerbal\ERP7\Security\Capabilities::ACCESS_MANAGE],
+ "SYSADMIN");
+$before=(string)$user->user_pass;
+try {
+ \ExcelHerbal\ERP7\Organization\OrganizationEmployeeService::setEmployeeCredentials(
+  $actor,(int)$r["id"],["password"=>"ci-test-password-after-identity"]);
+ fwrite(STDERR,"UNVERIFIED CREDENTIAL CHANGE ACCEPTED\n");exit(1);
+} catch (\ExcelHerbal\ERP7\Domain\DomainException $e) {
+ if($e->codeKey!=="employee_identity_confirmation_required"){
+  fwrite(STDERR,"WRONG IDENTITY CONFIRMATION FAILURE\n");exit(1);
+ }
+}
+clean_user_cache((int)$r["wp_user_id"]);
+if((string)get_userdata((int)$r["wp_user_id"])->user_pass!==$before){
+ fwrite(STDERR,"UNVERIFIED CREDENTIAL CHANGE MUTATED PASSWORD\n");exit(1);
+}
+$result=\ExcelHerbal\ERP7\Organization\OrganizationEmployeeService::setEmployeeCredentials(
+ $actor,(int)$r["id"],[
+ "password"=>"ci-test-password-after-identity",
+ "identity_verified"=>true,
+ "verification_method"=>"in_person",
+ "verification_reference"=>"CI-VERIFY-123"]);
+if(empty($result["password_updated"])){
+ fwrite(STDERR,"VERIFIED CREDENTIAL CHANGE FAILED\n");exit(1);
+}
+clean_user_cache((int)$r["wp_user_id"]);
+$user=get_userdata((int)$r["wp_user_id"]);
+if(!$user||!wp_check_password("ci-test-password-after-identity",(string)$user->user_pass,(int)$user->ID)){
+ fwrite(STDERR,"VERIFIED CREDENTIAL PASSWORD NOT UPDATED\n");exit(1);
+}
+$log=$wpdb->get_var($wpdb->prepare(
+ "SELECT context_json FROM ".$wpdb->prefix."eh7_audit_log WHERE company_id=%d AND entity_id=%s AND action=%s ORDER BY id DESC LIMIT 1",
+ (int)$r["company_id"],(string)$r["id"],"employee.login_credentials_reset"));
+$context=json_decode((string)$log,true);
+if(!is_array($context)||($context["verification_method"]??"")!=="in_person"||
+  ($context["verification_reference"]??"")!=="CI-VERIFY-123"){
+ fwrite(STDERR,"CREDENTIAL VERIFICATION AUDIT NOT RECORDED\n");exit(1);
+}
+echo "PASS real WordPress individual identity acknowledgement, password reset, and audit reference\n";
+' --path=/var/www/html --allow-root
+
 echo 'PASS isolated Docker WordPress + MariaDB smoke test'
