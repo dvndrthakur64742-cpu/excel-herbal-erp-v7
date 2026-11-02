@@ -180,7 +180,13 @@ void main() {
     expect(access, contains("'reserved_system_role_forbidden',403"));
     expect(access, contains('assertCanAdministerEmployeeIdentity'));
     expect(branchAuthority, contains('isCompanyWideAdmin'));
-    expect(branchAuthority, contains('Capabilities::ACCESS_MANAGE'));
+    // Company-wide authority is checked by the shared HierarchyScope policy,
+    // not by the data-only BranchAuthority class.
+    final hierarchy = File(
+      '../backend/excel-herbal-erp-v7/src/Security/HierarchyScope.php',
+    ).readAsStringSync();
+    expect(hierarchy, contains('hasCompanyWideSystemAuthority'));
+    expect(hierarchy, contains('return \$a->can(Capabilities::ACCESS_MANAGE) && BranchAuthority::isCompanyWideAdmin'));
     expect(employee, contains('AccessService::assertCanDelegateCapabilities'));
     expect(employee, contains('AccessService::assertCanAdministerEmployeeIdentity'));
     expect(branch, contains('HierarchyScope::assertCanManageEmployeeAccess'));
