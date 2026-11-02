@@ -10,13 +10,16 @@ use ExcelHerbal\ERP7\Domain\DomainException;
  */
 final class ApiContract
 {
-    public const VERSION='7.3.10-contract-3';
+    public const VERSION='7.3.11-contract-return-intake-1';
 
     /** @return array<string,bool> */
     public static function featureFlags():array
     {
         return [
             'prepaid_sales_orders_v1'=>true,
+            'prepaid_return_intake_v1'=>true,
+            'prepaid_refund_disbursement_v1'=>false,
+            'prepaid_credit_note_posting_v1'=>false,
             'distributor_volume_price_list'=>true,
             'discount_ho_threshold_fail_closed'=>true,
             'independent_sales_upi_verification'=>true,
@@ -131,6 +134,10 @@ final class ApiContract
             'sales.order_create'=>['branch_id','channel','lines'],
             'sales.order_collect'=>['payment_account_id','amount','method'],
             'sales.upi_verify'=>['bank_evidence_ref'],
+            'sales.return_list'=>['branch_id'],
+            'sales.return_request'=>['reason'],
+            'sales.return_inspect'=>['inspection_reference'],
+            'sales.return_decision'=>['approve'],
             'sales.counter'=>['branch_id','lines'],
             'sales.receipt'=>['branch_id','sale_id','amount','payment_account_id'],
             'purchase.supplier_create'=>['name'],
