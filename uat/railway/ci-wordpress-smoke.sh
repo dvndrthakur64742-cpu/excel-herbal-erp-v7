@@ -83,6 +83,67 @@ echo "PASS actual WordPress subscriber identity uses mobile number as username\n
 echo "PASS real WordPress activation, MariaDB migration, isolated synthetic seed\n";
 ' --path=/var/www/html --allow-root
 
+# Exercise the real GPS evidence SQL and first-fix projection on the isolated
+# synthetic WP/MariaDB database. Everything below is rolled back.
+docker exec "$wp_container" wp eval '
+global $wpdb;
+$employee=$wpdb->get_row($wpdb->prepare(
+ "SELECT id,company_id,assigned_branch_id FROM ".$wpdb->prefix."eh7_employees WHERE employee_code=%s AND status=%s",
+ "UAT-FIELD","active"),ARRAY_A);
+if(!$employee){fwrite(STDERR,"MISSING SYNTHETIC FIELD EMPLOYEE\n");exit(1);}
+$company=(int)$employee["company_id"];
+$branch=(int)$employee["assigned_branch_id"];
+$eid=(int)$employee["id"];
+$date=\ExcelHerbal\ERP7\Database\Db::today();
+$start=gmdate("Y-m-d H:i:s",time()-600);
+$pointTime=gmdate("Y-m-d H:i:s",time()-300);
+$attendance=$wpdb->prefix."eh7_attendance";
+$points=$wpdb->prefix."eh7_gps_points";
+$wpdb->query("START TRANSACTION");
+try{
+ $r=$wpdb->get_row($wpdb->prepare(
+  "SELECT id FROM {$attendance} WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",
+  $company,$eid,$date),ARRAY_A);
+ if(!$r){
+  $ok=$wpdb->insert($attendance,[
+   "company_id"=>$company,"branch_id"=>$branch,"employee_id"=>$eid,
+   "business_date"=>$date,"status"=>"present","check_in_at"=>$start,
+   "created_at"=>$start]);
+  if(!$ok)throw new \RuntimeException("Attendance test seed failed");
+  $attendanceId=(int)$wpdb->insert_id;
+ }else{
+  $attendanceId=(int)$r["id"];
+  $wpdb->update($attendance,["check_in_at"=>$start,"check_out_at"=>null,
+   "check_in_lat"=>null,"check_in_lng"=>null],["id"=>$attendanceId]);
+ }
+ $gps=\ExcelHerbal\ERP7\Workforce\AttendanceGpsEvidence::class;
+ if($gps::hasVerifiedMorningPoint($company,$branch,$eid,$date))
+  throw new \RuntimeException("Stock request accepted without first GPS point");
+ if(!$wpdb->insert($points,["company_id"=>$company,"branch_id"=>$branch,
+  "employee_id"=>$eid,"attendance_id"=>$attendanceId,
+  "latitude"=>31.701,"longitude"=>76.93,"recorded_at"=>$pointTime,
+  "source"=>"duty","created_at"=>$pointTime]))
+  throw new \RuntimeException("GPS point test seed failed");
+ $pointId=(int)$wpdb->insert_id;
+ $gps::captureFirstPoint($wpdb,$attendanceId,$company,$eid,31.701,76.93);
+ if(!$gps::hasVerifiedMorningPoint($company,$branch,$eid,$date))
+  throw new \RuntimeException("Matching GPS point did not unlock morning issue");
+ $gps::captureFirstPoint($wpdb,$attendanceId,$company,$eid,32.1,77.2);
+ $first=$wpdb->get_row($wpdb->prepare("SELECT check_in_lat,check_in_lng FROM {$attendance} WHERE id=%d",$attendanceId),ARRAY_A);
+ if(abs((float)$first["check_in_lat"]-31.701)>.00001||abs((float)$first["check_in_lng"]-76.93)>.00001)
+  throw new \RuntimeException("First GPS fix was unexpectedly overwritten");
+ $wpdb->update($points,["branch_id"=>$branch+1000],["id"=>$pointId]);
+ if($gps::hasVerifiedMorningPoint($company,$branch,$eid,$date))
+  throw new \RuntimeException("Other-branch GPS point bypassed stock gate");
+ echo "PASS real MariaDB GPS proof, first fix, and branch-isolated Morning Issue gate\n";
+}catch(\Throwable $e){
+ $wpdb->query("ROLLBACK");
+ fwrite(STDERR,"FAIL GPS evidence WordPress UAT: ".$e->getMessage()."\n");
+ exit(1);
+}
+$wpdb->query("ROLLBACK");
+' --path=/var/www/html --allow-root
+
 # Test Apache URL rewriting via localhost; do not call the actual Railway host.
 code="$(curl -sS -o /tmp/eh7-smoke-health.json -w '%{http_code}' \
   -H 'Host: wordpress-uat-production.up.railway.app' \
