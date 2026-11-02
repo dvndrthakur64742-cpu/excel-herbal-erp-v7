@@ -1240,7 +1240,10 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                   TextField(
                     controller: verificationCase,
                     maxLength: 64,
-                    decoration: const InputDecoration(labelText: 'Internal verification case reference', hintText: 'HR-CASE-1234'),
+                    decoration: const InputDecoration(
+                      labelText: 'Internal verification case reference',
+                      hintText: 'HR-CASE-1234',
+                    ),
                   ),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
@@ -1250,7 +1253,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                     title: const Text('Employee identity independently confirmed'),
                   ),
                   if (!canSave)
-                    const Text('Login repair requires administrator review or a compatible server.'),
+                    const Text('Login repair requires administrator review or a compatible ERP server.'),
                   if (validation != null) ...[
                     const SizedBox(height: 8),
                     Align(
@@ -1328,7 +1331,14 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                     return;
                   }
                   if (!verified || method == null ||
-                      !RegExp(r'^[A-Za-z][A-Za-z0-9_.-]{5,63}
+                      !RegExp(r'^[A-Za-z][A-Za-z0-9_.-]{5,63}$').hasMatch(verificationCase.text.trim())) {
+                    setLocal(() => validation =
+                        'Verify identity, select a method, and enter an internal case reference.');
+                    return;
+                  }
+                  try {
+                    await ref.read(apiClientProvider).post(
+                      ApiPaths.employeeCredentials(id),
                       data: {
                         'password': password.text,
                         'identity_verified': true,
@@ -1357,42 +1367,6 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       );
       password.dispose();
       verificationCase.dispose();
-    } catch (e) {
-      if (mounted) {
-        _setOrganizationState(() => message = UiError.message(e));
-      }
-    }
-  }
-
-).hasMatch(verificationCase.text.trim())) {
-                    setLocal(() => validation = 'Confirm identity, select a method, and enter an internal case reference.');
-                    return;
-                  }
-                  try {
-                    await ref.read(apiClientProvider).post(
-                      ApiPaths.employeeCredentials(id),
-                      data: {'password': password.text},
-                    );
-                    if (!mounted || !dialogContext.mounted) return;
-                    Navigator.pop(dialogContext);
-                    _setOrganizationState(() {
-                      refresh++;
-                      message = 'Employee app login password updated.';
-                    });
-                  } catch (e) {
-                    if (dialogContext.mounted) {
-                      setLocal(() => validation = UiError.message(e));
-                    }
-                  }
-                },
-                icon: const Icon(Icons.password_rounded),
-                label: const Text('Save Password'),
-              ),
-            ],
-          ),
-        ),
-      );
-      password.dispose();
     } catch (e) {
       if (mounted) {
         _setOrganizationState(() => message = UiError.message(e));
