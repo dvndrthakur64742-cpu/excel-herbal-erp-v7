@@ -83,6 +83,31 @@ foreach($expected as [$method,$path,$handler,$required]){
         $row['idempotency_required']===($method==='POST')))===1,
         'mandatory request and idempotency contract '.$handler);
 }
+promoPass(count(array_filter($registered,static fn($row)=>
+    $row[0]==='GET'&&
+    $row[1]==='/performance/promotions/(?P<id>\\d+)/eligibility-evidence'&&
+    $row[2]==='performance.promotion_eligibility_evidence'&&$row[3]===true))===1,
+    'read-only authenticated HR eligibility evidence route');
+promoPass(count(array_filter($described,static fn($row)=>
+    $row['method']==='GET'&&
+    $row['path']==='/performance/promotions/(?P<id>\\d+)/eligibility-evidence'&&
+    $row['idempotency_required']===false&&
+    $row['auth']===true))===1,
+    'HR eligibility evidence contract never requests mutation idempotency');
+$eligibilitySource=file_get_contents(
+    __DIR__.'/../src/Payroll/PromotionEligibilityEvidenceService.php'
+);
+foreach(['Db::mustInsert(','Db::mustUpdate(','AccountingService::post(',
+         "Db::table('employee_roles')",
+         "Db::table('employee_designation_assignments')",
+         "Db::table('salary_revisions')"] as $unsafe){
+    promoPass(!str_contains($eligibilitySource,$unsafe),
+        'eligibility preflight does not apply HR/financial changes '.$unsafe);
+}
+promoPass(str_contains($eligibilitySource,'promotion_points_qualifying_window_unapproved')&&
+    str_contains($eligibilitySource,'promotion_minimum_days_policy_unapproved')&&
+    str_contains($eligibilitySource,'execution_ready'),
+    'unapproved policy window and service-day definition block execution');
 $service=file_get_contents(__DIR__.'/../src/Payroll/PromotionReviewService.php');
 foreach(["Db::table('employee_designation_assignments')",
           "Db::table('salary_revisions')",
