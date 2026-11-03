@@ -170,6 +170,8 @@ final class ApiContract
             'payroll.item_update'=>['bonus','allowances','deductions'],
             'payroll.pay'=>['payment_account_id','payment_date'],
             'performance.target'=>['branch_id','employee_id','period_start','period_end','target_points'],
+            'performance.reward_create'=>['branch_id','employee_id','adjustment_type','amount','points','reason'],
+            'performance.reward_decision'=>['decision'],
             'comm.push_register'=>['token','platform'],
             'comm.task_create'=>['assigned_employee_id','title'],
             'comm.task_assign'=>['employee_id'],
