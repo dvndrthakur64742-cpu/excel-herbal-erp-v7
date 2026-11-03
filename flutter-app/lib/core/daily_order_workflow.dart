@@ -85,6 +85,12 @@ abstract final class DailyOrderWorkflow {
       currentEmployeeId != null &&
       beneficiaryEmployeeId == currentEmployeeId;
 
+  /// A settled/rejected/withdrawn additional request must not block
+  /// a subsequent request or evening closing in the summary menu.
+  /// The backend rechecks every request, not only the latest summary row.
+  static bool additionalQueueSettled(String status) =>
+      status.isEmpty || const {'issued', 'cancelled', 'rejected'}.contains(status);
+
   static bool hasBlockingAdditionalRequests(
     Iterable<Map<String, dynamic>> requests,
   ) {
