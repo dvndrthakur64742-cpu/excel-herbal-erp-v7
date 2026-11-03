@@ -3,7 +3,7 @@
  * Disposable GitHub CI WordPress+MariaDB additive migration rehearsal.
  *
  * NEVER run against a hosted, persistent, or user-populated database.
- * This script deliberately drops ONLY two EMPTY v7.3.12 evidence tables to
+ * This script deliberately drops ONLY EMPTY v7.3.12 additive tables to
  * simulate upgrading from a v7.3.10 schema. A separate, explicit CI guard
  * and synthetic-only attestation must both succeed before any write.
  */
@@ -34,6 +34,10 @@ $toRebuild = [
         'uq_refund_evidence_ref',
         'uq_refund_verify_ref',
     ],
+    'salary_structure_versions' => [
+        'employee_effective',
+        'uq_salary_revision_id',
+    ],
 ];
 $preservedTables = [
     $wpdb->users,
@@ -41,6 +45,7 @@ $preservedTables = [
     $prefix . 'companies',
     $prefix . 'branches',
     $prefix . 'employees',
+    $prefix . 'salary_revisions',
     $prefix . 'stock_balances',
     $prefix . 'stock_ledger',
     $prefix . 'journal_entries',
@@ -83,7 +88,7 @@ try {
         }
         $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}`");
         if ($count !== 0) {
-            throw new \RuntimeException("Refusing to drop nonempty evidence table: " . $name);
+            throw new \RuntimeException("Refusing to drop nonempty additive table: " . $name);
         }
     }
     foreach (array_keys($toRebuild) as $name) {
@@ -94,7 +99,7 @@ try {
     }
     update_option('eh7_schema_version', '7.3.10-prepaid-sales-1', false);
     $expected = \ExcelHerbal\ERP7\Database\Schema::VERSION;
-    if ($expected !== '7.3.12-prepaid-refund-evidence-1') {
+    if ($expected !== '7.3.12-salary-structures-2') {
         throw new \RuntimeException('Unexpected migration release: ' . $expected);
     }
     if (\ExcelHerbal\ERP7\Database\Schema::maybeUpgrade() !== true ||
@@ -129,8 +134,8 @@ try {
     if (!empty(get_option('eh7_schema_migration_error', ''))) {
         throw new \RuntimeException('Schema migration left a recorded error');
     }
-    echo "PASS synthetic v7.3.10-to-7.3.12 return/refund additive migration\n";
-    echo "PASS unique refund/order evidence indexes and existing identity/stock/journal preservation\n";
+    echo "PASS synthetic v7.3.10-to-7.3.12 refund/salary additive migration\n";
+    echo "PASS refund and salary uniqueness indexes; existing identity, salary, stock and journal preservation\n";
     echo "PASS repeated schema install is idempotent on disposable WordPress/MariaDB\n";
 } catch (\Throwable $e) {
     fwrite(STDERR, "FAIL disposable additive upgrade rehearsal: " . $e->getMessage() . "\n");
