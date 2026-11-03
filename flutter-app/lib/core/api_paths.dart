@@ -262,6 +262,8 @@ abstract final class ApiPaths {
       '/payroll/salary-structures/$id/approve';
   static String targetApprove(int id) => '/performance/targets/$id/approve';
   static String rewardDecision(int id) => '/performance/rewards/$id/decision';
+  static String rewardSettlementPreflight(int id) =>
+      '/performance/rewards/$id/settlement-preflight';
   static String promotionDecision(int id) =>
       '/performance/promotions/$id/decision';
 
