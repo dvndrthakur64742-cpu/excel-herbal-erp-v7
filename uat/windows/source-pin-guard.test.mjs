@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
 import {assertLocalUatSourcePin} from './source-pin-guard.mjs';
 
 const old='2e40eba61d97ef26b543c631682d0701af75b3bd';
@@ -45,4 +47,12 @@ test('rejects invalid source hashes, missing marker, unsanitized and fake UAT',(
       credentialSha:old,gitSha:old,health,
     }));
   }
+});
+
+test('local launcher distinguishes healthy pinned UAT from latest-source certification',()=>{
+  const launcher=readFileSync(fileURLToPath(new URL('./start-native-uat.ps1',import.meta.url)),'utf8');
+  assert.match(launcher,/\$head\s*-ine\s*\$uatHead/i);
+  assert.match(launcher,/Latest-source UAT is NOT verified/);
+  assert.match(launcher,/back up, review migrations, repin and test/i);
+  assert.match(launcher,/\[switch\]\$NoBrowser/);
 });

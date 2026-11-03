@@ -60,6 +60,21 @@ try{
         throw 'Not a healthy, sanitized and pinned synthetic-only ERP'
     }
 }catch{throw ('ERP Health Check failed: '+$_.Exception.Message)}
-Write-Host 'PASS: Windows-native localhost Excel Herbal ERP UAT is ready'
+# This health check certifies the intentionally pinned UAT runtime, NOT the
+# latest GitHub checkout. Warn when developers are editing a newer source.
+# Never change the database/source marker or start a deployment here.
+$checkoutRoot=(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$head=& git -C $checkoutRoot rev-parse HEAD 2>$null
+if($LASTEXITCODE -ne 0 -or $head -notmatch '^[a-f0-9]{40}$'){
+    throw 'Cannot identify current development Git HEAD'
+}
+$uatHead=[string]$result.data.source_head
+if($uatHead -notmatch '^[a-f0-9]{40}$'){throw 'UAT source marker is not a full Git SHA'}
+Write-Host ('PASS: Windows-native localhost synthetic ERP is healthy at '+$uatHead.Substring(0,8))
+if($head -ine $uatHead){
+    Write-Warning ('UAT is pinned to '+$uatHead.Substring(0,8)+', but development HEAD is '+$head.Substring(0,8)+'. Latest-source UAT is NOT verified. Back up, review migrations, repin and test before release.')
+}else{
+    Write-Host 'PASS: Local UAT source marker matches development Git HEAD'
+}
 Write-Host ('Open: '+$Url+'/wp-admin/')
 if(!$NoBrowser){Start-Process ($Url+'/wp-admin/')}
