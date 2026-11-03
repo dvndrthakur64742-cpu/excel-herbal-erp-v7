@@ -121,6 +121,9 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
       'payroll.salary.view',
       'payroll.salary.manage',
       'payroll.salary.approve',
+      'rewards.view',
+      'rewards.manage',
+      'rewards.approve',
     ])) {
       tabs.add(('Compensation', const CompensationWorkspace()));
     }
