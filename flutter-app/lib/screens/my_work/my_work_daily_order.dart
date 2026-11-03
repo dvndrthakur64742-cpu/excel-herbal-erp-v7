@@ -1091,8 +1091,8 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                   child: Text(
                     allAvailable
                         ? (isAdditional
-                            ? 'Approved additional quantity available hai. ERP automatic FEFO allocation ke saath employee custody me stock move karega.'
-                            : 'Approved quantity available hai. ERP automatic FEFO allocation ke saath employee custody me stock move karega.')
+                            ? 'Approved additional quantity available hai. ERP FEFO allocation record karega; employee physical receipt confirm karega tab custody move hogi.'
+                            : 'Approved quantity available hai. ERP FEFO allocation record karega; employee physical receipt confirm karega tab custody move hogi.')
                         : 'Stock shortage detected. Neeche Required vs Available check karein. Shortage clear hone tak Issue button blocked rahega.',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
@@ -1239,14 +1239,11 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                                         data: {'allocations': allocations},
                                       ) as Map,
                                     );
-                                    if (result['stock_moved'] != true ||
-                                        (num.tryParse(
-                                                  '${result['issued_quantity'] ?? 0}',
-                                                ) ??
-                                                0) <=
-                                            0) {
+                                    if (result['status'] != 'awaiting_receipt' ||
+                                        int.tryParse('${result['id']}') !=
+                                            requestId) {
                                       throw Exception(
-                                        'Stock issue response verify nahi hui. Order detail refresh karke retry karein.',
+                                        'Allocation response verify nahi hui. Order detail refresh karein.',
                                       );
                                     }
                                     if (sheetContext.mounted) {
@@ -1276,8 +1273,8 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                                 : !allAvailable
                                     ? 'Stock Shortage'
                                     : (isAdditional
-                                        ? 'Issue Additional Stock'
-                                        : 'Issue Stock'),
+                                        ? 'Allocate Additional Stock'
+                                        : 'Allocate Stock'),
                           ),
                         ),
                       ),
@@ -1293,12 +1290,11 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
     );
 
     if (receipt != null && mounted) {
-      final issued = num.tryParse('${receipt['issued_quantity'] ?? 0}') ?? 0;
       _setFeatureState(() {
         refresh++;
         message = isAdditional
-            ? 'Additional stock issued: ${BusinessFormat.quantity(issued)} PCS employee custody me move hua.'
-            : 'Stock issued: ${BusinessFormat.quantity(issued)} PCS employee custody me move hua. Evening Closing pending hai.';
+            ? 'Additional stock allocation saved. Employee physical receipt pending; custody me stock abhi move nahi hua.'
+            : 'Stock allocation saved. Employee physical receipt pending; custody me stock abhi move nahi hua.';
       });
     }
   }
