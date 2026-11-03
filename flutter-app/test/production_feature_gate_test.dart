@@ -12,7 +12,8 @@ void main() {
     ).readAsStringSync();
 
     expect(performance, contains("import 'compensation_workspace.dart';"));
-    expect(performance, contains("'Salary Structures'"));
+    expect(performance, contains("'Compensation'"));
+    expect(performance, contains("'rewards.approve'"));
     expect(performance, contains('const CompensationWorkspace()'));
     expect(performance, contains("'payroll.salary.approve'"));
     expect(performance, isNot(contains("'Rewards / Penalties'")));
