@@ -14,6 +14,7 @@ php tests/staging_safety.php
 php tests/attendance_schedule_contract.php
 php tests/gps_morning_issue.php
 php tests/daily_issue_preflight_contract.php
+php tests/daily_search_contract.php
 php tests/security_scope_regression.php
 php tests/salary_authority_regression.php
 php tests/access_escalation_regression.php
