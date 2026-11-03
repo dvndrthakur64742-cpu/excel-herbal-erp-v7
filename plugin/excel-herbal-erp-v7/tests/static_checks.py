@@ -81,7 +81,7 @@ for metric in [
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
 print('PASS operational diagnostics anomaly coverage')
 schema=(root/'src/Database/Schema.php').read_text()
-assert "7.3.12-promotion-review-4" in schema,'schema version not advanced for reward approval and prior migrations'
+assert "7.3.12-reward-link-proposals-5" in schema,'schema version not advanced for reward approval and prior migrations'
 for token in [
  'checkout_exception',
  'checkout_exception_reason',
