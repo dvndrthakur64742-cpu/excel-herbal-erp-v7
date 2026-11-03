@@ -1738,6 +1738,43 @@
     },
     {
       "method": "GET",
+      "path": "/performance/reward-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/performance/rewards",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/performance/rewards",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "employee_id",
+        "adjustment_type",
+        "amount",
+        "points",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/performance/rewards/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "decision"
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/performance/summary",
       "auth": true,
       "idempotency_required": false,
