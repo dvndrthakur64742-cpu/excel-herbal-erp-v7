@@ -864,6 +864,24 @@
     },
     {
       "method": "POST",
+      "path": "/daily/requests/(?P<id>\\d+)/reject",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/daily/requests/(?P<id>\\d+)/cancel-additional",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/daily/requests/(?P<id>\\d+)/approve",
       "auth": true,
       "idempotency_required": true,
