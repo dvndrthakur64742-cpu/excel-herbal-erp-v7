@@ -24,12 +24,13 @@ void main() {
     expect(workspace, contains('ApiPaths.performanceRewardEmployees'));
     expect(workspace, contains("app.can('rewards.approve')"));
     expect(workspace, isNot(contains("app.can('rewards.pay')")));
-    for (final route in const [
-      '/performance/rewards/(?P<id>\\d+)/pay',
-      '/performance/promotions',
-    ]) {
-      expect(routes, isNot(contains(route)), reason: route);
-    }
+    expect(routes, contains('/performance/promotions'));
+    expect(routes, contains('/performance/promotion-employees'));
+    expect(workspace, contains('ApiPaths.performancePromotionEmployees'));
+    expect(workspace, contains("app.can('organization.hr.review')"));
+    expect(routes,
+        isNot(contains('/performance/rewards/(?P<id>\\d+)/pay')),
+        reason: 'No reward payout contract until payroll/accounting integration');
   });
 
   test('future compensation source remains isolated for later backend completion', () {
