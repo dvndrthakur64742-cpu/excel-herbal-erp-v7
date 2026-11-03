@@ -3,18 +3,23 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('advanced compensation workspace stays hidden without backend contract', () {
+  test('only backend-backed salary compensation is exposed', () {
     final performance = File(
       'lib/screens/performance/performance_screen.dart',
     ).readAsStringSync();
+    final workspace = File(
+      'lib/screens/performance/compensation_workspace.dart',
+    ).readAsStringSync();
 
-    expect(
-      performance,
-      contains('Do not expose an interactive UAT workflow that can only fail at runtime.'),
-    );
-    expect(performance, isNot(contains("import 'compensation_workspace.dart';")));
-    expect(performance, isNot(contains("'Compensation'")));
-    expect(performance, isNot(contains('CompensationWorkspace(')));
+    expect(performance, contains("import 'compensation_workspace.dart';"));
+    expect(performance, contains("'Salary Structures'"));
+    expect(performance, contains('const CompensationWorkspace()'));
+    expect(performance, contains("'payroll.salary.approve'"));
+    expect(performance, isNot(contains("'Rewards / Penalties'")));
+    expect(performance, isNot(contains("'Promotions / Increments'")));
+    expect(workspace, contains('ApiPaths.salaryStructures'));
+    expect(workspace, contains("app.can('payroll.salary.manage')"));
+    expect(workspace, contains("app.can('payroll.salary.approve')"));
   });
 
   test('performance target action follows create then approve backend contract', () {
