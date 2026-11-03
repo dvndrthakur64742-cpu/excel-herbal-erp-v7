@@ -5,14 +5,14 @@ void main() {
   test('request approval and issue require exact permissions', () {
     expect(
       DailyOrderWorkflow.canApproveRequest(
-        'submitted',
+        'reviewed',
         ['daily_order.approve'],
       ),
       isTrue,
     );
     expect(
       DailyOrderWorkflow.canApproveRequest(
-        'submitted',
+        'reviewed',
         ['daily_order.others'],
       ),
       isFalse,
@@ -27,10 +27,64 @@ void main() {
     );
   });
 
-  test('maker-checker blocks self approval when identities are known', () {
+  test('review requires independent SM/ASM before BM/HO approval', () {
+    expect(
+      DailyOrderWorkflow.canReviewRequest(
+        'submitted',
+        ['daily_order.others'],
+        designationCode: 'SM',
+        requesterId: 11,
+        beneficiaryEmployeeId: 11,
+        currentEmployeeId: 22,
+      ),
+      isTrue,
+    );
+    expect(
+      DailyOrderWorkflow.canReviewRequest(
+        'submitted',
+        ['daily_order.others'],
+        designationCode: 'BM',
+        requesterId: 11,
+        beneficiaryEmployeeId: 11,
+        currentEmployeeId: 22,
+      ),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.canReviewRequest(
+        'submitted',
+        ['daily_order.others'],
+        designationCode: 'SM',
+        requesterId: 11,
+        beneficiaryEmployeeId: 11,
+        currentEmployeeId: 11,
+      ),
+      isFalse,
+    );
     expect(
       DailyOrderWorkflow.canApproveRequest(
         'submitted',
+        ['daily_order.approve'],
+        requesterId: 11,
+        currentEmployeeId: 22,
+      ),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.canApproveRequest(
+        'reviewed',
+        ['daily_order.approve'],
+        requesterId: 11,
+        currentEmployeeId: 22,
+      ),
+      isTrue,
+    );
+  });
+
+  test('maker-checker blocks self approval when identities are known', () {
+    expect(
+      DailyOrderWorkflow.canApproveRequest(
+        'reviewed',
         ['daily_order.approve'],
         requesterId: 2,
         currentEmployeeId: 2,
@@ -39,7 +93,7 @@ void main() {
     );
     expect(
       DailyOrderWorkflow.canApproveRequest(
-        'submitted',
+        'reviewed',
         ['daily_order.approve'],
         requesterId: 6,
         currentEmployeeId: 2,
@@ -72,7 +126,7 @@ void main() {
   test('maker-checker keeps older payloads compatible when identity is absent', () {
     expect(
       DailyOrderWorkflow.canApproveRequest(
-        'submitted',
+        'reviewed',
         ['daily_order.approve'],
         requesterId: null,
         currentEmployeeId: 2,
