@@ -38,6 +38,7 @@ jobs:
         working-directory: flutter-app
         run: |
           python3 tool/verify_api_paths_against_backend.py --baseline
+          python3 tool/verify_api_paths_against_backend.py
           python3 -m unittest discover -s tool -p 'test_verify_api_paths*.py'
       - name: Link canonical PHP plugin for cross-module contract tests
         run: |
