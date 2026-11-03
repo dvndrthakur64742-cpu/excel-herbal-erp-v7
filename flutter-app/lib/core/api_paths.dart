@@ -264,6 +264,8 @@ abstract final class ApiPaths {
   static String rewardDecision(int id) => '/performance/rewards/$id/decision';
   static String rewardSettlementPreflight(int id) =>
       '/performance/rewards/$id/settlement-preflight';
+  static String promotionEligibilityEvidence(int id) =>
+      '/performance/promotions/$id/eligibility-evidence';
   static String promotionDecision(int id) =>
       '/performance/promotions/$id/decision';
 
