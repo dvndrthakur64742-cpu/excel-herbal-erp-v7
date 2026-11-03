@@ -1,5 +1,3 @@
 # Reviewed gaps, 2026-11-03. Dev CI baseline only; STRICT release gate still fails.
 # Remove an entry only when the exact PHP route and tests have been added.
-/performance/promotions
-/performance/promotions/$id/decision
 /performance/rewards/$id/pay
