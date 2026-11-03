@@ -267,6 +267,12 @@ $verifiedCash=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
 );
 checkSales($verifiedCash['status']==='evidence_verified' &&
  $verifiedCash['refund_disbursed']===false,'independent manual cash proof check is NOT disbursement');
+$partialPreflight=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::detail($returnApprover,$returnId);
+checkSales($partialPreflight['refund_evidence_check']['evidence_complete']===false &&
+ in_array('refund_evidence_missing',$partialPreflight['refund_evidence_check']['blockers'],true),
+ 'real MariaDB return detail reports missing split-tender verification');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::detail($returnForeign,$returnId),
+ 'branch_forbidden');
 $upiEvidence=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::submit(
  $evidenceMaker,$returnId,(int)$originals[1]['id'],'100.00','UAT-UPI-REF-001'
 );
@@ -284,6 +290,13 @@ checkSales($verifiedUpi['status']==='evidence_verified' &&
 denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
  $evidenceUpiChecker,(int)$upiEvidence['id'],'UAT-UPI-CHECK-REPEAT'
 ),'refund_evidence_state_invalid');
+$completePreflight=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::detail($returnApprover,$returnId);
+checkSales($completePreflight['refund_evidence_check']['evidence_complete']===true &&
+ $completePreflight['refund_evidence_check']['expected_amount']==='200.00' &&
+ $completePreflight['refund_evidence_check']['verified_evidence_count']===2 &&
+ $completePreflight['refund_evidence_check']['refund_disbursed']===false &&
+ $completePreflight['refund_evidence_check']['credit_note_posted']===false,
+ 'real MariaDB reconciles both verified tenders without disbursement or credit note');
 $evidenceList=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::list($evidenceCashChecker,$returnId);
 checkSales(count($evidenceList)===2 && $evidenceList[0]['status']==='evidence_verified' &&
  $evidenceList[1]['status']==='evidence_verified','split-tender refund evidence independently verified');
