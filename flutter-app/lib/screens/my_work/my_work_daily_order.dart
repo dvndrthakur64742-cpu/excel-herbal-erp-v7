@@ -775,6 +775,54 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       } else if (action == 'issue') {
         await _MyWorkDaily(this)._issueDaily(id);
         return;
+      } else if (action == 'receive') {
+        final detail = await _MyWorkDaily(this)._dailyDetail(id);
+        final request = _requestWithStatus(detail, 'awaiting_receipt');
+        if (request == null) {
+          throw Exception('No allocated stock awaiting physical receipt.');
+        }
+        final cycle = Map<String, dynamic>.from(
+          (detail['cycle'] as Map?) ?? const {},
+        );
+        final beneficiaryId = int.tryParse('${cycle['employee_id']}');
+        final currentEmployeeId = int.tryParse('${app.employee['id']}');
+        if (!app.can('daily_order.self') ||
+            beneficiaryId == null ||
+            beneficiaryId != currentEmployeeId) {
+          throw Exception('Only the receiving employee may confirm stock.');
+        }
+        if (!mounted) return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Confirm physical stock receipt'),
+            content: const Text('Confirm only after counting and '
+                'physically receiving all allocated goods. '
+                'This action moves warehouse stock into your custody.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Not received'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Confirm received'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) return;
+        final requestId = int.tryParse('${request['id']}');
+        if (requestId == null) throw Exception('Invalid stock request ID.');
+        final response = Map<String, dynamic>.from(
+          await api.post(ApiPaths.dailyReceive(requestId),
+              data: const {}) as Map,
+        );
+        if (response['status'] != 'issued' ||
+            int.tryParse('${response['id']}') != requestId) {
+          throw Exception('Receipt confirmation could not be verified.');
+        }
+        message = 'Physical stock receipt confirmed; custody is now updated.';
       } else if (action == 'additional') {
         await _MyWorkDaily(this)._additionalDaily(id);
         return;
