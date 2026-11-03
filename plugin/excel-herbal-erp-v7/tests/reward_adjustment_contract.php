@@ -93,4 +93,25 @@ foreach(['AccountingService::post(','StockService::move(','payPayroll(',
 rewardOkay(!array_filter($allRoutes,static fn($r)=>
     $r[1]==='/performance/rewards/(?P<id>\\d+)/pay'),
     'unsupported reward payout route remains a release blocker');
+rewardOkay(count(array_filter($allRoutes,static fn($r)=>
+    $r[0]==='GET'&&
+    $r[1]==='/performance/rewards/(?P<id>\\d+)/settlement-preflight'&&
+    $r[2]==='performance.reward_settlement_preflight'&&$r[3]===true))===1,
+    'authenticated read-only reward settlement preflight route');
+rewardOkay(count(array_filter($api,static fn($r)=>
+    $r['method']==='GET'&&
+    $r['path']==='/performance/rewards/(?P<id>\\d+)/settlement-preflight'&&
+    $r['idempotency_required']===false))===1,
+    'settlement evidence preflight never accepts a mutation token');
+$preflight=file_get_contents(__DIR__.'/../src/Payroll/RewardSettlementPreflightService.php');
+foreach(['Db::mustInsert(','Db::mustUpdate(','AccountingService::post(',
+         "Db::table('performance_entries')"] as $write){
+    rewardOkay(!str_contains($preflight,$write),
+        'reward finance preflight never mutates financial state '.$write);
+}
+rewardOkay(str_contains($preflight,'reward_to_payroll_allocation_missing')&&
+    str_contains($preflight,'payment_ready')&&
+    str_contains($preflight,'payment_posted'),
+    'preflight explicitly fails closed until reward-to-payroll provenance is verified');
+
 echo "PASSED reward input, maker-checker contract and non-posting boundaries\n";
