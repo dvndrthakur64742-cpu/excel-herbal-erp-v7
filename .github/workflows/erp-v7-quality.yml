@@ -108,3 +108,6 @@ jobs:
       - name: Run real MariaDB salary structure approval and payroll conflict tests
         working-directory: plugin/excel-herbal-erp-v7
         run: php tests/integration_salary_structures.php
+      - name: Run real MariaDB reward request and independent review audit tests
+        working-directory: plugin/excel-herbal-erp-v7
+        run: php tests/integration_reward_adjustments.php
