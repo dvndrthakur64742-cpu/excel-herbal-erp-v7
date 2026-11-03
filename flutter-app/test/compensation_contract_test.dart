@@ -15,6 +15,8 @@ void main() {
         '/performance/rewards/7/settlement-preflight');
     expect(ApiPaths.performancePromotions, '/performance/promotions');
     expect(ApiPaths.performancePromotionEmployees, '/performance/promotion-employees');
+    expect(ApiPaths.promotionEligibilityEvidence(9),
+        '/performance/promotions/9/eligibility-evidence');
     expect(ApiPaths.performanceRewardEmployees, '/performance/reward-employees');
     expect(
       ApiPaths.promotionDecision(9),
