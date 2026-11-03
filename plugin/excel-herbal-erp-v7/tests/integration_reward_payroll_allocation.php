@@ -174,6 +174,23 @@ Db::mustUpdate($db,Db::table('payroll_items'),[
     'net_salary'=>'9160.35',
 ],['id'=>$item]);
 Allocation::assertRunInvariant($db,1,$run);
+Db::mustUpdate($db,Db::table('payroll_items'),[
+    'attendance_salary'=>'8999.00',
+],['id'=>$item]);
+allocDenied(fn()=>Allocation::assertRunInvariant($db,1,$run),
+    'reward_payroll_allocation_drift');
+Db::mustUpdate($db,Db::table('payroll_items'),[
+    'attendance_salary'=>'9000.00',
+],['id'=>$item]);
+Db::mustUpdate($db,Db::table('reward_payroll_link_proposals'),[
+    'status'=>'proposed_unfunded',
+],['id'=>$linkId]);
+allocDenied(fn()=>Allocation::assertRunInvariant($db,1,$run),
+    'reward_payroll_allocation_drift');
+Db::mustUpdate($db,Db::table('reward_payroll_link_proposals'),[
+    'status'=>'allocated_unpaid',
+],['id'=>$linkId]);
+Allocation::assertRunInvariant($db,1,$run);
 allocAssert((int)$db->get_var(
     'SELECT COUNT(*) FROM '.Db::table('audit_log').
     " WHERE action='reward.payroll_allocated'"
