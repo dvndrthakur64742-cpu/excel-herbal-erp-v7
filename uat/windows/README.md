@@ -157,3 +157,63 @@ the latest GitHub code release, or production-readiness. Updating
 EH7_SOURCE_HEAD or plugin migrations requires separate isolated
 WordPress/Flutter acceptance and authorized user identity verification.
 Existing restore-rehearsal reports cannot be overwritten.
+
+
+### New separate WordPress candidate and authenticated login UAT — 2026-11-04
+
+After the verified **97-table isolated synthetic restore** in
+eh7_restore_5ec7b1894f7a, a separate local site was set up at:
+
+- URL: http://127.0.0.1:18880/erp-uat-candidate
+- WordPress files: D:\xampp\htdocs\erp-uat-candidate
+- Exact detached source: D:\ERP7-UAT-Candidate
+- Plugin source Git commit: 479ed9d9482a373441af0b9e312134c89ad756d8
+- DB: eh7_restore_5ec7b1894f7a (never original eh7_local_uat)
+
+The safe setup script uat/windows/create-candidate-uat.ps1 verifies the
+restore evidence, original idle/sanitized local ERP, loopback-only ports and
+clean reviewed development commit. It refuses existing destinations.
+It copies WordPress core into a NEW folder (never overwrites the original),
+creates an independent pinned Git checkout and junction, and provisions an
+independent, scoped MariaDB account with secrets stored only in the NEW
+candidate WordPress config. The original WordPress files, plugin junction
+and database are untouched. No production domain, Railway or paid hosting
+is used.
+
+The CLI-only uat/windows/certify-candidate-uat.php requires the exact
+restored DB name, localhost URL, staging, mounted plugin path, schema
+version and synthetic seed/employee/security checks BEFORE it repins only
+the restored DB's UAT source/sanitization markers. Source SHA is supplied
+via EH7_CANDIDATE_SOURCE_SHA from the candidate Git checkout; the script
+refuses web access and reuse after successful repin. The actual script ran
+successfully on the candidate and health returned schema_installed=true,
+seeded=true and sanitized=true with the current source.
+
+For authenticated test, the synthetic-only local credentials were copied
+to a DIFFERENT private local candidate-uat-app.json file and bound to the
+candidate URL and source commit; no credential values or tokens were
+printed or uploaded. Existing uat/windows/local-auth-smoke.mjs now accepts
+EH7_LOCAL_SITE only for the original or explicit candidate loopback URL,
+checks that the private credential website matches exactly, and rejects
+any remote target. Example Windows invocation:
+
+~~~powershell
+$env:EH7_LOCAL_SITE='http://127.0.0.1:18880/erp-uat-candidate'
+$env:EH7_LOCAL_AUTH_FILE='D:\ERP-Local-Secrets\candidate-uat-app.json'
+node D:\ERP7-Development\uat\windows\local-auth-smoke.mjs
+~~~
+
+**Real Windows result:** Full localhost candidate synthetic Employee Login
+and Administrator REST UAT passed, including invalid password and anonymous
+denial, field-user login + Flutter bootstrap API contract, refresh/old token
+replay denial, logout/revocation, branch-scoped Sales and Cash/UPI lookup,
+and zero active mobile sessions after cleanup. This is **real WordPress REST
+API testing**, NOT actual Flutter Android UI or real employee sign-off.
+
+The originally blocked WordPress site at /erp-uat remains at its old PHP
+EH7_SOURCE_HEAD=2e40eba, with actual older mounted Git 3faa0f2.
+Do not report the original site as source-certified. The new candidate is
+source-certified for these synthetic login/API checks only; financial
+end-to-end transactions and Hostinger backup/restore/production release
+remain pending. Candidate setup/repin should never be rerun in place; the
+scripts intentionally fail closed on existing artifacts.

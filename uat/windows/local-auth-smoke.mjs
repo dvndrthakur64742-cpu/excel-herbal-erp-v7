@@ -10,7 +10,10 @@ import { fileURLToPath } from 'node:url';
 import { assertLocalUatSourcePin } from './source-pin-guard.mjs';
 import { platform } from 'node:os';
 
-const SITE='http://127.0.0.1:18880/erp-uat';
+const LOCAL_SITES=['http://127.0.0.1:18880/erp-uat',
+  'http://127.0.0.1:18880/erp-uat-candidate'];
+const SITE=process.env.EH7_LOCAL_SITE || LOCAL_SITES[0];
+if(!LOCAL_SITES.includes(SITE))throw new Error('Only explicitly approved localhost synthetic UAT sites are permitted');
 const API=SITE+'/wp-json/excel-herbal-erp/v7';
 const FILE=process.env.EH7_LOCAL_AUTH_FILE ||
   (platform()==='win32' ? 'D:\\ERP-Local-Secrets\\local-uat-app.json' : '');
