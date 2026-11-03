@@ -1799,6 +1799,13 @@
       ]
     },
     {
+      "method": "POST",
+      "path": "/performance/reward-payroll-link-proposals/(?P<id>\\d+)/allocate",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
       "method": "GET",
       "path": "/performance/rewards/(?P<id>\\d+)/settlement-preflight",
       "auth": true,
