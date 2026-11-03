@@ -39,6 +39,7 @@ docker run -d --name "$wp_container" --network "$network" \
   -e WORDPRESS_DB_PASSWORD=eh7_ci_db_only \
   -e WORDPRESS_DB_NAME="$db_name" \
   -e WP_ENVIRONMENT_TYPE=staging \
+  -e EH7_CI_ISOLATED=1 \
   -e RAILWAY_GIT_COMMIT_SHA="$GITHUB_SHA" \
   -e EH7_UAT_SITE_URL=https://wordpress-uat-production.up.railway.app \
   -e EH7_UAT_WP_ADMIN_LOGIN=eh7_ci_admin \
@@ -82,6 +83,15 @@ if(!$fieldUser||!preg_match("/^[0-9]{8,15}$/D",$expectedMobile)||
 echo "PASS actual WordPress subscriber identity uses mobile number as username\n";
 echo "PASS real WordPress activation, MariaDB migration, isolated synthetic seed\n";
 ' --path=/var/www/html --allow-root
+
+# Disposable synthetic-only upgrade rehearsal. It refuses any non-CI site,
+# verifies BOTH new evidence tables are empty, snapshots existing business
+# rows, recreates new unique indexes, and repeats the migration idempotently.
+docker cp uat/railway/ci-additive-upgrade-rehearsal.php \
+  "$wp_container:/tmp/eh7-ci-additive-upgrade-rehearsal.php"
+docker exec "$wp_container" wp eval-file \
+  /tmp/eh7-ci-additive-upgrade-rehearsal.php \
+  --path=/var/www/html --allow-root
 
 # Exercise the real GPS evidence SQL and first-fix projection on the isolated
 # synthetic WP/MariaDB database. Everything below is rolled back.
