@@ -215,21 +215,42 @@ final class RewardPayrollAllocationService {
     public static function assertRunInvariant(
         object $db,int $companyId,int $runId
     ):void {
+        $orphaned=(int)$db->get_var($db->prepare(
+            'SELECT COUNT(*) FROM '.Db::table('reward_payroll_link_proposals').' p'.
+            ' LEFT JOIN '.Db::table('reward_payroll_allocations').' a'.
+            ' ON a.company_id=p.company_id AND a.proposal_id=p.id'.
+            ' WHERE p.company_id=%d AND p.payroll_run_id=%d'.
+            " AND p.status='allocated_unpaid' AND a.id IS NULL",
+            $companyId,$runId
+        ));
+        if($orphaned)throw new DomainException(
+            'Allocated payroll proposal is missing its immutable ledger.',
+            'reward_payroll_allocation_drift',409
+        );
         $rows=(array)$db->get_results($db->prepare(
             'SELECT a.*,pi.bonus AS current_bonus,'.
             ' pi.net_salary AS current_net,pi.employee_id AS item_employee,'.
-            ' r.status AS reward_status,r.amount AS current_reward_amount'.
+            ' pi.attendance_salary AS current_attendance,'.
+            ' pi.salary_fund_earning AS current_fund,'.
+            ' pi.allowances AS current_allowances,'.
+            ' pi.deductions AS current_deductions,'.
+            ' r.status AS reward_status,r.amount AS current_reward_amount,'.
+            ' p.status AS proposal_status'
             ' FROM '.Db::table('reward_payroll_allocations').' a'.
             ' LEFT JOIN '.Db::table('payroll_items').' pi'.
             ' ON pi.id=a.payroll_item_id AND pi.payroll_run_id=a.payroll_run_id'.
             ' LEFT JOIN '.Db::table('reward_adjustments').' r'.
             ' ON r.id=a.reward_id AND r.company_id=a.company_id'.
+            ' LEFT JOIN '.Db::table('reward_payroll_link_proposals').' p'.
+            ' ON p.id=a.proposal_id AND p.company_id=a.company_id'.
+            ' AND p.reward_id=a.reward_id AND p.payroll_item_id=a.payroll_item_id'.
             ' WHERE a.company_id=%d AND a.payroll_run_id=%d',
             $companyId,$runId
         ),ARRAY_A);
         foreach($rows as $row){
             if($row['status']!=='allocated_unpaid'||
                $row['reward_status']!=='approved'||
+               ($row['proposal_status']??null)!=='allocated_unpaid'||
                (int)($row['item_employee']??0)!==(int)$row['employee_id']||
                $row['current_bonus']===null||$row['current_net']===null||
                self::paise($row['reward_amount'],'reward_amount')!==
@@ -237,7 +258,13 @@ final class RewardPayrollAllocationService {
                self::paise($row['item_bonus_after'],'item_bonus_after')!==
                    self::paise($row['current_bonus'],'current_bonus')||
                self::paise($row['item_net_after'],'item_net_after')!==
-                   self::paise($row['current_net'],'current_net'))
+                   self::paise($row['current_net'],'current_net')||
+               self::paise($row['current_net'],'current_net')!==
+                   self::paise($row['current_attendance'],'attendance_salary')+
+                   self::paise($row['current_fund'],'salary_fund_earning')+
+                   self::paise($row['current_allowances'],'allowances')-
+                   self::paise($row['current_deductions'],'deductions')+
+                   self::paise($row['reward_amount'],'reward_amount'))
                 throw new DomainException(
                     'Approved reward allocation has changed. Restore/review before posting payroll.',
                     'reward_payroll_allocation_drift',409
