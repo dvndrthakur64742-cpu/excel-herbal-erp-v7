@@ -16,7 +16,9 @@ void main() {
       screen.substring(ledgerBranch, genericLoader),
       contains('_AccountLedgerPanel('),
     );
-    expect(screen, contains('future: widget.api.get('));
+    // Account Ledger fetch is lazy and Retry issues a fresh scoped request.
+    expect(screen, contains('loader: () => widget.api.get('));
+    expect(screen, isNot(contains('future: widget.api.get(')));
     expect(screen, contains('ApiPaths.accountLedger,'));
     expect(screen, contains("'account_id': selectedId"));
   });
