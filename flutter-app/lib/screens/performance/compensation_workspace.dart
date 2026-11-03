@@ -543,8 +543,49 @@ class _CompensationWorkspaceState
       return;
     }
 
-    // Approved rewards are an auditable register only; funds/points remain
-    // unposted until a separately verified payroll/accounting allocation exists.
+    if (status == 'approved' &&
+        app.can('rewards.approve') &&
+        app.can('payroll.pay')) {
+      try {
+        final result = await ref.read(apiClientProvider).get(
+          ApiPaths.rewardSettlementPreflight(id),
+        );
+        if (!mounted) return;
+        if (result is! Map) {
+          throw const FormatException('Reward payout preflight is unavailable.');
+        }
+        final blocked = result['blocking_reason_codes'];
+        final reasons = blocked is List
+            ? blocked.map((reason) => reason.toString().replaceAll('_', ' ')).join('\\n• ')
+            : 'Reward-to-payroll allocation is not verified.';
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Reward Settlement — Blocked'),
+            content: SingleChildScrollView(
+              child: Text(
+                'This is a read-only finance preflight. No reward payout '
+                'or performance points have been posted.\\n\\n'
+                'Required controls:\\n• $reasons\\n\\n'
+                'An unrelated paid payroll run does not prove this '
+                'specific reward was paid.',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      } catch (e) {
+        _failure(e);
+      }
+      return;
+    }
+
+    // Approved reward records remain non-posting. No direct Pay action exists.
   }
 
   Future<List<Map<String, dynamic>>> _promotionEmployees() async {
