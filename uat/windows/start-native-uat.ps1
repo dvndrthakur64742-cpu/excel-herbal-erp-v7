@@ -70,7 +70,30 @@ if($LASTEXITCODE -ne 0 -or $head -notmatch '^[a-f0-9]{40}$'){
 }
 $uatHead=[string]$result.data.source_head
 if($uatHead -notmatch '^[a-f0-9]{40}$'){throw 'UAT source marker is not a full Git SHA'}
-Write-Host ('PASS: Windows-native localhost synthetic ERP is healthy at '+$uatHead.Substring(0,8))
+# The plugin is mounted from a separate pinned checkout. A valid health marker
+# alone cannot prove that WordPress is executing the intended source revision.
+$pluginMount=Join-Path $XamppRoot 'htdocs\erp-uat\wp-content\plugins\excel-herbal-erp-v7'
+$mount=Get-Item -LiteralPath $pluginMount -Force -ErrorAction Stop
+$targets=@($mount.Target)
+if($mount.LinkType -ne 'Junction' -or $targets.Count -ne 1){
+    throw 'Refusing unverified ERP UAT plugin mount; expected one local junction'
+}
+$mountedPath=[string]$targets[0]
+$mountedRoot=& git -C $mountedPath rev-parse --show-toplevel 2>$null
+if($LASTEXITCODE -ne 0 -or !$mountedRoot){throw 'Cannot verify mounted ERP Git checkout'}
+$expectedPlugin=[System.IO.Path]::GetFullPath((Join-Path $mountedRoot 'plugin\excel-herbal-erp-v7')).TrimEnd('\')
+$actualPlugin=[System.IO.Path]::GetFullPath($mountedPath).TrimEnd('\')
+if($expectedPlugin -ine $actualPlugin){throw 'Mounted ERP plugin is not the repository canonical plugin path'}
+$mountedHead=& git -C $mountedPath rev-parse HEAD 2>$null
+if($LASTEXITCODE -ne 0 -or $mountedHead -notmatch '^[a-f0-9]{40}$'){
+    throw 'Cannot verify mounted ERP source SHA'
+}
+if($mountedHead -ine $uatHead){
+    throw ('BLOCKED: mounted ERP source is '+$mountedHead.Substring(0,8)+
+      ', but WordPress UAT health reports '+$uatHead.Substring(0,8)+
+      '. Back up, review migrations and repin before running source-certified UAT.')
+}
+Write-Host ('PASS: Windows-native localhost synthetic ERP verified at '+$uatHead.Substring(0,8))
 if($head -ine $uatHead){
     Write-Warning ('UAT is pinned to '+$uatHead.Substring(0,8)+', but development HEAD is '+$head.Substring(0,8)+'. Latest-source UAT is NOT verified. Back up, review migrations, repin and test before release.')
 }else{

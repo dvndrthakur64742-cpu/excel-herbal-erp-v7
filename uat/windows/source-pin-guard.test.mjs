@@ -56,3 +56,11 @@ test('local launcher distinguishes healthy pinned UAT from latest-source certifi
   assert.match(launcher,/back up, review migrations, repin and test/i);
   assert.match(launcher,/\[switch\]\$NoBrowser/);
 });
+
+test('local launcher fails closed if mounted plugin commit differs from WordPress health marker',()=>{
+  const launcher=readFileSync(fileURLToPath(new URL('./start-native-uat.ps1',import.meta.url)),'utf8');
+  assert.match(launcher,/\$mount\.LinkType -ne 'Junction'/);
+  assert.match(launcher,/git -C \$mountedPath rev-parse HEAD/);
+  assert.match(launcher,/\$mountedHead -ine \$uatHead/);
+  assert.match(launcher,/BLOCKED: mounted ERP source is/);
+});
