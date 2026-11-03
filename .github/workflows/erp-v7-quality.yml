@@ -111,6 +111,9 @@ jobs:
       - name: Run real MariaDB reward request and independent review audit tests
         working-directory: plugin/excel-herbal-erp-v7
         run: php tests/integration_reward_adjustments.php
+      - name: Run real MariaDB reward payroll allocation and anti-tamper tests
+        working-directory: plugin/excel-herbal-erp-v7
+        run: php tests/integration_reward_payroll_allocation.php
       - name: Run real MariaDB promotion review and zero-privilege mutation tests
         working-directory: plugin/excel-herbal-erp-v7
         run: php tests/integration_promotion_reviews.php
