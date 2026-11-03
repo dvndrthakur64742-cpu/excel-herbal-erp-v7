@@ -816,6 +816,15 @@
     },
     {
       "method": "POST",
+      "path": "/daily/cycles/(?P<id>\\d+)/edit-draft",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "lines"
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/daily/cycles/(?P<id>\\d+)/submit",
       "auth": true,
       "idempotency_required": true,
