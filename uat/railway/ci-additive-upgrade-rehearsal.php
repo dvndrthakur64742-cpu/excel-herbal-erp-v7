@@ -49,6 +49,12 @@ $toRebuild = [
         'payroll_item',
         'beneficiary',
     ],
+    'reward_payroll_allocations' => [
+        'uq_reward_allocation',
+        'uq_payroll_item_allocation',
+        'uq_proposal_allocation',
+        'company_run',
+    ],
     'promotion_requests' => [
         'company_branch_status',
         'employee_status',
