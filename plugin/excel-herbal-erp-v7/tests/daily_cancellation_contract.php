@@ -109,6 +109,14 @@ rejectCancel(fn()=>Cancellation::reopen($employee,70),'daily_order_has_dependenc
 $db->allocated=false;$db->closed=true;
 rejectCancel(fn()=>Cancellation::reopen($employee,70),'branch_day_closed');
 
+$db->closed=false;$db->cycle='rejected';$db->request='rejected';
+$reopened=Cancellation::reopen($employee,70);
+checkCancel($reopened['status']==='morning_draft'&&$db->request==='draft',
+    'reviewer rejected unallocated order may reopen to editable draft');
+$reopenedAudit=end($db->insertions);
+checkCancel($reopenedAudit[1]['action']==='daily_order.reopen_draft'&&
+    str_contains((string)$reopenedAudit[1]['context_json'],'rejected'),
+    'rejected original state preserved in reopen audit');
 $routes=RouteRegistry::routes();$contracts=ApiContract::describe()['routes'];
 foreach([
     'daily.cancel'=>['/daily/cycles/(?P<id>\\d+)/cancel',['reason']],
