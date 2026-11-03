@@ -102,9 +102,10 @@ final class DailyCancellationService {
     public static function reopen(Actor $actor,int $cycleId):array {
         return Transaction::run(function()use($actor,$cycleId){
             [$cycle,$request]=self::lock($actor,$cycleId);
-            if($cycle['status']!=='cancelled'||$request['status']!=='cancelled')
+            if(!in_array($cycle['status'],['cancelled','rejected'],true)||
+               $request['status']!==$cycle['status'])
                 throw new DomainException(
-                    'Only a previously cancelled unallocated order may reopen.',
+                    'Only a cancelled or reviewer-rejected unallocated order may reopen.',
                     'daily_request_state_invalid',409
                 );
             $db=Db::wpdb();
@@ -118,7 +119,7 @@ final class DailyCancellationService {
             Audit::add($actor,'daily_order.reopen_draft','daily_cycle',$cycleId,[
                 'branch_id'=>(int)$cycle['branch_id'],
                 'request_id'=>(int)$request['id'],
-                'prior_status'=>'cancelled',
+                'prior_status'=>(string)$cycle['status'],
             ]);
             return ['id'=>$cycleId,'status'=>'morning_draft','stock_moved'=>false];
         });
