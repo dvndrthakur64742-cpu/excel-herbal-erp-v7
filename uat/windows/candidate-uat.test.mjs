@@ -64,3 +64,19 @@ test('synthetic login tool has explicit allowed localhost sites and credential i
   assert.match(smoke,/9000000001/);
   assert.match(smoke,/9000000002/);
 });
+
+test('candidate Branch Manager REST check enforces branch scope and token cleanup',()=>{
+  const bm=read('candidate-bm-smoke.mjs');
+  assert.match(bm,/process\.platform!=='win32'/);
+  assert.match(bm,/127\.0\.0\.1:18880\/erp-uat-candidate/);
+  assert.match(bm,/ERP7-UAT-Candidate/);
+  assert.match(bm,/secret\.source_sha===gitSha/);
+  assert.match(bm,/secret\.bm_mobile==='9000000003'/);
+  assert.match(bm,/auth\/login/);
+  assert.match(bm,/sales\/orders\?branch_id=1/);
+  assert.match(bm,/sales\/orders\?branch_id=999/);
+  assert.match(bm,/denied\.status===403/);
+  assert.match(bm,/auth\/logout/);
+  assert.match(bm,/active_mobile_sessions_zero===true/);
+  assert.doesNotMatch(bm,/console\.log\([^)]*(?:password|access_token|refresh_token)/i);
+});

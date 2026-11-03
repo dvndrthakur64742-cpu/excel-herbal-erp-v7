@@ -217,3 +217,27 @@ source-certified for these synthetic login/API checks only; financial
 end-to-end transactions and Hostinger backup/restore/production release
 remain pending. Candidate setup/repin should never be rerun in place; the
 scripts intentionally fail closed on existing artifacts.
+
+
+### Authenticated synthetic Branch Manager scope, latest pinned candidate
+
+From the same authorized Windows development PC, run:
+
+~~~powershell
+node D:\ERP7-Development\uat\windows\candidate-bm-smoke.mjs
+~~~
+
+This test uses ONLY private candidate synthetic BM credentials from
+D:\ERP-Local-Secrets\candidate-uat-app.json, refuses a missing or wrong
+candidate URL/source SHA, obtains its source from the exact independently
+pinned D:\ERP7-UAT-Candidate checkout and checks current candidate health
+is sanitized, synthetic-only and session-free. It then checks the
+synthetic BM designation/employee ID and branch identity, allows sales
+view only in the assigned branch, denies another branch with HTTP 403,
+logs out, verifies token revocation and confirms no mobile sessions remain.
+**Windows execution passed:** employee=3 BM, assigned branch=1,
+cross-branch 403, logout and session cleanup. No passwords or tokens
+were output, and no real staff / production data was accessed.
+
+This is authenticated WordPress REST role/branch authorization evidence,
+NOT actual Android/Web UI, bank settlement, or final production UAT.
