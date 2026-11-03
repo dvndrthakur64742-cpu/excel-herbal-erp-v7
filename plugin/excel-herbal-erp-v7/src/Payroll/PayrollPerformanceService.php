@@ -122,6 +122,7 @@ final class PayrollPerformanceService
             ),ARRAY_A);
             $rebuilt=false;
             if($existing){
+                RewardPayrollAllocationService::assertDraftDiscardable($db,(int)$existing['id']);
                 if((string)$existing['status']!=='draft')throw new DomainException('Payroll already exists.','payroll_duplicate',409);
                 $stats=$db->get_row($db->prepare(
                     "SELECT COUNT(*) item_count,COALESCE(SUM(fixed_salary),0) fixed_total,COALESCE(SUM(net_salary),0) net_total,COALESCE(SUM(bonus+allowances+deductions),0) adjustment_total FROM {$items} WHERE payroll_run_id=%d",
@@ -199,6 +200,7 @@ final class PayrollPerformanceService
             if (!$item) {
                 throw new DomainException('Payroll item not found.', 'payroll_item_not_found', 404);
             }
+            RewardPayrollAllocationService::assertItemUnlocked($db,$runId,$itemId);
             $bonus=round($bonus,2);$allowances=round($allowances,2);$deductions=round($deductions,2);
             if($deductions>round((float)$item['attendance_salary']+(float)$item['salary_fund_earning']+$bonus+$allowances,2))throw new DomainException('Deductions exceed earnings; use a separate recovery balance.','payroll_excess_deduction',422);
             $net = round(max(0, (float) $item['attendance_salary'] + (float) $item['salary_fund_earning'] + $bonus + $allowances - $deductions), 2);
@@ -248,6 +250,7 @@ final class PayrollPerformanceService
                 throw new DomainException('Maker cannot approve own payroll.', 'maker_checker_required', 409);
             }
             BranchDayGuard::assertOpen($a, (int) $run['branch_id'], (string) $run['period_end']);
+            RewardPayrollAllocationService::assertRunInvariant($db,$a->companyId,$id);
             $stats = $db->get_row($db->prepare(
                 "SELECT COUNT(*) item_count,COALESCE(SUM(net_salary),0) net_total,SUM(CASE WHEN fixed_salary<=0 THEN 1 ELSE 0 END) invalid_salary_items FROM ".Db::table('payroll_items')." WHERE payroll_run_id=%d",
                 $id
@@ -296,6 +299,7 @@ final class PayrollPerformanceService
             }
             BranchDayGuard::assertOpen($a, (int) $run['branch_id'], $paymentDate);
             $payment = AccountingService::paymentAccount($a, $paymentAccountId);
+            RewardPayrollAllocationService::assertRunInvariant($db,$a->companyId,$id);
             $total = round((float) $db->get_var($db->prepare(
                 "SELECT COALESCE(SUM(net_salary),0) FROM ".Db::table('payroll_items')." WHERE payroll_run_id=%d",
                 $id
@@ -506,6 +510,7 @@ final class PayrollPerformanceService
             if(!$run)throw new DomainException('Payroll not found.','payroll_not_found',404);
             Guard::branch($a,(int)$run['branch_id'],Capabilities::PAYROLL_GENERATE);
             if($run['status']!=='draft'||!empty($run['journal_entry_id'])||!empty($run['payment_journal_entry_id']))throw new DomainException('Only unposted drafts can be discarded.','payroll_state_invalid',409);
+            RewardPayrollAllocationService::assertDraftDiscardable($db,$id);
             $items=(array)$db->get_results($db->prepare('SELECT * FROM '.Db::table('payroll_items').' WHERE payroll_run_id=%d',$id),ARRAY_A);
             Audit::add($a,'payroll.discard','payroll_run',$id,['branch_id'=>(int)$run['branch_id'],'reason'=>$reason,'run'=>$run,'items'=>$items]);
             Db::mustQuery($db,$db->prepare('DELETE FROM '.Db::table('payroll_editors').' WHERE payroll_run_id=%d',$id));
