@@ -212,6 +212,7 @@ abstract final class ApiPaths {
   static String dailyIssuePreflight(int id) =>
       '/daily/requests/$id/issue-preflight';
   static String dailyIssue(int id) => '/daily/requests/$id/issue';
+  static String dailyReceive(int id) => '/daily/requests/$id/receive';
   static String eveningStart(int id) => '/daily/cycles/$id/evening/start';
   static String eveningSave(int id) => '/daily/cycles/$id/evening/save';
   static String eveningSubmit(int id) => '/daily/cycles/$id/evening/submit';
