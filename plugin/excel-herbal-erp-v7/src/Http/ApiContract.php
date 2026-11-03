@@ -165,6 +165,7 @@ final class ApiContract
             'finance.bank_import'=>['lines'],
             'finance.bank_match'=>['journal_line_id'],
             'finance.bank_exclude'=>['reason'],
+            'payroll.salary_structure_create'=>['branch_id','employee_id','monthly_basic','hra','fixed_allowance','other_fixed','effective_from','change_reason'],
             'payroll.generate'=>['branch_id','period_start','period_end'],
             'payroll.item_update'=>['bonus','allowances','deductions'],
             'payroll.pay'=>['payment_account_id','payment_date'],
