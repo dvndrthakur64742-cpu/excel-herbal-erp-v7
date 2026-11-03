@@ -3,6 +3,7 @@ abstract final class DailyOrderWorkflow {
     'draft',
     'submitted',
     'approved',
+    'awaiting_receipt',
   };
 
   static bool canOperateOwnOrder(Iterable<String> capabilities) =>
@@ -42,6 +43,20 @@ abstract final class DailyOrderWorkflow {
         capabilities.contains('daily_order.issue') &&
         !isRequester;
   }
+
+  /// Only the named beneficiary may confirm a physical stock handover.
+  /// The server rechecks branch, identity and row-level receipt state.
+  static bool canReceiveRequest(
+    String requestStatus,
+    Iterable<String> capabilities, {
+    int? beneficiaryEmployeeId,
+    int? currentEmployeeId,
+  }) =>
+      requestStatus == 'awaiting_receipt' &&
+      capabilities.contains('daily_order.self') &&
+      beneficiaryEmployeeId != null &&
+      currentEmployeeId != null &&
+      beneficiaryEmployeeId == currentEmployeeId;
 
   static bool hasBlockingAdditionalRequests(
     Iterable<Map<String, dynamic>> requests,
