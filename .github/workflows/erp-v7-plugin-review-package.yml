@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
           python3 plugin/excel-herbal-erp-v7/tests/static_checks.py
           expected_header='Version: 7.3.12-rc1'
-          expected_schema="VERSION='7.3.12-prepaid-refund-evidence-1'"
+          expected_schema="VERSION='7.3.12-salary-structures-2'"
           grep -Fq "$expected_header" plugin/excel-herbal-erp-v7/excel-herbal-erp-v7.php
           grep -Fq "$expected_schema" plugin/excel-herbal-erp-v7/src/Database/Schema.php
           while IFS= read -r -d '' php_file; do
