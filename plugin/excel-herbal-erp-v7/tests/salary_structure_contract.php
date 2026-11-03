@@ -69,7 +69,7 @@ foreach($expected as [$method,$path,$handler,$required]){
     ))===1,'canonical '.$method.' route contract '.$handler);
 }
 $definitions=Schema::definitions();
-salaryPass(Schema::VERSION==='7.3.12-reward-register-3',
+salaryPass(Schema::VERSION==='7.3.12-promotion-review-4',
     'schema migration marker advanced');
 salaryPass(isset($definitions['salary_structure_versions'])&&
     str_contains($definitions['salary_structure_versions'],'salary_revision_id')&&
