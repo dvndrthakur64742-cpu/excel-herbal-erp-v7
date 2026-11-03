@@ -40,9 +40,13 @@ class _AsyncPanelState extends State<AsyncPanel> {
     }
   }
 
-  void _retry() => setState(
-        () => _future = Future<dynamic>.sync(widget.loader),
-      );
+  void _retry() {
+    // Flutter setState must return void; request execution is async.
+    final request = Future<dynamic>.sync(widget.loader);
+    setState(() {
+      _future = request;
+    });
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<dynamic>(

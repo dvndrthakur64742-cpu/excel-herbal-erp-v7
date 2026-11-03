@@ -30,7 +30,9 @@ for (const file of walk(root)) {
 const widget = fs.readFileSync(path.join(root, 'widgets', 'async_panel.dart'), 'utf8');
 if (!widget.includes('required this.loader') ||
     !widget.includes('Future<dynamic>.sync(widget.loader)') ||
-    !widget.includes('void _retry() => setState(')) {
+    !widget.includes('void _retry() {') ||
+    !widget.includes('setState(() {') ||
+    widget.includes('() => _future = Future<dynamic>.sync(widget.loader)')) {
   violations.push('widgets/async_panel.dart: request factory / retry invariant');
 }
 if (total < 42) violations.push('AsyncPanel census below audited 42 screen callsites: ' + total);
