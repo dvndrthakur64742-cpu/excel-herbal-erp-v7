@@ -22,7 +22,7 @@ if(getenv('EH7_INTEGRATION_MODE')!=='synthetic'||
     exit(2);
 }
 $db=eh7_setup_global_db();
-$tables=['audit_log','reward_payroll_link_proposals','reward_adjustments','payroll_items','payroll_runs',
+$tables=['audit_log','reward_payroll_allocations','reward_payroll_link_proposals','reward_adjustments','payroll_items','payroll_runs',
     'employees','branches','companies'];
 $schema=Schema::definitions();
 foreach($tables as $table){
