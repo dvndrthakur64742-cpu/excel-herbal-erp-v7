@@ -19,8 +19,13 @@ void main() {
     expect(workspace, contains("'payroll.salary.view'"));
     expect(workspace, isNot(contains("app.can('salary.manage')")));
     expect(routes, contains('/payroll/salary-structures'));
+    expect(routes, contains('/performance/rewards'));
+    expect(routes, contains('/performance/reward-employees'));
+    expect(workspace, contains('ApiPaths.performanceRewardEmployees'));
+    expect(workspace, contains("app.can('rewards.approve')"));
+    expect(workspace, isNot(contains("app.can('rewards.pay')")));
     for (final route in const [
-      '/performance/rewards',
+      '/performance/rewards/(?P<id>\\d+)/pay',
       '/performance/promotions',
     ]) {
       expect(routes, isNot(contains(route)), reason: route);
