@@ -1745,6 +1745,13 @@
     },
     {
       "method": "GET",
+      "path": "/performance/promotions/(?P<id>\\d+)/eligibility-evidence",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/performance/promotions",
       "auth": true,
       "idempotency_required": false,
