@@ -663,7 +663,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
       return 'issue';
     }
     if (status == 'issued' &&
-        additionalRequestStatus.isEmpty &&
+        DailyOrderWorkflow.additionalQueueSettled(additionalRequestStatus) &&
         DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
       return 'evening';
     }
@@ -871,7 +871,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
           ),
         );
       }
-      if (additionalRequestStatus.isEmpty &&
+      if (DailyOrderWorkflow.additionalQueueSettled(additionalRequestStatus) &&
           DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
         out.add(
           const PopupMenuItem(
