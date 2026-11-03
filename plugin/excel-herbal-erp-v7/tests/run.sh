@@ -23,6 +23,7 @@ php tests/salary_authority_regression.php
 php tests/salary_structure_contract.php
 php tests/reward_adjustment_contract.php
 php tests/reward_payroll_link_contract.php
+php tests/reward_payroll_allocation_contract.php
 php tests/promotion_review_contract.php
 php tests/access_escalation_regression.php
 php tests/workforce_scope_contract.php
