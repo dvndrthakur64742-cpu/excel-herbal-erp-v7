@@ -38,6 +38,11 @@ $toRebuild = [
         'employee_effective',
         'uq_salary_revision_id',
     ],
+    'reward_adjustments' => [
+        'company_branch_status',
+        'employee_status',
+        'maker_review',
+    ],
 ];
 $preservedTables = [
     $wpdb->users,
