@@ -98,12 +98,50 @@ return$c;}
         try{self::install();delete_option('eh7_schema_migration_error');return true;}
         catch(\Throwable $e){$msg=substr($e->getMessage(),0,1000);update_option('eh7_schema_migration_error',$msg,false);error_log('EH7 schema migration failed: '.$msg);return false;}
     }
+    /**
+     * WordPress dbDelta parses one SQL column/index declaration per line.
+     * Our canonical compact definitions use commas without newlines; passing
+     * them directly causes malformed ALTER TABLE statements on upgrades.
+     * Split only on top-level commas (not DECIMAL scales, index columns or
+     * quoted default values). Never alter the actual column definitions.
+     */
+    public static function dbDeltaLines(string $body):string{
+        $lines=[];$start=0;$depth=0;$quote=null;$n=strlen($body);
+        for($i=0;$i<$n;$i++){
+            $c=$body[$i];
+            if($quote!==null){
+                if($c==='\\'&&$i+1<$n){$i++;continue;}
+                if($c===$quote){
+                    if($i+1<$n&&$body[$i+1]===$quote){$i++;continue;}
+                    $quote=null;
+                }
+                continue;
+            }
+            if($c==="'"||$c==='"'||$c===chr(96)){$quote=$c;continue;}
+            if($c==='('){$depth++;continue;}
+            if($c===')'){
+                if($depth<1)throw new \InvalidArgumentException('Unbalanced ERP SQL definition.');
+                $depth--;continue;
+            }
+            if($c===','&&$depth===0){
+                $line=trim(substr($body,$start,$i-$start));
+                if($line==='')throw new \InvalidArgumentException('Empty ERP SQL declaration.');
+                $lines[]=$line;$start=$i+1;
+            }
+        }
+        if($quote!==null||$depth!==0)throw new \InvalidArgumentException('Unbalanced ERP SQL definition.');
+        $last=trim(substr($body,$start));
+        if($last==='')throw new \InvalidArgumentException('Empty ERP SQL declaration.');
+        $lines[]=$last;
+        return implode(",\n",$lines);
+    }
+
     public static function install():void{
         require_once ABSPATH.'wp-admin/includes/upgrade.php';
         $db=Db::wpdb();
         $charset=$db->get_charset_collate();
         foreach(self::definitions() as $name=>$body){
-            dbDelta('CREATE TABLE '.Db::table($name).' ('.$body.') '.$charset.';');
+            dbDelta('CREATE TABLE '.Db::table($name)." (\n".self::dbDeltaLines($body)."\n) ".$charset.';');
         }
         foreach(array_keys(self::definitions()) as $name){
             $table=Db::table($name);

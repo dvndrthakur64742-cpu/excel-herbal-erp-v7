@@ -4,6 +4,7 @@ import '../core/api_client.dart';
 import '../core/api_paths.dart';
 import '../core/app_config.dart';
 import '../core/bootstrap_projection.dart';
+import '../core/bootstrap_retry_policy.dart';
 import '../core/providers.dart';
 import '../core/secure_session.dart';
 import '../core/ui_error.dart';
@@ -15,6 +16,7 @@ class AppState {
     this.bootstrap,
     this.currentBranchId,
     this.error,
+    this.errorReference,
   });
 
   final bool loading;
@@ -22,6 +24,8 @@ class AppState {
   final Map<String, dynamic>? bootstrap;
   final int? currentBranchId;
   final String? error;
+  /// Safe server-generated diagnostic reference, never credentials.
+  final String? errorReference;
 
   BootstrapProjection get projection => BootstrapProjection.fromMap(bootstrap);
 
@@ -231,6 +235,7 @@ class AppState {
     Map<String, dynamic>? bootstrap,
     int? currentBranchId,
     String? error,
+    String? errorReference,
     bool clearError = false,
   }) => AppState(
     loading: loading ?? this.loading,
@@ -238,6 +243,9 @@ class AppState {
     bootstrap: bootstrap ?? this.bootstrap,
     currentBranchId: currentBranchId ?? this.currentBranchId,
     error: clearError ? null : (error ?? this.error),
+    errorReference: clearError || (error != null && errorReference == null)
+        ? null
+        : (errorReference ?? this.errorReference),
   );
 }
 
@@ -277,10 +285,22 @@ class AppController extends StateNotifier<AppState> {
     }
   }
 
+  /// Retry only transient read-only bootstrap failures. Never retry login,
+  /// payments or other mutations, permission errors, or contract mismatches.
+  Future<dynamic> _fetchBootstrap() async {
+    try {
+      return await api.get(ApiPaths.bootstrap);
+    } on ApiException catch (error) {
+      if (!BootstrapRetryPolicy.shouldRetry(error)) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      return api.get(ApiPaths.bootstrap);
+    }
+  }
+
   Future<void> refreshBootstrap() async {
     try {
       final data = Map<String, dynamic>.from(
-        await api.get(ApiPaths.bootstrap) as Map,
+        await _fetchBootstrap() as Map,
       );
       final projection = BootstrapProjection.fromMap(data);
       final ids = projection.identity.branchIds;
@@ -316,6 +336,7 @@ class AppController extends StateNotifier<AppState> {
         loading: false,
         authenticated: state.authenticated || (token?.isNotEmpty ?? false),
         error: UiError.message(e),
+        errorReference: UiError.reference(e),
       );
     } catch (e) {
       final token = await session.accessToken();

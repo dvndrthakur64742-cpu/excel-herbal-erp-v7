@@ -36,4 +36,5 @@ php tests/prepaid_order_rules.php
 php tests/prepaid_orders_contract.php
 php tests/prepaid_refund_evidence_preflight.php
 php tests/bootstrap_contract.php
+php tests/dbdelta_schema_format_contract.php
 php tests/regression.php

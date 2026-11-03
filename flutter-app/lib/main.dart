@@ -108,6 +108,14 @@ class _BootstrapRecoveryScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(reason, textAlign: TextAlign.center),
+                      if (app.errorReference != null) ...[
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          'Support reference: ${app.errorReference}',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       const Text(
                         'Business posting is paused until the server date and startup contract are valid. Navigation will resume after a successful retry.',
