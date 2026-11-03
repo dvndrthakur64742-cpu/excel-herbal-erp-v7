@@ -137,7 +137,8 @@ class _CompensationWorkspaceState
                 builder: (context, data) => RecordsList(
                   recordType: 'promotion_request',
                   rows: _rows(data),
-                  onTap: app.can('promotion.approve')
+                  onTap: app.can('promotion.approve') &&
+                              app.can('organization.hr.review')
                       ? _promotionAction
                       : null,
                 ),
@@ -546,10 +547,20 @@ class _CompensationWorkspaceState
     // unposted until a separately verified payroll/accounting allocation exists.
   }
 
+  Future<List<Map<String, dynamic>>> _promotionEmployees() async {
+    final app = ref.read(appStateProvider);
+    if (app.currentBranchId == null) return const [];
+    final raw = await ref.read(apiClientProvider).get(
+      ApiPaths.performancePromotionEmployees,
+      query: {'branch_id': app.currentBranchId},
+    );
+    return _rows(raw);
+  }
+
   Future<void> _createPromotionRequest() async {
     final app = ref.read(appStateProvider);
     try {
-      final employees = await _branchEmployees();
+      final employees = await _promotionEmployees();
       final rawDesignations =
           await ref.read(apiClientProvider).get(ApiPaths.designations);
       final designations = _rows(rawDesignations);
@@ -714,7 +725,7 @@ class _CompensationWorkspaceState
             'reason': reason.text.trim(),
           },
         );
-        _success('Promotion / increment request submitted.');
+        _success('Promotion review submitted. No change to designation or salary.');
       }
 
       effectiveFrom.dispose();
@@ -754,7 +765,9 @@ class _CompensationWorkspaceState
     );
     if (decision != null) {
       await _post(ApiPaths.promotionDecision(id), {'decision': decision});
-      _success('Promotion / increment $decision.');
+      _success(decision == 'approved'
+          ? 'Promotion reviewed and approved for later HR execution. Salary, designation and access unchanged.'
+          : 'Promotion review rejected. No employee changes made.');
     }
   }
 
