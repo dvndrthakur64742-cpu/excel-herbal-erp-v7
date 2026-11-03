@@ -69,7 +69,6 @@ class _CompensationWorkspaceState
       'rewards.view',
       'rewards.manage',
       'rewards.approve',
-      'rewards.pay',
     ])) {
       tabs.add((
         'Rewards / Penalties',
@@ -96,7 +95,7 @@ class _CompensationWorkspaceState
                 builder: (context, data) => RecordsList(
                   recordType: 'reward_adjustment',
                   rows: _rows(data),
-                  onTap: app.canAny(const ['rewards.approve', 'rewards.pay'])
+                  onTap: app.can('rewards.approve')
                       ? _rewardAction
                       : null,
                 ),
@@ -208,6 +207,16 @@ class _CompensationWorkspaceState
       query: {'branch_id': app.currentBranchId},
     );
     // Server picker already returns active, hierarchy-scoped colleagues.
+    return _rows(raw);
+  }
+
+  Future<List<Map<String, dynamic>>> _rewardEmployees() async {
+    final app = ref.read(appStateProvider);
+    if (app.currentBranchId == null) return const [];
+    final raw = await ref.read(apiClientProvider).get(
+      ApiPaths.performanceRewardEmployees,
+      query: {'branch_id': app.currentBranchId},
+    );
     return _rows(raw);
   }
 
@@ -369,7 +378,7 @@ class _CompensationWorkspaceState
   Future<void> _createReward() async {
     final app = ref.read(appStateProvider);
     try {
-      final employees = await _branchEmployees();
+      final employees = await _rewardEmployees();
       if (!mounted) return;
       int? employeeId;
       RewardAdjustmentKind kind = RewardAdjustmentKind.incentive;
@@ -485,7 +494,7 @@ class _CompensationWorkspaceState
             'reason': reason.text.trim(),
           },
         );
-        _success('Reward / penalty submitted for approval.');
+        _success('Reward / penalty submitted for independent approval. No payout has been made.');
       }
 
       amount.dispose();
@@ -528,23 +537,13 @@ class _CompensationWorkspaceState
       );
       if (decision != null) {
         await _post(ApiPaths.rewardDecision(id), {'decision': decision});
-        _success('Reward / penalty $decision.');
+        _success('Reward / penalty $decision. No payment or points posted.');
       }
       return;
     }
 
-    if (status == 'approved' && app.can('rewards.pay')) {
-      final pay = await _confirm(
-        title: 'Mark reward / penalty settled?',
-        body:
-            'The backend must keep this settlement idempotent and linked to payroll/accounting.',
-        confirmText: 'Settle',
-      );
-      if (pay == true) {
-        await _post(ApiPaths.rewardPay(id), const {});
-        _success('Reward / penalty settled.');
-      }
-    }
+    // Approved rewards are an auditable register only; funds/points remain
+    // unposted until a separately verified payroll/accounting allocation exists.
   }
 
   Future<void> _createPromotionRequest() async {
