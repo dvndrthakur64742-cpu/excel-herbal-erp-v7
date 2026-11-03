@@ -102,3 +102,6 @@ jobs:
       - name: Run real MariaDB order -> receipts -> invoice -> stock -> ledger tests
         working-directory: plugin/excel-herbal-erp-v7
         run: php tests/integration_prepaid_sales.php
+      - name: Run real MariaDB daily request rejection and withdrawal tests
+        working-directory: plugin/excel-herbal-erp-v7
+        run: php tests/integration_daily_disposition.php
