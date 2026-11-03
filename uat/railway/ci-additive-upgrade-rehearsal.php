@@ -130,7 +130,7 @@ try {
     }
     update_option('eh7_schema_version', '7.3.10-prepaid-sales-1', false);
     $expected = \ExcelHerbal\ERP7\Database\Schema::VERSION;
-    if ($expected !== '7.3.12-promotion-review-4') {
+    if ($expected !== '7.3.12-reward-link-proposals-5') {
         throw new \RuntimeException('Unexpected migration release: ' . $expected);
     }
     if (\ExcelHerbal\ERP7\Database\Schema::maybeUpgrade() !== true ||
