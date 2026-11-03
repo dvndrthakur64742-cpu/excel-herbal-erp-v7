@@ -62,7 +62,8 @@ function eh7_ci_snapshot(array $tables): array {
             throw new \RuntimeException("Preserved source table missing: " . $table);
         }
         // Names are internal, fixed and validated (never user input).
-        $rows = $wpdb->get_results("SELECT * FROM `{$table}` ORDER BY id ASC", ARRAY_A);
+        $pk = $table === $wpdb->usermeta ? 'umeta_id' : ($table === $wpdb->users ? 'ID' : 'id');
+        $rows = $wpdb->get_results("SELECT * FROM `{$table}` ORDER BY `{$pk}` ASC", ARRAY_A);
         if (!is_array($rows)) {
             throw new \RuntimeException("Cannot snapshot source table: " . $table);
         }
