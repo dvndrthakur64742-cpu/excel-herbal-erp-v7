@@ -1782,6 +1782,13 @@
     },
     {
       "method": "GET",
+      "path": "/performance/rewards/(?P<id>\\d+)/settlement-preflight",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/performance/rewards",
       "auth": true,
       "idempotency_required": false,
