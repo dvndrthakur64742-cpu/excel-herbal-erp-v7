@@ -1,12 +1,12 @@
 <?php
 /** Synthetic permissions and atomic state tests; never accesses production DB. */
 if(!defined('ARRAY_A'))define('ARRAY_A','ARRAY_A');
-if(!function_exists('current_time'))function current_time(string $format,bool $gmt=false):string{
+if(!function_exists('current_time')){function current_time(string $format,bool $gmt=false):string{
     return $format==='Y-m-d'?'2026-11-03':'2026-11-03 12:00:00';
-}
-if(!function_exists('wp_json_encode'))function wp_json_encode(mixed $v):string{
+}}
+if(!function_exists('wp_json_encode')){function wp_json_encode(mixed $v):string{
     return json_encode($v,JSON_THROW_ON_ERROR);
-}
+}}
 require_once __DIR__.'/../src/Core/Autoloader.php';
 \ExcelHerbal\ERP7\Core\Autoloader::register(__DIR__.'/../src');
 use ExcelHerbal\ERP7\DailyOrder\DailyRequestDispositionService as Disposition;
