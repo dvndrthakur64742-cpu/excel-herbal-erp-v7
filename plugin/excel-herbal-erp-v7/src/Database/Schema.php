@@ -1,7 +1,7 @@
 <?php
 namespace ExcelHerbal\ERP7\Database;
 final class Schema {
-    public const VERSION='7.3.12-reward-register-3';
+    public const VERSION='7.3.12-promotion-review-4';
     /** @return array<string,string> */
     public static function definitions():array{$c=[];
 $c['companies']="id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,name VARCHAR(190) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'active',created_at DATETIME NOT NULL,PRIMARY KEY(id)";
