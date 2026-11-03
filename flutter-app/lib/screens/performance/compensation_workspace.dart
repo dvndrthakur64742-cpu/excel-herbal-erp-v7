@@ -851,13 +851,13 @@ class _CompensationWorkspaceState
           title: const Text('Promotion Eligibility — Evidence Only'),
           content: SingleChildScrollView(
             child: Text(
-              'Recorded performance points since joining: ' + points +
-              '\nDestination minimum points snapshot: ' + minimumPoints +
-              '\nCalendar tenure days: ' + calendarDays +
-              '\nDestination minimum days snapshot: ' + minimumDays +
-              '\n\nThese observations do NOT establish qualifying points or working days.' +
-              '\nEligibility remains unverified and employee access/salary unchanged.' +
-              '\n\nExecution blockers:\n• ' + blocked,
+              'Recorded performance points since joining: $points\n'
+              'Destination minimum points snapshot: $minimumPoints\n'
+              'Calendar tenure days: $calendarDays\n'
+              'Destination minimum days snapshot: $minimumDays\n'
+              '\nThese observations do NOT establish qualifying points or working days.\n'
+              'Eligibility remains unverified and employee access/salary unchanged.\n'
+              '\nExecution blockers:\n• $blocked',
             ),
           ),
           actions: [
