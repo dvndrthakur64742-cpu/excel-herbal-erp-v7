@@ -556,7 +556,7 @@ class _CompensationWorkspaceState
         }
         final blocked = result['blocking_reason_codes'];
         final reasons = blocked is List
-            ? blocked.map((reason) => reason.toString().replaceAll('_', ' ')).join('\\n• ')
+            ? blocked.map((reason) => reason.toString().replaceAll('_', ' ')).join('\n• ')
             : 'Reward-to-payroll allocation is not verified.';
         await showDialog<void>(
           context: context,
@@ -565,8 +565,8 @@ class _CompensationWorkspaceState
             content: SingleChildScrollView(
               child: Text(
                 'This is a read-only finance preflight. No reward payout '
-                'or performance points have been posted.\\n\\n'
-                'Required controls:\\n• $reasons\\n\\n'
+                'or performance points have been posted.\n\n'
+                'Required controls:\n• $reasons\n\n'
                 'An unrelated paid payroll run does not prove this '
                 'specific reward was paid.',
               ),
