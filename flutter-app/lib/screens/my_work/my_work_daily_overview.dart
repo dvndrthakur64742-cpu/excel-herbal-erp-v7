@@ -587,6 +587,17 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
       return 'submit';
     }
     if (status == 'stock_requested' &&
+        DailyOrderWorkflow.canReviewRequest(
+          initialRequestStatus,
+          app.capabilities,
+          designationCode: app.primaryDesignationCode,
+          requesterId: initialRequesterId,
+          beneficiaryEmployeeId: beneficiaryEmployeeId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
+      return 'review';
+    }
+    if (status == 'stock_requested' &&
         DailyOrderWorkflow.canApproveRequest(
           initialRequestStatus,
           app.capabilities,
@@ -621,6 +632,17 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
           currentEmployeeId: currentEmployeeId,
         )) {
       return 'receive';
+    }
+    if (status == 'issued' &&
+        DailyOrderWorkflow.canReviewRequest(
+          additionalRequestStatus,
+          app.capabilities,
+          designationCode: app.primaryDesignationCode,
+          requesterId: additionalRequesterId,
+          beneficiaryEmployeeId: beneficiaryEmployeeId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
+      return 'review';
     }
     if (status == 'issued' &&
         DailyOrderWorkflow.canApproveRequest(
@@ -658,6 +680,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
   String _dailyActionLabelImpl(String action, {bool additional = false}) =>
       switch (action) {
         'submit' => 'Submit for Approval',
+        'review' => additional ? 'Review Additional' : 'Review Stock Request',
         'approve' => additional ? 'Approve Additional' : 'Approve Order',
         'issue' => additional ? 'Allocate Additional Stock' : 'Allocate Stock',
         'receive' => additional ? 'Receive Additional Stock' : 'Confirm Physical Receipt',
@@ -685,7 +708,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
             icon: Icon(
               primary == 'issue'
                   ? Icons.inventory_2_outlined
-                  : primary == 'approve'
+                  : primary == 'approve' || primary == 'review'
                       ? Icons.task_alt_rounded
                       : primary == 'submit'
                           ? Icons.send_rounded
