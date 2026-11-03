@@ -117,6 +117,8 @@ final class ApiContract
             'daily.create'=>['branch_id','employee_id','business_date','lines'],
             'daily.edit_draft'=>['lines'],
             'daily.cancel'=>['reason'],
+            'daily.reject'=>['reason'],
+            'daily.cancel_additional'=>['reason'],
             'daily.upi_record'=>['reference','amount'],
             'daily.upi_decision'=>['approve'],
             'daily.additional'=>['lines'],
