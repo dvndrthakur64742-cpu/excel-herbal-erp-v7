@@ -43,6 +43,12 @@ $toRebuild = [
         'employee_status',
         'maker_review',
     ],
+    'reward_payroll_link_proposals' => [
+        'uq_company_reward',
+        'company_branch_status',
+        'payroll_item',
+        'beneficiary',
+    ],
     'promotion_requests' => [
         'company_branch_status',
         'employee_status',
