@@ -28,12 +28,12 @@ class _CompensationWorkspaceState
     final api = ref.watch(apiClientProvider);
     final tabs = <(String, Widget)>[];
 
-    if (app.canAny(const ['salary.view', 'salary.manage', 'salary.approve'])) {
+    if (app.canAny(const ['payroll.salary.view', 'payroll.salary.manage', 'payroll.salary.approve'])) {
       tabs.add((
         'Salary Structures',
         Column(
           children: [
-            if (app.can('salary.manage'))
+            if (app.can('payroll.salary.manage'))
               _ActionBar(
                 child: FilledButton.icon(
                   onPressed: _createSalaryStructure,
@@ -54,7 +54,7 @@ class _CompensationWorkspaceState
                 builder: (context, data) => RecordsList(
                   recordType: 'salary_structure',
                   rows: _rows(data),
-                  onTap: app.can('salary.approve')
+                  onTap: app.can('payroll.salary.approve')
                       ? _salaryStructureAction
                       : null,
                 ),
@@ -204,15 +204,11 @@ class _CompensationWorkspaceState
     final app = ref.read(appStateProvider);
     if (app.currentBranchId == null) return const [];
     final raw = await ref.read(apiClientProvider).get(
-      ApiPaths.employees,
+      ApiPaths.salaryEmployees,
       query: {'branch_id': app.currentBranchId},
     );
-    return _rows(raw)
-        .where(
-          (row) =>
-              '${row['employee_status']}'.trim().toLowerCase() == 'active',
-        )
-        .toList();
+    // Server picker already returns active, hierarchy-scoped colleagues.
+    return _rows(raw);
   }
 
   Future<void> _createSalaryStructure() async {
@@ -311,7 +307,7 @@ class _CompensationWorkspaceState
                       () => validation =
                           'Effective date must be a valid YYYY-MM-DD date.',
                     );
-                  } else if (reason.text.trim().isEmpty) {
+                  } else if (reason.text.trim().length < 5) {
                     setLocal(() => validation = 'Change reason is required.');
                   } else if (error != null) {
                     setLocal(() => validation = error);
