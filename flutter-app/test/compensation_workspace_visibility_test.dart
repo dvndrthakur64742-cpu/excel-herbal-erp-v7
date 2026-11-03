@@ -3,19 +3,23 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('performance screen does not expose contract-only compensation workflow', () {
+  test('salary structure is enabled only with real backend and capabilities', () {
     final source = File('lib/screens/performance/performance_screen.dart')
+        .readAsStringSync();
+    final workspace = File('lib/screens/performance/compensation_workspace.dart')
         .readAsStringSync();
     final routes = File(
       '../backend/excel-herbal-erp-v7/src/Http/RouteRegistry.php',
     ).readAsStringSync();
 
-    expect(source, isNot(contains("import 'compensation_workspace.dart';")));
-    expect(source, isNot(contains('const CompensationWorkspace()')));
-    expect(source, isNot(contains("'Compensation'")));
-
+    expect(source, contains("import 'compensation_workspace.dart';"));
+    expect(source, contains('const CompensationWorkspace()'));
+    expect(source, contains("'payroll.salary.manage'"));
+    expect(workspace, contains('ApiPaths.salaryEmployees'));
+    expect(workspace, contains("'payroll.salary.view'"));
+    expect(workspace, isNot(contains("app.can('salary.manage')")));
+    expect(routes, contains('/payroll/salary-structures'));
     for (final route in const [
-      '/payroll/salary-structures',
       '/performance/rewards',
       '/performance/promotions',
     ]) {
