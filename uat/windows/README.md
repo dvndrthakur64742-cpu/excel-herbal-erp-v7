@@ -241,3 +241,58 @@ were output, and no real staff / production data was accessed.
 
 This is authenticated WordPress REST role/branch authorization evidence,
 NOT actual Android/Web UI, bank settlement, or final production UAT.
+
+
+### Candidate Cash/UPI sales transaction UAT (4 Nov 2026)
+
+**Verified Windows WordPress+MariaDB:** The source-pinned isolated candidate
+uses Git 479ed9d and its own restored synthetic DB. Starting totals
+were 5 posted orders, 5 invoices, 7 journals and 3 warehouse units.
+The one-time candidate-prepaid-transactions.php script checked exact
+candidate URL, mounted Git/source, dedicated DB, staging + synthetic seed
+and sanitization + zero active sessions before ANY write.
+
+Actual synthetic B2C Cash flow: invoice with zero/partial (40 of 100)
+payment rejected; second Cash 60 accepted; overpayment refused; a single
+fully-paid 100 invoice posted and stock + journal moved exactly once;
+replayed invoice was idempotent.
+
+Actual synthetic B2C UPI flow: 100 dummy UPI receipt stayed pending;
+invoice posting denied; seller verifying own payment was rejected;
+a separate BM synthetic bank verifier approved dummy evidence, duplicate
+verification was rejected; fully-paid invoice then posted once.
+NO REAL bank transfer, gateway payment or external bank verification occurred.
+
+An INDEPENDENT read-only audit (candidate-sales-audit.php) verified
+7 orders, 7 invoices, 9 journals, Cash split 40+60, UPI maker-checker
+and test evidence, 0 outstanding, two balanced new GL journals, and
+warehouse 3 -> 1. The old dummy evening cycle remained completed.
+original-uat-readonly.php confirmed the UNTOUCHED original WordPress UAT
+retained 5 orders, 5 invoices, 7 journals, and 3 warehouse units.
+
+The transaction script is deliberately ONE-TIME ONLY and fails closed
+if its original fixture counts/stock differ; do not rerun without a fresh,
+independently backed-up and restored synthetic DB.
+To repeat only the READ-ONLY post-audits:
+
+~~~powershell
+$env:EH7_CANDIDATE_SOURCE_SHA=(git -C D:\ERP7-UAT-Candidate rev-parse HEAD).Trim()
+D:\xampp\php\php.exe D:\ERP7-Development\uat\windows\candidate-sales-audit.php
+D:\xampp\php\php.exe D:\ERP7-Development\uat\windows\original-uat-readonly.php
+~~~
+
+This is backend transaction UAT, NOT Android UI or current-day employee
+attendance, not real banking and not production acceptance.
+
+**Critical separate Windows time blocker:** Read-only clock-health.ps1
+compared the PC's UTC time to the GitHub HTTPS Date header and measured
+934.9 minutes (roughly 15h35m) of skew. Windows Time reported its service
+not started. Candidate business date was 2026-11-03 while the trusted
+external reference was 2026-11-04. The PC time was NOT changed.
+Do not certify Attendance/GPS, payroll deadlines or date-sensitive
+evening settlement until authorized Windows clock synchronization is
+verified within 5 minutes. The diagnostic is NOT part of offline CI.
+
+~~~powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uat\windows\clock-health.ps1
+~~~

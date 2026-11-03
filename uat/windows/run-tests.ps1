@@ -43,6 +43,7 @@ if ($Mode -in @('quick','all','backend')) {
     Execute-Test 'Windows localhost synthetic backup safety contracts' { & $node --test (Join-Path $Workspace 'uat\windows\backup-native-uat.test.mjs') }
     Execute-Test 'Isolated MariaDB restore rehearsal contracts' { & $node --test (Join-Path $Workspace 'uat\windows\restore-native-uat.test.mjs') }
     Execute-Test 'Local candidate WordPress source/identity isolation contracts' { & $node --test (Join-Path $Workspace 'uat\windows\candidate-uat.test.mjs') }
+    Execute-Test 'Candidate Cash/UPI transaction and clock safety contracts' { & $node --test (Join-Path $Workspace 'uat\windows\candidate-transaction-contract.test.mjs') }
     Execute-Test 'Professional UI/UX lazy loaders and genuine retry' { & $node (Join-Path $Workspace 'flutter-app\tool\verify_async_panel_loaders.cjs') }
     if ($php) {
         Execute-Test 'WordPress dbDelta SQL definition formatting' { & $php (Join-Path $Workspace 'plugin\excel-herbal-erp-v7\tests\dbdelta_schema_format_contract.php') }
@@ -54,6 +55,14 @@ if ($Mode -in @('quick','all','backend')) {
                 if ($LASTEXITCODE -ne 0) { throw ('PHP parse error: ' + $file.FullName) }
             }
             Write-Host ("Syntax checked {0} ERP PHP files" -f $files.Count)
+        }
+        Execute-Test 'Candidate and original read-only UAT CLI PHP syntax' {
+            foreach ($name in @('candidate-sales-preflight.php','candidate-prepaid-transactions.php','candidate-sales-audit.php','original-uat-readonly.php')) {
+                $file = Join-Path $Workspace ('uat\windows\'+$name)
+                & $php -l $file 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw ('Candidate test parse error: '+$file) }
+            }
+            Write-Host 'Syntax checked 4 isolated candidate/readonly CLI PHP scripts'
         }
     } else {
         Write-Warning 'PHP syntax checks skipped: install free Windows-native PHP/XAMPP under D:\xampp'
