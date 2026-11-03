@@ -198,6 +198,29 @@ void main() {
     );
   });
 
+  test('issued, rejected or withdrawn additional request no longer blocks summary', () {
+    expect(DailyOrderWorkflow.additionalQueueSettled(''), isTrue);
+    expect(DailyOrderWorkflow.additionalQueueSettled('issued'), isTrue);
+    expect(DailyOrderWorkflow.additionalQueueSettled('cancelled'), isTrue);
+    expect(DailyOrderWorkflow.additionalQueueSettled('rejected'), isTrue);
+    for (final pending in ['draft', 'submitted', 'reviewed', 'approved', 'awaiting_receipt']) {
+      expect(DailyOrderWorkflow.additionalQueueSettled(pending), isFalse);
+    }
+    final finished = <Map<String, dynamic>>[
+      {'type': 'initial', 'status': 'issued'},
+      {'type': 'additional', 'status': 'cancelled'},
+    ];
+    expect(DailyOrderWorkflow.hasBlockingAdditionalRequests(finished), isFalse);
+    expect(
+      DailyOrderWorkflow.eveningBlockReason(
+        cycleStatus: 'issued',
+        requests: finished,
+        capabilities: ['daily_order.self'],
+      ),
+      isNull,
+    );
+  });
+
   test('evening closing is blocked while additional request is pending', () {
     final requests = <Map<String, dynamic>>[
       {'type': 'initial', 'status': 'issued'},
