@@ -81,6 +81,69 @@ void main() {
     );
   });
 
+  test('physical receipt is beneficiary-only after allocation', () {
+    expect(
+      DailyOrderWorkflow.canReceiveRequest(
+        'awaiting_receipt',
+        ['daily_order.self'],
+        beneficiaryEmployeeId: 7,
+        currentEmployeeId: 7,
+      ),
+      isTrue,
+    );
+    expect(
+      DailyOrderWorkflow.canReceiveRequest(
+        'awaiting_receipt',
+        ['daily_order.self'],
+        beneficiaryEmployeeId: 7,
+        currentEmployeeId: 8,
+      ),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.canReceiveRequest(
+        'awaiting_receipt',
+        ['daily_order.issue'],
+        beneficiaryEmployeeId: 7,
+        currentEmployeeId: 7,
+      ),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.canReceiveRequest(
+        'approved',
+        ['daily_order.self'],
+        beneficiaryEmployeeId: 7,
+        currentEmployeeId: 7,
+      ),
+      isFalse,
+    );
+    expect(
+      DailyOrderWorkflow.canReceiveRequest(
+        'awaiting_receipt',
+        ['daily_order.self'],
+        beneficiaryEmployeeId: null,
+        currentEmployeeId: 7,
+      ),
+      isFalse,
+    );
+  });
+
+  test('evening remains blocked while additional receipt is pending', () {
+    final pending = <Map<String, dynamic>>[
+      {'type': 'additional', 'status': 'awaiting_receipt'},
+    ];
+    expect(DailyOrderWorkflow.hasBlockingAdditionalRequests(pending), isTrue);
+    expect(
+      DailyOrderWorkflow.eveningBlockReason(
+        cycleStatus: 'issued',
+        requests: pending,
+        capabilities: ['daily_order.self'],
+      ),
+      isNotNull,
+    );
+  });
+
   test('evening closing is blocked while additional request is pending', () {
     final requests = <Map<String, dynamic>>[
       {'type': 'initial', 'status': 'issued'},
