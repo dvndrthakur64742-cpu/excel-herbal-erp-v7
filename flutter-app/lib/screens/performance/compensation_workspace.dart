@@ -778,9 +778,17 @@ class _CompensationWorkspaceState
   }
 
   Future<void> _promotionAction(Map<String, dynamic> row) async {
-    if ('${row['status']}'.toLowerCase() != 'pending') return;
+    final app = ref.read(appStateProvider);
+    if (!app.can('promotion.approve') ||
+        !app.can('organization.hr.review')) return;
+    final status = '${row['status']}'.toLowerCase();
     final id = int.tryParse('${row['id']}');
     if (id == null) return;
+    if (status == 'approved_pending_execution') {
+      await _showPromotionEligibilityEvidence(id);
+      return;
+    }
+    if (status != 'pending') return;
     final decision = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -793,6 +801,10 @@ class _CompensationWorkspaceState
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'evidence'),
+            child: const Text('View Eligibility Evidence'),
+          ),
           OutlinedButton(
             onPressed: () => Navigator.pop(context, 'rejected'),
             child: const Text('Reject'),
@@ -804,11 +816,60 @@ class _CompensationWorkspaceState
         ],
       ),
     );
+    if (decision == 'evidence') {
+      await _showPromotionEligibilityEvidence(id);
+      return;
+    }
     if (decision != null) {
       await _post(ApiPaths.promotionDecision(id), {'decision': decision});
       _success(decision == 'approved'
           ? 'Promotion reviewed and approved for later HR execution. Salary, designation and access unchanged.'
           : 'Promotion review rejected. No employee changes made.');
+    }
+  }
+
+  Future<void> _showPromotionEligibilityEvidence(int requestId) async {
+    try {
+      final raw = await ref.read(apiClientProvider).get(
+        ApiPaths.promotionEligibilityEvidence(requestId),
+      );
+      if (!mounted) return;
+      if (raw is! Map) {
+        throw const FormatException('Promotion eligibility evidence unavailable.');
+      }
+      final blockers = raw['blocking_reason_codes'];
+      final blocked = blockers is List
+          ? blockers.map((code) => code.toString().replaceAll('_', ' ')).join('\n• ')
+          : 'HR eligibility policy and execution are not verified.';
+      final points = (raw['observed_points_since_joining'] ?? '—').toString();
+      final minimumPoints = (raw['minimum_points_snapshot'] ?? '—').toString();
+      final calendarDays = (raw['calendar_tenure_days'] ?? 'Not recorded').toString();
+      final minimumDays = (raw['minimum_days_snapshot'] ?? '—').toString();
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Promotion Eligibility — Evidence Only'),
+          content: SingleChildScrollView(
+            child: Text(
+              'Recorded performance points since joining: ' + points +
+              '\nDestination minimum points snapshot: ' + minimumPoints +
+              '\nCalendar tenure days: ' + calendarDays +
+              '\nDestination minimum days snapshot: ' + minimumDays +
+              '\n\nThese observations do NOT establish qualifying points or working days.' +
+              '\nEligibility remains unverified and employee access/salary unchanged.' +
+              '\n\nExecution blockers:\n• ' + blocked,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      _failure(e);
     }
   }
 
