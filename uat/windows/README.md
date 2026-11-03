@@ -80,3 +80,43 @@ Or open VS Code **Terminal → Run Task → ERP: Local Synthetic Login UAT**. Te
 In VS Code, open the reviewed D: workspace, then **Terminal → Run Task → ERP: Start Local ERP**. This calls `uat/windows/start-native-uat.ps1`. It checks that existing Apache and MariaDB ports belong to the localhost-only D: binaries; starts them if stopped; verifies the live localhost ERP staging/synthetic/source-matched health endpoint; then opens the local WordPress admin page. **Script passed an actual Windows localhost test on 2026-11-02** using `-NoBrowser`. It does not start Windows services or expose ports to the LAN.
 
 The local UAT is on `http://127.0.0.1:18880/erp-uat/wp-admin/` and is accessible only from the same Windows PC. The script checks the application's existing configured source marker, not that the current GitHub branch is deployed. After any Git pull, review the exact commit and migration/marker compatibility before starting again.
+
+### Source-accurate Windows UAT checkpoint (2026-11-04)
+
+**Do not equate a green WordPress Health source flag with the loaded plugin's Git source.**
+The Windows plugin mount is a junction to `D:\ERP7-UAT-Pinned\plugin\excel-herbal-erp-v7`,
+separate from the working tree at `D:\ERP7-Development`. The launcher now reads
+the *mounted checkout's* real Git SHA and fails closed if it differs from the
+WordPress `EH7_SOURCE_HEAD` / Health marker. This check is required before
+source-certified Login, Sales or Payroll acceptance.
+
+A read-only audit found mounted Git `3faa0f213f58e17a12927a042a21abd3e870d729`,
+whereas the WordPress Health marker was still
+`2e40eba61d97ef26b543c631682d0701af75b3bd`. The latter is an ancestor
+of the former, not the current checked-out source. The new development branch
+is newer still. The mismatch is **not** repaired by editing a marker or by
+pretending earlier dummy login tests prove the current build.
+
+Before a reviewed source migration, create an **actual local synthetic database
+checkpoint** with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uat\windows\backup-native-uat.ps1 -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uat\windows\backup-native-uat.ps1
+```
+
+The tool refuses non-loopback WordPress/MariaDB listeners, non-synthetic health,
+active sessions, nonlocal database targets, dirty/mislinked plugin checkouts and
+missing E: backup storage. It intentionally permits a stale source marker
+**only for a backup**, and records both distinct SHA values in a manifest.
+The dump, its SHA256, WordPress config and release-blocking manifest stay in a
+private `E:\ERP-Backups\eh7-synthetic-checkpoint-*` folder. Never upload
+these files to GitHub or share the config/SQL because they contain local secrets.
+Temporary MariaDB client options are deleted even after failure.
+
+**Local checkpoint evidence:** the synthetic database `eh7_local_uat` was
+successfully dumped to E:, 253744 bytes, with a manifest and hash verification.
+The checkpoint was not restored into an isolated clone, so this is **not**
+restore approval or authorization to deploy. Leave the original localhost UAT
+unchanged until migration impact, schema, synthetic identity pins and verified
+rollback have been reviewed. Office WordPress was not touched.
