@@ -40,8 +40,29 @@ final class PrepaidReturnService {
         ),ARRAY_A);
     }
 
+    /**
+     * Existing authenticated return-detail endpoint now reports whether all
+     * original Cash/UPI tender evidence is reconciled. This is read-only:
+     * evidence_complete NEVER means refund paid or credit note posted.
+     */
     public static function detail(Actor $a,int $id):array {
-        return self::row($a,$id);
+        $r=self::row($a,$id);
+        $db=Db::wpdb();
+        $payments=(array)$db->get_results($db->prepare(
+            'SELECT id,company_id,branch_id,order_id,payment_account_id,method,status,amount'.
+            ' FROM '.Db::table('prepaid_sales_order_payments').
+            ' WHERE company_id=%d AND branch_id=%d AND order_id=%d ORDER BY id',
+            $a->companyId,(int)$r['branch_id'],(int)$r['order_id']
+        ),ARRAY_A);
+        $evidence=(array)$db->get_results($db->prepare(
+            'SELECT order_payment_id,company_id,branch_id,return_id,payment_account_id,'.
+            'method,status,amount,submitted_by,verified_by,verification_reference'.
+            ' FROM '.Db::table('prepaid_refund_evidence').
+            ' WHERE company_id=%d AND branch_id=%d AND return_id=%d ORDER BY id',
+            $a->companyId,(int)$r['branch_id'],$id
+        ),ARRAY_A);
+        $r['refund_evidence_check']=PrepaidRefundEvidencePreflight::check($r,$payments,$evidence);
+        return $r;
     }
 
     /** Open one full-order return request. Never adjust money or stock here. */
