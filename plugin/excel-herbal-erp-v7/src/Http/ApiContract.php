@@ -172,6 +172,8 @@ final class ApiContract
             'performance.target'=>['branch_id','employee_id','period_start','period_end','target_points'],
             'performance.reward_create'=>['branch_id','employee_id','adjustment_type','amount','points','reason'],
             'performance.reward_decision'=>['decision'],
+            'performance.promotion_create'=>['branch_id','employee_id','next_designation_code','monthly_increment_amount','effective_from','reason'],
+            'performance.promotion_decision'=>['decision'],
             'comm.push_register'=>['token','platform'],
             'comm.task_create'=>['assigned_employee_id','title'],
             'comm.task_assign'=>['employee_id'],
