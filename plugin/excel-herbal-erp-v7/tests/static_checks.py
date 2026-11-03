@@ -81,7 +81,7 @@ for metric in [
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
 print('PASS operational diagnostics anomaly coverage')
 schema=(root/'src/Database/Schema.php').read_text()
-assert "7.3.12-prepaid-refund-evidence-1" in schema,'schema version not advanced for prepaid returns and existing checkout migration'
+assert "7.3.12-salary-structures-2" in schema,'schema version not advanced for salary structure and prior migrations'
 for token in [
  'checkout_exception',
  'checkout_exception_reason',
