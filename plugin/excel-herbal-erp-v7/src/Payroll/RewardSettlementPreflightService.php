@@ -70,6 +70,48 @@ final class RewardSettlementPreflightService {
             ' ORDER BY pr.period_end DESC,pr.id DESC LIMIT 10',
             $actor->companyId,$branch,$employee
         ),ARRAY_A);
+        // A proposal supplies an auditable link candidate only. It is
+        // NEVER proof that the bonus was posted in payroll or transferred.
+        $proposal=$db->get_row($db->prepare(
+            'SELECT lp.id,lp.payroll_run_id,lp.payroll_item_id,'.
+            ' lp.status,lp.amount_snapshot,lp.item_bonus_snapshot,'.
+            ' pr.status AS payroll_run_status,pr.payment_journal_entry_id,'.
+            ' pi.employee_id AS item_employee_id,pi.bonus AS current_item_bonus'.
+            ' FROM '.Db::table('reward_payroll_link_proposals').' lp'.
+            ' LEFT JOIN '.Db::table('payroll_runs').' pr'.
+            ' ON pr.id=lp.payroll_run_id AND pr.company_id=lp.company_id'.
+            ' LEFT JOIN '.Db::table('payroll_items').' pi'.
+            ' ON pi.id=lp.payroll_item_id AND pi.payroll_run_id=lp.payroll_run_id'.
+            ' WHERE lp.company_id=%d AND lp.reward_id=%d LIMIT 1',
+            $actor->companyId,$rewardId
+        ),ARRAY_A);
+        $proposalEvidence=null;
+        if($proposal){
+            $snapAmount=SalaryStructureService::paise(
+                (string)$proposal['amount_snapshot'],'amount_snapshot'
+            );
+            $snapBonus=SalaryStructureService::paise(
+                (string)$proposal['item_bonus_snapshot'],'item_bonus_snapshot'
+            );
+            $liveBonus=$proposal['current_item_bonus']===null?null:
+                SalaryStructureService::paise(
+                    (string)$proposal['current_item_bonus'],'current_bonus'
+                );
+            $sameSnapshot=$snapAmount===$amount &&
+                $liveBonus!==null && $liveBonus===$snapBonus &&
+                (int)($proposal['item_employee_id']??0)===$employee;
+            if(!$sameSnapshot)$blockers[]='reward_payroll_link_proposal_stale';
+            $proposalEvidence=[
+                'proposal_id'=>(int)$proposal['id'],
+                'payroll_run_id'=>(int)$proposal['payroll_run_id'],
+                'payroll_item_id'=>(int)$proposal['payroll_item_id'],
+                'proposal_status'=>(string)$proposal['status'],
+                'payroll_run_status'=>$proposal['payroll_run_status'],
+                'snapshot_consistent'=>$sameSnapshot,
+                'snapshot_consistency_is_payment_proof'=>false,
+                'current_paid_journal_id_is_reward_proof'=>false,
+            ];
+        }
         $blockers[]='reward_to_payroll_allocation_missing';
         $blockers[]='reward_settlement_execution_not_enabled';
 
@@ -83,6 +125,7 @@ final class RewardSettlementPreflightService {
             'payment_posted'=>false,
             'settled'=>false,
             'reward_payroll_allocation_verified'=>false,
+            'unfunded_link_proposal'=>$proposalEvidence,
             'unattributed_paid_payroll_runs'=>$related,
             'unattributed_runs_are_payment_proof'=>false,
             'blocking_reason_codes'=>array_values(array_unique($blockers)),
