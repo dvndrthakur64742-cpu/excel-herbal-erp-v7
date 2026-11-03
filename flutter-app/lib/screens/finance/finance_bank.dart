@@ -21,7 +21,7 @@ extension _FinanceBankFeature on _FinanceScreenState {
         Expanded(
           child: AsyncPanel(
             key: ValueKey('bank-${app.currentBranchId}-$refresh'),
-            future: api.get(
+            loader: () => api.get(
               ApiPaths.bankReconciliations,
               query: {'branch_id': app.currentBranchId},
             ),

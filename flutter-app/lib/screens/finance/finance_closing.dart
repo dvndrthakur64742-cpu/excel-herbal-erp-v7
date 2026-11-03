@@ -30,7 +30,7 @@ extension _FinanceClosingFeature on _FinanceScreenState {
         Expanded(
           child: AsyncPanel(
             key: ValueKey('closing-${app.currentBranchId}-$refresh'),
-            future: api.get(
+            loader: () => api.get(
               ApiPaths.branchClosing,
               query: {'branch_id': app.currentBranchId},
             ),

@@ -24,7 +24,7 @@ extension _FinancePeriodsFeature on _FinanceScreenState {
         Expanded(
           child: AsyncPanel(
             key: ValueKey('periods-$refresh'),
-            future: api.get(ApiPaths.periods),
+            loader: () => api.get(ApiPaths.periods),
             emptyMessage: 'Koi accounting period record nahi hai.',
             builder: (context, data) => RecordsList(
               recordType: 'accounting_period',

@@ -34,6 +34,9 @@ jobs:
       - name: Analyze Dart
         working-directory: flutter-app
         run: flutter analyze --no-pub
+      - name: Enforce professional UX loading and genuine retry contracts
+        working-directory: flutter-app
+        run: node tool/verify_async_panel_loaders.cjs
       - name: Fail on new unsupported Flutter API routes
         working-directory: flutter-app
         run: |

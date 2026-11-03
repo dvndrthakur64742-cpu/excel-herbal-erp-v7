@@ -6,13 +6,15 @@ import '../theme/excel_brand.dart';
 class AsyncPanel extends StatefulWidget {
   const AsyncPanel({
     super.key,
-    required this.future,
+    required this.loader,
     required this.builder,
     this.emptyMessage = 'This section has no records to show.',
     this.reloadToken,
   });
 
-  final Future<dynamic> future;
+  /// A fresh request factory, never an already-started Future.
+  /// Retry calls this again; it does not replay a cached failure.
+  final Future<dynamic> Function() loader;
   final Widget Function(BuildContext, dynamic) builder;
   final String emptyMessage;
   final Object? reloadToken;
@@ -27,16 +29,20 @@ class _AsyncPanelState extends State<AsyncPanel> {
   @override
   void initState() {
     super.initState();
-    _future = widget.future;
+    _future = Future<dynamic>.sync(widget.loader);
   }
 
   @override
   void didUpdateWidget(covariant AsyncPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.reloadToken != widget.reloadToken) _future = widget.future;
+    if (oldWidget.reloadToken != widget.reloadToken) {
+      _future = Future<dynamic>.sync(widget.loader);
+    }
   }
 
-  void _retry() => setState(() => _future = widget.future);
+  void _retry() => setState(
+        () => _future = Future<dynamic>.sync(widget.loader),
+      );
 
   @override
   Widget build(BuildContext context) => FutureBuilder<dynamic>(

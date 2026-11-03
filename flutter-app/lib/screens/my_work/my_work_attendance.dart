@@ -13,7 +13,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
       children: [
         AsyncPanel(
           key: ValueKey('att-$refresh'),
-          future: api.get(ApiPaths.attendanceToday),
+          loader: () => api.get(ApiPaths.attendanceToday),
           emptyMessage: 'Aaj attendance pending hai.',
           builder: (context, data) {
             final r = data is Map
@@ -144,7 +144,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
         ),
         AsyncPanel(
           key: ValueKey('gps-route-$refresh'),
-          future: api.get(
+          loader: () => api.get(
             ApiPaths.gpsRoute,
             query: {
               'from': routeFrom.toIso8601String(),

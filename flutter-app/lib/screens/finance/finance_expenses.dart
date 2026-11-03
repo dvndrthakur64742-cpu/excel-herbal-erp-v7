@@ -21,7 +21,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
         Expanded(
           child: AsyncPanel(
             key: ValueKey('expenses-${app.currentBranchId}-$refresh'),
-            future: api.get(
+            loader: () => api.get(
               ApiPaths.expenses,
               query: {'branch_id': app.currentBranchId},
             ),

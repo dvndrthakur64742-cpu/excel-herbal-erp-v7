@@ -61,7 +61,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         'Stock',
         AsyncPanel(
           key: ValueKey('s-${app.currentBranchId}-$refresh'),
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.inventoryStock,
@@ -82,7 +82,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         'Transfers',
         AsyncPanel(
           key: ValueKey('t-${app.currentBranchId}-$refresh'),
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.transfers,
@@ -104,7 +104,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         'Adjustments',
         AsyncPanel(
           key: ValueKey('a-${app.currentBranchId}-$refresh'),
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.adjustments,
@@ -124,7 +124,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         'Quarantine',
         AsyncPanel(
           key: ValueKey('q-${app.currentBranchId}-$refresh'),
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.quarantine,

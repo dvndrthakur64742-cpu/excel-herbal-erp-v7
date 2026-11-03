@@ -128,7 +128,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   ? const Center(child: Text('Select an authorised branch.'))
                   : AsyncPanel(
                       key: ValueKey('${app.currentBranchId}-$refresh'),
-                      future: api.get(
+                      loader: () => api.get(
                         ApiPaths.customers,
                         query: {'branch_id': app.currentBranchId},
                       ),

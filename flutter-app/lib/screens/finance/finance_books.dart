@@ -29,7 +29,7 @@ extension _FinanceBooksFeature on _FinanceScreenState {
           Expanded(
             child: AsyncPanel(
               key: ValueKey('tb-${app.currentBranchId}-$refresh'),
-              future: api.get(
+              loader: () => api.get(
                 ApiPaths.trialBalance,
                 query: {
                   'to': app.businessDate,

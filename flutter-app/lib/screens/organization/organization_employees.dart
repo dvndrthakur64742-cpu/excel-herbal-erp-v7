@@ -31,7 +31,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
               ? const Center(child: Text('Branch select karein.'))
               : AsyncPanel(
                   key: ValueKey('employees-${app.currentBranchId}-$refresh'),
-                  future: api.get(
+                  loader: () => api.get(
                     ApiPaths.employees,
                     query: {'branch_id': app.currentBranchId},
                   ),

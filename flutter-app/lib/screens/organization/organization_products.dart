@@ -29,7 +29,7 @@ extension _OrganizationProductsFeature on _OrganizationScreenState {
         Expanded(
           child: AsyncPanel(
             key: ValueKey('products-$refresh'),
-            future: api.get(
+            loader: () => api.get(
               ApiPaths.products,
               query: app.can('catalog.product.manage')
                   ? const {'include_inactive': true}

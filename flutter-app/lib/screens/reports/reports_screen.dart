@@ -106,7 +106,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 key: ValueKey(
                   '$activeType-${app.currentBranchId}-$fromValue-$toValue-$reportingCategory',
                 ),
-                future: api.get(config.path, query: query),
+                loader: () => api.get(config.path, query: query),
                 emptyMessage: config.emptyMessage,
                 builder: (context, data) {
                   if (activeType == 'price_distribution') {
@@ -759,7 +759,7 @@ class _AccountLedgerPanelState extends State<_AccountLedgerPanel> {
   @override
   Widget build(BuildContext context) => AsyncPanel(
         key: const ValueKey('account-ledger-account-list'),
-        future: widget.api.get(ApiPaths.financeBootstrap),
+        loader: () => widget.api.get(ApiPaths.financeBootstrap),
         emptyMessage: 'No active ledger accounts are available.',
         builder: (context, data) {
           final payload = data is Map
@@ -824,7 +824,7 @@ class _AccountLedgerPanelState extends State<_AccountLedgerPanel> {
                         key: ValueKey(
                           'account-ledger-$selectedId-${ledgerQuery['from']}-${ledgerQuery['to']}-${ledgerQuery['branch_id']}',
                         ),
-                        future: widget.api.get(
+                        loader: () => widget.api.get(
                           ApiPaths.accountLedger,
                           query: ledgerQuery,
                         ),

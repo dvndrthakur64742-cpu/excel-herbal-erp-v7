@@ -49,7 +49,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
         Expanded(
           child: AsyncPanel(
             key: ValueKey('daily-${app.currentBranchId}-$refresh'),
-            future: _MyWorkDaily(this)._dailyRows(app, api),
+            loader: () => _MyWorkDaily(this)._dailyRows(app, api),
             emptyMessage: 'Daily Order nahi mila.',
             builder: (context, data) {
               final rows = (data as List)

@@ -101,7 +101,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
               Expanded(
                 child: AsyncPanel(
                 key: ValueKey(refresh),
-                future: api.get(ApiPaths.communicationSummary),
+                loader: () => api.get(ApiPaths.communicationSummary),
                 builder: (context, data) {
                   final summary = Map<String, dynamic>.from(data as Map);
                   final tasks =

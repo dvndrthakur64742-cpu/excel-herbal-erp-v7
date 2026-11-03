@@ -26,7 +26,7 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
           const SizedBox(height: 10),
           AsyncPanel(
             key: ValueKey('leave-mine-$refresh'),
-            future: api.get(ApiPaths.leaveMine),
+            loader: () => api.get(ApiPaths.leaveMine),
             emptyMessage: 'No leave requests are available.',
             builder: (context, data) {
               final rows = ((data as List?) ?? const [])
@@ -64,7 +64,7 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
           const SizedBox(height: 8),
           AsyncPanel(
             key: ValueKey('holidays-${app.currentBranchId}-$refresh'),
-            future: app.currentBranchId == null
+            loader: () => app.currentBranchId == null
                 ? Future.value(const <dynamic>[])
                 : api.get(
                     ApiPaths.holidays,
@@ -102,7 +102,7 @@ extension _MyWorkLeaveVisit on _MyWorkScreenState {
           const SizedBox(height: 8),
           AsyncPanel(
             key: ValueKey('visit-current-$refresh'),
-            future: api.get(ApiPaths.fieldVisitCurrent),
+            loader: () => api.get(ApiPaths.fieldVisitCurrent),
             emptyMessage: 'No active field visit is available.',
             builder: (context, data) {
               final current = data is Map

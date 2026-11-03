@@ -40,7 +40,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         'Daily Orders',
         AsyncPanel(
           key: ValueKey('d-${app.currentBranchId}-$refresh'),
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.dailyCycles,
@@ -61,7 +61,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         'Attendance',
         AsyncPanel(
           key: ValueKey('a-${app.currentBranchId}-$refresh'),
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.attendanceReport,
@@ -86,7 +86,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         'GPS Team',
         AsyncPanel(
           key: ValueKey('gps-${app.currentBranchId}-$refresh'),
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.gpsTeam,
@@ -111,7 +111,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         AsyncPanel(
           key: ValueKey('h-${app.currentBranchId}-$refresh'),
           reloadToken: '${app.currentBranchId}-$refresh',
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.employees,
@@ -135,7 +135,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         AsyncPanel(
           key: ValueKey('e-${app.currentBranchId}-$refresh'),
           reloadToken: '${app.currentBranchId}-$refresh',
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.employees,
@@ -231,7 +231,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
               ? const Center(child: Text('Select an authorised branch.'))
               : AsyncPanel(
                   key: ValueKey('holidays-$branchId-$refresh'),
-                  future: api.get(
+                  loader: () => api.get(
                     ApiPaths.holidays,
                     query: {
                       'branch_id': branchId,

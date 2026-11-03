@@ -36,7 +36,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
         'Performance',
         AsyncPanel(
           key: ValueKey('p-${app.currentBranchId}-$refresh'),
-          future: app.currentBranchId == null
+          loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
               : api.get(
                   ApiPaths.performanceSummary,
@@ -72,7 +72,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             Expanded(
               child: AsyncPanel(
                 key: ValueKey('targets-${app.currentBranchId}-$refresh'),
-                future: app.currentBranchId == null
+                loader: () => app.currentBranchId == null
                     ? Future.value(const <dynamic>[])
                     : api.get(
                         ApiPaths.performanceTargets,
@@ -170,7 +170,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
             Expanded(
               child: AsyncPanel(
                 key: ValueKey('payroll-${app.currentBranchId}-$refresh'),
-                future: app.currentBranchId == null
+                loader: () => app.currentBranchId == null
                     ? Future.value(const <dynamic>[])
                     : api.get(
                         ApiPaths.payrollRuns,

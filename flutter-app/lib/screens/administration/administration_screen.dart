@@ -35,7 +35,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         'Reversals',
         AsyncPanel(
           key: ValueKey('reversals-$refresh'),
-          future: api.get(ApiPaths.reversals),
+          loader: () => api.get(ApiPaths.reversals),
           emptyMessage: 'No reversal requests.',
           builder: (context, data) => RecordsList(
             recordType: 'reversal',
@@ -56,7 +56,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         'Audit Log',
         AsyncPanel(
           key: ValueKey('audit-$refresh'),
-          future: api.get(ApiPaths.audit),
+          loader: () => api.get(ApiPaths.audit),
           builder: (context, data) =>
               RecordsList(recordType: 'audit', rows: _rows(data)),
         ),
@@ -132,7 +132,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
     final api = ref.watch(apiClientProvider);
     return AsyncPanel(
       key: ValueKey('system-health-$refresh'),
-      future: api.get(ApiPaths.diagnostics),
+      loader: () => api.get(ApiPaths.diagnostics),
       builder: (context, data) {
         final d = Map<String, dynamic>.from(data as Map);
         final attendance =
@@ -321,7 +321,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
     final api = ref.watch(apiClientProvider);
     return AsyncPanel(
       key: ValueKey('access-$refresh-$branchId'),
-      future: Future.wait<dynamic>([
+      loader: () => Future.wait<dynamic>([
         api.get(ApiPaths.accessMatrix),
         api.get(ApiPaths.accessEmployees, query: {'branch_id': branchId}),
       ]),

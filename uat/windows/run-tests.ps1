@@ -39,6 +39,7 @@ function Execute-Test([string]$label,[scriptblock]$call) {
 if ($Mode -in @('quick','all','backend')) {
     if (!$node) { throw 'Node.js is required; install it or add it to PATH.' }
     Execute-Test 'Railway / local-UAT safety contracts' { & $node --test (Join-Path $Workspace 'uat\railway\recovery-preflight.test.mjs') }
+    Execute-Test 'Professional UI/UX lazy loaders and genuine retry' { & $node (Join-Path $Workspace 'flutter-app\tool\verify_async_panel_loaders.cjs') }
     if ($php) {
         Execute-Test 'PHP syntax for the ERP backend' {
             $files = @(Get-ChildItem (Join-Path $Workspace 'plugin\excel-herbal-erp-v7') -Filter '*.php' -Recurse -File)

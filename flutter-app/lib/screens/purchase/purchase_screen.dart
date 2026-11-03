@@ -137,7 +137,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                                   key: ValueKey(
                                     'bills-${app.currentBranchId}-$refresh',
                                   ),
-                                  future: api.get(
+                                  loader: () => api.get(
                                     ApiPaths.openBills,
                                     query: {
                                       'branch_id': app.currentBranchId,
@@ -172,7 +172,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                         Expanded(
                           child: AsyncPanel(
                             key: ValueKey('suppliers-$refresh'),
-                            future: api.get(ApiPaths.suppliers),
+                            loader: () => api.get(ApiPaths.suppliers),
                             emptyMessage: 'No suppliers are registered.',
                             builder: (context, data) => RecordsList(
                               recordType: 'supplier',

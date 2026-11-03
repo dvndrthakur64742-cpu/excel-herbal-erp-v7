@@ -144,7 +144,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
           child: AsyncPanel(
             key: ValueKey('hr-candidates-${app.currentBranchId}'),
             reloadToken: '${app.currentBranchId}-$_refresh',
-            future: ref.read(apiClientProvider).get(
+            loader: () => ref.read(apiClientProvider).get(
                   ApiPaths.hrCandidates,
                   query: query,
                 ),
@@ -231,7 +231,7 @@ class _HrLifecycleScreenState extends ConsumerState<HrLifecycleScreen> {
           child: AsyncPanel(
             key: ValueKey('hr-separations-${app.currentBranchId}'),
             reloadToken: '${app.currentBranchId}-$_refresh',
-            future: ref.read(apiClientProvider).get(
+            loader: () => ref.read(apiClientProvider).get(
                   ApiPaths.hrSeparations,
                   query: query,
                 ),

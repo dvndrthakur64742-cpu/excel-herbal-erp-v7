@@ -44,7 +44,7 @@ class _CompensationWorkspaceState
             Expanded(
               child: AsyncPanel(
                 key: ValueKey('salary-${app.currentBranchId}-$_refresh'),
-                future: app.currentBranchId == null
+                loader: () => app.currentBranchId == null
                     ? Future.value(const <dynamic>[])
                     : api.get(
                         ApiPaths.salaryStructures,
@@ -85,7 +85,7 @@ class _CompensationWorkspaceState
             Expanded(
               child: AsyncPanel(
                 key: ValueKey('reward-${app.currentBranchId}-$_refresh'),
-                future: app.currentBranchId == null
+                loader: () => app.currentBranchId == null
                     ? Future.value(const <dynamic>[])
                     : api.get(
                         ApiPaths.performanceRewards,
@@ -126,7 +126,7 @@ class _CompensationWorkspaceState
             Expanded(
               child: AsyncPanel(
                 key: ValueKey('promotion-${app.currentBranchId}-$_refresh'),
-                future: app.currentBranchId == null
+                loader: () => app.currentBranchId == null
                     ? Future.value(const <dynamic>[])
                     : api.get(
                         ApiPaths.performancePromotions,
