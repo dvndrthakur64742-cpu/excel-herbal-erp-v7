@@ -63,6 +63,9 @@ abstract final class CompensationPolicy {
     if (values.any((value) => !value.isFinite || value < 0)) {
       return 'Salary structure values must be finite and non-negative.';
     }
+    if (draft.monthlyBasic <= 0) {
+      return 'Monthly basic must be greater than zero.';
+    }
     if (draft.fixedMonthlyTotal <= 0) {
       return 'Salary structure fixed monthly total must be greater than zero.';
     }
