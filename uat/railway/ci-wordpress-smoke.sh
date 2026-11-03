@@ -168,7 +168,7 @@ node -e '
 const fs=require("fs");
 const x=JSON.parse(fs.readFileSync("/tmp/eh7-smoke-health.json","utf8"));
 if(!x.ok)throw new Error("Health JSON is not ok");
-if(x?.data?.version!=="7.3.12-rc1" || x?.data?.schema!=="7.3.12-promotion-review-4" || !x?.data?.schema_installed)throw new Error("Plugin/schema release health mismatch");
+if(x?.data?.version!=="7.3.12-rc1" || x?.data?.schema!=="7.3.12-reward-link-proposals-5" || !x?.data?.schema_installed)throw new Error("Plugin/schema release health mismatch");
 console.log("PASS pretty REST health JSON and 7.3.12 plugin/schema");
 '
 node uat/railway/ci-auth-smoke.mjs
