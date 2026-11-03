@@ -51,7 +51,7 @@ promoFail(fn()=>Promotion::payload(array_replace($proposal,[
 ])),'promotion_reason_invalid');
 
 $spec=Schema::definitions();
-promoPass(Schema::VERSION==='7.3.12-promotion-review-4'&&
+promoPass(Schema::VERSION==='7.3.12-reward-link-proposals-5'&&
     isset($spec['promotion_requests'])&&
     str_contains($spec['promotion_requests'],'eligibility_state')&&
     str_contains($spec['promotion_requests'],'execution_state')&&
