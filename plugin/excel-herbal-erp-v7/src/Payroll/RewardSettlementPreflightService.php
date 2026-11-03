@@ -100,7 +100,8 @@ final class RewardSettlementPreflightService {
             $sameSnapshot=$snapAmount===$amount &&
                 $liveBonus!==null && $liveBonus===$snapBonus &&
                 (int)($proposal['item_employee_id']??0)===$employee;
-            if(!$sameSnapshot)$blockers[]='reward_payroll_link_proposal_stale';
+            if($proposal['status']==='proposed_unfunded'&&!$sameSnapshot)
+                $blockers[]='reward_payroll_link_proposal_stale';
             $proposalEvidence=[
                 'proposal_id'=>(int)$proposal['id'],
                 'payroll_run_id'=>(int)$proposal['payroll_run_id'],
@@ -112,7 +113,61 @@ final class RewardSettlementPreflightService {
                 'current_paid_journal_id_is_reward_proof'=>false,
             ];
         }
-        $blockers[]='reward_to_payroll_allocation_missing';
+        // Allocated payroll bonus is evidence of draft earnings only. It
+        // NEVER proves employee bank/UPI payment. A journal for an entire
+        // payroll run cannot by itself prove per-reward settlement.
+        $allocation=$db->get_row($db->prepare(
+            'SELECT a.id,a.status,a.reward_amount,'.
+            ' a.item_bonus_after,a.item_net_after,a.payroll_run_id,'.
+            ' a.payroll_item_id,a.employee_id AS allocation_employee,'.
+            ' pi.bonus AS live_bonus,pi.net_salary AS live_net,'.
+            ' pi.employee_id AS item_employee,'.
+            ' pr.status AS run_status,pr.payment_journal_entry_id'.
+            ' FROM '.Db::table('reward_payroll_allocations').' a'.
+            ' LEFT JOIN '.Db::table('payroll_runs').' pr'.
+            ' ON pr.id=a.payroll_run_id AND pr.company_id=a.company_id'.
+            ' LEFT JOIN '.Db::table('payroll_items').' pi'.
+            ' ON pi.id=a.payroll_item_id'.
+            ' AND pi.payroll_run_id=a.payroll_run_id'.
+            ' WHERE a.company_id=%d AND a.reward_id=%d LIMIT 1',
+            $actor->companyId,$rewardId
+        ),ARRAY_A);
+        $allocationEvidence=null;
+        $allocationVerified=false;
+        if($allocation){
+            $allocationVerified=
+                $allocation['status']==='allocated_unpaid'&&
+                (int)($allocation['allocation_employee']??0)===$employee&&
+                (int)($allocation['item_employee']??0)===$employee&&
+                $allocation['live_bonus']!==null&&
+                $allocation['live_net']!==null&&
+                SalaryStructureService::paise(
+                    (string)$allocation['reward_amount'],'allocated_reward'
+                )===$amount&&
+                SalaryStructureService::paise(
+                    (string)$allocation['item_bonus_after'],'allocated_bonus'
+                )===SalaryStructureService::paise(
+                    (string)$allocation['live_bonus'],'live_bonus'
+                )&&
+                SalaryStructureService::paise(
+                    (string)$allocation['item_net_after'],'allocated_net'
+                )===SalaryStructureService::paise(
+                    (string)$allocation['live_net'],'live_net'
+                );
+            if(!$allocationVerified)
+                $blockers[]='reward_payroll_allocation_drift';
+            $allocationEvidence=[
+                'allocation_id'=>(int)$allocation['id'],
+                'payroll_run_id'=>(int)$allocation['payroll_run_id'],
+                'payroll_item_id'=>(int)$allocation['payroll_item_id'],
+                'allocation_status'=>(string)$allocation['status'],
+                'payroll_run_status'=>$allocation['run_status'],
+                'draft_earnings_allocation_verified'=>$allocationVerified,
+                'paid_payroll_journal_is_reward_settlement_proof'=>false,
+            ];
+        }
+        if(!$allocationVerified)$blockers[]='reward_to_payroll_allocation_missing';
+        $blockers[]='reward_settlement_execution_not_enabled';
         $blockers[]='reward_settlement_execution_not_enabled';
 
         return [
@@ -124,7 +179,8 @@ final class RewardSettlementPreflightService {
             'payment_ready'=>false,
             'payment_posted'=>false,
             'settled'=>false,
-            'reward_payroll_allocation_verified'=>false,
+            'reward_payroll_allocation_verified'=>$allocationVerified,
+            'allocated_payroll_earnings'=>$allocationEvidence,
             'unfunded_link_proposal'=>$proposalEvidence,
             'unattributed_paid_payroll_runs'=>$related,
             'unattributed_runs_are_payment_proof'=>false,
