@@ -722,7 +722,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
             action == 'reject'
                 ? '${r['status']}' == 'submitted'
                 : '${r['type']}' == 'additional' &&
-                  const {'draft', 'submitted', 'approved'}.contains('${r['status']}')).toList();
+                  const {'draft', 'submitted', 'reviewed'}.contains('${r['status']}')).toList();
         if (candidates.isEmpty) throw Exception('No pending request for this action.');
         final pending = candidates.last;
         final controller = TextEditingController();
