@@ -43,6 +43,11 @@ $toRebuild = [
         'employee_status',
         'maker_review',
     ],
+    'promotion_requests' => [
+        'company_branch_status',
+        'employee_status',
+        'maker_review',
+    ],
 ];
 $preservedTables = [
     $wpdb->users,
