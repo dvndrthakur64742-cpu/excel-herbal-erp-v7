@@ -23,7 +23,7 @@ linkAssert(count(array_filter($contract,static fn($r)=>
     $r['required_params']===['payroll_run_id','payroll_item_id','reason']))===1,
     'required IDs, audit reason and idempotency contract');
 $schema=Schema::definitions();
-linkAssert(Schema::VERSION==='7.3.12-reward-link-proposals-5',
+linkAssert(Schema::VERSION==='7.3.12-reward-payroll-allocated-6',
     'additive migration marker advanced');
 linkAssert(isset($schema['reward_payroll_link_proposals'])&&
     str_contains($schema['reward_payroll_link_proposals'],
