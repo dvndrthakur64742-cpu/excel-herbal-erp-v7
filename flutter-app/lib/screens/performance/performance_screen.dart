@@ -91,7 +91,7 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
       ));
     }
     // Salary structures are a separate, permission-scoped draft/approval flow.
-    // Rewards and Promotions remain hidden until accounting/role contracts ship.
+    // Reward and Promotion review routes exist; payout and HR execution remain disabled.
     if (app.canAny(const [
       'payroll.salary.view',
       'payroll.salary.manage',
