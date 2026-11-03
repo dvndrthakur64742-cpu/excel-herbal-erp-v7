@@ -27,6 +27,9 @@ void main() {
     expect(routes, contains('/performance/promotions'));
     expect(routes, contains('/performance/promotion-employees'));
     expect(workspace, contains('ApiPaths.performancePromotionEmployees'));
+    expect(workspace, contains('ApiPaths.promotionEligibilityEvidence'));
+    expect(workspace, contains('ApiPaths.rewardSettlementPreflight'));
+    expect(workspace, isNot(contains('ApiPaths.rewardPay(')));
     expect(workspace, contains("app.can('organization.hr.review')"));
     expect(routes,
         isNot(contains('/performance/rewards/(?P<id>\\d+)/pay')),
