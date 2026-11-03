@@ -13,6 +13,7 @@ import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 
 import 'payroll_policy_dialog.dart';
+import 'compensation_workspace.dart';
 
 class PerformanceScreen extends ConsumerStatefulWidget {
   const PerformanceScreen({super.key});
@@ -89,9 +90,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
         ),
       ));
     }
-    // Salary structures, rewards and promotions remain design-contract work
-    // until backend routes, persistence and server capabilities are implemented.
-    // Do not expose an interactive UAT workflow that can only fail at runtime.
+    // Salary structures are a separate, permission-scoped draft/approval flow.
+    // Rewards and Promotions remain hidden until accounting/role contracts ship.
     if (app.canAny(const [
       'payroll.salary.view',
       'payroll.salary.manage',
@@ -116,6 +116,13 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
           ],
         ),
       ));
+    }
+    if (app.canAny(const [
+      'payroll.salary.view',
+      'payroll.salary.manage',
+      'payroll.salary.approve',
+    ])) {
+      tabs.add(('Salary Structures', const CompensationWorkspace()));
     }
     if (app.canAny(const [
       'payroll.generate',
