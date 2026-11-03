@@ -751,6 +751,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     final additionalRequesterId =
         int.tryParse('${row['additional_requested_by'] ?? ''}');
     final currentEmployeeId = _currentEmployeeId(app);
+    final beneficiaryId = int.tryParse('${row['employee_id'] ?? ''}');
     final primary = _dailyPrimaryActionImpl(row, app);
     final out = <PopupMenuEntry<String>>[
       const PopupMenuItem(value: 'view', child: Text('View Details')),
@@ -770,7 +771,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
         child: Text('Cancel Order (reason required)'),
       ));
     }
-    if (status == 'cancelled' &&
+    if (const {'cancelled', 'rejected'}.contains(status) &&
         DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
       out.add(const PopupMenuItem(
         value: 'reopen_draft',
@@ -778,10 +779,12 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
       ));
     }
     if (status == 'stock_requested' &&
-        DailyOrderWorkflow.canApproveRequest(
+        DailyOrderWorkflow.canReviewRequest(
           initialRequestStatus,
           app.capabilities,
+          designationCode: app.primaryDesignationCode,
           requesterId: initialRequesterId,
+          beneficiaryEmployeeId: beneficiaryId,
           currentEmployeeId: currentEmployeeId,
         )) {
       out.add(const PopupMenuItem(
@@ -818,9 +821,11 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     }
 
     if (status == 'issued') {
-      if (DailyOrderWorkflow.canApproveRequest(
+      if (DailyOrderWorkflow.canReviewRequest(
         additionalRequestStatus, app.capabilities,
+        designationCode: app.primaryDesignationCode,
         requesterId: additionalRequesterId,
+        beneficiaryEmployeeId: beneficiaryId,
         currentEmployeeId: currentEmployeeId,
       )) {
         out.add(const PopupMenuItem(
@@ -828,8 +833,11 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
           child: Text('Reject Additional Request'),
         ));
       }
-      if (const {'draft', 'submitted', 'approved'}.contains(additionalRequestStatus) &&
-          DailyOrderWorkflow.canOperateOwnOrder(app.capabilities)) {
+      if (const {'draft', 'submitted', 'reviewed'}.contains(additionalRequestStatus) &&
+          DailyOrderWorkflow.canOperateOwnOrder(app.capabilities) &&
+          currentEmployeeId != null &&
+          (currentEmployeeId == beneficiaryId ||
+              currentEmployeeId == additionalRequesterId)) {
         out.add(const PopupMenuItem(
           value: 'cancel_additional',
           child: Text('Cancel Pending Additional'),
