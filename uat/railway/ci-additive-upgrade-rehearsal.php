@@ -45,7 +45,6 @@ $preservedTables = [
     $prefix . 'companies',
     $prefix . 'branches',
     $prefix . 'employees',
-    $prefix . 'salary_revisions',
     $prefix . 'stock_balances',
     $prefix . 'stock_ledger',
     $prefix . 'journal_entries',
@@ -81,6 +80,28 @@ function eh7_ci_snapshot(array $tables): array {
 }
 try {
     $before = eh7_ci_snapshot($preservedTables);
+    // Migrating older synthetic users may legitimately INSERT missing baseline
+    // salary records. Existing salary revision rows must remain byte-for-byte
+    // unchanged; do not require the row COUNT to remain unchanged.
+    $salaryRevisionTable = $prefix . 'salary_revisions';
+    $existingSalaryRows = (array) $wpdb->get_results(
+        "SELECT * FROM `{$salaryRevisionTable}` ORDER BY id", ARRAY_A
+    );
+    $assertOldSalaryPreserved = static function () use (
+        $wpdb, $salaryRevisionTable, $existingSalaryRows
+    ): void {
+        foreach ($existingSalaryRows as $beforeRow) {
+            $id = (int) $beforeRow['id'];
+            $actual = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM `{$salaryRevisionTable}` WHERE id=%d", $id
+            ), ARRAY_A);
+            if ($actual !== $beforeRow) {
+                throw new \RuntimeException(
+                    "Existing salary revision mutated during upgrade: " . $id
+                );
+            }
+        }
+    };
     foreach ($toRebuild as $name => $_keys) {
         $table = $prefix . $name;
         if (!eh7_ci_table_exists($table)) {
@@ -122,11 +143,13 @@ try {
             }
         }
     }
+    $assertOldSalaryPreserved();
     if (eh7_ci_snapshot($preservedTables) !== $before) {
         throw new \RuntimeException('Existing synthetic identity/stock/finance data changed after upgrade');
     }
     // Explicitly rerun the installer, not just the option-version no-op.
     \ExcelHerbal\ERP7\Database\Schema::install();
+    $assertOldSalaryPreserved();
     if (eh7_ci_snapshot($preservedTables) !== $before ||
         (string) get_option('eh7_schema_version', '') !== $expected) {
         throw new \RuntimeException('Repeated schema installation changed existing rows/version');
@@ -135,7 +158,7 @@ try {
         throw new \RuntimeException('Schema migration left a recorded error');
     }
     echo "PASS synthetic v7.3.10-to-7.3.12 refund/salary additive migration\n";
-    echo "PASS refund and salary uniqueness indexes; existing identity, salary, stock and journal preservation\n";
+    echo "PASS refund and salary uniqueness indexes; existing salary revision IDs and identity/stock/journal preserved\n";
     echo "PASS repeated schema install is idempotent on disposable WordPress/MariaDB\n";
 } catch (\Throwable $e) {
     fwrite(STDERR, "FAIL disposable additive upgrade rehearsal: " . $e->getMessage() . "\n");
