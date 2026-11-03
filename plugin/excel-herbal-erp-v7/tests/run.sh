@@ -10,6 +10,7 @@ php tests/employee_credential_authorization.php
 php tests/employee_identity_attestation.php
 php tests/employee_mobile_username.php
 php tests/employee_login_preflight.php
+php tests/mobile_rest_auth.php
 php tests/staging_safety.php
 php tests/attendance_schedule_contract.php
 php tests/gps_morning_issue.php
