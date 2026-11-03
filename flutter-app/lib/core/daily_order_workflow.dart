@@ -2,6 +2,7 @@ abstract final class DailyOrderWorkflow {
   static const Set<String> _blockingAdditionalStatuses = {
     'draft',
     'submitted',
+    'reviewed',
     'approved',
     'awaiting_receipt',
   };
@@ -16,6 +17,32 @@ abstract final class DailyOrderWorkflow {
   ) =>
       cycleStatus == 'morning_draft' && canOperateOwnOrder(capabilities);
 
+  /// Physical SM/ASM review is distinct from BM/HO final approval.
+  /// Designation and beneficiary checks mirror the backend; server is final.
+  static bool canReviewRequest(
+    String requestStatus,
+    Iterable<String> capabilities, {
+    required String designationCode,
+    int? requesterId,
+    int? beneficiaryEmployeeId,
+    int? currentEmployeeId,
+  }) {
+    const reviewers = {
+      'SM', 'SALES_MANAGER', 'ASM', 'ASSISTANT_SALES_MANAGER',
+      'SYSADMIN', 'SYSTEM_ADMIN', 'ADMIN', 'ADMINISTRATOR',
+    };
+    if (!reviewers.contains(designationCode.trim().toUpperCase())) {
+      return false;
+    }
+    if (currentEmployeeId == null ||
+        currentEmployeeId == requesterId ||
+        currentEmployeeId == beneficiaryEmployeeId) {
+      return false;
+    }
+    return requestStatus == 'submitted' &&
+        capabilities.contains('daily_order.others');
+  }
+
   static bool canApproveRequest(
     String requestStatus,
     Iterable<String> capabilities, {
@@ -25,7 +52,7 @@ abstract final class DailyOrderWorkflow {
     final isSelfApproval = requesterId != null &&
         currentEmployeeId != null &&
         requesterId == currentEmployeeId;
-    return requestStatus == 'submitted' &&
+    return requestStatus == 'reviewed' &&
         capabilities.contains('daily_order.approve') &&
         !isSelfApproval;
   }
