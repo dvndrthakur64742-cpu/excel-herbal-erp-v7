@@ -250,12 +250,10 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Return #' + detail['id'].toString(),
+                      Text('Return #${detail['id']}',
                           style: Theme.of(context).textTheme.titleMedium),
-                      Text('Order #' + detail['order_id'].toString() +
-                          ' · Status: ' + detail['status'].toString()),
-                      Text('Requested full amount: ₹' +
-                          detail['refund_amount'].toString()),
+                      Text('Order #${detail['order_id']} · Status: ${detail['status']}'),
+                      Text('Requested full amount: ₹${detail['refund_amount']}'),
                       const SizedBox(height: 8),
                       Wrap(spacing: 8, runSpacing: 6, children: [
                         if (detail['status'] == 'requested' &&
@@ -281,19 +279,15 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                         Text(check['evidence_complete'] == true
                             ? 'Supporting evidence reconciled (NOT refunded)'
                             : 'Evidence incomplete; refund cannot be posted'),
-                        Text('Verified evidence: ₹' +
-                            (check['verified_evidence_amount'] ?? '0.00')
-                                .toString()),
+                        Text('Verified evidence: ₹${check['verified_evidence_amount'] ?? '0.00'}'),
                         if (blockers.isNotEmpty)
-                          Text('Review blockers: ' + blockers.join(', ')),
+                          Text('Review blockers: ${blockers.join(', ')}'),
                         const SizedBox(height: 8),
                         for (final payment in _originalPayments)
                           ListTile(
                             dense: true,
-                            title: Text(payment['method'].toString() +
-                                ' · ₹' + payment['amount'].toString()),
-                            subtitle: Text('Original payment #' +
-                                payment['id'].toString()),
+                            title: Text("${payment['method']} · ₹${payment['amount']}"),
+                            subtitle: Text('Original payment #${payment['id']}'),
                             trailing: app.can('finance.reversal.create') &&
                                 !_evidence.any((e) =>
                                   _id(e['order_payment_id']) ==
@@ -308,10 +302,8 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                         for (final proof in _evidence)
                           ListTile(
                             dense: true,
-                            title: Text(proof['method'].toString() +
-                                ' evidence · ' + proof['status'].toString()),
-                            subtitle: Text('Original payment #' +
-                                proof['order_payment_id'].toString()),
+                            title: Text("${proof['method']} evidence · ${proof['status']}"),
+                            subtitle: Text('Original payment #${proof['order_payment_id']}'),
                             trailing: proof['status'] == 'evidence_submitted' &&
                                     ((proof['method'] == 'upi' &&
                                         app.can('finance.bank_reconcile')) ||
@@ -348,11 +340,8 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                         final id = _id(item['id']);
                         return ListTile(
                           selected: _selectedId == id,
-                          title: Text('Return #' + item['id'].toString() +
-                              ' · ' + item['status'].toString()),
-                          subtitle: Text('Order #' +
-                              item['order_id'].toString() + ' · ₹' +
-                              item['refund_amount'].toString()),
+                          title: Text("Return #${item['id']} · ${item['status']}"),
+                          subtitle: Text("Order #${item['order_id']} · ₹${item['refund_amount']}"),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: _busy || id == null
                               ? null : () => _reload(selectedId: id),
