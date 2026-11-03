@@ -2,6 +2,4 @@
 # Remove an entry only when the exact PHP route and tests have been added.
 /performance/promotions
 /performance/promotions/$id/decision
-/performance/rewards
-/performance/rewards/$id/decision
 /performance/rewards/$id/pay
