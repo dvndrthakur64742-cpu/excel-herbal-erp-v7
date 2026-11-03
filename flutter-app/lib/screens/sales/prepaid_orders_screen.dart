@@ -6,6 +6,7 @@ import '../../core/api_paths.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
+import 'prepaid_returns_screen.dart';
 
 /// Review-first prepaid sales. All money and stock authority remains server-side.
 class PrepaidOrdersScreen extends ConsumerStatefulWidget {
@@ -214,6 +215,57 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
     }
   }
 
+  /// This only opens return intake; no payout, stock or journal reversal.
+  Future<void> _requestReturn(Map<String, dynamic> order) async {
+    final id = _id(order['id']);
+    if (id == null || _busy) return;
+    final reason = TextEditingController();
+    final form = GlobalKey<FormState>();
+    final input = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Request full prepaid return'),
+        content: Form(
+          key: form,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('The original invoice stays posted. '
+                'Return approval and supporting evidence do NOT issue '
+                'a refund or credit note.'),
+            TextFormField(
+              controller: reason,
+              maxLength: 255,
+              decoration: const InputDecoration(labelText: 'Return reason'),
+              validator: (value) => (value ?? '').trim().length >= 10
+                  ? null : 'Please enter at least 10 characters.',
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          FilledButton(onPressed: () {
+            if (form.currentState!.validate()) {
+              Navigator.pop(ctx, reason.text.trim());
+            }
+          }, child: const Text('Request return')),
+        ],
+      ),
+    );
+    reason.dispose();
+    if (input == null || !mounted) return;
+    await _submit(
+      () => ref.read(apiClientProvider).post(
+        ApiPaths.prepaidReturnRequest(id), data: {'reason': input}),
+      id: id,
+    );
+    if (!mounted || _error != null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const PrepaidReturnsScreen(),
+      ),
+    );
+  }
+
   Future<void> _collect(Map<String, dynamic> order) async {
     try {
       final api = ref.read(apiClientProvider);
@@ -354,6 +406,16 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
         : (_detail!['payments'] as List).map(_map).toList();
     return Scaffold(
       appBar: AppBar(title: const Text('Prepaid Sales Orders'), actions: [
+        if (branch != null && app.can('sales.view'))
+          IconButton(
+            onPressed: _busy ? null : () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const PrepaidReturnsScreen(),
+              ),
+            ),
+            tooltip: 'Review prepaid returns',
+            icon: const Icon(Icons.assignment_return_outlined),
+          ),
         IconButton(onPressed: _busy ? null : _reload,
           icon: const Icon(Icons.refresh), tooltip: 'Refresh'),
       ]),
@@ -400,8 +462,15 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                       app.can('finance.bank_reconcile')
                     ? TextButton(onPressed: _busy ? null : () => _verify(p),
                         child: const Text('Verify bank')) : null),
-              if (order['status'] == 'posted')
+              if (order['status'] == 'posted') ...[
                 Text("Invoice #${order['sale_id']} posted with stock and journal."),
+                if (app.can('finance.reversal.create'))
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : () => _requestReturn(order),
+                    icon: const Icon(Icons.assignment_return_outlined),
+                    label: const Text('Request full-order return'),
+                  ),
+              ],
             ]),
           )),
         const Divider(),
