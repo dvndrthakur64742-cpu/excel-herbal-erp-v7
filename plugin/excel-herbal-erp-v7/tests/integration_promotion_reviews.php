@@ -11,6 +11,7 @@ require_once __DIR__.'/../src/Core/Autoloader.php';
 use ExcelHerbal\ERP7\Database\{Db,Schema};
 use ExcelHerbal\ERP7\Domain\DomainException;
 use ExcelHerbal\ERP7\Payroll\PromotionReviewService as Promotion;
+use ExcelHerbal\ERP7\Payroll\PromotionEligibilityEvidenceService as Evidence;
 use ExcelHerbal\ERP7\Security\{Actor,Capabilities as C};
 
 if(getenv('EH7_INTEGRATION_MODE')!=='synthetic'||
@@ -19,7 +20,7 @@ if(getenv('EH7_INTEGRATION_MODE')!=='synthetic'||
     exit(2);
 }
 $db=eh7_setup_global_db();
-$names=['audit_log','promotion_requests','designations',
+$names=['audit_log','promotion_requests','performance_entries','designations',
         'employees','branches','companies'];
 $defs=Schema::definitions();
 foreach($names as $name){
@@ -133,6 +134,48 @@ promoCheck($unchanged['designation_code']==='SALES'&&
     (int)$unchanged['assigned_branch_id']===1&&
     (int)$unchanged['reporting_employee_id']===20,
     'approved review leaves designation, pay, branch and reporting tree unchanged');
+promoDenied(fn()=>Evidence::inspect($noHr,$id),'permission_denied');
+promoDenied(fn()=>Evidence::inspect($outsider,$id),'branch_forbidden');
+promoDenied(fn()=>Evidence::inspect($makerChecker,$id),'maker_checker_required');
+promoDenied(fn()=>Evidence::inspect($beneficiary,$id),'maker_checker_required');
+$withoutPoints=Evidence::inspect($checker,$id);
+promoCheck($withoutPoints['eligibility_verified']===false&&
+    $withoutPoints['execution_ready']===false&&
+    $withoutPoints['employee_changes_applied']===false&&
+    $withoutPoints['calendar_tenure_days']>90&&
+    $withoutPoints['recorded_performance_days']===0&&
+    in_array('promotion_points_qualifying_window_unapproved',
+        $withoutPoints['blocking_reason_codes'],true),
+    'tenure evidence does not auto-qualify an approved promotion');
+$previous=(new DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+promoSeed('performance_entries',[
+    'company_id'=>1,'branch_id'=>1,'employee_id'=>11,
+    'business_date'=>$previous,'source_type'=>'synthetic_sales','source_id'=>501,
+    'points'=>'210.00','salary_fund'=>'0.00','created_at'=>$now,
+]);
+promoSeed('performance_entries',[
+    'company_id'=>1,'branch_id'=>1,'employee_id'=>11,
+    'business_date'=>$today,'source_type'=>'synthetic_sales','source_id'=>502,
+    'points'=>'100.00','salary_fund'=>'0.00','created_at'=>$now,
+]);
+$withPoints=Evidence::inspect($checker,$id);
+promoCheck($withPoints['observed_points_since_joining']==='310.00'&&
+    $withPoints['minimum_points_snapshot']==='200.00'&&
+    $withPoints['recorded_performance_days']===2&&
+    $withPoints['observed_points_are_verified_qualifying_points']===false&&
+    $withPoints['execution_ready']===false,
+    'even points above policy snapshot remain raw evidence until period approved');
+Db::mustUpdate($db,Db::table('employees'),[
+    'designation_code'=>'ASM',
+],['company_id'=>1,'id'=>11]);
+$stale=Evidence::inspect($checker,$id);
+promoCheck(in_array('promotion_employee_scope_or_designation_changed',
+    $stale['blocking_reason_codes'],true)&&
+    $stale['execution_ready']===false,
+    'changed employee designation makes promotion evidence stale');
+Db::mustUpdate($db,Db::table('employees'),[
+    'designation_code'=>'SALES',
+],['company_id'=>1,'id'=>11]);
 promoDenied(fn()=>Promotion::decide($checker,$id,'rejected'),
     'promotion_state_invalid');
 promoDenied(fn()=>Promotion::create($maker,$request),'promotion_pending_exists');
