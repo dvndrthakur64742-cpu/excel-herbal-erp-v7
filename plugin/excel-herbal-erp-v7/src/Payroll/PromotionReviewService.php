@@ -133,7 +133,7 @@ final class PromotionReviewService {
             );
             $open=(int)$db->get_var($db->prepare(
                 'SELECT COUNT(*) FROM '.Db::table('promotion_requests').
-                " WHERE company_id=%d AND employee_id=%d AND status='pending'",
+                " WHERE company_id=%d AND employee_id=%d AND status IN ('pending','approved_pending_execution')",
                 $actor->companyId,$employee
             ));
             if($open)throw new DomainException(
