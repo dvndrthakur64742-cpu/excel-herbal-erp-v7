@@ -80,7 +80,8 @@ abstract final class ApiPaths {
       performanceTargetEmployees = '/performance/target-employees',
       performanceRewards = '/performance/rewards',
       performanceRewardEmployees = '/performance/reward-employees',
-      performancePromotions = '/performance/promotions';
+      performancePromotions = '/performance/promotions',
+      performancePromotionEmployees = '/performance/promotion-employees';
 
   static const reportsSales = '/reports/sales',
       reportsPurchase = '/reports/purchase',
