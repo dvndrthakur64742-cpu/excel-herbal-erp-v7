@@ -235,7 +235,7 @@ final class RewardPayrollAllocationService {
             ' pi.allowances AS current_allowances,'.
             ' pi.deductions AS current_deductions,'.
             ' r.status AS reward_status,r.amount AS current_reward_amount,'.
-            ' p.status AS proposal_status'
+            ' p.status AS proposal_status'.
             ' FROM '.Db::table('reward_payroll_allocations').' a'.
             ' LEFT JOIN '.Db::table('payroll_items').' pi'.
             ' ON pi.id=a.payroll_item_id AND pi.payroll_run_id=a.payroll_run_id'.
