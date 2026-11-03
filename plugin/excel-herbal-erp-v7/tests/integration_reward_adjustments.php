@@ -11,6 +11,7 @@ require_once __DIR__.'/../src/Core/Autoloader.php';
 use ExcelHerbal\ERP7\Database\{Db,Schema};
 use ExcelHerbal\ERP7\Domain\DomainException;
 use ExcelHerbal\ERP7\Payroll\RewardAdjustmentService as Reward;
+use ExcelHerbal\ERP7\Payroll\RewardSettlementPreflightService as Settlement;
 use ExcelHerbal\ERP7\Security\{Actor,Capabilities as C};
 
 $database=(string)(getenv('EH7_MARIADB_DATABASE')?:'');
@@ -20,7 +21,8 @@ if(getenv('EH7_INTEGRATION_MODE')!=='synthetic'||
     exit(2);
 }
 $db=eh7_setup_global_db();
-$tables=['audit_log','reward_adjustments','employees','branches','companies'];
+$tables=['audit_log','reward_adjustments','payroll_items','payroll_runs',
+    'employees','branches','companies'];
 $schema=Schema::definitions();
 foreach($tables as $table){
     if($db->query('DROP TABLE IF EXISTS '.Db::table($table))===false)
@@ -110,6 +112,54 @@ rewardAssert(count($rows)===1&&
     $rows[0]['employee_name']==='Synthetic 11'&&
     $rows[0]['status']==='approved',
     'branch-scoped review queue shows approved status');
+// Even a paid payroll item with an identical bonus cannot prove this
+// specific approved reward was allocated. No disbursement is performed.
+$finance=new Actor(30,30,1,1,[1],
+    [C::REWARDS_APPROVE,C::PAYROLL_PAY],'SYSADMIN');
+$financeOutside=new Actor(30,30,1,2,[2],
+    [C::REWARDS_APPROVE,C::PAYROLL_PAY],'SYSADMIN');
+$financeMaker=new Actor(20,20,1,1,[1],
+    [C::REWARDS_APPROVE,C::PAYROLL_PAY],'SM');
+$financeBeneficiary=new Actor(11,11,1,1,[1],
+    [C::REWARDS_APPROVE,C::PAYROLL_PAY],'EMPLOYEE');
+rewardFails(fn()=>Settlement::inspect($checker,$id),
+    'permission_denied');
+rewardFails(fn()=>Settlement::inspect($financeOutside,$id),
+    'branch_forbidden');
+rewardFails(fn()=>Settlement::inspect($financeMaker,$id),
+    'maker_checker_required');
+rewardFails(fn()=>Settlement::inspect($financeBeneficiary,$id),
+    'maker_checker_required');
+$before=Settlement::inspect($finance,$id);
+rewardAssert($before['payment_ready']===false&&
+    $before['payment_posted']===false&&
+    $before['reward_payroll_allocation_verified']===false&&
+    in_array('reward_to_payroll_allocation_missing',
+        $before['blocking_reason_codes'],true)&&
+    $before['unattributed_paid_payroll_runs']===[],
+    'reward preflight blocked without immutable payroll allocation');
+$paidRun=rewardSeed('payroll_runs',[
+    'company_id'=>1,'branch_id'=>1,
+    'period_start'=>'2026-11-01','period_end'=>'2026-11-30',
+    'status'=>'paid','payment_journal_entry_id'=>991,
+    'created_by'=>30,'created_at'=>$now,
+]);
+rewardSeed('payroll_items',[
+    'payroll_run_id'=>$paidRun,'employee_id'=>11,
+    'bonus'=>'155.25','net_salary'=>'155.25',
+]);
+$after=Settlement::inspect($finance,$id);
+rewardAssert($after['payment_ready']===false&&
+    $after['settled']===false&&
+    $after['unattributed_runs_are_payment_proof']===false&&
+    count($after['unattributed_paid_payroll_runs'])===1&&
+    (int)$after['unattributed_paid_payroll_runs'][0]['payroll_run_id']===$paidRun,
+    'matching paid payroll amount remains unproven reward attribution');
+rewardAssert((string)$db->get_var($db->prepare(
+    'SELECT status FROM '.Db::table('reward_adjustments').' WHERE id=%d',$id
+))==='approved',
+    'read-only settlement preflight cannot mark reward paid');
+
 $rejectedInput=$input;
 $rejectedInput['adjustment_type']='points_adjustment';
 $rejectedInput['amount']='0.00';
