@@ -34,6 +34,11 @@ jobs:
       - name: Analyze Dart
         working-directory: flutter-app
         run: flutter analyze --no-pub
+      - name: Fail on new unsupported Flutter API routes
+        working-directory: flutter-app
+        run: |
+          python3 tool/verify_api_paths_against_backend.py --baseline
+          python3 -m unittest discover -s tool -p 'test_verify_api_paths*.py'
       - name: Link canonical PHP plugin for cross-module contract tests
         run: |
           test -d plugin/excel-herbal-erp-v7
