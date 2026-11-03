@@ -57,6 +57,9 @@ test('synthetic login tool has explicit allowed localhost sites and credential i
   assert.match(smoke,/127\.0\.0\.1:18880\/erp-uat-candidate/);
   assert.match(smoke,/if\(!LOCAL_SITES\.includes\(SITE\)\)throw/);
   assert.match(smoke,/secret\.website===SITE/);
+  assert.match(smoke,/const pinnedCheckout=SITE===LOCAL_SITES\[1\]/);
+  assert.match(smoke,/ERP7-UAT-Candidate/);
+  assert.match(smoke,/cwd:pinnedCheckout/);
   assert.match(smoke,/assertLocalUatSourcePin/);
   assert.match(smoke,/9000000001/);
   assert.match(smoke,/9000000002/);

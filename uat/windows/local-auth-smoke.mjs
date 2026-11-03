@@ -28,9 +28,15 @@ must(secret.admin_mobile==='9000000001' && secret.limited_mobile==='9000000002',
   'Refusing non-synthetic employee mobile numbers');
 must(String(secret.admin_password||'').length>=10 && String(secret.limited_password||'').length>=10,
   'Synthetic admin/employee passwords not populated');
-// Confirm code actually checked out, not only a WordPress source marker.
+// Verify the EXACT checkout physically mounted in the requested WordPress UAT.
+// The candidate's independent source stays pinned even after development advances.
+if(SITE===LOCAL_SITES[1] && platform()!=='win32'){
+  throw new Error('Pinned candidate login UAT is authorized only on the Windows development PC');
+}
+const pinnedCheckout=SITE===LOCAL_SITES[1] ? 'D:\\ERP7-UAT-Candidate' :
+  fileURLToPath(new URL('../../',import.meta.url));
 const gitSha = execFileSync('git', ['rev-parse','HEAD'], {
-  cwd: fileURLToPath(new URL('../../',import.meta.url)),
+  cwd:pinnedCheckout,
   encoding:'utf8', timeout:5000,
 }).trim();
 
