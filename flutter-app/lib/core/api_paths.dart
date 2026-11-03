@@ -50,6 +50,7 @@ abstract final class ApiPaths {
       counterSale = '/sales/counter',
       customerReceipt = '/sales/receipts',
       prepaidOrders = '/sales/orders',
+      prepaidReturns = '/sales/returns',
       prepaidPaymentAccounts = '/sales/payment-accounts',
       distributorQuote = '/sales/distributor/quote',
       prepaidDiscountPolicy = '/sales/discount-policy';
@@ -121,6 +122,17 @@ abstract final class ApiPaths {
   static String prepaidOrderPayments(int id) => '/sales/orders/$id/payments';
   static String prepaidVerifyUpi(int id) => '/sales/payments/$id/verify-upi';
   static String prepaidPost(int id) => '/sales/orders/$id/post';
+  // Prepaid returns: manual evidence is never an actual refund payout.
+  static String prepaidReturnRequest(int orderId) =>
+      '/sales/orders/$orderId/return';
+  static String prepaidReturn(int id) => '/sales/returns/$id';
+  static String prepaidReturnInspect(int id) => '/sales/returns/$id/inspect';
+  static String prepaidReturnDecision(int id) =>
+      '/sales/returns/$id/decision';
+  static String prepaidRefundEvidence(int returnId) =>
+      '/sales/returns/$returnId/refund-evidence';
+  static String prepaidRefundEvidenceVerify(int id) =>
+      '/sales/refund-evidence/$id/verify';
 
   static String authSessionRevoke(int id) => '/auth/sessions/$id/revoke';
   static String branchUpdate(int id) => '/organization/branches/$id';
