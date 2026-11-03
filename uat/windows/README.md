@@ -120,3 +120,40 @@ The checkpoint was not restored into an isolated clone, so this is **not**
 restore approval or authorization to deploy. Leave the original localhost UAT
 unchanged until migration impact, schema, synthetic identity pins and verified
 rollback have been reviewed. Office WordPress was not touched.
+
+
+### Verified disposable MariaDB restore rehearsal (2026-11-04)
+
+To verify that a synthetic localhost checkpoint is restorable, not merely
+hash-valid, run these commands on the authorized Windows PC:
+
+~~~powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uat\windows\restore-native-uat.ps1 -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uat\windows\restore-native-uat.ps1
+~~~
+
+The tool reads a local-only administrator password from user-restricted
+D: secrets without printing or committing it. It confirms sanitized, idle
+synthetic WordPress, exact E: checkpoint path, dump SHA-256/size, original
+DB identity and SQL without cross-database switching. It creates a NEW
+random database with prefix eh7_restore_, without IF NOT EXISTS.
+Existing databases are never overwritten. The original eh7_local_uat is
+only read, never restored over. It compares the complete table inventory
+and COUNT(*) of every table, checks original counts are unchanged, and
+verifies WordPress Health source marker is still unchanged. Temporary
+credentials are deleted. Failed isolated imports are preserved for
+manual investigation (never automatically DROP a database).
+
+Actual Windows evidence: E:\ERP-Backups\eh7-synthetic-checkpoint-20261103-195121
+was restored into eh7_restore_5ec7b1894f7a and 97/97 WordPress+ERP
+table row counts matched the original, with no count discrepancies.
+The private restore-rehearsal.json confirms isolated_restore_verified=true
+and production_restore_verified=false. The original local WordPress
+source mismatch is STILL BLOCKED for software acceptance.
+
+This proves isolated synthetic database import and table-count parity,
+not the complete Hostinger site/files/restore, financial transactions,
+the latest GitHub code release, or production-readiness. Updating
+EH7_SOURCE_HEAD or plugin migrations requires separate isolated
+WordPress/Flutter acceptance and authorized user identity verification.
+Existing restore-rehearsal reports cannot be overwritten.

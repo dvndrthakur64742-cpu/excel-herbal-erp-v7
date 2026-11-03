@@ -41,6 +41,7 @@ if ($Mode -in @('quick','all','backend')) {
     Execute-Test 'Railway / local-UAT safety contracts' { & $node --test (Join-Path $Workspace 'uat\railway\recovery-preflight.test.mjs') }
     Execute-Test 'Local synthetic ERP true-source pin contracts' { & $node --test (Join-Path $Workspace 'uat\windows\source-pin-guard.test.mjs') }
     Execute-Test 'Windows localhost synthetic backup safety contracts' { & $node --test (Join-Path $Workspace 'uat\windows\backup-native-uat.test.mjs') }
+    Execute-Test 'Isolated MariaDB restore rehearsal contracts' { & $node --test (Join-Path $Workspace 'uat\windows\restore-native-uat.test.mjs') }
     Execute-Test 'Professional UI/UX lazy loaders and genuine retry' { & $node (Join-Path $Workspace 'flutter-app\tool\verify_async_panel_loaders.cjs') }
     if ($php) {
         Execute-Test 'WordPress dbDelta SQL definition formatting' { & $php (Join-Path $Workspace 'plugin\excel-herbal-erp-v7\tests\dbdelta_schema_format_contract.php') }
