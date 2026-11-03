@@ -789,6 +789,13 @@
       "required_params": []
     },
     {
+      "method": "GET",
+      "path": "/daily/cycles/search",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
       "method": "POST",
       "path": "/daily/cycles",
       "auth": true,
