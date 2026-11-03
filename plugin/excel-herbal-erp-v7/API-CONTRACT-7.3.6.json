@@ -1738,6 +1738,43 @@
     },
     {
       "method": "GET",
+      "path": "/performance/promotion-employees",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/performance/promotions",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/performance/promotions",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "employee_id",
+        "next_designation_code",
+        "monthly_increment_amount",
+        "effective_from",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/performance/promotions/(?P<id>\\d+)/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "decision"
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/performance/reward-employees",
       "auth": true,
       "idempotency_required": false,
