@@ -760,9 +760,24 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       } else if (action == 'submit') {
         await api.post(ApiPaths.dailySubmit(id), data: const {});
         message = 'Daily Order submitted for approval.';
-      } else if (action == 'approve') {
+      } else if (action == 'review') {
         final d = await _MyWorkDaily(this)._dailyDetail(id);
         final r = _requestWithStatus(d, 'submitted');
+        if (r == null) throw Exception('Submitted request not found.');
+        final requestId = int.tryParse('${r['id']}');
+        if (requestId == null) throw Exception('Invalid request ID.');
+        final reviewed = Map<String, dynamic>.from(
+          await api.post(ApiPaths.dailyReview(requestId),
+              data: const {}) as Map,
+        );
+        if (reviewed['status'] != 'reviewed' ||
+            int.tryParse('${reviewed['id']}') != requestId) {
+          throw Exception('Independent review confirmation unavailable.');
+        }
+        message = 'Independent SM/ASM review saved. Final BM/HO approval pending.';
+      } else if (action == 'approve') {
+        final d = await _MyWorkDaily(this)._dailyDetail(id);
+        final r = _requestWithStatus(d, 'reviewed');
         if (r == null) throw Exception('Submitted request not found.');
         await api.post(
           ApiPaths.dailyApprove(int.parse('${r['id']}')),
