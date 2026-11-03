@@ -669,7 +669,7 @@ class _CompensationWorkspaceState
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'Eligibility is a server-side preflight. This request never grants Reporting Manager, Branch Authority, Role, or capability access automatically.',
+                          'Eligibility points and working days are NOT yet verified. Approval is a review record only: salary, designation, reporting, branch and permissions remain unchanged.',
                         ),
                       ),
                       if (validation != null) ...[
@@ -745,7 +745,7 @@ class _CompensationWorkspaceState
       builder: (context) => AlertDialog(
         title: const Text('Promotion / Increment Decision'),
         content: const Text(
-          'Approval may create only the controlled designation and/or effective salary version. Reporting Manager, Branch Authority, Roles, and capabilities remain unchanged.',
+          'Approval marks the HR review complete, NOT the promotion executed. Eligibility and actual designation/salary changes require a separate, verified HR execution workflow.',
         ),
         actions: [
           TextButton(
