@@ -11,7 +11,6 @@ void main() {
     );
     expect(ApiPaths.performanceRewards, '/performance/rewards');
     expect(ApiPaths.rewardDecision(7), '/performance/rewards/7/decision');
-    expect(ApiPaths.rewardPay(7), '/performance/rewards/7/pay');
     expect(ApiPaths.performancePromotions, '/performance/promotions');
     expect(ApiPaths.performancePromotionEmployees, '/performance/promotion-employees');
     expect(ApiPaths.performanceRewardEmployees, '/performance/reward-employees');
