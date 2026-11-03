@@ -1602,6 +1602,36 @@
     },
     {
       "method": "GET",
+      "path": "/payroll/salary-structures",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/salary-structures",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "branch_id",
+        "employee_id",
+        "monthly_basic",
+        "hra",
+        "fixed_allowance",
+        "other_fixed",
+        "effective_from",
+        "change_reason"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/payroll/salary-structures/(?P<id>\\d+)/approve",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": []
+    },
+    {
+      "method": "GET",
       "path": "/payroll/policy",
       "auth": true,
       "idempotency_required": false,
