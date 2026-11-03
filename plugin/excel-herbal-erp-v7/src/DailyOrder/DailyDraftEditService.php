@@ -36,7 +36,7 @@ final class DailyDraftEditService {
                     'Positive whole PCS required.','whole_pcs_required',422
                 );
             $qty=(int)$rawQty;
-            if($productId===false||isset($seen[(int)$productId]))
+            if(!is_int($productId)||$productId<1||isset($seen[$productId]))
                 throw new DomainException(
                     'Product ID is invalid or repeated.','duplicate_daily_line',422
                 );
