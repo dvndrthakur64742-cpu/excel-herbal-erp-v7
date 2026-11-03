@@ -12,6 +12,7 @@ use ExcelHerbal\ERP7\Database\{Db,Schema};
 use ExcelHerbal\ERP7\Domain\DomainException;
 use ExcelHerbal\ERP7\Payroll\RewardAdjustmentService as Reward;
 use ExcelHerbal\ERP7\Payroll\RewardSettlementPreflightService as Settlement;
+use ExcelHerbal\ERP7\Payroll\RewardPayrollLinkProposalService as LinkProposal;
 use ExcelHerbal\ERP7\Security\{Actor,Capabilities as C};
 
 $database=(string)(getenv('EH7_MARIADB_DATABASE')?:'');
@@ -21,7 +22,7 @@ if(getenv('EH7_INTEGRATION_MODE')!=='synthetic'||
     exit(2);
 }
 $db=eh7_setup_global_db();
-$tables=['audit_log','reward_adjustments','payroll_items','payroll_runs',
+$tables=['audit_log','reward_payroll_link_proposals','reward_adjustments','payroll_items','payroll_runs',
     'employees','branches','companies'];
 $schema=Schema::definitions();
 foreach($tables as $table){
@@ -138,6 +139,72 @@ rewardAssert($before['payment_ready']===false&&
         $before['blocking_reason_codes'],true)&&
     $before['unattributed_paid_payroll_runs']===[],
     'reward preflight blocked without immutable payroll allocation');
+// Create an audited candidate against a DRAFT payroll item, never a payment.
+$draftRun=rewardSeed('payroll_runs',[
+    'company_id'=>1,'branch_id'=>1,
+    'period_start'=>'2026-10-01','period_end'=>'2026-10-31',
+    'calculation_version'=>'7.3.5',
+    'status'=>'draft','created_by'=>30,'created_at'=>$now,
+]);
+$draftItem=rewardSeed('payroll_items',[
+    'payroll_run_id'=>$draftRun,'employee_id'=>11,
+    'bonus'=>'0.00','attendance_salary'=>'9000.00',
+    'net_salary'=>'9000.00',
+]);
+$otherItem=rewardSeed('payroll_items',[
+    'payroll_run_id'=>$draftRun,'employee_id'=>20,
+    'bonus'=>'0.00','attendance_salary'=>'12000.00',
+    'net_salary'=>'12000.00',
+]);
+$linker=new Actor(30,30,1,1,[1],
+    [C::REWARDS_APPROVE,C::PAYROLL_GENERATE],'SYSADMIN');
+$linkMaker=new Actor(20,20,1,1,[1],
+    [C::REWARDS_APPROVE,C::PAYROLL_GENERATE],'SM');
+$linkWrongBranch=new Actor(30,30,1,2,[2],
+    [C::REWARDS_APPROVE,C::PAYROLL_GENERATE],'SYSADMIN');
+rewardFails(fn()=>LinkProposal::create(
+    $finance,$id,$draftRun,$draftItem,'Try without payroll generate'),
+    'permission_denied');
+rewardFails(fn()=>LinkProposal::create(
+    $linkWrongBranch,$id,$draftRun,$draftItem,'Outside branch'),
+    'branch_forbidden');
+rewardFails(fn()=>LinkProposal::create(
+    $linkMaker,$id,$draftRun,$draftItem,'Maker cannot link own reward'),
+    'maker_checker_required');
+rewardFails(fn()=>LinkProposal::create(
+    $linker,$id,$draftRun,$otherItem,'Wrong employee item'),
+    'reward_payroll_item_mismatch');
+$proposed=LinkProposal::create(
+    $linker,$id,$draftRun,$draftItem,
+    'Draft payroll item candidate for separate approval'
+);
+rewardAssert($proposed['status']==='proposed_unfunded'&&
+    $proposed['payment_posted']===false&&
+    $proposed['reward_allocation_verified']===false&&
+    $proposed['payroll_bonus_updated']===false,
+    'company-scoped link is exclusively an unfunded candidate');
+rewardAssert((string)$db->get_var($db->prepare(
+    'SELECT bonus FROM '.Db::table('payroll_items').' WHERE id=%d',
+    $draftItem
+))==='0.00','link cannot mutate payroll item bonus');
+rewardFails(fn()=>LinkProposal::create(
+    $linker,$id,$draftRun,$draftItem,'Duplicate candidate for same reward'),
+    'reward_payroll_link_duplicate');
+$withLink=Settlement::inspect($finance,$id);
+rewardAssert($withLink['payment_ready']===false&&
+    $withLink['payment_posted']===false&&
+    $withLink['unfunded_link_proposal']['proposal_status']==='proposed_unfunded'&&
+    $withLink['unfunded_link_proposal']['snapshot_consistent']===true&&
+    $withLink['unfunded_link_proposal']['snapshot_consistency_is_payment_proof']===false,
+    'existing draft link is visible but never payout evidence');
+Db::mustUpdate($db,Db::table('payroll_items'),[
+    'bonus'=>'155.25',
+],['id'=>$draftItem]);
+$changed=Settlement::inspect($finance,$id);
+rewardAssert($changed['payment_ready']===false&&
+    in_array('reward_payroll_link_proposal_stale',
+        $changed['blocking_reason_codes'],true),
+    'editing payroll bonus invalidates candidate snapshot and blocks settlement');
 $paidRun=rewardSeed('payroll_runs',[
     'company_id'=>1,'branch_id'=>1,
     'period_start'=>'2026-11-01','period_end'=>'2026-11-30',
@@ -172,11 +239,12 @@ rewardAssert($result['status']==='rejected'&&
     'negative points proposal can be rejected without effect');
 $events=(array)$db->get_results('SELECT * FROM '.Db::table('audit_log').
     ' ORDER BY id',ARRAY_A);
-rewardAssert(count($events)===4&&
+rewardAssert(count($events)===5&&
     $events[0]['action']==='reward.request'&&
     $events[1]['action']==='reward.decision'&&
-    $events[2]['action']==='reward.request'&&
-    $events[3]['action']==='reward.decision',
+    $events[2]['action']==='reward.payroll_link_proposed'&&
+    $events[3]['action']==='reward.request'&&
+    $events[4]['action']==='reward.decision',
     'only committed request and review events are audited');
 rewardAssert(!empty($events[1]['context_json'])&&
     str_contains((string)$events[1]['context_json'],'"funds_posted":false'),
