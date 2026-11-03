@@ -116,6 +116,7 @@ final class ApiContract
             'catalog.product_revision'=>['mrp','sale_price','ho_amount','bm_profit','salary_fund','office_expense','points','purchase_cost'],
             'daily.create'=>['branch_id','employee_id','business_date','lines'],
             'daily.edit_draft'=>['lines'],
+            'daily.cancel'=>['reason'],
             'daily.upi_record'=>['reference','amount'],
             'daily.upi_decision'=>['approve'],
             'daily.additional'=>['lines'],
