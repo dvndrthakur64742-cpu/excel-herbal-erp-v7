@@ -20,6 +20,7 @@ php tests/daily_cancellation_contract.php
 php tests/daily_request_disposition_contract.php
 php tests/security_scope_regression.php
 php tests/salary_authority_regression.php
+php tests/salary_structure_contract.php
 php tests/access_escalation_regression.php
 php tests/workforce_scope_contract.php
 php tests/self_performance_contract.php
