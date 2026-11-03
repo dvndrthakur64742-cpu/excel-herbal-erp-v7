@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
           python3 plugin/excel-herbal-erp-v7/tests/static_checks.py
           expected_header='Version: 7.3.12-rc1'
-          expected_schema="VERSION='7.3.12-promotion-review-4'"
+          expected_schema="VERSION='7.3.12-reward-link-proposals-5'"
           grep -Fq "$expected_header" plugin/excel-herbal-erp-v7/excel-herbal-erp-v7.php
           grep -Fq "$expected_schema" plugin/excel-herbal-erp-v7/src/Database/Schema.php
           while IFS= read -r -d '' php_file; do
@@ -80,7 +80,7 @@ jobs:
           schema = (plugin / 'src/Database/Schema.php').read_text()
           assert 'Version: 7.3.12-rc1' in entry
           assert "define('EH7_VERSION','7.3.12-rc1')" in entry
-          assert "VERSION='7.3.12-promotion-review-4'" in schema
+          assert "VERSION='7.3.12-reward-link-proposals-5'" in schema
           (plugin / 'build-meta.php').write_text(
               "<?php\nif(!defined('ABSPATH'))exit;\n"
               "// Reviewed source marker; does not imply hosted install or backup approval.\n"
