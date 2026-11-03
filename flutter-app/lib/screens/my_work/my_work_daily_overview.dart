@@ -581,6 +581,7 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     final additionalRequesterId =
         int.tryParse('${row['additional_requested_by'] ?? ''}');
     final currentEmployeeId = _currentEmployeeId(app);
+    final beneficiaryEmployeeId = int.tryParse('${row['employee_id'] ?? ''}');
 
     if (DailyOrderWorkflow.canSubmitDraft(status, app.capabilities)) {
       return 'submit';
@@ -602,6 +603,24 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
           currentEmployeeId: currentEmployeeId,
         )) {
       return 'issue';
+    }
+    if (status == 'awaiting_receipt' &&
+        DailyOrderWorkflow.canReceiveRequest(
+          initialRequestStatus,
+          app.capabilities,
+          beneficiaryEmployeeId: beneficiaryEmployeeId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
+      return 'receive';
+    }
+    if (status == 'issued' &&
+        DailyOrderWorkflow.canReceiveRequest(
+          additionalRequestStatus,
+          app.capabilities,
+          beneficiaryEmployeeId: beneficiaryEmployeeId,
+          currentEmployeeId: currentEmployeeId,
+        )) {
+      return 'receive';
     }
     if (status == 'issued' &&
         DailyOrderWorkflow.canApproveRequest(
@@ -640,7 +659,8 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
       switch (action) {
         'submit' => 'Submit for Approval',
         'approve' => additional ? 'Approve Additional' : 'Approve Order',
-        'issue' => additional ? 'Issue Additional Stock' : 'Issue Stock',
+        'issue' => additional ? 'Allocate Additional Stock' : 'Allocate Stock',
+        'receive' => additional ? 'Receive Additional Stock' : 'Confirm Physical Receipt',
         'evening' => 'Start Closing',
         'evening_edit' => 'Continue Closing',
         'final_post' => 'Final Post',
