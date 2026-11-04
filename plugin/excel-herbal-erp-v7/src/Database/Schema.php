@@ -133,6 +133,17 @@ return$c;}
         $last=trim(substr($body,$start));
         if($last==='')throw new \InvalidArgumentException('Empty ERP SQL declaration.');
         $lines[]=$last;
+        // dbDelta uses a strict index regex: index names need whitespace
+        // before "(" and PRIMARY KEY needs whitespace after KEY.
+        // This normalization changes formatting only, never index columns.
+        foreach($lines as &$line){
+            if(preg_match('/^PRIMARY KEY\s*\((.+)\)$/i',$line,$match)){
+                $line='PRIMARY KEY  ('.$match[1].')';
+            }elseif(preg_match('/^((?:UNIQUE|FULLTEXT|SPATIAL)\s+KEY|KEY)\s+([a-zA-Z0-9_$-]+)\s*\((.+)\)$/i',$line,$match)){
+                $line=$match[1].' '.$match[2].' ('.$match[3].')';
+            }
+        }
+        unset($line);
         return implode(",\n",$lines);
     }
 
