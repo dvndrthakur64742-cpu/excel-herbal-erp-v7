@@ -342,13 +342,13 @@ SQL dump or wp-config.php via a public WordPress URL, media attachment or Git.
 
 New local preflight: uat/release/hosted-backup-preflight.ps1. The operator
 can privately provide an actual Hostinger database export (.sql, .sql.gz or
-SQL-containing .zip) PLUS a matching full WordPress files ZIP (wp-config.php,
-Excel Herbal V7 plugin and uploads), using paths on their authorized PC.
+SQL-containing .zip) PLUS the matching Hostinger WordPress files .tar.gz
+(or ZIP), containing wp-config.php, Excel Herbal V7 plugin and uploads, using paths on their authorized PC.
 Example AFTER both genuine host archives exist:
 
-powershell -NoProfile -ExecutionPolicy Bypass -File .\uat\release\hosted-backup-preflight.ps1 -DatabaseDump "E:\ERP-Backups\office-private\office-db.sql.gz" -WordPressFilesZip "E:\ERP-Backups\office-private\office-files.zip" -ReportPath "E:\ERP-Backups\office-private\package-preflight.json"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uat\release\hosted-backup-preflight.ps1 -DatabaseDump "E:\ERP-Backups\office-private\office-db.sql.gz" -WordPressFilesArchive "E:\ERP-Backups\office-private\office-files.tar.gz" -ReportPath "E:\ERP-Backups\office-private\package-preflight.json"
 
-It rejects missing, under-size, wrong-extension, malformed SQL/gzip/ZIP,
+It rejects missing, under-size, wrong-extension, malformed SQL/gzip/ZIP/tar.gz,
 incomplete WordPress files, local source and synthetic checkpoints. It
 only inspects filenames, file sizes, archive member names and a small SQL
 header **locally**; never reads passwords or rows into GitHub, never
@@ -360,8 +360,9 @@ session proof and final version approval remain separate blockers.
 
 Pester-free uat/release/hosted-backup-preflight.test.ps1 builds disposable
 dummy SQL + WordPress ZIP content solely in the system Temp directory,
-passes correct checks, verifies hash/non-approval flags, rejects corrupt
-input, absent SQL, old synthetic checkpoint and missing uploaded WP media;
+passes both ZIP and native Hostinger SQL.gz + tar.gz formats, verifies
+hash/non-approval flags, rejects corrupt input, absent SQL, invalid gzip/tar,
+old synthetic checkpoint and missing uploaded WP media;
 then deletes ONLY its own randomly named Temp directory. This test is
 included in Windows Quick QA and GitHub Windows CI. The real Office site
 remains unmodified, at its previously observed plugin version.

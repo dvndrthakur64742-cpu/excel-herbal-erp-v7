@@ -8,7 +8,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory=$true)][string]$DatabaseDump,
-  [Parameter(Mandatory=$true)][string]$WordPressFilesZip,
+  [Parameter(Mandatory=$true)][Alias('WordPressFilesZip')][string]$WordPressFilesArchive,
   [string]$ReportPath = 'E:\ERP-Backups\office-hosted-package-preflight.json'
 )
 Set-StrictMode -Version Latest
@@ -30,15 +30,16 @@ function Guard-Input([string]$path,[string]$role) {
   return $item
 }
 $db=Guard-Input $DatabaseDump 'Database archive'
-$files=Guard-Input $WordPressFilesZip 'WordPress files archive'
+$files=Guard-Input $WordPressFilesArchive 'WordPress files archive'
 if ($db.FullName -eq $files.FullName) { throw 'Database and files backup must be independent files' }
 $dbExt=$db.Name.ToLowerInvariant()
 if (!($dbExt.EndsWith('.sql') -or $dbExt.EndsWith('.sql.gz') -or
       $dbExt.EndsWith('.gz') -or $dbExt.EndsWith('.zip'))) {
   throw 'DB archive must be SQL, SQL.gz or ZIP containing SQL'
 }
-if (!$files.Name.ToLowerInvariant().EndsWith('.zip')) {
-  throw 'Files archive must be ZIP so its structure can be checked safely without extraction'
+$fileName=$files.Name.ToLowerInvariant()
+if (!($fileName.EndsWith('.zip') -or $fileName.EndsWith('.tar.gz'))) {
+  throw 'Files archive must be Hostinger .tar.gz or ZIP so its structure can be checked without extraction'
 }
 function Probe-Magic([System.IO.FileInfo]$item,[byte[]]$sig) {
   $stream=[System.IO.File]::OpenRead($item.FullName)
@@ -91,7 +92,20 @@ elseif ($dbExt.EndsWith('.gz')) {
   $sqlStream=[System.IO.File]::OpenRead($db.FullName)
   try {Assert-SqlHeader $sqlStream} finally {$sqlStream.Dispose()}
 }
-Scan-Zip $files 'WP'
+if ($fileName.EndsWith('.zip')) {Scan-Zip $files 'WP'}
+else {
+  if (!(Probe-Magic $files ([byte[]](0x1F,0x8B)))) {throw 'Hostinger file archive gzip signature invalid'}
+  $tar=Get-Command tar.exe -ErrorAction SilentlyContinue
+  if (!$tar) {throw 'tar.exe required to list Hostinger .tar.gz backup safely without extraction'}
+  $names=@(& $tar.Source -tzf $files.FullName 2>$null | ForEach-Object {$_.Replace('\','/').ToLowerInvariant()})
+  if ($LASTEXITCODE -ne 0) {throw 'Hostinger .tar.gz archive is unreadable'}
+  $config=@($names|Where-Object {$_ -match '(^|/)wp-config\.php$'}).Count -gt 0
+  $plugin=@($names|Where-Object {$_ -match '(^|/)wp-content/plugins/excel-herbal-erp-v7/'}).Count -gt 0
+  $uploads=@($names|Where-Object {$_ -match '(^|/)wp-content/uploads/'}).Count -gt 0
+  if (!$config -or !$plugin -or !$uploads) {
+    throw 'Hostinger .tar.gz is incomplete: needs wp-config.php, ERP plugin and uploads'
+  }
+}
 $parent=Split-Path -Parent $ReportPath
 if (!$parent -or !(Test-Path -LiteralPath $parent -PathType Container)) {
   throw 'Private report destination directory missing'

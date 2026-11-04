@@ -21,8 +21,11 @@ try {
   $zip=Join-Path $root 'wordpress-files.zip'
   $report=Join-Path $root 'private-attestation.json'
   $nl=[Environment]::NewLine
+  $dummyBytes=New-Object byte[] 16000
+  (New-Object System.Random(20261104)).NextBytes($dummyBytes)
+  $dummyComment=[Convert]::ToBase64String($dummyBytes)
   [IO.File]::WriteAllText($db,("-- MySQL dump: dummy fixture only"+$nl+
-      "CREATE TABLE wp_test (id INT);"+$nl+('INSERT INTO wp_test VALUES (1);'+$nl)*150))
+      "CREATE TABLE wp_test (id INT);"+$nl+'-- '+$dummyComment+$nl))
   [IO.File]::WriteAllText($bad,('INVALID BACKUP DATA'*500))
   $plugin=Join-Path $archiveRoot 'wp-content\plugins\excel-herbal-erp-v7\plugin.php'
   $uploads=Join-Path $archiveRoot 'wp-content\uploads\2026\11\dummy-image.png'
@@ -45,6 +48,25 @@ try {
     !$result.wordpress_files_restored -and !$result.rollback_verified -and
     !$result.production_release_authorized) 'preflight cannot claim real hosted restore or deployment'
   Check ($result.database.sha256 -eq (Get-FileHash $db -Algorithm SHA256).Hash) 'local SQL SHA256 matches the evidence'
+  # Hostinger's current native package format is SQL.gz + WordPress tar.gz.
+  $gzipSql=Join-Path $root 'hostinger-database.sql.gz'
+  $in=[IO.File]::OpenRead($db)
+  $out=[IO.File]::Create($gzipSql)
+  try {
+    $compressor=New-Object System.IO.Compression.GZipStream($out,[System.IO.Compression.CompressionMode]::Compress)
+    try {$in.CopyTo($compressor)} finally {$compressor.Dispose()}
+  } finally {$in.Dispose();$out.Dispose()}
+  $tarPath=Join-Path $root 'hostinger-files.tar.gz'
+  & tar.exe -czf $tarPath -C $archiveRoot .
+  if($LASTEXITCODE -ne 0){throw 'Could not create disposable Hostinger tar.gz test fixture'}
+  & $tool -DatabaseDump $gzipSql -WordPressFilesArchive $tarPath -ReportPath $report|Out-Null
+  $native=Get-Content -LiteralPath $report -Raw|ConvertFrom-Json
+  Check ($native.status -eq 'LOCAL_PACKAGE_PRECHECK_ONLY' -and
+    $native.database.sha256 -eq (Get-FileHash $gzipSql -Algorithm SHA256).Hash -and
+    $native.wordpress.sha256 -eq (Get-FileHash $tarPath -Algorithm SHA256).Hash) 'native Hostinger SQL.gz + tar.gz backup pair passes precheck only'
+  $badTar=Join-Path $root 'invalid-hostinger.tar.gz'
+  Copy-Item -LiteralPath $bad -Destination $badTar
+  MustReject {& $tool -DatabaseDump $gzipSql -WordPressFilesArchive $badTar -ReportPath $report} 'invalid Hostinger tar.gz refused'
   MustReject {& $tool -DatabaseDump $bad -WordPressFilesZip $zip -ReportPath $report} 'corrupt SQL header refused'
   MustReject {& $tool -DatabaseDump (Join-Path $root 'missing.sql') -WordPressFilesZip $zip -ReportPath $report} 'missing SQL refused'
   $fakeFolder=Join-Path $root 'eh7-synthetic-checkpoint-incorrect'
