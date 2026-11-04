@@ -59,3 +59,14 @@ test('Docker runner copies synthetic fixture only into temporary CI container',(
   assert.match(ci,/docker rm -f "\$wp_container" "\$db_container"/);
   assert.match(ci,/docker network rm "\$network"/);
 });
+
+test('one active synthetic mobile session survives migration, authenticates, then is cleaned',()=>{
+  assert.match(fixture,/CI-MIGRATION-DUMMY-ACCESS/);
+  assert.match(fixture,/refresh_expires_at/);
+  assert.match(fixture,/time\(\)\+86400/);
+  assert.match(rehearsal,/Existing active synthetic session revoked or lost during migration/);
+  assert.match(rehearsal,/MobileAuth::user\(0\)/);
+  assert.match(rehearsal,/Synthetic active session not cleaned before follow-up REST tests/);
+  assert.match(rehearsal,/\$wpdb->delete\(\$sessionTable/);
+  assert.match(rehearsal,/eh7_ci_snapshot\(\$preservedTables\)/);
+});

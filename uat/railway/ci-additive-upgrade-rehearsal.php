@@ -134,6 +134,13 @@ function eh7_ci_assert_live_shape_upgraded(string $prefix): void {
     if ($cols!==['employee_id','wp_user_id','device_key']) {
         throw new \RuntimeException('Missing required mobile session composite index after upgrade');
     }
+    $dummy=$wpdb->get_row($wpdb->prepare(
+        "SELECT employee_id,wp_user_id,revoked_at,refresh_expires_at FROM {$prefix}mobile_sessions WHERE access_hash=%s",
+        hash('sha256','CI-MIGRATION-DUMMY-ACCESS')),ARRAY_A);
+    if (!$dummy || (int)$dummy['employee_id']<1 || (int)$dummy['wp_user_id']<1 ||
+        $dummy['revoked_at']!==null || $dummy['refresh_expires_at']<=gmdate('Y-m-d H:i:s')) {
+        throw new \RuntimeException('Existing active synthetic session revoked or lost during migration');
+    }
     $employeeIndex=(array)$wpdb->get_results("SHOW INDEX FROM {$prefix}employees " .
         "WHERE Key_name='branch_status'", ARRAY_A);
     usort($employeeIndex,static fn(array $a,array $b):int =>
@@ -225,6 +232,26 @@ try {
     if (!empty(get_option('eh7_schema_migration_error', ''))) {
         throw new \RuntimeException('Schema migration left a recorded error');
     }
+    // With preservation assertions complete, validate auth against the dummy
+    // active session and delete it BEFORE CI REST login/safety checks run.
+    $_SERVER['HTTP_AUTHORIZATION']='Bearer CI-MIGRATION-DUMMY-ACCESS';
+    try {
+        $resolved=(int)\ExcelHerbal\ERP7\Security\MobileAuth::user(0);
+    } finally {
+        unset($_SERVER['HTTP_AUTHORIZATION']);
+    }
+    $dummyHash=hash('sha256','CI-MIGRATION-DUMMY-ACCESS');
+    $sessionTable=$prefix.'mobile_sessions';
+    $session=$wpdb->get_row($wpdb->prepare(
+        "SELECT id,wp_user_id FROM {$sessionTable} WHERE access_hash=%s",$dummyHash),ARRAY_A);
+    if (!$session || $resolved!==(int)$session['wp_user_id']) {
+        throw new \RuntimeException('Preserved synthetic bearer session failed post-migration authentication');
+    }
+    if ($wpdb->delete($sessionTable,['id'=>(int)$session['id']])!==1 ||
+        (int)$wpdb->get_var("SELECT COUNT(*) FROM {$sessionTable}")!==0) {
+        throw new \RuntimeException('Synthetic active session not cleaned before follow-up REST tests');
+    }
+    echo "PASS dummy active session survived upgrade, authenticated and was cleaned before REST tests\n";
     echo "PASS synthetic v7.3.10-to-7.3.12 refund/salary additive migration\n";
     echo "PASS refund and salary uniqueness indexes; existing salary revision IDs and identity/stock/journal preserved\n";
     echo "PASS repeated schema install is idempotent on disposable WordPress/MariaDB\n";

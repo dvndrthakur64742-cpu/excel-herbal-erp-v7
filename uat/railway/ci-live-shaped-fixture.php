@@ -46,8 +46,11 @@ function eh7_ci_live_shaped_fixture(): array {
     $sessions = $p . 'mobile_sessions';
     $employees = $p . 'employees';
     $quarantine = $p . 'stock_quarantine';
-    $fieldId = (int) $wpdb->get_var("SELECT id FROM {$employees} WHERE employee_code='UAT-FIELD' AND status='active' LIMIT 1");
-    if ($fieldId < 1 || (int)$wpdb->get_var("SELECT COUNT(*) FROM {$sessions}") !== 0 ||
+    $field = $wpdb->get_row("SELECT id,wp_user_id FROM {$employees} " .
+        "WHERE employee_code='UAT-FIELD' AND status='active' LIMIT 1", ARRAY_A);
+    $fieldId = (int)($field['id'] ?? 0);
+    $userId = (int)($field['wp_user_id'] ?? 0);
+    if ($fieldId < 1 || $userId < 1 || (int)$wpdb->get_var("SELECT COUNT(*) FROM {$sessions}") !== 0 ||
         (int)$wpdb->get_var("SELECT COUNT(*) FROM {$quarantine}") !== 0) {
         throw new \RuntimeException('Nonempty sessions or quarantine, or missing CI synthetic staff');
     }
@@ -78,6 +81,18 @@ function eh7_ci_live_shaped_fixture(): array {
     }
 
     $now=gmdate('Y-m-d H:i:s');$date=gmdate('Y-m-d');
+    // Rehearse preservation of ONE unexpired synthetic bearer/refresh session.
+    // It is later removed from this disposable DB before the auth smoke test.
+    if (!$wpdb->insert($sessions,[
+        'wp_user_id'=>$userId,'employee_id'=>$fieldId,
+        'access_hash'=>hash('sha256','CI-MIGRATION-DUMMY-ACCESS'),
+        'refresh_hash'=>hash('sha256','CI-MIGRATION-DUMMY-REFRESH'),
+        'access_expires_at'=>gmdate('Y-m-d H:i:s',time()+3600),
+        'refresh_expires_at'=>gmdate('Y-m-d H:i:s',time()+86400),
+        'device_name'=>'CI dummy active session',
+        'device_key'=>hash('sha256','CI-MIGRATION-DUMMY-DEVICE'),
+        'created_at'=>$now
+    ])) throw new \RuntimeException('Could not seed dummy active CI session');
     $hash=hash('sha256','CI synthetic test report');
     if (!$wpdb->insert($p.'report_reminder_drafts',[
         'company_id'=>1,'branch_id'=>1,'report_type'=>'CI_TEST',

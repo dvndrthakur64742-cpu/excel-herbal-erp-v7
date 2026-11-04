@@ -273,3 +273,21 @@ QA and the GitHub isolated UAT WordPress workflow. CI migration is a
 migrations over existing hosted Office data. The release gate remains
 BLOCKED until a recoverable real-data **host backup/clone**, staff-session
 UAT, forward/reverse rehearsal and authorized deployment.
+
+### Active mobile session migration regression (CI-only)
+
+Extended the disposable Office-shaped schema rehearsal to seed exactly
+**one unexpired synthetic bearer/refresh session** bound to the synthetic
+field employee. The migration snapshots the session's row and verifies
+that both the forward upgrade and repeated install preserve it unchanged,
+including its future refresh expiry and nonrevoked state. Only after
+these assertions is the dummy bearer resolved by the real
+`MobileAuth::user(0)` implementation and the one CI-only session
+deleted. A hard zero-session assertion prevents this dummy token from
+leaking into subsequent HTTP login tests.
+
+This test uses fixed CI-only token material and **never accesses,
+reads, logs or revokes a real Office mobile session**. It is evidence of
+synthetic schema/identity preservation, not an approved Live auth
+upgrade. Offline safety contracts: 6/6 passed locally; actual
+WordPress/MariaDB Docker evidence is recorded in GitHub CI.
