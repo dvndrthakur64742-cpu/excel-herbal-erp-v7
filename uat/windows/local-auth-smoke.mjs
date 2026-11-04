@@ -5,6 +5,9 @@
  * No production URLs, no uploads, no real employee identities.
  */
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { assertLocalUatSourcePin } from './source-pin-guard.mjs';
 import { platform } from 'node:os';
 
 const SITE='http://127.0.0.1:18880/erp-uat';
@@ -22,6 +25,11 @@ must(secret.admin_mobile==='9000000001' && secret.limited_mobile==='9000000002',
   'Refusing non-synthetic employee mobile numbers');
 must(String(secret.admin_password||'').length>=10 && String(secret.limited_password||'').length>=10,
   'Synthetic admin/employee passwords not populated');
+// Confirm code actually checked out, not only a WordPress source marker.
+const gitSha = execFileSync('git', ['rev-parse','HEAD'], {
+  cwd: fileURLToPath(new URL('../../',import.meta.url)),
+  encoding:'utf8', timeout:5000,
+}).trim();
 
 async function api(path,{method='GET',payload,token}={}){
   const headers={};
@@ -58,6 +66,7 @@ try{
   const health=await api('/health');
   ok(health,'ERP health failed');
   const state=health.body.data;
+  assertLocalUatSourcePin({credentialSha:secret.source_sha,gitSha,health:state});
   must(state.environment==='staging' &&
        state.uat_bootstrap?.seeded===true &&
        state.uat_bootstrap?.synthetic_only===true &&
