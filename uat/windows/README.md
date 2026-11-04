@@ -296,3 +296,71 @@ verified within 5 minutes. The diagnostic is NOT part of offline CI.
 ~~~powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\uat\windows\clock-health.ps1
 ~~~
+
+
+### Verified current-day synthetic GPS -> stock -> Cash evening settlement, 4 Nov 2026
+
+The authorized Windows PC's clock was corrected by the operator. Read-only
+clock-health.ps1 independently compared system UTC with the public HTTPS
+Date header and PASSED: around 3 seconds skew (0.1 minutes), below 5-minute
+gate. Windows Time service query returned Access Denied, so no claim about
+time-service configuration or persistence is made. Neither script nor tool
+changed the user's clock.
+
+**Actual Windows localhost candidate plugin Git source:** 479ed9d9482a373441af0b9e312134c89ad756d8.
+**Separate synthetic DB:** eh7_restore_5ec7b1894f7a.
+**Business date:** 2026-11-04, Asia/Kolkata, duty window verified
+around 12:40–12:42 IST. Starting fixture: 1 warehouse unit, 0 employee
+custody; old field cycle 1 completed, previous 7 prepaid orders/invoices
+and 9 journals preserved.
+
+One-time tests executed with ONLY synthetic identities: employee 2,
+independent admin/reviewer 1, and distinct BM final approver 3.
+- Scheduled employee attendance and actual *dummy* duty GPS insert worked.
+  Stock request was denied WITHOUT authenticated same-day GPS.
+- New daily cycle 2/request 2 submitted. Employee self-review denied
+  (error code permission_denied, not daily_reviewer_required: corrected
+  test expectation). Independent admin reviewed; same reviewer could
+  NOT final approve. BM 3 final-approved and allocated 1 dummy unit.
+- Stock remained in warehouse UNTIL employee 2 acknowledged the
+  physical receipt. Wrong-employee acknowledgment and duplicate
+  receipt denied. Two paired custody ledger rows verified, Warehouse
+  1 -> 0, employee custody 0 -> 1.
+- Daily evening draft could NOT be submitted without saved
+  reconciliation. Settlement issued 1, sold 1, returned 0 and
+  required dummy Cash 100. Wrong totals (0, 50, 101) refused,
+  seller could not self-finalize, independent BM 3 final-posted.
+  Duplicate daily closing refused. Employee stock 1 -> 0,
+  balanced current-day journal, total journals 9 -> 10.
+  Previously posted 7 prepaid invoices remained untouched.
+- Separate candidate-field-audit.php independently verified the
+  persisted current-date GPS evidence, reviewer/BM provenance, posted
+  Cash 100, balanced GL, paired issue + single daily-sale stock
+  movements, both stock custodians zero, and old completed cycle.
+
+**Important scope:** This is synthetic backend PHP service + real
+local WordPress/MariaDB integration, NOT Flutter Android UI or actual
+GPS hardware device, NOT an actual customer Cash collection. This
+fixture sold the one remaining unit and returned **zero units**.
+A separate dedicated Return/Refund scenario still needs testing.
+
+Because this one-time fixture was partially executed before the
+self-review error-code expectation was corrected, the operation was
+resumed ONLY from the explicitly verified submitted request status
+using candidate-field-issue-receive.php, then candidate-field-evening.php.
+Never blindly rerun these mutation scripts on the existing database.
+They intentionally have exact baseline/status guards and are designed
+to refuse a completed cycle. Their execution does not update the original
+erp-uat or office.excelherbal.in.
+
+READ-ONLY verification on authorized Windows PC:
+
+~~~powershell
+$env:EH7_CANDIDATE_SOURCE_SHA=(git -C D:\ERP7-UAT-Candidate rev-parse HEAD).Trim()
+D:\xampp\php\php.exe D:\ERP7-Development\uat\windows\candidate-field-audit.php
+D:\xampp\php\php.exe D:\ERP7-Development\uat\windows\original-uat-readonly.php
+~~~
+
+The source checkout on the detached candidate remains 479ed9d until a
+separately reviewed migration; dev GitHub HEAD will be newer. Do not
+claim old erp-uat source-certified or production release-ready.
