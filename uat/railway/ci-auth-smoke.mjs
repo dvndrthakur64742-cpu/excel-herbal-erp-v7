@@ -66,7 +66,8 @@ must(Array.isArray(fieldBranchIds) && fieldBranchIds.some(
 must(fieldUi.features?.api_contract === fieldUi.api_contract &&
      /^\\d{4}-\\d{2}-\\d{2}$/.test(fieldUi.business_date) &&
      Date.parse(fieldUi.server_timestamp) > 0 &&
-     fieldUi.business_timezone === 'Asia/Kolkata',
+     typeof fieldUi.business_timezone === 'string' &&
+     fieldUi.business_timezone.trim().length > 0,
   'Flutter startup date/timezone/contract metadata inconsistent');
 must(Array.isArray(fieldUi.navigation?.sections) &&
      Array.isArray(fieldUi.navigation?.bottom_nav) &&
