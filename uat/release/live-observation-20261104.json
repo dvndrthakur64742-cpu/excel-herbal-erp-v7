@@ -1,0 +1,42 @@
+{
+  "observed_utc": "2026-11-04T07:31:30Z",
+  "evidence": "Authenticated WPVibe site_info, plugin list, ERP /health and read-only SQL counts; no personal rows collected",
+  "origin": "https://office.excelherbal.in",
+  "wordpress": {
+    "version": "7.1.4",
+    "php": "8.3.36",
+    "environment": "staging"
+  },
+  "plugin": {
+    "slug": "excel-herbal-erp-v7",
+    "active": true,
+    "version": "7.3.10-rc2",
+    "source_head": "local-integrated-v15-workflow-unverified"
+  },
+  "legacy": {
+    "slug": "universal-office-erp-platform",
+    "active": false,
+    "version": "15.0.0"
+  },
+  "live_schema": "7.3.12-prepaid-refund-evidence-1",
+  "live_health": {
+    "sanitized": false,
+    "synthetic_only": false,
+    "source_head_match": false,
+    "active_mobile_sessions_zero": false
+  },
+  "counts": {
+    "employees": 27,
+    "attendance": 441,
+    "audit_log": 502,
+    "active_sessions": 24,
+    "eh7_tables": 83
+  },
+  "release_checks": {
+    "live_files_and_db_recovery_verified": false,
+    "migration_forward_backward_tested": false,
+    "session_compatibility_verified": false,
+    "real_role_flutter_web_android_uat_passed": false,
+    "live_version_source_certified": false
+  }
+}

@@ -42,6 +42,7 @@ jobs:
           while IFS= read -r -d '' php_file; do
             php -l "$php_file" >/dev/null
           done < <(find plugin/excel-herbal-erp-v7 -type f -name '*.php' -print0)
+          node --test uat/release/release-metadata-ux.test.mjs
           echo "PASS PHP 8.3 syntax and version-alignment checks"
 
       - name: Build isolated WordPress plugin ZIP (NOT DEPLOYED)
@@ -90,7 +91,7 @@ jobs:
               'Excel Herbal ERP V7 — STAGING REVIEW ONLY — NOT DEPLOYED',
               'Source commit: ' + sha,
               'Plugin version: 7.3.12-rc1',
-              'Schema version: 7.3.12-prepaid-refund-evidence-1',
+              'Schema version: 7.3.12-reward-payroll-allocated-6',
               'This archive contains a WordPress plugin, NOT a Flutter web app.',
               'DO NOT install over office.excelherbal.in before a fresh full files+DB backup,',
               'restore rehearsal, source comparison and written release acceptance.',
@@ -123,7 +124,7 @@ jobs:
               'status': 'STAGING_REVIEW_ONLY_NOT_DEPLOYED',
               'source_sha': sha,
               'plugin_version': '7.3.12-rc1',
-              'schema_version': '7.3.12-prepaid-refund-evidence-1',
+              'schema_version': '7.3.12-reward-payroll-allocated-6',
               'sha256': digest,
               'zip_name': name,
               'file_count': len(files),

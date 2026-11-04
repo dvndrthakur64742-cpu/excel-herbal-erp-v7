@@ -91,43 +91,49 @@ class _EmptyState extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(28),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 380),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: const BoxDecoration(
-                color: ExcelBrand.primarySoft,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.inbox_outlined,
-                color: ExcelBrand.primaryDark,
-              ),
+  Widget build(BuildContext context) => SingleChildScrollView(
+    child: Semantics(
+      liveRegion: true,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: const BoxDecoration(
+                    color: ExcelBrand.primarySoft,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.inbox_outlined,
+                    color: ExcelBrand.primaryDark,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'No records yet',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
-            Text(
-              'No records yet',
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     ),
@@ -143,57 +149,63 @@ class _ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reference = UiError.reference(error);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: const BoxDecoration(
-                  color: ExcelBrand.primarySoft,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.refresh_rounded,
-                  size: 30,
-                  color: ExcelBrand.primaryDark,
-                ),
+    return SingleChildScrollView(
+      child: Semantics(
+        liveRegion: true,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: const BoxDecoration(
+                      color: ExcelBrand.primarySoft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.refresh_rounded,
+                      size: 30,
+                      color: ExcelBrand.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Unable to load this section',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    UiError.message(error),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (reference != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Support ref: $reference',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Retry'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Unable to load this section',
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                UiError.message(error),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (reference != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Support ref: $reference',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
