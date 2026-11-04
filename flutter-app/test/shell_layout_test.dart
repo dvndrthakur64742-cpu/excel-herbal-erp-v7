@@ -27,8 +27,10 @@ void main() {
 
     expect(source, contains('void _selectDesktopRoute(String id)'));
     expect(source, contains('desktopRoute = id;'));
-    expect(source, contains('if (index >= 0) mobileIndex = index;'));
-    expect(source, contains('mobileIndex = index;'));
+    expect(source, contains('if (index >= 0) mobileRoute = id;'));
+    expect(source, contains('mobileRoute = id;'));
+    expect(source, contains('ShellLayout.mobileNavIndex(items, mobileRoute)'));
+    expect(source, isNot(contains('mobileIndex = index;')));
     expect(source, contains('desktopRoute = id;'));
   });
 }
