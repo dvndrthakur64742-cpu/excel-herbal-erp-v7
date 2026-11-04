@@ -31,7 +31,7 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  int mobileIndex = 0;
+  String mobileRoute = 'home';
   String desktopRoute = 'home';
 
   @override
@@ -95,7 +95,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 {'id': 'home', 'label': 'Home'},
                 {'id': 'profile', 'label': 'Profile'},
               ];
-        final safeIndex = mobileIndex.clamp(0, items.length - 1);
+        final safeIndex = ShellLayout.mobileNavIndex(items, mobileRoute);
         final route = '${items[safeIndex]['id']}';
         return Scaffold(
           drawerEdgeDragWidth: 28,
@@ -388,7 +388,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final employee = Map<String, dynamic>.from(
       (app.me['employee'] as Map?) ?? const {},
     );
-    final width = (MediaQuery.sizeOf(context).width * .9).clamp(300.0, 390.0);
+    final width = ShellLayout.mobileDrawerWidth(
+      MediaQuery.sizeOf(context).width,
+    );
     final branch = _currentBranchLabel(app);
     final designation =
         '${employee['designation_name'] ?? employee['designation_code'] ?? ''}'
@@ -594,9 +596,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     required IconData icon,
   }) {
     final items = app.bottomNav;
-    final safeIndex =
-        items.isEmpty ? -1 : mobileIndex.clamp(0, items.length - 1);
-    final current = safeIndex >= 0 ? '${items[safeIndex]['id']}' : 'home';
+    final safeIndex = ShellLayout.mobileNavIndex(items, mobileRoute);
+    final current = items.isNotEmpty ? '${items[safeIndex]['id']}' : 'home';
     final selected = current == id;
     final scheme = Theme.of(context).colorScheme;
 
@@ -878,7 +879,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final index = app.bottomNav.indexWhere((item) => '${item['id']}' == id);
     setState(() {
       desktopRoute = id;
-      if (index >= 0) mobileIndex = index;
+      if (index >= 0) mobileRoute = id;
     });
   }
 
@@ -887,7 +888,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final index = items.indexWhere((item) => '${item['id']}' == id);
     if (index >= 0) {
       setState(() {
-        mobileIndex = index;
+        mobileRoute = id;
         desktopRoute = id;
       });
     }
