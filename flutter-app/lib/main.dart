@@ -85,66 +85,11 @@ class _BootstrapRecoveryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final app = ref.watch(appStateProvider);
-    final reason = app.bootstrapFailureMessage;
-
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.sync_problem_rounded, size: 56),
-                      const SizedBox(height: 16),
-                      Text(
-                        'ERP startup temporarily unavailable',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(reason, textAlign: TextAlign.center),
-                      if (app.errorReference != null) ...[
-                        const SizedBox(height: 8),
-                        SelectableText(
-                          'Support reference: ${app.errorReference}',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Business posting is paused until the server date and startup contract are valid. Navigation will resume after a successful retry.',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 22),
-                      FilledButton.icon(
-                        onPressed: () => ref
-                            .read(appStateProvider.notifier)
-                            .retryBootstrap(),
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Retry startup'),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: () =>
-                            ref.read(appStateProvider.notifier).logout(),
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Logout'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return StartupRecoveryPanel(
+      message: app.bootstrapFailureMessage,
+      supportReference: app.errorReference,
+      onRetry: () => ref.read(appStateProvider.notifier).retryBootstrap(),
+      onLogout: () => ref.read(appStateProvider.notifier).logout(),
     );
   }
 }
