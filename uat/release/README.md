@@ -230,3 +230,46 @@ This is a **source-level continuity fix**, not confirmation that all
 An approved clone-based HTTP/WordPress/UAT refresh/revocation test remains
 required. Do not install this update directly over Office until migration
 and session acceptance passes; original live V7 remains unchanged.
+
+## 2026-11-04 — Office-shaped disposable migration rehearsal (no live database clone)
+
+The connected Office WordPress CLI exposes read-only `db query`, not a
+full database export/import operation. A **real hosted-data clone has not
+been obtained**, so existing employee passwords, sessions and financial
+records have NOT been copied to the developer machine or CI.
+
+Instead, the existing GitHub disposable WordPress + MariaDB CI test
+(`uat/railway/ci-additive-upgrade-rehearsal.php`) now prepares a
+**live-shaped synthetic schema fixture** with:
+
+- Exactly the three legacy report tables (reminder drafts, report
+  submissions and submission events), seeded with one **dummy** row each.
+  All three dummy rows and table structures must survive.
+- The two Office-only stock quarantine columns
+  `unit_cost_snapshot DECIMAL(14,4)` and
+  `journal_entry_id BIGINT UNSIGNED NULL` with a **dummy quarantine row**
+  (0.250 units, cost snapshot 12.3400). They must remain intact.
+- The additional Office employee index `branch_status`, which must not
+  be dropped.
+- The missing Office mobile-session composite index
+  `employee_device(employee_id,wp_user_id,device_key)`, removed only
+  from the **CI synthetic database**, which must be recreated by
+  WordPress `dbDelta` after migration.
+
+The real WordPress Schema::maybeUpgrade() and a second Schema::install()
+both verify preserved synthetic WordPress users, employee identities,
+session rows, stock, GL, prepaid data, three reports and quarantine row
+byte-for-byte, and the complete post-migration indexes/columns. The
+disposable containers/database are torn down after CI. The fixture
+checks `EH7_CI_ISOLATED=1`, WordPress staging type, exact synthetic
+database `eh7_ci_synthetic`, and an `eh7-ci-mariadb-` host before its
+first write. CI-only DROP statements affect only checked **empty**
+additive tables in this disposable container, never Office.
+
+Safety contracts live in
+`uat/railway/ci-live-shaped-fixture.test.mjs`, wired into Windows Quick
+QA and the GitHub isolated UAT WordPress workflow. CI migration is a
+**synthetic representative schema rehearsal**, not approval to run
+migrations over existing hosted Office data. The release gate remains
+BLOCKED until a recoverable real-data **host backup/clone**, staff-session
+UAT, forward/reverse rehearsal and authorized deployment.

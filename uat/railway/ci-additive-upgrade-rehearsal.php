@@ -27,6 +27,9 @@ if (($seed['seeded'] ?? false) !== true ||
 }
 global $wpdb;
 $prefix = $wpdb->prefix . 'eh7_';
+// Imported fixture is limited to disposable, synthetic, uniquely named CI DB.
+// Its dummy rows and live-shaped extra columns/indexes must survive migration.
+require '/tmp/eh7-ci-live-shaped-fixture.php';
 $toRebuild = [
     'prepaid_return_requests' => ['uq_prepaid_return'],
     'prepaid_refund_evidence' => [
@@ -73,6 +76,7 @@ $preservedTables = [
     $prefix . 'prepaid_sales_orders',
     $prefix . 'prepaid_sales_order_payments',
     $prefix . 'mobile_sessions',
+    $prefix . 'stock_quarantine',
 ];
 function eh7_ci_table_exists(string $table): bool {
     global $wpdb;
@@ -100,7 +104,43 @@ function eh7_ci_snapshot(array $tables): array {
     }
     return $out;
 }
+
+function eh7_ci_assert_live_shape_upgraded(string $prefix): void {
+    global $wpdb;
+    foreach (['report_reminder_drafts','report_submissions','report_submission_events'] as $name) {
+        $table=$prefix.$name;
+        if (!eh7_ci_table_exists($table) ||
+            (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}")!==1) {
+            throw new \RuntimeException('Live-only synthetic report or its row lost: '.$name);
+        }
+    }
+    $stock=$prefix.'stock_quarantine';
+    $stockColumns=(int)$wpdb->get_var("SELECT COUNT(*) FROM information_schema.COLUMNS " .
+        "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='{$stock}' " .
+        "AND COLUMN_NAME IN ('unit_cost_snapshot','journal_entry_id')");
+    $quarantine=$wpdb->get_row("SELECT unit_cost_snapshot,journal_entry_id,quantity " .
+        "FROM {$stock} ORDER BY id LIMIT 1", ARRAY_A);
+    if ($stockColumns!==2 || !$quarantine ||
+        abs((float)$quarantine['unit_cost_snapshot']-12.34)>.00001 ||
+        abs((float)$quarantine['quantity']-.25)>.00001 ||
+        $quarantine['journal_entry_id']!==null) {
+        throw new \RuntimeException('Live-only stock quarantine columns/data were not preserved');
+    }
+    $sessionIndex=(array)$wpdb->get_results("SHOW INDEX FROM {$prefix}mobile_sessions " .
+        "WHERE Key_name='employee_device' ORDER BY Seq_in_index", ARRAY_A);
+    $cols=array_column($sessionIndex,'Column_name');
+    if ($cols!==['employee_id','wp_user_id','device_key']) {
+        throw new \RuntimeException('Missing required mobile session composite index after upgrade');
+    }
+    $employeeIndex=(array)$wpdb->get_results("SHOW INDEX FROM {$prefix}employees " .
+        "WHERE Key_name='branch_status' ORDER BY Seq_in_index", ARRAY_A);
+    if (array_column($employeeIndex,'Column_name')!==['company_id','assigned_branch_id','status']) {
+        throw new \RuntimeException('Live-only employee lookup index was dropped/changed');
+    }
+}
 try {
+    $liveShapePreserved = eh7_ci_live_shaped_fixture();
+    $preservedTables = array_merge($preservedTables, $liveShapePreserved);
     $before = eh7_ci_snapshot($preservedTables);
     // Migrating older synthetic users may legitimately INSERT missing baseline
     // salary records. Existing salary revision rows must remain byte-for-byte
@@ -165,12 +205,14 @@ try {
             }
         }
     }
+    eh7_ci_assert_live_shape_upgraded($prefix);
     $assertOldSalaryPreserved();
     if (eh7_ci_snapshot($preservedTables) !== $before) {
         throw new \RuntimeException('Existing synthetic identity/stock/finance data changed after upgrade');
     }
     // Explicitly rerun the installer, not just the option-version no-op.
     \ExcelHerbal\ERP7\Database\Schema::install();
+    eh7_ci_assert_live_shape_upgraded($prefix);
     $assertOldSalaryPreserved();
     if (eh7_ci_snapshot($preservedTables) !== $before ||
         (string) get_option('eh7_schema_version', '') !== $expected) {
@@ -182,6 +224,8 @@ try {
     echo "PASS synthetic v7.3.10-to-7.3.12 refund/salary additive migration\n";
     echo "PASS refund and salary uniqueness indexes; existing salary revision IDs and identity/stock/journal preserved\n";
     echo "PASS repeated schema install is idempotent on disposable WordPress/MariaDB\n";
+    echo "PASS live-shaped report tables, quarantine financial columns and custom employee index preserved\n";
+    echo "PASS missing employee_device composite index recreated without session changes\n";
 } catch (\Throwable $e) {
     fwrite(STDERR, "FAIL disposable additive upgrade rehearsal: " . $e->getMessage() . "\n");
     exit(1);

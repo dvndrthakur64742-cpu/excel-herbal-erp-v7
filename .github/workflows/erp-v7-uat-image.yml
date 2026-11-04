@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate Railway recovery safety gate (synthetic snapshots)
         run: node --test uat/railway/recovery-preflight.test.mjs
+      - name: Validate Office-shaped synthetic migration fixture contract
+        run: node --test uat/railway/ci-live-shaped-fixture.test.mjs
       - name: Validate localhost-only persistent UAT Docker Compose
         env:
           EH7_LOCAL_SOURCE_SHA: ${{ github.sha }}

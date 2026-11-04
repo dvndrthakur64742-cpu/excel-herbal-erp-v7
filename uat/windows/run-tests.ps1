@@ -39,6 +39,7 @@ function Execute-Test([string]$label,[scriptblock]$call) {
 if ($Mode -in @('quick','all','backend')) {
     if (!$node) { throw 'Node.js is required; install it or add it to PATH.' }
     Execute-Test 'Railway / local-UAT safety contracts' { & $node --test (Join-Path $Workspace 'uat\railway\recovery-preflight.test.mjs') }
+    Execute-Test 'Disposable live-shaped synthetic upgrade fixture contracts' { & $node --test (Join-Path $Workspace 'uat\railway\ci-live-shaped-fixture.test.mjs') }
     Execute-Test 'Local synthetic ERP true-source pin contracts' { & $node --test (Join-Path $Workspace 'uat\windows\source-pin-guard.test.mjs') }
     Execute-Test 'Windows localhost synthetic backup safety contracts' { & $node --test (Join-Path $Workspace 'uat\windows\backup-native-uat.test.mjs') }
     Execute-Test 'Isolated MariaDB restore rehearsal contracts' { & $node --test (Join-Path $Workspace 'uat\windows\restore-native-uat.test.mjs') }
