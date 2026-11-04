@@ -131,3 +131,77 @@ data must also be compared against a disposable copy before a live write.
 appfixer.ai.studio reference is not copied. The 320px mobile accessible
 Retry/Empty state improvement is a code + widget-test change, not a live
 asset deployment.
+
+## 4 Nov 2026 — Complete 83/85-table column & index compatibility inspection
+
+This is a **read-only production inventory**, not a migration run. Source:
+authenticated WordPress/WPVibe information_schema.COLUMNS/STATISTICS SELECT;
+expected source: canonical Git PHP Schema::definitions(), checked as
+**85 definitions**. Full per-table reports stay on the authorized PC in
+D:\ERP7-Release-Candidates\live-schema-column-diff-20261104.json and
+D:\ERP7-Release-Candidates\live-schema-index-diff-20261104.json.
+Full live DDL metadata is deliberately **not committed to GitHub**.
+
+| Measurement | Verified count |
+| --- | ---: |
+| Live V7 / reviewed V7 source tables | 83 / 85 |
+| Shared tables checked column by column | 80 |
+| Columns missing on Live in shared tables | 0 |
+| Shared column type/unsigned/NULL differences | 0 |
+| Extra Live columns, preserved | 2 |
+| Required new tables | 5 |
+| Live-only report tables, preserve | 3 |
+| Missing source-defined indexes on Live | 1 |
+| Extra Live indexes, preserve | 16 |
+| Shared index definition/uniqueness differences | 0 |
+
+Both live-only stock_quarantine columns,
+`unit_cost_snapshot` and `journal_entry_id`, are retained; their
+ownership and financial use need review before migration. The single
+missing index is the nonunique **mobile_sessions.employee_device**
+on `employee_id,wp_user_id,device_key`. It may be created on the
+separate migrated site but **must not be added directly to Live now**.
+All 16 additional Live indexes are to be preserved until there is
+a reviewed explicit removal reason, never dropped automatically.
+The three live-only Reports tables presently have zero rows; they
+are not deleted. The five new Reward, Payroll, Promotion table
+definitions are additive in the reviewed source; do not assume
+that creating them is sufficient to certify their business logic.
+
+### Pre-migration backfill, read-only evidence
+
+Compared current Employees and related tables using COUNT/NOT EXISTS
+(aggregate values only): **0 active employees missing a current branch
+history**, **0 employees missing a salary revision**, and **0 active
+companies missing INTER_BRANCH_CLEARING**. These counts rule out those
+specific initial backfills under the observed snapshot, not all
+possible side effects or changes after the snapshot. The migration
+code still calls `dbDelta`, account maintenance,
+`backfillEmployeeBranchHistory()`, salary baseline INSERT and
+`DocumentVault::provisionKey()`; they all require an authorized
+migration/recovery rehearsal on a disposable **host-data copy**.
+
+There are 18 unexpired Mobile Sessions to preserve/validate. The
+mobile-session table's 12 existing columns match the source. This is
+schema compatibility only: refresh-token rotation, active-login role
+visibility and actual device compatibility still need explicit
+testing before a Live rollout.
+
+### Workflow and non-destructive rules
+
+- Reusable offline read-only comparators:
+  `uat/release/compare-schema-columns.mjs` and
+  `uat/release/compare-schema-indexes.mjs`.
+  They require the authorization-bound *private* live metadata exports
+  in `D:\ERP7-Release-Candidates`; no live network writes.
+- 7 Node tests in `uat/release/schema-migration-inventory.test.mjs`
+  check DECIMAL splitting, unsigned/null metadata, missing columns,
+  corrupt inventory rejection, composite index behavior, code
+  migration side effects and release gate blockers.
+- Live release gate now explicitly checks Column/Index review
+  rather than accepting only a matching table count or schema marker.
+  It remains **BLOCKED** until new-table creation, index addition,
+  session preservation and non-destructive migration+rollback
+  are verified against the real-data clone.
+- No Live plugin ZIP, table changes, user credentials or WordPress
+  site settings were changed by this analysis.

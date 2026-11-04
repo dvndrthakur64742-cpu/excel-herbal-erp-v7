@@ -17,7 +17,7 @@ test('authenticated Office production observations BLOCK unreviewed replacement'
  assert.equal(result.status,'BLOCKED');
  const blockers=new Set(result.blockers.map(x=>x.code));
  for(const key of ['environment','schema_mismatch','unverified_live_source',
-   'migration_rehearsal','schema_table_delta','recovery_unverified','active_sessions','real_ui_uat',
+   'migration_rehearsal','schema_table_delta','column_index_delta','recovery_unverified','active_sessions','real_ui_uat',
    'live_release_certification','preserve_existing_records']) {
    assert.ok(blockers.has(key),key+' was not blocked');
  }
@@ -27,6 +27,12 @@ test('authenticated Office production observations BLOCK unreviewed replacement'
  assert.equal(actual.counts.legacy_eoe_tables,190);
  assert.equal(actual.schema_diff.live_only_tables.length,3);
  assert.equal(actual.schema_diff.candidate_only_tables.length,5);
+ assert.equal(actual.schema_diff.shared_table_count,80);
+ assert.equal(actual.schema_diff.missing_live_columns,0);
+ assert.equal(actual.schema_diff.changed_live_column_definitions,0);
+ assert.equal(actual.schema_diff.extra_live_columns.length,2);
+ assert.equal(actual.schema_diff.missing_live_indexes.length,1);
+ assert.equal(actual.schema_diff.extra_live_index_count,16);
  assert.equal(actual.counts.attendance,441);
 });
 
@@ -60,6 +66,7 @@ test('a future hypothetical fully verified release can advance ONLY to separate 
    live_files_and_db_recovery_verified:true,
    migration_forward_backward_tested:true,
    schema_table_ownership_verified:true,
+   column_and_index_compatibility_rehearsed:true,
    session_compatibility_verified:true,
    real_role_flutter_web_android_uat_passed:true,
    live_version_source_certified:true

@@ -32,6 +32,13 @@ export function assessLiveDeployment(live, candidate, now=new Date()) {
       liveOnly.length>0||candidateOnly.length>0) &&
       live?.release_checks?.schema_table_ownership_verified!==true)
     fail('schema_table_delta','Live-only and candidate-only tables require explicit non-destructive ownership and migration mapping');
+  const delta=live?.schema_diff;
+  if(!delta||delta.missing_live_columns!==0||delta.changed_live_column_definitions!==0||
+      delta.changed_live_index_definitions!==0||delta.missing_live_indexes?.length>0||
+      delta.extra_live_columns?.length>0||delta.extra_live_index_count>0){
+    if(live?.release_checks?.column_and_index_compatibility_rehearsed!==true)
+      fail('column_index_delta','Live column/index changes must be preserved and rehearsed on a disposable copy');
+  }
   if(!/^[a-f0-9]{40}$/i.test(String(candidate?.git_sha??'')))
     fail('unverified_candidate','Candidate must have an immutable verified Git SHA');
   if(!/^[a-f0-9]{40}$/i.test(String(live?.plugin?.source_head??''))||

@@ -47,6 +47,7 @@ if ($Mode -in @('quick','all','backend')) {
     Execute-Test 'Candidate real-date GPS, stock custody and evening settlement safety contracts' { & $node --test (Join-Path $Workspace 'uat\windows\candidate-field-contract.test.mjs') }
     Execute-Test 'Live ERP deployment fail-closed safety contracts' { & $node --test (Join-Path $Workspace 'uat\release\live-deployment-gate.test.mjs') }
     Execute-Test 'Plugin review metadata and responsive UX source contracts' { & $node --test (Join-Path $Workspace 'uat\release\release-metadata-ux.test.mjs') }
+    Execute-Test 'Live 83/85 table non-destructive migration inventory contracts' { & $node --test (Join-Path $Workspace 'uat\release\schema-migration-inventory.test.mjs') }
     Execute-Test 'Professional UI/UX lazy loaders and genuine retry' { & $node (Join-Path $Workspace 'flutter-app\tool\verify_async_panel_loaders.cjs') }
     if ($php) {
         Execute-Test 'WordPress dbDelta SQL definition formatting' { & $php (Join-Path $Workspace 'plugin\excel-herbal-erp-v7\tests\dbdelta_schema_format_contract.php') }

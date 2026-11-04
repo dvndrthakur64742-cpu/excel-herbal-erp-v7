@@ -42,7 +42,7 @@ jobs:
           while IFS= read -r -d '' php_file; do
             php -l "$php_file" >/dev/null
           done < <(find plugin/excel-herbal-erp-v7 -type f -name '*.php' -print0)
-          node --test uat/release/release-metadata-ux.test.mjs
+          node --test uat/release/release-metadata-ux.test.mjs uat/release/schema-migration-inventory.test.mjs
           echo "PASS PHP 8.3 syntax and version-alignment checks"
 
       - name: Build isolated WordPress plugin ZIP (NOT DEPLOYED)

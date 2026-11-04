@@ -22,7 +22,14 @@
   "schema_diff": {
     "live_only_tables": ["report_reminder_drafts", "report_submissions", "report_submission_events"],
     "candidate_only_tables": ["reward_adjustments", "reward_payroll_link_proposals", "reward_payroll_allocations", "promotion_requests", "salary_structure_versions"],
-    "live_only_table_row_counts": [0, 0, 0]
+    "live_only_table_row_counts": [0, 0, 0],
+    "shared_table_count": 80,
+    "missing_live_columns": 0,
+    "extra_live_columns": ["stock_quarantine.unit_cost_snapshot", "stock_quarantine.journal_entry_id"],
+    "changed_live_column_definitions": 0,
+    "missing_live_indexes": ["mobile_sessions.employee_device"],
+    "extra_live_index_count": 16,
+    "changed_live_index_definitions": 0
   },
   "live_health": {
     "sanitized": false,
@@ -37,12 +44,16 @@
     "active_sessions": 24,
     "unexpired_sessions": 18,
     "eh7_tables": 83,
-    "legacy_eoe_tables": 190
+    "legacy_eoe_tables": 190,
+    "missing_employee_branch_history": 0,
+    "employees_missing_salary_revision": 0,
+    "companies_missing_clearing_account": 0
   },
   "release_checks": {
     "live_files_and_db_recovery_verified": false,
     "migration_forward_backward_tested": false,
     "schema_table_ownership_verified": false,
+    "column_and_index_compatibility_rehearsed": false,
     "session_compatibility_verified": false,
     "real_role_flutter_web_android_uat_passed": false,
     "live_version_source_certified": false
