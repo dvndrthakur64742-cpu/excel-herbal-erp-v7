@@ -66,12 +66,18 @@ class StartupRecoveryPanel extends StatelessWidget {
                             ),
                             const SizedBox(height: 22),
                             FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(168, 48),
+                              ),
                               onPressed: onRetry,
                               icon: const Icon(Icons.refresh_rounded),
                               label: const Text('Retry startup'),
                             ),
                             const SizedBox(height: 8),
                             TextButton.icon(
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(128, 48),
+                              ),
                               onPressed: onLogout,
                               icon: const Icon(Icons.logout),
                               label: const Text('Logout'),
