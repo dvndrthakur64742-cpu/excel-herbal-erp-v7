@@ -49,6 +49,9 @@ if ($Mode -in @('quick','all','backend')) {
     Execute-Test 'Live ERP deployment fail-closed safety contracts' { & $node --test (Join-Path $Workspace 'uat\release\live-deployment-gate.test.mjs') }
     Execute-Test 'Plugin review metadata and responsive UX source contracts' { & $node --test (Join-Path $Workspace 'uat\release\release-metadata-ux.test.mjs') }
     Execute-Test 'Live 83/85 table non-destructive migration inventory contracts' { & $node --test (Join-Path $Workspace 'uat\release\schema-migration-inventory.test.mjs') }
+    Execute-Test 'Local hosted backup package safety and synthetic corruption checks' {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Workspace 'uat\release\hosted-backup-preflight.test.ps1')
+    }
     Execute-Test 'WordPress REST bearer authentication live-session parity' {
         if (!$php) { throw 'PHP 8.3 required for WordPress authentication parity' }
         & $php (Join-Path $Workspace 'plugin\excel-herbal-erp-v7\tests\mobile_rest_authentication.php')

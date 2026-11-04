@@ -321,3 +321,47 @@ The offline source contract suite now has 7 tests (all passed locally).
 This addresses performance/index preservation beyond simple table-column
 compatibility. It is NOT a real hosted-data clone, production checkpoint,
 verified rollback or actual employee Flutter UAT.
+
+### 4 Nov 2026 — Hostinger-hosted Office checkpoint local read-only preflight
+
+The authorized Windows machine was searched non-destructively for likely
+Hostinger/Office database and full WordPress files backups under Downloads,
+Desktop, Documents, D:/ERP7-Release-Candidates and E:/ERP-Backups. It contains
+many ERP plugin/review ZIPs and synthetic localhost backups; **NO VERIFIED
+HOSTED FULL WORDPRESS FILES + DATABASE RECOVERY PAIR FOUND**. Do not mistake
+a plugin ZIP, developer checkout, or prior synthetic MariaDB backup for
+the Office hosted site.
+
+Tools currently connected to the hosted WordPress offer read-only SQL
+metadata via WPVibe; their WP-CLI emulator does **not** support full database
+export, arbitrary PHP execution, filesystem backup or restore. The WordPress
+Abilities API exposes only core site/user/environment readers. No eligible
+connected Hostinger hPanel hosting/backup connector was found; Hostinger Mail
+is NOT a hosting database backup app. Never work around this by exposing a
+SQL dump or wp-config.php via a public WordPress URL, media attachment or Git.
+
+New local preflight: uat/release/hosted-backup-preflight.ps1. The operator
+can privately provide an actual Hostinger database export (.sql, .sql.gz or
+SQL-containing .zip) PLUS a matching full WordPress files ZIP (wp-config.php,
+Excel Herbal V7 plugin and uploads), using paths on their authorized PC.
+Example AFTER both genuine host archives exist:
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uat\release\hosted-backup-preflight.ps1 -DatabaseDump "E:\ERP-Backups\office-private\office-db.sql.gz" -WordPressFilesZip "E:\ERP-Backups\office-private\office-files.zip" -ReportPath "E:\ERP-Backups\office-private\package-preflight.json"
+
+It rejects missing, under-size, wrong-extension, malformed SQL/gzip/ZIP,
+incomplete WordPress files, local source and synthetic checkpoints. It
+only inspects filenames, file sizes, archive member names and a small SQL
+header **locally**; never reads passwords or rows into GitHub, never
+executes SQL, never connects to Live. SHA256 checksums are recorded in a
+**private local file**, not in the repository. The status is deliberately
+LOCAL_PACKAGE_PRECHECK_ONLY. Host-origin verification, a successful
+**disposable** DB/files restore, migration+rollback replay, active employee
+session proof and final version approval remain separate blockers.
+
+Pester-free uat/release/hosted-backup-preflight.test.ps1 builds disposable
+dummy SQL + WordPress ZIP content solely in the system Temp directory,
+passes correct checks, verifies hash/non-approval flags, rejects corrupt
+input, absent SQL, old synthetic checkpoint and missing uploaded WP media;
+then deletes ONLY its own randomly named Temp directory. This test is
+included in Windows Quick QA and GitHub Windows CI. The real Office site
+remains unmodified, at its previously observed plugin version.
