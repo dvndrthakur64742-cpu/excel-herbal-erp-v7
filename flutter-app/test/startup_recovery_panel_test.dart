@@ -71,4 +71,48 @@ void main() {
     expect(retried, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('all breakpoints keep usable 48px actions with enlarged text', (
+    tester,
+  ) async {
+    var retries = 0;
+    var logouts = 0;
+    for (final width in <double>[320, 360, 390, 768, 1366]) {
+      await tester.binding.setSurfaceSize(Size(width, 640));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(width <= 390 ? 2 : 1),
+              ),
+              child: StartupRecoveryPanel(
+                message: 'Unable to validate the ERP server startup contract.',
+                supportReference: 'req-synthetic-123',
+                onRetry: () => retries++,
+                onLogout: () => logouts++,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('ERP startup temporarily unavailable'), findsOneWidget);
+      expect(find.text('Support reference: req-synthetic-123'), findsOneWidget);
+      final retry = find.byType(FilledButton);
+      final logout = find.byType(TextButton);
+      expect(tester.getSize(retry).height, greaterThanOrEqualTo(48));
+      expect(tester.getSize(logout).height, greaterThanOrEqualTo(48));
+      await tester.ensureVisible(retry);
+      await tester.pumpAndSettle();
+      await tester.tap(retry);
+      await tester.ensureVisible(logout);
+      await tester.pumpAndSettle();
+      await tester.tap(logout);
+      expect(tester.takeException(), isNull);
+    }
+    expect(retries, 5);
+    expect(logouts, 5);
+    await tester.binding.setSurfaceSize(null);
+  });
 }
