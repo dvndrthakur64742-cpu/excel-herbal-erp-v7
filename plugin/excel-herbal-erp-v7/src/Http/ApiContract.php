@@ -139,7 +139,8 @@ final class ApiContract
             'sales.order_create'=>['branch_id','channel','lines'],
             'sales.order_collect'=>['payment_account_id','amount','method'],
             'sales.upi_verify'=>['bank_evidence_ref'],
-            'sales.return_list'=>['branch_id'],
+            // GET returns follows the authorized assigned branch when omitted.
+            // Explicit branch IDs are still checked by the service's scope guard.
             'sales.return_request'=>['reason'],
             'sales.return_inspect'=>['inspection_reference'],
             'sales.return_decision'=>['approve'],

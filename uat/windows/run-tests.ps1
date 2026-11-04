@@ -56,6 +56,12 @@ if ($Mode -in @('quick','all','backend')) {
         if (!$php) { throw 'PHP 8.3 required for WordPress authentication parity' }
         & $php (Join-Path $Workspace 'plugin\excel-herbal-erp-v7\tests\mobile_rest_authentication.php')
     }
+    Execute-Test 'Production Office environment diagnostics (read only)' {
+        & $php (Join-Path $Workspace 'plugin\excel-herbal-erp-v7\tests\deployment_diagnostics.php')
+    }
+    Execute-Test 'Sales GET default branch and authorization regression' {
+        & $php (Join-Path $Workspace 'plugin\excel-herbal-erp-v7\tests\sales_default_branch_regression.php')
+    }
     Execute-Test 'Professional UI/UX lazy loaders and genuine retry' { & $node (Join-Path $Workspace 'flutter-app\tool\verify_async_panel_loaders.cjs') }
     if ($php) {
         Execute-Test 'WordPress dbDelta SQL definition formatting' { & $php (Join-Path $Workspace 'plugin\excel-herbal-erp-v7\tests\dbdelta_schema_format_contract.php') }
