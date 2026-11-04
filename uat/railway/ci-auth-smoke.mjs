@@ -51,6 +51,44 @@ for (const field of ['me','company','navigation','business_date','business_timez
   must(Boolean(bootstrap.body.data?.[field]), 'Flutter startup contract missing ' + field);
 }
 console.log('PASS synthetic employee HTTP login and Flutter bootstrap contract');
+// Assert the *actual logged-in* navigation contract, not only that a
+// bootstrap API exists. A malformed/empty role projection must fail UAT.
+const fieldUi = bootstrap.body.data;
+const fieldIdentity = fieldUi.me;
+const fieldBranchIds = fieldIdentity?.branch_ids;
+const fieldEmployeeId = Number(fieldIdentity?.employee?.id);
+const assignedBranchId = Number(fieldIdentity?.assigned_branch_id);
+must(Number.isInteger(fieldEmployeeId) && fieldEmployeeId > 0,
+  'Field employee bootstrap omitted an actual identity');
+must(Array.isArray(fieldBranchIds) && fieldBranchIds.some(
+  (id) => Number(id) === assignedBranchId),
+  'Assigned employee branch not included in branch authority');
+must(fieldUi.features?.api_contract === fieldUi.api_contract &&
+     /^\\d{4}-\\d{2}-\\d{2}$/.test(fieldUi.business_date) &&
+     Date.parse(fieldUi.server_timestamp) > 0 &&
+     fieldUi.business_timezone === 'Asia/Kolkata',
+  'Flutter startup date/timezone/contract metadata inconsistent');
+must(Array.isArray(fieldUi.navigation?.sections) &&
+     Array.isArray(fieldUi.navigation?.bottom_nav) &&
+     fieldUi.navigation.sections.some((section) => section.id === 'home'),
+  'Flutter navigation has no Home or bottom-navigation projection');
+must(Array.isArray(fieldIdentity.capabilities) &&
+     fieldIdentity.capabilities.includes('erp.access'),
+  'Synthetic employee lacks fundamental ERP access');
+must(!fieldIdentity.capabilities.includes('administration.access.manage'),
+  'Limited employee unexpectedly has administration access');
+
+const fieldReadOnly = [
+  ['/workforce/attendance/today', 'employee attendance widget'],
+  ['/workforce/leave/mine', 'employee leave widget'],
+  ['/daily/cycles?branch_id=' + assignedBranchId, 'employee daily-stock widget'],
+];
+for (const [route, label] of fieldReadOnly) {
+  const response = await api(route, { token: initial.access_token });
+  must(response.code === 200 && response.body?.ok === true,
+    'Authenticated ' + label + ' read failed: HTTP ' + response.code);
+}
+console.log('PASS field dashboard: scoped identity, navigation, attendance, leave and daily stock reads');
 const refresh = await api('/auth/refresh', {
   method: 'POST',
   payload: {
@@ -111,3 +149,21 @@ for (const row of accounts.body.data) {
       'Collection lookup leaked sensitive account metadata');
 }
 console.log('PASS admin branch-scoped prepaid order and Cash/UPI account REST APIs');
+// Exercise actual read-only module APIs that populate the desktop ERP,
+// rather than counting only registered routes or screenshots.
+const adminReadOnly = [
+  ['/organization/branches', 'branch manager selector'],
+  ['/organization/employees?branch_id=' + Number(activeBranch), 'HR employee list'],
+  ['/inventory/stock?branch_id=' + Number(activeBranch), 'inventory stock list'],
+  ['/daily/cycles?branch_id=' + Number(activeBranch), 'daily stock list'],
+  ['/sales/customers?branch_id=' + Number(activeBranch), 'sales customer list'],
+];
+for (const [route, label] of adminReadOnly) {
+  const response = await api(route, { token: adminToken });
+  must(response.code === 200 && response.body?.ok === true,
+    'Authenticated admin ' + label + ' read failed: HTTP ' + response.code);
+}
+must(adminBootstrap.body.data?.navigation?.sections?.some(
+  (item) => item.id === 'home'),
+  'Administrator desktop dashboard not reachable');
+console.log('PASS admin dashboard: five real scoped module GET workflows');
