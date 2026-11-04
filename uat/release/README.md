@@ -205,3 +205,28 @@ testing before a Live rollout.
   are verified against the real-data clone.
 - No Live plugin ZIP, table changes, user credentials or WordPress
   site settings were changed by this analysis.
+
+## 4 Nov authentication continuity fix
+
+Read-only inspection of the **actual Office V7 MobileAuth.php** identified
+an additional REST bearer-token authentication filter that was absent from
+the newer development checkout: `rest_authentication_errors` at priority
+90 in addition to `determine_current_user` at priority 20. The original
+filter is scoped only to `/excel-herbal-erp/v7` routes and only runs
+for a presented Bearer header; WordPress cookie/nonce authentication and
+other REST namespaces are left unchanged.
+
+The reviewed code now **restores the same REST bearer guard**, including
+401 on an invalid/expired token while respecting previous WP_Error and
+valid WordPress identity resolution. A new mocked, offline PHP regression
+`plugin/excel-herbal-erp-v7/tests/mobile_rest_authentication.php`
+verifies filter registration, anonymous/cookie-only bypass, unrelated
+routes, previous errors, invalid bearer rejection and synthetic valid
+session acceptance. It is wired into both Windows QA and Plugin Review
+CI. No real users/tokens were read or mutated in those tests.
+
+This is a **source-level continuity fix**, not confirmation that all
+18 currently unexpired Office sessions survive the source update.
+An approved clone-based HTTP/WordPress/UAT refresh/revocation test remains
+required. Do not install this update directly over Office until migration
+and session acceptance passes; original live V7 remains unchanged.

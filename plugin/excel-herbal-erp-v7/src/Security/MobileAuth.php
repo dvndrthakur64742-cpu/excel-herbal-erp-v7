@@ -11,7 +11,26 @@ final class MobileAuth{
  private const LOGIN_MAX_MOBILE_IP=8;
  private const LOGIN_MAX_MOBILE=20;
 
- public static function boot():void{add_filter('determine_current_user',[self::class,'user'],20);}
+ public static function boot():void{
+  add_filter('determine_current_user',[self::class,'user'],20);
+  // Retain the live Office bearer-token REST gate during the V7 upgrade.
+  // WordPress cookie/nonce authentication remains unchanged for non-Bearer calls.
+  add_filter('rest_authentication_errors',[self::class,'restAuthentication'],90);
+ }
+
+ public static function restAuthentication($result){
+  if($result!==null)return$result;
+  if(!defined('REST_REQUEST')||!REST_REQUEST)return$result;
+  global $wp;
+  $route=(string)($wp->query_vars['rest_route']??'');
+  if(!preg_match('#^/excel-herbal-erp/v7(?:/|$)#',$route))return$result;
+  if(!preg_match('/^Bearer\s+/i',self::authorizationHeader()))return$result;
+  $uid=(int)self::user(0);
+  wp_set_current_user($uid);
+  if($uid<1)return new \WP_Error('not_authenticated',
+   'ERP session invalid or expired. Please sign in again.',['status'=>401]);
+  return true;
+ }
 
  public static function user($current){
   if($current)return$current;
