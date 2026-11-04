@@ -291,3 +291,33 @@ reads, logs or revokes a real Office mobile session**. It is evidence of
 synthetic schema/identity preservation, not an approved Live auth
 upgrade. Offline safety contracts: 6/6 passed locally; actual
 WordPress/MariaDB Docker evidence is recorded in GitHub CI.
+
+### 4 Nov 2026 — preservation of all 16 historic Office lookup indexes
+
+The actual Office V7 read-only information_schema.STATISTICS comparison found
+16 extra nonunique lookup indexes on 13 shared tables: employees,
+stock_transfers, stock_adjustments, parties, counter_sales, suppliers,
+purchase_bills, journal_entries, leave_requests, holidays, tasks,
+announcements and notifications.
+
+All 16 definitions (column order and nonuniqueness; no business records or
+secrets) are now captured as a static, disposable CI fixture in
+uat/railway/ci-live-only-indexes.php. The disposable MariaDB preflight:
+
+- Asserts exactly 16 reviewed definitions and rejects invalid SQL identifiers,
+  already-existing names, a non-synthetic hostname/database or wrong seed.
+- Creates all 16 indexes ONLY in disposable synthetic CI to mirror Office,
+  plus the missing mobile_sessions.employee_device index, historic Report
+  Tables and two stock-quarantine financial columns.
+- Runs actual WordPress Schema::maybeUpgrade() and a second
+  Schema::install(), then independently verifies all 16 survive with
+  the exact ordered columns and NON_UNIQUE=1.
+- Also checks dummy Report/Stock/Employee/Session/GL row snapshots and
+  repaired composite mobile-session index and dummy bearer authentication.
+- CI teardown removes the temporary containers and synthetic MariaDB;
+  no code path connects to office.excelherbal.in.
+
+The offline source contract suite now has 7 tests (all passed locally).
+This addresses performance/index preservation beyond simple table-column
+compatibility. It is NOT a real hosted-data clone, production checkpoint,
+verified rollback or actual employee Flutter UAT.

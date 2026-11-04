@@ -1,6 +1,7 @@
 <?php
 /** Live-shaped schema, dummy data ONLY, disposable GitHub CI database. */
 declare(strict_types=1);
+require '/tmp/eh7-ci-live-only-indexes.php';
 function eh7_ci_live_shaped_fixture(): array {
     global $wpdb;
     if (getenv('EH7_CI_ISOLATED') !== '1' ||
@@ -67,6 +68,24 @@ function eh7_ci_live_shaped_fixture(): array {
     if (count($existingIndex) !== 3 || count($existingEmployeeExtra) !== 0 || $stockExtra !== 0) {
         throw new \RuntimeException('Unexpected initial source schema, do not alter');
     }
+    $liveOnlyIndexes = eh7_ci_live_only_index_map();
+    $indexTotal = array_sum(array_map('count', $liveOnlyIndexes));
+    if ($indexTotal !== 16) throw new \RuntimeException('Incorrect live-only index inventory');
+    foreach ($liveOnlyIndexes as $table => $indexes) {
+        foreach ($indexes as $name => $columns) {
+            // Values come exclusively from the static, version-reviewed CI map.
+            foreach (array_merge([$table,$name], $columns) as $identifier) {
+                if (!preg_match('/^[a-z_][a-z0-9_]*$/D', $identifier)) {
+                    throw new \RuntimeException('Invalid fixed CI index identifier');
+                }
+            }
+            $existing = (int)$wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM information_schema.STATISTICS ' .
+                'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND INDEX_NAME=%s',
+                $p.$table,$name));
+            if ($existing !== 0) throw new \RuntimeException('Refuse to overwrite source index: '.$table.'.'.$name);
+        }
+    }
     foreach ($schemas as $name => $ddl) {
         if ($wpdb->query("CREATE TABLE {$p}{$name} {$ddl}") === false) {
             throw new \RuntimeException('Creating synthetic report table failed: ' . $name);
@@ -75,9 +94,16 @@ function eh7_ci_live_shaped_fixture(): array {
     if ($wpdb->query("ALTER TABLE {$quarantine} " .
         "ADD COLUMN unit_cost_snapshot DECIMAL(14,4) NOT NULL DEFAULT 0.0000 AFTER quantity, " .
         "ADD COLUMN journal_entry_id BIGINT UNSIGNED NULL AFTER resolved_by") === false ||
-        $wpdb->query("ALTER TABLE {$employees} ADD KEY branch_status (company_id,assigned_branch_id,status)") === false ||
         $wpdb->query("ALTER TABLE {$sessions} DROP INDEX employee_device") === false) {
         throw new \RuntimeException('Disposable live-schema differences could not be recreated');
+    }
+    foreach ($liveOnlyIndexes as $table => $indexes) {
+        foreach ($indexes as $name => $columns) {
+            $ddl = 'ALTER TABLE '.$p.$table.' ADD KEY '.$name.' ('.implode(',',$columns).')';
+            if ($wpdb->query($ddl) === false) {
+                throw new \RuntimeException('Could not create dummy historic index: '.$table.'.'.$name);
+            }
+        }
     }
 
     $now=gmdate('Y-m-d H:i:s');$date=gmdate('Y-m-d');

@@ -148,6 +148,26 @@ function eh7_ci_assert_live_shape_upgraded(string $prefix): void {
     if (array_column($employeeIndex,'Column_name')!==['company_id','assigned_branch_id','status']) {
         throw new \RuntimeException('Live-only employee lookup index was dropped/changed');
     }
+    // Preserve ALL 16 observed historical lookup indexes, including exact
+    // column order and nonunique status, on both upgrade and second install.
+    $preservedIndexCount = 0;
+    foreach (eh7_ci_live_only_index_map() as $table => $indexes) {
+        foreach ($indexes as $name => $expectedColumns) {
+            $actual = (array)$wpdb->get_results($wpdb->prepare(
+                'SELECT COLUMN_NAME,NON_UNIQUE FROM information_schema.STATISTICS ' .
+                'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND INDEX_NAME=%s ORDER BY SEQ_IN_INDEX',
+                $prefix.$table,$name),ARRAY_A);
+            if (array_column($actual,'COLUMN_NAME') !== $expectedColumns ||
+                array_unique(array_map(static fn(array $row):string =>
+                    (string)$row['NON_UNIQUE'],$actual)) !== ['1']) {
+                throw new \RuntimeException('Historical Office lookup index changed: '.$table.'.'.$name);
+            }
+            $preservedIndexCount++;
+        }
+    }
+    if ($preservedIndexCount !== 16) {
+        throw new \RuntimeException('Incomplete historical Office index preservation');
+    }
 }
 try {
     $liveShapePreserved = eh7_ci_live_shaped_fixture();

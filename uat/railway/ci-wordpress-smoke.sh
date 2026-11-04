@@ -87,6 +87,8 @@ echo "PASS real WordPress activation, MariaDB migration, isolated synthetic seed
 # Disposable synthetic-only upgrade rehearsal. It refuses any non-CI site,
 # verifies BOTH new evidence tables are empty, snapshots existing business
 # rows, recreates new unique indexes, and repeats the migration idempotently.
+docker cp uat/railway/ci-live-only-indexes.php \
+  "$wp_container:/tmp/eh7-ci-live-only-indexes.php"
 docker cp uat/railway/ci-live-shaped-fixture.php \
   "$wp_container:/tmp/eh7-ci-live-shaped-fixture.php"
 docker cp uat/railway/ci-additive-upgrade-rehearsal.php \

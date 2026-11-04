@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 const load=(name)=>readFileSync(fileURLToPath(new URL(name,import.meta.url)),'utf8');
 const fixture=load('./ci-live-shaped-fixture.php');
+const historicIndexes=load('./ci-live-only-indexes.php');
 const rehearsal=load('./ci-additive-upgrade-rehearsal.php');
 const ci=load('./ci-wordpress-smoke.sh');
 
@@ -40,19 +41,20 @@ test('stock quarantine live extra columns and synthetic financial snapshot prese
 
 test('missing employee_device index added by real dbDelta, extra branch index survives',()=>{
   assert.match(fixture,/DROP INDEX employee_device/);
-  assert.match(fixture,/ADD KEY branch_status/);
+  assert.match(historicIndexes,/'branch_status'=>\['company_id','assigned_branch_id','status'\]/);
   assert.match(rehearsal,/Schema::maybeUpgrade\(\)/);
   assert.match(rehearsal,/Schema::install\(\)/);
   assert.match(rehearsal,/Missing required mobile session composite index after upgrade/);
   assert.match(rehearsal,/Live-only employee lookup index was dropped\/changed/);
   assert.match(rehearsal,/eh7_ci_assert_live_shape_upgraded\(\$prefix\)/);
   // MariaDB SHOW INDEX does not support an ORDER BY clause.
-  assert.doesNotMatch(rehearsal,/ORDER BY Seq_in_index/i);
+  assert.doesNotMatch(rehearsal,/SHOW INDEX[^"\n]*ORDER BY Seq_in_index/i);
   assert.match(rehearsal,/usort\(\$sessionIndex/);
   assert.match(rehearsal,/usort\(\$employeeIndex/);
 });
 
 test('Docker runner copies synthetic fixture only into temporary CI container',()=>{
+  assert.match(ci,/docker cp uat\/railway\/ci-live-only-indexes\.php/);
   assert.match(ci,/docker cp uat\/railway\/ci-live-shaped-fixture\.php/);
   assert.match(ci,/\/tmp\/eh7-ci-live-shaped-fixture\.php/);
   assert.match(rehearsal,/require '\/tmp\/eh7-ci-live-shaped-fixture\.php'/);
@@ -69,4 +71,22 @@ test('one active synthetic mobile session survives migration, authenticates, the
   assert.match(rehearsal,/Synthetic active session not cleaned before follow-up REST tests/);
   assert.match(rehearsal,/\$wpdb->delete\(\$sessionTable/);
   assert.match(rehearsal,/eh7_ci_snapshot\(\$preservedTables\)/);
+});
+
+test('all 16 Office-only nonunique lookup indexes are simulated and preserved',()=>{
+  // These are all observed, nonunique indexes; no passwords or data rows.
+  const pairs=[...historicIndexes.matchAll(/'([a-z_]+)'=>\[/g)].map(x=>x[1]);
+  assert.equal(pairs.length,16);
+  for(const n of ['destination_status','source_status','branch_type_status',
+    'branch_date','branch_status_outstanding','company_source',
+    'company_status_date','employee_status_due','company_status_published',
+    'employee_created']) {
+    assert.ok(pairs.includes(n),n);
+  }
+  assert.match(fixture,/eh7_ci_live_only_index_map\(\)/);
+  assert.match(fixture,/Refuse to overwrite source index/);
+  assert.match(fixture,/ADD KEY '\.\$name/);
+  assert.match(rehearsal,/Incomplete historical Office index preservation/);
+  assert.match(rehearsal,/Historical Office lookup index changed/);
+  assert.match(rehearsal,/NON_UNIQUE/);
 });
