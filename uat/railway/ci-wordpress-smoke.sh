@@ -229,4 +229,14 @@ if(!is_array($context)||($context["verification_method"]??"")!=="in_person"||
 echo "PASS real WordPress individual identity acknowledgement, password reset, and audit reference\n";
 ' --path=/var/www/html --allow-root
 
+# dbDelta can report malformed ALTER/ADD INDEX while WordPress boot still
+# returns 200. Treat ALL database errors in this disposable UAT as a failure,
+# rather than trusting health and index existence alone.
+wp_sql_logs="$(docker logs "$wp_container" 2>&1)"
+if grep -Fq 'WordPress database error' <<< "$wp_sql_logs"; then
+  echo 'FAIL: isolated WordPress emitted SQL errors during migration or UAT' >&2
+  grep -F 'WordPress database error' <<< "$wp_sql_logs" | tail -n 8 >&2 || true
+  exit 1
+fi
+echo 'PASS isolated WordPress migration and UAT with zero database error logs'
 echo 'PASS isolated Docker WordPress + MariaDB smoke test'
