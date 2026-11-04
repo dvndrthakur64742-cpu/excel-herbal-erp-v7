@@ -8,6 +8,7 @@ import 'screens/auth/login_screen.dart';
 import 'shell/app_shell.dart';
 import 'state/app_state.dart';
 import 'theme/excel_brand.dart';
+import 'widgets/startup_recovery_panel.dart';
 
 void main() {
   ErrorWidget.builder = (details) => Container(
