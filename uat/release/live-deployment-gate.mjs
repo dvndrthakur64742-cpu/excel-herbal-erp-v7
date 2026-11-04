@@ -41,9 +41,14 @@ export function assessLiveDeployment(live, candidate, now=new Date()) {
   }
   if(!/^[a-f0-9]{40}$/i.test(String(candidate?.git_sha??'')))
     fail('unverified_candidate','Candidate must have an immutable verified Git SHA');
+  // The staging source_head_match flag describes synthetic sanitization, not provenance.
+  // Compare the observed embedded SHA with an independently reviewed installed release.
+  const installed=live?.source_verification;
   if(!/^[a-f0-9]{40}$/i.test(String(live?.plugin?.source_head??''))||
-      live?.live_health?.source_head_match!==true)
-    fail('unverified_live_source','Live plugin source pin is unverified');
+      installed?.reviewed_release_verified!==true||
+      !/^[a-f0-9]{40}$/i.test(String(installed?.expected_installed_sha??''))||
+      installed.expected_installed_sha.toLowerCase()!==live.plugin.source_head.toLowerCase())
+    fail('unverified_live_source','Live embedded SHA must match an independently verified installed release');
   if(live?.release_checks?.migration_forward_backward_tested!==true)
     fail('migration_rehearsal','Live-schema upgrade AND rollback rehearsal is required');
   if(live?.release_checks?.live_files_and_db_recovery_verified!==true)

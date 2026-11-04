@@ -61,7 +61,8 @@ test('a future hypothetical fully verified release can advance ONLY to separate 
  ready.wordpress.environment='production';
  ready.live_schema=candidate.schema;
  ready.plugin.source_head=candidate.git_sha;
- ready.live_health.source_head_match=true;
+ ready.live_health.source_head_match=false;
+ ready.source_verification={reviewed_release_verified:true,expected_installed_sha:candidate.git_sha};
  ready.release_checks={
    live_files_and_db_recovery_verified:true,
    migration_forward_backward_tested:true,
@@ -81,4 +82,25 @@ test('release gate code contains no network calls or live database mutations',()
  assert.doesNotMatch(source,/\b(?:fetch|https\.request|XMLHttpRequest|execFileSync|spawnSync|run_wp_cli)\s*\(/);
  assert.doesNotMatch(source,/\b(?:DROP|DELETE|TRUNCATE|UPDATE)\s+(?:TABLE|FROM|wp_)/i);
  assert.match(source,/process\.exitCode=2/);
+});
+
+
+test('installed release provenance is independent of staging sanitization and next candidate',()=>{
+ const live=structuredClone(actual);
+ live.plugin.source_head='3b67814a9608aaea0a78d6c957d710354dbad1bd';
+ live.source_verification={reviewed_release_verified:true,expected_installed_sha:live.plugin.source_head.toUpperCase()};
+ live.live_health.source_head_match=false;
+ const codes=()=>assessLiveDeployment(live,candidate,now).blockers.map(b=>b.code);
+ assert.ok(!codes().includes('unverified_live_source'));
+ assert.ok(codes().includes('environment'));
+ assert.ok(codes().includes('active_sessions'));
+ live.source_verification.expected_installed_sha=candidate.git_sha;
+ assert.ok(codes().includes('unverified_live_source'));
+ live.live_health.source_head_match=true;
+ assert.ok(codes().includes('unverified_live_source'));
+ live.source_verification.expected_installed_sha=live.plugin.source_head;
+ live.source_verification.reviewed_release_verified=false;
+ assert.ok(codes().includes('unverified_live_source'));
+ delete live.source_verification;
+ assert.ok(codes().includes('unverified_live_source'));
 });
