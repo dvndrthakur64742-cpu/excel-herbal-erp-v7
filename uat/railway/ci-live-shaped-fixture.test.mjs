@@ -46,6 +46,10 @@ test('missing employee_device index added by real dbDelta, extra branch index su
   assert.match(rehearsal,/Missing required mobile session composite index after upgrade/);
   assert.match(rehearsal,/Live-only employee lookup index was dropped\/changed/);
   assert.match(rehearsal,/eh7_ci_assert_live_shape_upgraded\(\$prefix\)/);
+  // MariaDB SHOW INDEX does not support an ORDER BY clause.
+  assert.doesNotMatch(rehearsal,/ORDER BY Seq_in_index/i);
+  assert.match(rehearsal,/usort\(\$sessionIndex/);
+  assert.match(rehearsal,/usort\(\$employeeIndex/);
 });
 
 test('Docker runner copies synthetic fixture only into temporary CI container',()=>{

@@ -127,13 +127,17 @@ function eh7_ci_assert_live_shape_upgraded(string $prefix): void {
         throw new \RuntimeException('Live-only stock quarantine columns/data were not preserved');
     }
     $sessionIndex=(array)$wpdb->get_results("SHOW INDEX FROM {$prefix}mobile_sessions " .
-        "WHERE Key_name='employee_device' ORDER BY Seq_in_index", ARRAY_A);
+        "WHERE Key_name='employee_device'", ARRAY_A);
+    usort($sessionIndex,static fn(array $a,array $b):int =>
+        (int)$a['Seq_in_index'] <=> (int)$b['Seq_in_index']);
     $cols=array_column($sessionIndex,'Column_name');
     if ($cols!==['employee_id','wp_user_id','device_key']) {
         throw new \RuntimeException('Missing required mobile session composite index after upgrade');
     }
     $employeeIndex=(array)$wpdb->get_results("SHOW INDEX FROM {$prefix}employees " .
-        "WHERE Key_name='branch_status' ORDER BY Seq_in_index", ARRAY_A);
+        "WHERE Key_name='branch_status'", ARRAY_A);
+    usort($employeeIndex,static fn(array $a,array $b):int =>
+        (int)$a['Seq_in_index'] <=> (int)$b['Seq_in_index']);
     if (array_column($employeeIndex,'Column_name')!==['company_id','assigned_branch_id','status']) {
         throw new \RuntimeException('Live-only employee lookup index was dropped/changed');
     }
