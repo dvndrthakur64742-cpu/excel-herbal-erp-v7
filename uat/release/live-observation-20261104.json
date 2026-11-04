@@ -19,6 +19,11 @@
     "version": "15.0.0"
   },
   "live_schema": "7.3.12-prepaid-refund-evidence-1",
+  "schema_diff": {
+    "live_only_tables": ["report_reminder_drafts", "report_submissions", "report_submission_events"],
+    "candidate_only_tables": ["reward_adjustments", "reward_payroll_link_proposals", "reward_payroll_allocations", "promotion_requests", "salary_structure_versions"],
+    "live_only_table_row_counts": [0, 0, 0]
+  },
   "live_health": {
     "sanitized": false,
     "synthetic_only": false,
@@ -30,11 +35,14 @@
     "attendance": 441,
     "audit_log": 502,
     "active_sessions": 24,
-    "eh7_tables": 83
+    "unexpired_sessions": 18,
+    "eh7_tables": 83,
+    "legacy_eoe_tables": 190
   },
   "release_checks": {
     "live_files_and_db_recovery_verified": false,
     "migration_forward_backward_tested": false,
+    "schema_table_ownership_verified": false,
     "session_compatibility_verified": false,
     "real_role_flutter_web_android_uat_passed": false,
     "live_version_source_certified": false

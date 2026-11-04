@@ -26,6 +26,12 @@ export function assessLiveDeployment(live, candidate, now=new Date()) {
     fail('environment','Office host advertises a non-production ERP environment');
   if(live?.live_schema!==candidate?.schema)
     fail('schema_mismatch','Live database schema differs from tested plugin source; preserve existing columns and records');
+  const liveOnly=live?.schema_diff?.live_only_tables;
+  const candidateOnly=live?.schema_diff?.candidate_only_tables;
+  if((!Array.isArray(liveOnly)||!Array.isArray(candidateOnly)||
+      liveOnly.length>0||candidateOnly.length>0) &&
+      live?.release_checks?.schema_table_ownership_verified!==true)
+    fail('schema_table_delta','Live-only and candidate-only tables require explicit non-destructive ownership and migration mapping');
   if(!/^[a-f0-9]{40}$/i.test(String(candidate?.git_sha??'')))
     fail('unverified_candidate','Candidate must have an immutable verified Git SHA');
   if(!/^[a-f0-9]{40}$/i.test(String(live?.plugin?.source_head??''))||

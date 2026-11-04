@@ -17,12 +17,16 @@ test('authenticated Office production observations BLOCK unreviewed replacement'
  assert.equal(result.status,'BLOCKED');
  const blockers=new Set(result.blockers.map(x=>x.code));
  for(const key of ['environment','schema_mismatch','unverified_live_source',
-   'migration_rehearsal','recovery_unverified','active_sessions','real_ui_uat',
+   'migration_rehearsal','schema_table_delta','recovery_unverified','active_sessions','real_ui_uat',
    'live_release_certification','preserve_existing_records']) {
    assert.ok(blockers.has(key),key+' was not blocked');
  }
  assert.equal(actual.counts.employees,27);
  assert.equal(actual.counts.active_sessions,24);
+ assert.equal(actual.counts.unexpired_sessions,18);
+ assert.equal(actual.counts.legacy_eoe_tables,190);
+ assert.equal(actual.schema_diff.live_only_tables.length,3);
+ assert.equal(actual.schema_diff.candidate_only_tables.length,5);
  assert.equal(actual.counts.attendance,441);
 });
 
@@ -55,6 +59,7 @@ test('a future hypothetical fully verified release can advance ONLY to separate 
  ready.release_checks={
    live_files_and_db_recovery_verified:true,
    migration_forward_backward_tested:true,
+   schema_table_ownership_verified:true,
    session_compatibility_verified:true,
    real_role_flutter_web_android_uat_passed:true,
    live_version_source_certified:true

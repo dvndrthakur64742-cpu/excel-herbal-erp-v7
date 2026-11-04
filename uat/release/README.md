@@ -102,3 +102,32 @@ older **7.3.12-prepaid-refund-evidence-1** into the ZIP's text/JSON manifest.
 The release metadata is now corrected and automatically checked against
 the actual source by `uat/release/release-metadata-ux.test.mjs`.
 A valid SHA and correct manifest **do not** override the live deployment gate.
+
+
+## 4 Nov addendum — explicit table-ownership delta
+
+A fresh read-only `information_schema` inventory compared all **83 live**
+V7 tables against the **85** definitions in Git SHA 39c8b0a. Result:
+
+- Live-only (3): `report_reminder_drafts`, `report_submissions`,
+  `report_submission_events`. All **0 rows** today; still preserve
+  until a reviewed retirement/mapping decision.
+- Candidate-only (5): `reward_adjustments`,
+  `reward_payroll_link_proposals`, `reward_payroll_allocations`,
+  `promotion_requests`, `salary_structure_versions`.
+- Existing V15/legacy namespace currently has **190 eoe tables**
+  (do not assume they are empty or owned by the current V7 plugin).
+- The 24 not-revoked mobile sessions include **18 unexpired refresh
+  sessions** based on both NOW() and UTC_TIMESTAMP() read-only queries.
+  All 27 V7 employee records have active status.
+
+The live-deployment gate now blocks any unresolved table-inventory delta,
+even if a future package happens to advertise the same schema version.
+Table existence/row counts are only a first check; column definitions,
+indexes, ownership, foreign references, real staff identity and migration
+data must also be compared against a disposable copy before a live write.
+
+**UX:** the existing Excel Herbal brand remains distinct; the requested
+appfixer.ai.studio reference is not copied. The 320px mobile accessible
+Retry/Empty state improvement is a code + widget-test change, not a live
+asset deployment.
