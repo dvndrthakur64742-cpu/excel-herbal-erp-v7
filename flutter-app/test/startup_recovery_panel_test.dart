@@ -18,7 +18,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: StartupRecoveryPanel(
-          message: 'The server is temporarily unavailable. ' * 7,
+          message: List.filled(7, 'The server is temporarily unavailable. ').join(),
           supportReference: 'req-safe-42',
           onRetry: () => retries++,
           onLogout: () => logouts++,
