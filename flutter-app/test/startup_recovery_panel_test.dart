@@ -99,8 +99,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('ERP startup temporarily unavailable'), findsOneWidget);
       expect(find.text('Support reference: req-synthetic-123'), findsOneWidget);
-      final retry = find.byType(FilledButton);
-      final logout = find.byType(TextButton);
+      // FilledButton.icon and TextButton.icon use private widget subtypes.
+      // Predicate matching includes those subtypes and preserves the 48px check.
+      final retry = find.byWidgetPredicate((widget) => widget is FilledButton);
+      final logout = find.byWidgetPredicate((widget) => widget is TextButton);
       expect(tester.getSize(retry).height, greaterThanOrEqualTo(48));
       expect(tester.getSize(logout).height, greaterThanOrEqualTo(48));
       await tester.ensureVisible(retry);
