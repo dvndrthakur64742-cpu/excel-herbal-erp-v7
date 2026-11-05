@@ -1,9 +1,9 @@
 # Excel Herbal ERP V7 — Staff/Manager/Finance UAT Runbook
-**Prepared:** 2026-11-05  
-**Planned execution:** Friday, 2026-11-06  
-**Status:** PLAN ONLY — human role-based end-to-end UAT not executed or certified.  
-**Frontend source base:** PR #42 merged, plus return-guidance follow-up (pending CI).  
-**Production site:** https://office.excelherbal.in/  
+**Prepared:** 2026-11-05
+**Planned execution:** Friday, 2026-11-06
+**Status:** PLAN ONLY — human role-based end-to-end UAT not executed or certified.
+**Frontend source base:** PR #42 merged, plus return-guidance follow-up (pending CI).
+**Production site:** https://office.excelherbal.in/
 **Safety:** NEVER create financial, stock, payroll, refund or employment transactions in production to test a feature. Run with synthetic users, inventory and transactions in an explicitly isolated/sanitised UAT environment after verifying its host, API, database and role/branch projections. Read-only live checks are separate.
 
 ## What to verify before anyone tests
