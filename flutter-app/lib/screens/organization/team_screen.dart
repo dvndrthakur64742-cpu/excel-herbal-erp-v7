@@ -108,9 +108,9 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     }
     if (app.can('organization.employee.view')) {
       tabs.add((
-        'Hierarchy',
+        'Team Directory',
         AsyncPanel(
-          key: ValueKey('h-${app.currentBranchId}-$refresh'),
+          key: ValueKey('team-directory-${app.currentBranchId}-$refresh'),
           reloadToken: '${app.currentBranchId}-$refresh',
           loader: () => app.currentBranchId == null
               ? Future.value(const <dynamic>[])
@@ -118,7 +118,6 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                   ApiPaths.employees,
                   query: {
                     'branch_id': app.currentBranchId,
-                    'status': 'active',
                     'limit': 200,
                   },
                 ),
@@ -128,26 +127,6 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                 .toList(growable: false),
             canManage: app.can('organization.employee.manage'),
             onOpenEmployee: _employeeDesignations,
-          ),
-        ),
-      ));
-      tabs.add((
-        'Employees',
-        AsyncPanel(
-          key: ValueKey('e-${app.currentBranchId}-$refresh'),
-          reloadToken: '${app.currentBranchId}-$refresh',
-          loader: () => app.currentBranchId == null
-              ? Future.value(const <dynamic>[])
-              : api.get(
-                  ApiPaths.employees,
-                  query: {'branch_id': app.currentBranchId},
-                ),
-          builder: (context, data) => RecordsList(
-            recordType: 'employee',
-            rows: (data as List)
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList(),
-            onTap: _employeeDesignations,
           ),
         ),
       ));
@@ -760,6 +739,11 @@ class _HierarchyReadinessPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final relevant = rows.where((row) {
+      // A departed employee remains in the read-only directory but must not
+      // count as an active hierarchy assignment awaiting configuration.
+      if ('${row['status'] ?? 'active'}'.trim().toLowerCase() != 'active') {
+        return false;
+      }
       final category =
           '${row['reporting_category'] ?? ''}'.trim().toUpperCase();
       return _managerRequiredCategories.contains(category);
@@ -870,6 +854,42 @@ class _HierarchyReadinessPanel extends StatelessWidget {
               ),
             ),
         ],
+        const SizedBox(height: 16),
+        Card(
+          child: ExpansionTile(
+            key: const ValueKey('canonical-team-directory'),
+            leading: const Icon(Icons.people_outline_rounded),
+            title: const Text('Employee directory'),
+            subtitle: Text(
+              '${rows.length} employees in this authorised branch. '
+              'Employee master changes belong to Organization.',
+            ),
+            children: [
+              if (rows.isEmpty)
+                const ListTile(
+                  title: Text('No employee records available.'),
+                ),
+              for (final row in rows)
+                ListTile(
+                  leading: const Icon(Icons.badge_outlined),
+                  title: Text('${row['full_name'] ?? 'Employee'}'),
+                  subtitle: Text(
+                    '${row['employee_code'] ?? ''} • '
+                    '${BusinessFormat.status(row['status'] ?? 'unknown')}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => onOpenEmployee(row),
+                ),
+              if (rows.length >= 200)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text(
+                    'Showing up to 200 employees. Use Organization for the full master.',
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }
