@@ -111,6 +111,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: 24),
                         TextField(
                           controller: mobile,
+                          autofillHints: const [AutofillHints.username],
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.next,
                           onChanged: (_) => _clearValidationError(),
@@ -122,6 +123,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: 12),
                         TextField(
                           controller: password,
+                          autofillHints: const [AutofillHints.password],
+                          enableSuggestions: false,
+                          autocorrect: false,
                           obscureText: obscure,
                           onChanged: (_) => _clearValidationError(),
                           onSubmitted: (_) => _login(app.loading),
@@ -184,6 +188,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
                                 )
                               : const Text('SIGN IN'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () => showDialog<void>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Need help signing in?'),
+                              content: const Text(
+                                'Use your registered mobile number. If you have forgotten your password or your account is locked, contact your branch manager or Head Office administrator. Never share your password or OTP.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Close'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          child: const Text('Forgot password or need help?'),
                         ),
                       ],
                     ),
