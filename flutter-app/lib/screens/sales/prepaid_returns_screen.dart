@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/prepaid_return_guidance.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -224,6 +225,10 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
         ? Map<String, dynamic>.from(detail!['refund_evidence_check'] as Map)
         : <String, dynamic>{};
     final blockers = (check['blockers'] as List?) ?? const [];
+    final guidance = detail == null ? null : PrepaidReturnGuidance.forStatus(
+      status: detail['status'].toString(),
+      evidenceComplete: check['evidence_complete'] == true,
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Prepaid Returns'),
@@ -260,7 +265,17 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                           style: Theme.of(context).textTheme.titleMedium),
                       Text('Order #${detail['order_id']} · Status: ${detail['status']}'),
                       Text('Requested full amount: ₹${detail['refund_amount']}'),
-                      const SizedBox(height: 8),
+                      if (guidance != null) ...[
+                        const SizedBox(height: 12),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.info_outline_rounded),
+                          title: Text(guidance.title,
+                            style: const TextStyle(fontWeight: FontWeight.w800)),
+                          subtitle: Text(guidance.explanation),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
                       Wrap(spacing: 8, runSpacing: 6, children: [
                         if (detail['status'] == 'requested' &&
                             app.can('finance.reversal.approve'))
@@ -284,7 +299,7 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                         const Divider(),
                         Text(check['evidence_complete'] == true
                             ? 'Supporting evidence reconciled (NOT refunded)'
-                            : 'Evidence incomplete; refund cannot be posted'),
+                            : 'Evidence incomplete — independent review required'),
                         Text('Verified evidence: ₹${check['verified_evidence_amount'] ?? '0.00'}'),
                         if (blockers.isNotEmpty)
                           Text('Review blockers: ${blockers.join(', ')}'),
