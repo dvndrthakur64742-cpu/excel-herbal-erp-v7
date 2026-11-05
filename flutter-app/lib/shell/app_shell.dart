@@ -74,7 +74,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             body: SafeArea(
               child: Row(
                 children: [
-                  SizedBox(width: 248, child: _desktopSidebar(context, app)),
+                  SizedBox(width: 272, child: _desktopSidebar(context, app)),
                   const VerticalDivider(width: 1),
                   Expanded(
                     child: ColoredBox(
@@ -159,12 +159,12 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: Row(
               children: [
                 Container(
-                  width: 116,
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  width: 56,
+                  height: 56,
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(15),
                     border: Border.all(
                       color: Theme.of(context).colorScheme.outlineVariant,
                     ),
@@ -180,7 +180,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'ERP Workspace',
+                        'Excel Herbal ERP',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context)
@@ -190,7 +190,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Secure business access',
+                        'Operations workspace',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
@@ -318,14 +318,35 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget _desktopTile(String id, String label, IconData icon) {
     final selected = desktopRoute == id;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: ListTile(
         selected: selected,
         selectedTileColor: ExcelBrand.primarySoft,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        dense: true,
-        leading: Icon(icon, size: 21),
-        title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(13),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 13),
+        leading: Icon(
+          icon,
+          size: 22,
+          color: selected ? ExcelBrand.primaryDark : ExcelBrand.muted,
+        ),
+        title: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            color: selected ? ExcelBrand.primaryDark : ExcelBrand.ink,
+          ),
+        ),
+        trailing: selected
+            ? const Icon(
+                Icons.chevron_right_rounded,
+                color: ExcelBrand.primaryDark,
+                size: 19,
+              )
+            : null,
         onTap: () => _selectDesktopRoute(id),
       ),
     );

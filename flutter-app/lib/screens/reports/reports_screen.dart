@@ -18,6 +18,7 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/workspace_banner.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -139,22 +140,50 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reports')),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-              child: ModuleWorkspaceHeader(
-                title: 'Reports Centre',
-                subtitle:
-                    'Only reports allowed by your current capabilities are shown.',
-                icon: Icons.analytics_outlined,
-                contextLabel: scopeLabel,
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: LayoutBuilder(
+                builder: (context, constraints) =>
+                    constraints.maxWidth >= 760
+                        ? WorkspaceBanner(
+                            eyebrow: 'Business intelligence / Reporting',
+                            title: 'Reports & insights',
+                            subtitle:
+                                'Clear views of posted business activity, filtered to your authorised access.',
+                            icon: Icons.query_stats_rounded,
+                            footer: Wrap(
+                              spacing: 14,
+                              runSpacing: 7,
+                              children: [
+                                Text(
+                                  '${available.length} authorised report views',
+                                  style: const TextStyle(
+                                    color: Color(0xFFE0F2E7),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Text(
+                                  scopeLabel,
+                                  style: const TextStyle(
+                                    color: Color(0xFFB4EBCB),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ModuleWorkspaceHeader(
+                            title: 'Reports Centre',
+                            subtitle: 'Your authorised business reports',
+                            icon: Icons.analytics_outlined,
+                            contextLabel: scopeLabel,
+                          ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: BranchSelector(allowAllAuthorised: !needsBranch),
             ),
             Expanded(
@@ -258,17 +287,17 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   );
                   if (constraints.maxWidth >= 900) {
                     return Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Card(
                             child: SizedBox(
-                              width: 220,
+                              width: 256,
                               child: _reportRail(available, activeType),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 18),
                           Expanded(child: content),
                         ],
                       ),
@@ -378,20 +407,106 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       );
 
   Widget _reportRail(List<_ReportOption> available, String activeType) {
-    final selected = available.indexWhere((item) => item.id == activeType);
-    return NavigationRail(
-      selectedIndex: selected < 0 ? 0 : selected,
-      extended: true,
-      minExtendedWidth: 220,
-      backgroundColor: Colors.transparent,
-      onDestinationSelected: (index) =>
-          setState(() => type = available[index].id),
-      destinations: [
-        for (final item in available)
-          NavigationRailDestination(
-            icon: Icon(item.icon),
-            label: Text(item.label),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(19, 20, 19, 13),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'REPORT LIBRARY',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: ExcelBrand.primaryDark,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.1,
+                    ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Choose a report to explore',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(10),
+            itemCount: available.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 5),
+            itemBuilder: (context, index) {
+              final item = available[index];
+              final selected = item.id == activeType;
+              return Semantics(
+                selected: selected,
+                button: true,
+                child: Material(
+                  color: selected ? ExcelBrand.primarySoft : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => setState(() => type = item.id),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 11,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? ExcelBrand.primarySoftStrong
+                                  : const Color(0xFFF1F4F2),
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: Icon(
+                              item.icon,
+                              size: 19,
+                              color: selected
+                                  ? ExcelBrand.primaryDark
+                                  : ExcelBrand.muted,
+                            ),
+                          ),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Text(
+                              item.label,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    fontWeight: selected
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: selected
+                                        ? ExcelBrand.primaryDark
+                                        : ExcelBrand.ink,
+                                  ),
+                            ),
+                          ),
+                          if (selected)
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: ExcelBrand.primaryDark,
+                              size: 20,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ],
     );
   }

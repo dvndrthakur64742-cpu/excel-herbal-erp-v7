@@ -13,7 +13,8 @@ void main() {
 
     expect(card, contains("row['sales_count']"));
     expect(card, contains("row['points']"));
-    expect(card, contains("'Sales "));
+    expect(card, contains("label: 'SALES'"));
+    expect(card, contains("label: 'POINTS'"));
     expect(card, isNot(contains('salary_fund')));
     expect(card, isNot(contains('BusinessFormat.money')));
     expect(card, isNot(contains('gross_amount')));

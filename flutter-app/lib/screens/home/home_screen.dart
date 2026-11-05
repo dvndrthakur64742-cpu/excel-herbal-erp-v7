@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
 import '../../widgets/branch_selector.dart';
+import '../../widgets/workspace_banner.dart';
 import '../my_work/my_work_workspace_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -27,13 +28,41 @@ class HomeScreen extends ConsumerWidget {
       },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        padding: EdgeInsets.fromLTRB(
+          MediaQuery.sizeOf(context).width >= 960 ? 28 : 16,
+          24,
+          MediaQuery.sizeOf(context).width >= 960 ? 28 : 16,
+          36,
+        ),
         children: [
           _IdentityHero(app: app),
-          const SizedBox(height: 12),
-          const BranchSelector(),
-          const SizedBox(height: 12),
-          _AuthorityCard(app: app),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= 850 && app.branchSelectorVisible) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 390,
+                      child: const _BranchContextCard(),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(child: _AuthorityCard(app: app)),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  if (app.branchSelectorVisible) ...[
+                    const _BranchContextCard(),
+                    const SizedBox(height: 12),
+                  ],
+                  _AuthorityCard(app: app),
+                ],
+              );
+            },
+          ),
           if (app.businessAccessBlocked) ...[
             const SizedBox(height: 16),
             const _InfoNotice(
@@ -43,7 +72,7 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
           if (app.sectionVisible('my_work')) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 30),
             _SectionTitle(
               title: 'My Work',
               subtitle: 'Only your authorised self-service work is shown here.',
@@ -61,15 +90,48 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 8),
-            if (app.can('workforce.attendance.self'))
-              _AttendanceCard(api: api),
-            if (branch != null && app.can('performance.view')) ...[
-              const SizedBox(height: 10),
-              _PersonalPerformanceCard(api: api, app: app, branch: branch),
-            ],
+            if (app.can('workforce.attendance.self') ||
+                (branch != null && app.can('performance.view')))
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final attendance = app.can('workforce.attendance.self');
+                  final performance =
+                      branch != null && app.can('performance.view');
+                  if (constraints.maxWidth >= 850 &&
+                      attendance && performance) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _AttendanceCard(api: api)),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _PersonalPerformanceCard(
+                            api: api,
+                            app: app,
+                            branch: branch,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return Column(
+                    children: [
+                      if (attendance) _AttendanceCard(api: api),
+                      if (performance) ...[
+                        if (attendance) const SizedBox(height: 12),
+                        _PersonalPerformanceCard(
+                          api: api,
+                          app: app,
+                          branch: branch,
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
           ],
           if (branch != null && app.managementDashboardVisible) ...[
-            const SizedBox(height: 18),
+            const SizedBox(height: 30),
             const _SectionTitle(
               title: 'Management Overview',
               subtitle:
@@ -100,65 +162,30 @@ class _IdentityHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reporting = _human(app.reportingCategory);
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .55),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return WorkspaceBanner(
+      eyebrow: 'Excel Herbal / Workspace overview',
+      title: 'Good ${_dayPart()}, ${app.employeeName}',
+      subtitle: '${app.primaryDesignationLabel}  •  ${app.currentBranchName}',
+      icon: Icons.dashboard_customize_outlined,
+      footer: Wrap(
+        spacing: 10,
+        runSpacing: 10,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                child: const Icon(Icons.person_rounded, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Good ${_dayPart()}, ${app.employeeName}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      app.primaryDesignationLabel,
-                      style: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          const _ContextChip(
+            icon: Icons.verified_user_outlined,
+            label: 'Authorised employee workspace',
           ),
-          if (reporting.isNotEmpty || app.additionalDesignations.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (reporting.isNotEmpty)
-                  _ContextChip(
-                    icon: Icons.account_tree_outlined,
-                    label: 'Reporting: $reporting',
-                  ),
-                if (app.additionalDesignations.isNotEmpty)
-                  _ContextChip(
-                    icon: Icons.badge_outlined,
-                    label:
-                        '${app.additionalDesignations.length} additional designation${app.additionalDesignations.length == 1 ? '' : 's'}',
-                  ),
-              ],
+          if (reporting.isNotEmpty)
+            _ContextChip(
+              icon: Icons.account_tree_outlined,
+              label: 'Reporting: $reporting',
             ),
-          ],
+          if (app.additionalDesignations.isNotEmpty)
+            _ContextChip(
+              icon: Icons.badge_outlined,
+              label:
+                  '${app.additionalDesignations.length} additional designation${app.additionalDesignations.length == 1 ? '' : 's'}',
+            ),
         ],
       ),
     );
@@ -181,6 +208,32 @@ class _IdentityHero extends StatelessWidget {
   }
 }
 
+class _BranchContextCard extends StatelessWidget {
+  const _BranchContextCard();
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'WORKING BRANCH',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: ExcelBrand.primaryDark,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1,
+                    ),
+              ),
+              const SizedBox(height: 10),
+              const BranchSelector(),
+            ],
+          ),
+        ),
+      );
+}
+
 class _AuthorityCard extends StatelessWidget {
   const _AuthorityCard({required this.app});
 
@@ -191,30 +244,57 @@ class _AuthorityCard extends StatelessWidget {
     final extras = app.additionalDesignations.length;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            _AuthorityRow(
-              icon: Icons.store_outlined,
-              label: 'Working Branch',
+        padding: const EdgeInsets.all(18),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 530;
+            final branch = _AuthorityRow(
+              icon: Icons.storefront_outlined,
+              label: 'Current branch',
               value: app.currentBranchName,
-            ),
-            const Divider(height: 18),
-            _AuthorityRow(
-              icon: Icons.security_outlined,
-              label: 'Branch Authority',
+            );
+            final access = _AuthorityRow(
+              icon: Icons.shield_outlined,
+              label: 'Access scope',
               value:
                   '${app.branches.length} authorised branch${app.branches.length == 1 ? '' : 'es'}',
-            ),
-            if (extras > 0) ...[
-              const Divider(height: 18),
-              _AuthorityRow(
-                icon: Icons.add_moderator_outlined,
-                label: 'Extra Designations',
-                value: '$extras responsibility assignment${extras == 1 ? '' : 's'} · no authority inheritance',
-              ),
-            ],
-          ],
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'YOUR ACCESS',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: ExcelBrand.primaryDark,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                      ),
+                ),
+                const SizedBox(height: 13),
+                if (compact) ...[
+                  branch,
+                  const SizedBox(height: 14),
+                  access,
+                ] else
+                  Row(
+                    children: [
+                      Expanded(child: branch),
+                      const SizedBox(width: 12),
+                      Expanded(child: access),
+                    ],
+                  ),
+                if (extras > 0) ...[
+                  const Divider(height: 24),
+                  _AuthorityRow(
+                    icon: Icons.badge_outlined,
+                    label: 'Additional responsibilities',
+                    value:
+                        '$extras assignment${extras == 1 ? '' : 's'}; permissions remain role-scoped',
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -231,7 +311,7 @@ class _AttendanceCard extends StatelessWidget {
         future: api.get(ApiPaths.attendanceToday),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _LoadingCard(label: 'Loading attendance…');
+            return const _LoadingCard(label: 'Loading attendance...');
           }
           if (snapshot.hasError) {
             return const _InfoNotice(
@@ -249,40 +329,144 @@ class _AttendanceCard extends StatelessWidget {
             );
           }
           final gps = BusinessFormat.status(row['gps_status'] ?? 'unknown');
+          final status = BusinessFormat.status(row['status']);
           return Card(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(21),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.how_to_reg_outlined),
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: ExcelBrand.primarySoft,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.fingerprint_rounded,
+                          color: ExcelBrand.primaryDark,
+                          size: 25,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Today\'s Attendance',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Your live duty status',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Chip(label: Text(status)),
+                    ],
+                  ),
+                  const Divider(height: 27),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 420;
+                      final checkIn = _AttendanceFact(
+                        title: 'CHECK-IN',
+                        value: DateTimeText.local(row['check_in_at']),
+                        icon: Icons.login_rounded,
+                      );
+                      final checkOut = _AttendanceFact(
+                        title: 'CHECK-OUT',
+                        value: DateTimeText.local(row['check_out_at']),
+                        icon: Icons.logout_rounded,
+                      );
+                      if (compact) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            checkIn,
+                            const SizedBox(height: 14),
+                            checkOut,
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(child: checkIn),
+                          const SizedBox(width: 12),
+                          Expanded(child: checkOut),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      const Icon(Icons.route_outlined,
+                          size: 16, color: ExcelBrand.muted),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Today’s Attendance',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w800),
+                          'Duty GPS: $gps  •  Route lifecycle is automatic',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: ExcelBrand.muted),
                         ),
                       ),
-                      Chip(label: Text(BusinessFormat.status(row['status']))),
                     ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text('Check-In: ${DateTimeText.local(row['check_in_at'])}'),
-                  Text('Check-Out: ${DateTimeText.local(row['check_out_at'])}'),
-                  const SizedBox(height: 5),
-                  Text(
-                    'Duty GPS: $gps · route lifecycle is automatic',
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: ExcelBrand.muted),
                   ),
                 ],
               ),
             ),
           );
         },
+      );
+}
+
+class _AttendanceFact extends StatelessWidget {
+  const _AttendanceFact({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Icon(icon, size: 18, color: ExcelBrand.primaryDark),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: ExcelBrand.muted,
+                        letterSpacing: .8,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
       );
 }
 
@@ -310,7 +494,7 @@ class _PersonalPerformanceCard extends StatelessWidget {
         ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _LoadingCard(label: 'Loading performance…');
+            return const _LoadingCard(label: 'Loading performance...');
           }
           if (snapshot.hasError || snapshot.data is! List) {
             return const SizedBox.shrink();
@@ -322,15 +506,88 @@ class _PersonalPerformanceCard extends StatelessWidget {
           if (rows.isEmpty) return const SizedBox.shrink();
           final row = rows.first;
           return Card(
-            child: ListTile(
-              leading: const Icon(Icons.insights_outlined),
-              title: const Text('My Monthly Performance'),
-              subtitle: Text(
-                'Sales ${BusinessFormat.quantity(row['sales_count'])} · Points ${BusinessFormat.quantity(row['points'])}',
+            child: Padding(
+              padding: const EdgeInsets.all(21),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF1FC),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.insights_rounded,
+                          color: Color(0xFF355F9B),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'My Monthly Performance',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 27),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _PerformanceFact(
+                          label: 'SALES',
+                          value: BusinessFormat.quantity(row['sales_count']),
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: _PerformanceFact(
+                          label: 'POINTS',
+                          value: BusinessFormat.quantity(row['points']),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           );
         },
+      );
+}
+
+class _PerformanceFact extends StatelessWidget {
+  const _PerformanceFact({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: ExcelBrand.muted,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: ExcelBrand.ink,
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+        ],
       );
 }
 
@@ -488,28 +745,48 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 142),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                child: Icon(metric.icon),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(metric.label, style: Theme.of(context).textTheme.labelMedium),
-                    const SizedBox(height: 3),
-                    Text(
-                      metric.value,
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w900),
+              Row(
+                children: [
+                  Container(
+                    width: 43,
+                    height: 43,
+                    decoration: BoxDecoration(
+                      color: ExcelBrand.primarySoft,
+                      borderRadius: BorderRadius.circular(13),
                     ),
-                  ],
-                ),
+                    child: Icon(
+                      metric.icon,
+                      size: 22,
+                      color: ExcelBrand.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      metric.label,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: ExcelBrand.muted,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 17),
+              Text(
+                metric.value,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: ExcelBrand.ink,
+                    ),
               ),
             ],
           ),
