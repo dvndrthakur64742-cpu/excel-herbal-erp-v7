@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api_client.dart';
 import '../core/api_paths.dart';
 import '../core/app_config.dart';
+import '../core/navigation_authority.dart';
 import '../core/bootstrap_projection.dart';
 import '../core/bootstrap_retry_policy.dart';
 import '../core/providers.dart';
@@ -207,10 +208,17 @@ class AppState {
         (((bootstrap?['navigation'] as Map?)?['bottom_nav'] as List?) ?? const [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
+    final seen = <String>{};
     return items.where((item) {
       final id = '${item['id']}';
-      if (id == 'erp_tools') return erpToolsVisible;
-      return true;
+      // Both the server's navigation and the live capability list must agree.
+      // Deduplicate stale entries so phones do not show repeated destinations.
+      return seen.add(id) &&
+          NavigationAuthority.bottomAllowed(
+            id,
+            can,
+            erpToolsVisible: erpToolsVisible,
+          );
     }).toList(growable: false);
   }
 
@@ -223,10 +231,17 @@ class AppState {
         (((bootstrap?['navigation'] as Map?)?['sections'] as List?) ?? const [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
-    if (!businessAccessBlocked) return projected;
-    return projected
-        .where((section) => '${section['id']}' == 'home')
-        .toList(growable: false);
+    if (businessAccessBlocked) {
+      return projected
+          .where((section) => '${section['id']}' == 'home')
+          .toList(growable: false);
+    }
+    final seen = <String>{};
+    return projected.where((section) {
+      final id = '${section['id']}';
+      // A cached navigation projection cannot regrant a revoked capability.
+      return seen.add(id) && NavigationAuthority.sectionAllowed(id, can);
+    }).toList(growable: false);
   }
 
   AppState copyWith({
