@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 php -r 'if (PHP_VERSION_ID < 80100) {fwrite(STDERR, "PHP 8.1+ required\n"); exit(1);}'
 while IFS= read -r file; do php -l "$file"; done < <(find src tests -type f -name '*.php')
 php -l excel-herbal-erp-v7.php
+php tests/integration_connection_guard.php
 php tests/field_sales_rules.php
 php tests/employee_link_integrity.php
 php tests/employee_credential_authorization.php

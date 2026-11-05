@@ -9,6 +9,13 @@ use ExcelHerbal\ERP7\Http\ApiDispatch;
 use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Capabilities;
 
+// Standalone CI is not bootstrapped by WordPress; fixture clock is UTC.
+if (!function_exists('get_gmt_from_date')) {
+    function get_gmt_from_date(string $datetime, string $format = 'Y-m-d H:i:s'): string {
+        return (new DateTimeImmutable($datetime, new DateTimeZone('UTC')))->format($format);
+    }
+}
+
 if (!function_exists('get_option')) {
     function get_option($name, $default = false) {
         global $wpdb;
@@ -100,6 +107,20 @@ function uat_seed(Eh7IntegrationWpdb $db): void {
         'id'=>1,'company_id'=>1,'branch_id'=>1,'product_id'=>100,'batch_key'=>0,'custodian_key'=>0,
         'quantity'=>100,'average_unit_cost'=>50,'updated_at'=>'2026-01-01 00:00:00',
     ]);
+    // Scheduled attendance + an actual matching GPS row are both required
+    // for synthetic Morning Product Issue. Manual check-in is deliberately disabled.
+    $scheduledAt = gmdate('Y-m-d H:i:s', time() - 3600);
+    $gpsAt = gmdate('Y-m-d H:i:s', time() - 120);
+    uat_insert($db, 'attendance', [
+        'id'=>1,'company_id'=>1,'branch_id'=>1,'employee_id'=>10,
+        'business_date'=>uat_date(),'status'=>'present',
+        'check_in_at'=>$scheduledAt,'created_at'=>$scheduledAt,
+    ]);
+    uat_insert($db, 'gps_points', [
+        'id'=>1,'company_id'=>1,'branch_id'=>1,'employee_id'=>10,
+        'attendance_id'=>1,'latitude'=>31.701,'longitude'=>76.93,
+        'source'=>'duty','recorded_at'=>$gpsAt,'created_at'=>$gpsAt,
+    ]);
     foreach ([
         [1,'CASH','Cash','asset','cash'],[2,'UPI','UPI','asset','upi'],[3,'SALES','Sales','revenue',null],
         [4,'COGS','Cost of Goods Sold','expense',null],[5,'INVENTORY','Inventory','asset',null],
@@ -138,7 +159,7 @@ uat_seed($wpdb);
 $self = uat_actor(10, [1], [Capabilities::ATT_SELF, Capabilities::DAILY_SELF], 'FE');
 $manager = uat_actor(20, [1,2], [
     Capabilities::DAILY_APPROVE,Capabilities::DAILY_ISSUE,Capabilities::DAILY_REVIEW,Capabilities::BANK_RECONCILE,
-    Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE,Capabilities::HR_VIEW,
+    Capabilities::EMP_VIEW,Capabilities::EMP_MANAGE,Capabilities::HR_VIEW,Capabilities::EMP_DOCUMENT_DOWNLOAD,
     Capabilities::INVENTORY_VIEW,Capabilities::TRANSFER_RECEIVE,Capabilities::EXPENSE_APPROVE,
     Capabilities::PAYROLL_APPROVE,Capabilities::PAYROLL_PAY,
 ], 'SYSADMIN');
@@ -154,22 +175,37 @@ function uat_case(string $name, callable $fn): void {
 }
 
 uat_case('uat_branch_scope_fail_closed', function () use ($self) {
-    try { uat_dispatch('work.check_in', $self, ['branch_id'=>2]); }
-    catch (DomainException $e) { if ($e->codeKey === 'branch_forbidden' && $e->httpStatus === 403) return; throw $e; }
-    throw new RuntimeException('cross-branch attendance check-in was accepted');
+    try {
+        uat_dispatch('daily.create', $self, [
+            'branch_id'=>2,'employee_id'=>10,'business_date'=>uat_date(),
+            'lines'=>[['product_id'=>100,'quantity'=>1]],
+        ]);
+    } catch (DomainException $e) {
+        if ($e->codeKey === 'branch_forbidden' && $e->httpStatus === 403) return;
+        throw $e;
+    }
+    throw new RuntimeException('cross-branch Daily Order was accepted');
 });
 
-uat_case('uat_attendance_checkin_today_checkout', function () use ($self) {
-    $in = uat_dispatch('work.check_in', $self, ['branch_id'=>1,'lat'=>31.701,'lng'=>76.93]);
-    if (($in['status'] ?? '') !== 'present') throw new RuntimeException('check-in status mismatch');
+uat_case('uat_automatic_attendance_and_gps_evidence', function () use ($self) {
+    foreach (['work.check_in','work.check_out'] as $manualRoute) {
+        try {
+            uat_dispatch($manualRoute, $self, ['branch_id'=>1,'lat'=>31.701,'lng'=>76.93]);
+            throw new RuntimeException($manualRoute.' unexpectedly permitted manual duty change');
+        } catch (DomainException $e) {
+            if ($e->codeKey !== 'attendance_manual_disabled' || $e->httpStatus !== 403) throw $e;
+        }
+    }
     $today = uat_dispatch('work.attendance_today', $self);
-    if (!$today || empty($today['check_in_at']) || (int)$today['branch_id'] !== 1) throw new RuntimeException('attendance today did not reflect check-in');
-    $out = uat_dispatch('work.check_out', $self);
-    if (($out['status'] ?? '') !== 'present') throw new RuntimeException('check-out status mismatch');
-    if (empty(uat_dispatch('work.attendance_today', $self)['check_out_at'])) throw new RuntimeException('check-out was not persisted');
+    if (!$today || empty($today['check_in_at']) || (int)$today['branch_id'] !== 1) {
+        throw new RuntimeException('scheduled attendance is absent or in wrong branch');
+    }
+    if (!\ExcelHerbal\ERP7\Workforce\AttendanceGpsEvidence::hasVerifiedMorningPoint(
+        1, 1, 10, uat_date()
+    )) throw new RuntimeException('synthetic authenticated GPS point is not associated to scheduled duty');
 });
 
-uat_case('uat_daily_order_full_cycle', function () use ($self, $manager, $wpdb) {
+uat_case('uat_daily_order_full_cycle', function () use ($self, $maker, $manager, $wpdb) {
     $date = uat_date();
     $created = uat_dispatch('daily.create', $self, [
         'branch_id'=>1,'employee_id'=>10,'business_date'=>$date,'lines'=>[['product_id'=>100,'quantity'=>2]],

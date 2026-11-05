@@ -141,24 +141,53 @@ e2_case('e2_purchase_bill_and_supplier_payment',function()use($maker,$approver,$
 });
 
 
-e2_case('e2_sales_credit_and_customer_receipt',function()use($maker,$approver,$wpdb,&$state){
+e2_case('e2_full_prepayment_and_no_customer_credit',function()use($maker,$approver,$wpdb,&$state){
     $customer=e2_dispatch('sales.customer_create',$maker,[
         'branch_id'=>1,'name'=>'Coverage Customer','mobile'=>'9000000001','email'=>'customer@example.test','address'=>'Disposable fixture',
     ]);
+    // A partial-payment counter sale must not create an invoice or move stock.
+    try {
+        e2_dispatch('sales.counter',$maker,[
+            'branch_id'=>1,'customer_id'=>(int)$customer['id'],
+            'paid_amount'=>100,'payment_account_id'=>1,
+            'lines'=>[['product_id'=>100,'quantity'=>4]],
+        ]);
+        throw new RuntimeException('credit sale unexpectedly allowed');
+    } catch (DomainException $e) {
+        if ($e->codeKey !== 'full_prepayment_required') throw $e;
+    }
+    if ((int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('counter_sales')) !== 0) {
+        throw new RuntimeException('denied partial payment created a sale');
+    }
     $sale=e2_dispatch('sales.counter',$maker,[
-        'branch_id'=>1,'customer_id'=>(int)$customer['id'],'paid_amount'=>100,'payment_account_id'=>1,
+        'branch_id'=>1,'customer_id'=>(int)$customer['id'],
+        'paid_amount'=>400,'payment_account_id'=>1,
         'lines'=>[['product_id'=>100,'quantity'=>4]],
     ]);
-    if(abs((float)$sale['gross_amount']-400)>0.005||abs((float)$sale['outstanding_amount']-300)>0.005)throw new RuntimeException('credit sale amounts mismatch');
-    $receipt=e2_dispatch('sales.receipt',$approver,[
-        'branch_id'=>1,'sale_id'=>(int)$sale['id'],'amount'=>150,'payment_account_id'=>1,'reference'=>'E2E-CUST-REC',
+    if (abs((float)$sale['gross_amount']-400)>0.005
+        || abs((float)$sale['outstanding_amount'])>0.005
+    ) throw new RuntimeException('fully prepaid counter sale mismatch');
+    // A paid invoice has no outstanding customer balance to collect twice.
+    try {
+        e2_dispatch('sales.receipt',$approver,[
+            'branch_id'=>1,'sale_id'=>(int)$sale['id'],'amount'=>1,
+            'payment_account_id'=>1,'reference'=>'E2E-DUPLICATE-REC',
+        ]);
+        throw new RuntimeException('receipt was accepted for a paid sale');
+    } catch (DomainException $e) {
+        if ($e->codeKey !== 'sale_not_outstanding') throw $e;
+    }
+    $open=e2_dispatch('sales.open_sales',$approver,[
+        'branch_id'=>1,'customer_id'=>(int)$customer['id'],
     ]);
-    if(abs((float)$receipt['remaining_outstanding']-150)>0.005)throw new RuntimeException('receipt outstanding mismatch');
-    $open=e2_dispatch('sales.open_sales',$approver,['branch_id'=>1,'customer_id'=>(int)$customer['id']]);
-    if(count($open)!==1||abs((float)$open[0]['outstanding_amount']-150)>0.005)throw new RuntimeException('open sales control mismatch');
-    $qty=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
-    if(abs($qty-6)>0.001)throw new RuntimeException('sale stock movement mismatch');
-    $state['sale_id']=(int)$sale['id'];$state['receipt_id']=(int)$receipt['id'];$state['customer_id']=(int)$customer['id'];
+    if (count($open)!==0) throw new RuntimeException('fully paid sale appears as receivable');
+    $qty=(float)$wpdb->get_var(
+        'SELECT quantity FROM '.Db::table('stock_balances').
+        ' WHERE branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0'
+    );
+    if (abs($qty-6)>0.001) throw new RuntimeException('prepaid sale stock movement mismatch');
+    $state['sale_id']=(int)$sale['id'];
+    $state['customer_id']=(int)$customer['id'];
 });
 
 e2_case('e2_inventory_adjustment_maker_checker',function()use($maker,$approver,$wpdb,&$state){
@@ -211,7 +240,7 @@ e2_case('e2_reports_and_subledger_reconciliation',function()use($approver,$wpdb)
     $purchase=e2_dispatch('reports.purchase',$approver,['branch_id'=>1,'from'=>$date,'to'=>$date]);
     $stock=e2_dispatch('reports.stock',$approver,['branch_id'=>1]);
     $finance=e2_dispatch('reports.finance',$approver,['branch_id'=>1,'from'=>$date,'to'=>$date]);
-    if(count($sales)!==1||abs((float)$sales[0]['outstanding_amount']-150)>0.005)throw new RuntimeException('sales report mismatch');
+    if(count($sales)!==1||abs((float)$sales[0]['outstanding_amount'])>0.005)throw new RuntimeException('fully paid sales report mismatch');
     if(count($purchase)!==1||abs((float)$purchase[0]['outstanding_amount']-250)>0.005)throw new RuntimeException('purchase report mismatch');
     $stockQty=0.0;foreach($stock as$r)if((int)$r['product_id']===100&&(int)$r['custodian_key']===0)$stockQty+=(float)$r['quantity'];
     if(abs($stockQty-8)>0.001)throw new RuntimeException('stock report mismatch');
@@ -219,7 +248,7 @@ e2_case('e2_reports_and_subledger_reconciliation',function()use($approver,$wpdb)
 
     $receivables=e2_dispatch('reports.receivables',$approver,['branch_id'=>1]);
     $payables=e2_dispatch('reports.payables',$approver,['branch_id'=>1]);
-    if(count($receivables)!==1||abs((float)$receivables[0]['outstanding_amount']-150)>0.005)throw new RuntimeException('receivables report mismatch');
+    if(count($receivables)!==0)throw new RuntimeException('prepaid sale incorrectly appears in receivables');
     if(count($payables)!==1||abs((float)$payables[0]['outstanding_amount']-250)>0.005)throw new RuntimeException('payables report mismatch');
 
     $tb=e2_dispatch('reports.trial_balance',$approver,['to'=>$date,'branch_id'=>1]);
