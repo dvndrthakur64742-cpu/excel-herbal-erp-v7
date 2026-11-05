@@ -9,6 +9,13 @@ use ExcelHerbal\ERP7\Http\ApiDispatch;
 use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Capabilities;
 
+// Standalone CI is not bootstrapped by WordPress; fixture clock is UTC.
+if (!function_exists('get_gmt_from_date')) {
+    function get_gmt_from_date(string $datetime, string $format = 'Y-m-d H:i:s'): string {
+        return (new DateTimeImmutable($datetime, new DateTimeZone('UTC')))->format($format);
+    }
+}
+
 if (!function_exists('get_option')) {
     function get_option($name, $default = false) {
         global $wpdb;
