@@ -156,7 +156,29 @@ final class Eh7IntegrationWpdb {
     }
 }
 
+/**
+ * Reject any non-disposable database BEFORE opening a connection.
+ * Several integration fixtures DROP/CREATE tables; keep this guard in their
+ * shared connection primitive, rather than relying on each script's caller.
+ */
+function eh7_assert_synthetic_connection(): void {
+    $mode = (string) (getenv('EH7_INTEGRATION_MODE') ?: '');
+    $database = (string) (getenv('EH7_MARIADB_DATABASE') ?: '');
+    $host = strtolower((string) (getenv('EH7_MARIADB_HOST') ?: '127.0.0.1'));
+    $port = (int) (getenv('EH7_MARIADB_PORT') ?: 3306);
+    if ($mode !== 'synthetic'
+        || !preg_match('/^eh7_test_[a-z0-9_]+$/iD', $database)
+        || !in_array($host, ['127.0.0.1', 'localhost', '::1', 'mariadb'], true)
+        || $port < 1 || $port > 65535
+    ) {
+        throw new RuntimeException(
+            'REFUSED: integration requires synthetic mode, eh7_test_* database and a local test MariaDB host.'
+        );
+    }
+}
+
 function eh7_connect(): mysqli {
+    eh7_assert_synthetic_connection();
     mysqli_report(MYSQLI_REPORT_OFF);
     $host = getenv('EH7_MARIADB_HOST') ?: '127.0.0.1';
     $port = (int)(getenv('EH7_MARIADB_PORT') ?: 3306);

@@ -117,3 +117,9 @@ jobs:
       - name: Run real MariaDB promotion review and zero-privilege mutation tests
         working-directory: plugin/excel-herbal-erp-v7
         run: php tests/integration_promotion_reviews.php
+      - name: Run synthetic cross-role Daily Order stock receipt, UPI, transfer, expense and payroll UAT smoke
+        working-directory: plugin/excel-herbal-erp-v7
+        run: php tests/integration_uat_smoke.php
+      - name: Run synthetic purchase, customer collections, reversal and closing E2E coverage
+        working-directory: plugin/excel-herbal-erp-v7
+        run: php tests/integration_business_e2e_coverage2.php
