@@ -12,6 +12,7 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/guided_action_panel.dart';
 import 'prepaid_orders_screen.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
@@ -53,35 +54,54 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     final api = ref.watch(apiClientProvider);
-    final actions = <Widget>[
-      if (app.can('sales.create') || app.can('sales.view') ||
-          app.can('sales.receipt.create') || app.can('sales.discount.approve') ||
+    final branchReady = app.currentBranchId != null;
+    final actions = <GuidedAction>[
+      if (app.can('sales.create') ||
+          app.can('sales.view') ||
+          app.can('sales.receipt.create') ||
+          app.can('sales.discount.approve') ||
           app.can('sales.discount.ho.approve'))
-        FilledButton.icon(
-          onPressed: app.currentBranchId == null ? null : () {
-            Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => const PrepaidOrdersScreen()));
-          },
-          icon: const Icon(Icons.receipt_long_outlined, size: 18),
-          label: const Text('Prepaid Orders'),
+        GuidedAction(
+          id: 'prepaid_orders',
+          title: 'Prepaid Orders',
+          description:
+              'View orders, discount approval and verified payment status.',
+          icon: Icons.receipt_long_outlined,
+          primary: true,
+          enabled: branchReady,
+          onOpen: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const PrepaidOrdersScreen(),
+            ),
+          ),
         ),
       if (app.can('sales.create'))
-        FilledButton.icon(
-          onPressed: app.currentBranchId == null ? null : _counterSale,
-          icon: const Icon(Icons.point_of_sale_outlined, size: 18),
-          label: const Text('Counter Sale'),
+        GuidedAction(
+          id: 'counter_sale',
+          title: 'New Counter Sale',
+          description: 'Choose available stock and review the sale details.',
+          icon: Icons.point_of_sale_outlined,
+          primary: true,
+          enabled: branchReady,
+          onOpen: _counterSale,
         ),
       if (app.can('sales.create'))
-        OutlinedButton.icon(
-          onPressed: app.currentBranchId == null ? null : _createCustomer,
-          icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
-          label: const Text('New Customer'),
+        GuidedAction(
+          id: 'new_customer',
+          title: 'Add Customer',
+          description: 'Register a customer for the authorised branch.',
+          icon: Icons.person_add_alt_1_outlined,
+          enabled: branchReady,
+          onOpen: _createCustomer,
         ),
       if (app.can('sales.receipt.create'))
-        OutlinedButton.icon(
-          onPressed: app.currentBranchId == null ? null : _receipt,
-          icon: const Icon(Icons.payments_outlined, size: 18),
-          label: const Text('Receipt'),
+        GuidedAction(
+          id: 'receipt',
+          title: 'Customer Receipt',
+          description: 'Record a payment against an existing customer balance.',
+          icon: Icons.payments_outlined,
+          enabled: branchReady,
+          onOpen: _receipt,
         ),
     ];
     return Scaffold(
@@ -104,10 +124,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-              child: ModuleActionPanel(
-                title: 'Transactions',
-                subtitle:
-                    'Start billing, maintain customers or post a collection.',
+              child: GuidedActionPanel(
+                title: 'What would you like to do?',
+                subtitle: 'Open one authorised task. Payments and approvals stay in their original workflows.',
                 actions: actions,
               ),
             ),
