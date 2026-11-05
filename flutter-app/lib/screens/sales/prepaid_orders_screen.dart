@@ -280,7 +280,7 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
     );
   }
 
-  Future<void> _collect(Map<String, dynamic> order) async {
+  Future<void> _collect(Map<String, dynamic> order, int remainingPaise) async {
     try {
       final api = ref.read(apiClientProvider);
       final branch = ref.read(appStateProvider).currentBranchId;
@@ -315,10 +315,10 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                 TextFormField(controller: amount,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: 'Received amount ₹ *'),
-                  validator: (v) => RegExp(r'^(0|[1-9][0-9]{0,9})(\.[0-9]{1,2})?$')
-                      .hasMatch((v ?? '').trim()) &&
-                      (double.tryParse((v ?? '').trim()) ?? 0) > 0
-                        ? null : 'Enter valid positive amount.'),
+                  validator: (v) =>
+                      PrepaidInvoiceReadiness.collectionAmountError(
+                        (v ?? '').trim(), remainingPaise),
+                ),
                 if (isUpi) TextFormField(controller: reference,
                   decoration: const InputDecoration(labelText: 'UPI transaction ID *'),
                   validator: (v) => (v ?? '').trim().length >= 6
@@ -481,7 +481,8 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                     invoice?.remainingPaise != null &&
                     invoice!.remainingPaise! > 0 &&
                     !invoice.awaitingUpiVerification)
-                  OutlinedButton(onPressed: _busy ? null : () => _collect(order),
+                  OutlinedButton(onPressed: _busy ? null : () =>
+                    _collect(order, invoice.remainingPaise!),
                     child: const Text('Record Cash / UPI')),
                 if (order['status'] == 'approved' &&
                     app.can('sales.create') && invoice?.canPost == true)
