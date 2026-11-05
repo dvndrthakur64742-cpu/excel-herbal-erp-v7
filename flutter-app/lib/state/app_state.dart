@@ -259,12 +259,21 @@ class AppController extends StateNotifier<AppState> {
   Future<void>? _loginFuture;
 
   Future<void> initialize() async {
-    final token = await session.accessToken();
-    if (token == null || token.isEmpty) {
-      state = const AppState(loading: false);
-      return;
+    try {
+      final token = await session.accessToken();
+      if (token == null || token.isEmpty) {
+        state = const AppState(loading: false);
+        return;
+      }
+      await refreshBootstrap();
+    } catch (_) {
+      // Secure storage may be unavailable after a browser/profile change.
+      // Never leave startup spinning indefinitely or silently erase tokens.
+      state = const AppState(
+        loading: false,
+        error: 'Unable to read your saved session. Reopen the app or contact your administrator.',
+      );
     }
-    await refreshBootstrap();
   }
 
   Future<void> login(String mobile, String password) {
@@ -329,6 +338,18 @@ class AppController extends StateNotifier<AppState> {
       if (e.statusCode == 401) {
         await session.clear();
         state = AppState(loading: false, error: UiError.message(e));
+        return;
+      }
+      if (e.statusCode == 403) {
+        // Revoke stale projected branch/capability access immediately while
+        // keeping the authenticated session for recovery or administrator help.
+        final token = await session.accessToken();
+        state = AppState(
+          loading: false,
+          authenticated: token?.isNotEmpty ?? false,
+          error: UiError.message(e),
+          errorReference: UiError.reference(e),
+        );
         return;
       }
       final token = await session.accessToken();
