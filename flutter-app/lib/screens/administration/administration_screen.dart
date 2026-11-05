@@ -12,7 +12,10 @@ import '../../widgets/module_workspace.dart';
 import 'acting_duty_admin_panel.dart';
 
 class AdministrationScreen extends ConsumerStatefulWidget {
-  const AdministrationScreen({super.key});
+  const AdministrationScreen({super.key, this.initialSection});
+
+  final String? initialSection;
+
   @override
   ConsumerState<AdministrationScreen> createState() =>
       _AdministrationScreenState();
@@ -73,8 +76,12 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         body: Center(child: Text('No authorised administration functions.')),
       );
     }
+    final requestedIndex = tabs.indexWhere(
+      (tab) => tab.$1.toLowerCase() == widget.initialSection?.trim().toLowerCase(),
+    );
     return DefaultTabController(
       length: tabs.length,
+      initialIndex: requestedIndex < 0 ? 0 : requestedIndex,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Administration'),

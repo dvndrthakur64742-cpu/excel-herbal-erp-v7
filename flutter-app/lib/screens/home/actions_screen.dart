@@ -20,7 +20,7 @@ class ActionsScreen extends ConsumerWidget {
 
     if (app.can('workforce.attendance.self')) {
       actions.add((
-        label: 'Check-In / Out',
+        label: "View Today's Duty",
         icon: Icons.location_on_outlined,
         run: () => openConnectedAction('attendance'),
       ));

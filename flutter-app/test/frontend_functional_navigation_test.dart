@@ -277,7 +277,9 @@ void main() {
     expect(order, isNot(contains('ApiPaths.inventoryStock')));
     expect(order, contains("'request_line_id': int.parse"));
     expect(order, contains("labelText: 'Search Product'"));
-    expect(order, contains('Submit Stock Request'));
+    expect(order, contains('Review & Submit'));
+    expect(order, contains('Confirm Submit'));
+    expect(order, contains("await persist('submit')"));
     expect(order, contains("FilterChip("));
     expect(order, contains("label: const Text('Selected only')"));
     expect(order, contains('Issue Additional Stock'));

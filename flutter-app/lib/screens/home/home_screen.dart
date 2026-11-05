@@ -9,18 +9,29 @@ import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/workspace_banner.dart';
+import '../../widgets/home_start_tasks.dart';
 import '../my_work/my_work_workspace_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key, this.openMyWork});
+  const HomeScreen({
+    super.key,
+    this.openMyWork,
+    this.openConnectedAction,
+  });
 
   final VoidCallback? openMyWork;
+  final ValueChanged<String>? openConnectedAction;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final app = ref.watch(appStateProvider);
     final api = ref.watch(apiClientProvider);
     final branch = app.currentBranchId;
+    final startTasks = HomeStartTaskPlanner.recommend(
+      can: app.can,
+      sectionVisible: app.sectionVisible,
+      businessAccessBlocked: app.businessAccessBlocked,
+    );
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -36,6 +47,13 @@ class HomeScreen extends ConsumerWidget {
         ),
         children: [
           _IdentityHero(app: app),
+          if (startTasks.isNotEmpty && openConnectedAction != null) ...[
+            const SizedBox(height: 24),
+            HomeStartTasks(
+              tasks: startTasks,
+              onOpen: (task) => openConnectedAction!(task.id),
+            ),
+          ],
           const SizedBox(height: 20),
           LayoutBuilder(
             builder: (context, constraints) {
