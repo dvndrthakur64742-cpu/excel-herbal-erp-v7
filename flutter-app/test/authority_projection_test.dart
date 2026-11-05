@@ -120,7 +120,7 @@ void main() {
 
   test('management dashboard requires both team projection and reports.view', () {
     final state = _state(
-      capabilities: const ['erp.access', 'reports.view'],
+      capabilities: const ['erp.access', 'reports.view', 'organization.employee.view'],
       sections: const [
         {'id': 'home', 'label': 'Home'},
         {'id': 'team', 'label': 'Team Operations'},
