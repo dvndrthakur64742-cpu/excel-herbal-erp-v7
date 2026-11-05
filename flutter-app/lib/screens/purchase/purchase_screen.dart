@@ -12,6 +12,7 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/guided_action_panel.dart';
 
 class PurchaseScreen extends ConsumerStatefulWidget {
   const PurchaseScreen({super.key, this.initialAction});
@@ -52,24 +53,34 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     final api = ref.watch(apiClientProvider);
-    final actions = <Widget>[
+    final branchReady = app.currentBranchId != null;
+    final actions = <GuidedAction>[
       if (app.can('purchase.create'))
-        FilledButton.icon(
-          onPressed: app.currentBranchId == null ? null : _newBill,
-          icon: const Icon(Icons.receipt_long_outlined, size: 18),
-          label: const Text('Purchase Entry'),
+        GuidedAction(
+          id: 'new_bill',
+          title: 'New Purchase Bill',
+          description: 'Select supplier and enter bill lines for this branch.',
+          icon: Icons.receipt_long_outlined,
+          primary: true,
+          enabled: branchReady,
+          onOpen: _newBill,
         ),
       if (app.can('finance.supplier_payment.create'))
-        OutlinedButton.icon(
-          onPressed: app.currentBranchId == null ? null : _payBill,
-          icon: const Icon(Icons.payments_outlined, size: 18),
-          label: const Text('Supplier Payment'),
+        GuidedAction(
+          id: 'supplier_payment',
+          title: 'Supplier Payment',
+          description: 'Record payment against an outstanding supplier bill.',
+          icon: Icons.payments_outlined,
+          enabled: branchReady,
+          onOpen: _payBill,
         ),
       if (app.can('purchase.create'))
-        OutlinedButton.icon(
-          onPressed: _createSupplier,
-          icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
-          label: const Text('New Supplier'),
+        GuidedAction(
+          id: 'new_supplier',
+          title: 'Add Supplier',
+          description: 'Register a supplier in the shared supplier master.',
+          icon: Icons.person_add_alt_1_outlined,
+          onOpen: _createSupplier,
         ),
     ];
     return DefaultTabController(
@@ -103,10 +114,9 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: ModuleActionPanel(
-                  title: 'Procurement Actions',
-                  subtitle:
-                      'Post a supplier bill, settle liability or maintain supplier master.',
+                child: GuidedActionPanel(
+                  title: 'What would you like to do?',
+                  subtitle: 'Pick one task to open its existing controlled process.',
                   actions: actions,
                 ),
               ),

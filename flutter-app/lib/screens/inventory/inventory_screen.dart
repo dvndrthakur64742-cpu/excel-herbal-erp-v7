@@ -13,6 +13,7 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/guided_action_panel.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({
@@ -151,24 +152,38 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     };
     final requestedIndex = tabs.indexWhere((tab) => tab.$1 == preferredLabel);
     final initialIndex = requestedIndex < 0 ? 0 : requestedIndex;
-    final actions = <Widget>[
+    final branchReady = app.currentBranchId != null;
+    final actions = <GuidedAction>[
       if (app.can('inventory.transfer.create'))
-        FilledButton.icon(
-          onPressed: app.currentBranchId == null ? null : _createTransfer,
-          icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-          label: const Text('New Transfer'),
+        GuidedAction(
+          id: 'transfer',
+          title: 'New Stock Transfer',
+          description:
+              'Request stock movement and follow pack, dispatch and receipt.',
+          icon: Icons.swap_horiz_rounded,
+          primary: true,
+          enabled: branchReady,
+          onOpen: _createTransfer,
         ),
       if (app.can('inventory.adjustment.create'))
-        OutlinedButton.icon(
-          onPressed: app.currentBranchId == null ? null : _createAdjustment,
-          icon: const Icon(Icons.tune_rounded, size: 18),
-          label: const Text('Adjustment'),
+        GuidedAction(
+          id: 'adjustment',
+          title: 'Stock Adjustment',
+          description:
+              'Request a controlled correction; approval may be required.',
+          icon: Icons.tune_rounded,
+          enabled: branchReady,
+          onOpen: _createAdjustment,
         ),
       if (app.can('inventory.adjustment.create'))
-        OutlinedButton.icon(
-          onPressed: app.currentBranchId == null ? null : _createQuarantine,
-          icon: const Icon(Icons.gpp_bad_outlined, size: 18),
-          label: const Text('Quarantine Stock'),
+        GuidedAction(
+          id: 'quarantine',
+          title: 'Quarantine Stock',
+          description:
+              'Separate stock pending authorised release or write-off.',
+          icon: Icons.gpp_bad_outlined,
+          enabled: branchReady,
+          onOpen: _createQuarantine,
         ),
     ];
     return DefaultTabController(
@@ -201,10 +216,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: ModuleActionPanel(
-                  title: 'Stock Actions',
-                  subtitle:
-                      'Move authorised stock or record a controlled adjustment.',
+                child: GuidedActionPanel(
+                  title: 'What would you like to do?',
+                  subtitle: 'Select one stock task. All checks and approvals remain required.',
                   actions: actions,
                 ),
               ),
