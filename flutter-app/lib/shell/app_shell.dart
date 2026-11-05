@@ -212,19 +212,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                   _desktopTile('my_work', 'My Work', Icons.work_outline),
                 if (app.can('communication.view'))
                   _desktopTile('tasks', 'My Tasks', Icons.task_alt_outlined),
-                if (_quickActionsVisible(app) ||
-                    _approvalVisible(app) ||
+                if (_approvalVisible(app) ||
                     !app.businessAccessBlocked ||
                     app.erpToolsVisible) ...[
                   const SizedBox(height: 10),
                   _sectionLabel(context, 'CONTROL'),
                 ],
-                if (_quickActionsVisible(app))
-                  _desktopTile(
-                    'quick_actions',
-                    'Quick Actions',
-                    Icons.bolt_outlined,
-                  ),
                 if (_approvalVisible(app))
                   _desktopTile(
                     'approvals',
@@ -240,7 +233,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 if (app.can('administration.access.manage'))
                   _desktopTile(
                     'administration',
-                    'Manage Permissions',
+                    'Administration',
                     Icons.admin_panel_settings_outlined,
                   ),
                 const SizedBox(height: 10),
@@ -359,6 +352,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final child = switch (effectiveRoute) {
       'home' => HomeScreen(
           openMyWork: () => _selectDesktopRoute('my_work'),
+          openConnectedAction: _openConnectedAction,
         ),
       'my_work' => const MyWorkWorkspaceScreen(),
       'quick_actions' => ActionsScreen(
@@ -670,7 +664,10 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   Widget _mobilePage(AppState app, String id) => switch (id) {
         'home' =>
-          HomeScreen(openMyWork: () => _selectMobileRoute(app, 'my_work')),
+          HomeScreen(
+            openMyWork: () => _selectMobileRoute(app, 'my_work'),
+            openConnectedAction: _openConnectedAction,
+          ),
         'my_work' => const MyWorkWorkspaceScreen(),
         'actions' => ActionsScreen(
             openConnectedAction: _openConnectedAction,
@@ -688,7 +685,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (app.can('workforce.attendance.self')) {
       actions.add((
         id: 'attendance',
-        label: 'Check-In / Out',
+        label: "View Today's Duty",
         icon: Icons.location_on_outlined,
       ));
     }
@@ -782,6 +779,21 @@ class _AppShellState extends ConsumerState<AppShell> {
   void _openConnectedAction(String id) {
     Widget? screen;
     switch (id) {
+      case 'team_orders':
+        screen = const TeamScreen();
+        break;
+      case 'receive_stock':
+        screen = const InventoryScreen(initialSection: 'transfers');
+        break;
+      case 'review_expenses':
+        screen = const FinanceScreen(initialSection: 'expenses');
+        break;
+      case 'review_hr':
+        screen = const OrganizationScreen(initialTab: 'hr');
+        break;
+      case 'admin_access':
+        screen = const AdministrationScreen(initialSection: 'access');
+        break;
       case 'attendance':
         screen = const MyWorkWorkspaceScreen(initialSection: 'attendance');
         break;

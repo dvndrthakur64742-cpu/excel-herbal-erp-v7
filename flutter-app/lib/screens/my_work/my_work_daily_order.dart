@@ -87,6 +87,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       };
       final search = TextEditingController();
       String? mode;
+      String? submittedOrderId;
       String? submitError;
       String? formError;
       var saving = false;
@@ -174,6 +175,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                   ) as Map,
                 );
                 mode = 'draft';
+                submittedOrderId = '${created['id']}';
                 if (targetMode == 'submit') {
                   try {
                     await api.post(
@@ -195,6 +197,99 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                     saving = false;
                   });
                 }
+              }
+            }
+
+            Future<void> reviewAndSubmit() async {
+              if (saving) return;
+              final lines = collectLines();
+              if (lines.isEmpty) {
+                setLocalState(() => formError =
+                    'Select at least one product and enter its quantity in PCS.');
+                return;
+              }
+              final productNames = <int, String>{
+                for (final product in products)
+                  int.parse('${product['id']}'): '${product['name'] ?? 'Product'}',
+              };
+              final totalPieces = lines.fold<int>(
+                0,
+                (sum, line) => sum + (line['quantity'] as int),
+              );
+              final confirmed = await showDialog<bool>(
+                context: dialogContext,
+                builder: (reviewContext) => AlertDialog(
+                  insetPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
+                  title: const Text('Step 2 of 2 — Review Daily Order'),
+                  content: SizedBox(
+                    width: 460,
+                    height: (MediaQuery.sizeOf(reviewContext).height * .45)
+                        .clamp(180.0, 380.0)
+                        .toDouble(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${lines.length} products · $totalPieces PCS',
+                          style: Theme.of(reviewContext)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Check each product and quantity before submitting.',
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: ListView.separated(
+                            itemCount: lines.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final line = lines[index];
+                              final productId = line['product_id'] as int;
+                              return ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  productNames[productId] ?? 'Product',
+                                ),
+                                trailing: Text(
+                                  '${line['quantity']} PCS',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Next: authorised review and stock issue. Evening '
+                          'Closing follows after stock is issued.',
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(reviewContext, false),
+                      child: const Text('Back'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(reviewContext, true),
+                      child: const Text('Confirm Submit'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true && dialogContext.mounted) {
+                await persist('submit');
               }
             }
 
@@ -305,7 +400,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Text(
-                        '1 Select Stock  →  2 Submit  →  3 Approval  →  4 Stock Issue  →  5 Evening Closing',
+                        'Step 1 of 2 — Choose products and enter quantities in PCS. Review before submitting.',
                         style: TextStyle(
                           color: ExcelBrand.primaryDark,
                           fontWeight: FontWeight.w700,
@@ -622,7 +717,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                   label: const Text('Save Draft'),
                 ),
                 FilledButton.icon(
-                  onPressed: saving ? null : () => persist('submit'),
+                  onPressed: saving ? null : reviewAndSubmit,
                   icon: saving
                       ? const SizedBox(
                           width: 18,
@@ -631,7 +726,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                         )
                       : const Icon(Icons.send_rounded),
                   label: Text(
-                    saving ? 'Submitting...' : 'Submit Stock Request',
+                    saving ? 'Submitting...' : 'Review & Submit',
                   ),
                 ),
               ],
@@ -655,8 +750,10 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
         _setFeatureState(() {
           refresh++;
           message = submitError ?? (mode == 'submit'
-              ? 'Daily Order submitted for approval.'
-              : editId != null ? 'Daily Order draft updated.' : 'Daily Order draft saved.');
+              ? 'Daily Order #$submittedOrderId submitted. Awaiting authorised review.'
+              : editId != null
+                  ? 'Daily Order #$submittedOrderId draft updated.'
+                  : 'Daily Order #$submittedOrderId draft saved.');
         });
       }
     } catch (e) {
