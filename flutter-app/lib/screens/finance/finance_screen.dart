@@ -13,6 +13,7 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/business_date_field.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/guided_workspace_switcher.dart';
 
 part 'finance_bank.dart';
 part 'finance_books.dart';
@@ -89,13 +90,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       length: tabs.length,
       initialIndex: initialIndex,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Finance & Accounts'),
-          bottom: TabBar(
-            isScrollable: true,
-            tabs: [for (final tab in tabs) Tab(text: tab.$1)],
-          ),
-        ),
+        appBar: AppBar(title: const Text('Finance & Accounts')),
         body: SafeArea(
           child: Column(
             children: [
@@ -112,6 +107,18 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
               const Padding(
                 padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
                 child: BranchSelector(),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: Builder(
+                  builder: (tabContext) => GuidedWorkspaceSwitcher(
+                    title: 'Choose your finance task',
+                    sections: [
+                      for (final tab in tabs)
+                        GuidedWorkspaceSection.forTab(tab.$1),
+                    ],
+                  ),
+                ),
               ),
               if (message != null)
                 Padding(

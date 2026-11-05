@@ -9,6 +9,7 @@ import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/guided_workspace_switcher.dart';
 import 'acting_duty_admin_panel.dart';
 
 class AdministrationScreen extends ConsumerStatefulWidget {
@@ -83,13 +84,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       length: tabs.length,
       initialIndex: requestedIndex < 0 ? 0 : requestedIndex,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Administration'),
-          bottom: TabBar(
-            isScrollable: true,
-            tabs: [for (final tab in tabs) Tab(text: tab.$1)],
-          ),
-        ),
+        appBar: AppBar(title: const Text('Administration')),
         body: SafeArea(
           child: Column(
             children: [
@@ -116,12 +111,16 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                   child: ModuleMessageBanner(message: message!),
                 ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
-                child: ModuleSectionHeader(
-                  title: 'Control & Audit Workspace',
-                  subtitle:
-                      'Use only the administration functions authorised for your role.',
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: Builder(
+                  builder: (tabContext) => GuidedWorkspaceSwitcher(
+                    title: 'Choose an admin task',
+                    sections: [
+                      for (final tab in tabs)
+                        GuidedWorkspaceSection.forTab(tab.$1),
+                    ],
+                  ),
                 ),
               ),
               Expanded(
