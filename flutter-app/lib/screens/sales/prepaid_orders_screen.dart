@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
+import '../../core/prepaid_invoice_readiness.dart';
 import '../../state/app_state.dart';
 import 'prepaid_returns_screen.dart';
 
@@ -36,7 +37,18 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
 
   Future<void> _reload({int? id}) async {
     final branch = ref.read(appStateProvider).currentBranchId;
-    if (branch == null) return;
+    if (branch == null) {
+      if (!mounted) return;
+      setState(() {
+        _branch = null;
+        _orders = [];
+        _orderId = null;
+        _detail = null;
+        _busy = false;
+        _error = null;
+      });
+      return;
+    }
     setState(() { _busy = true; _error = null; });
     try {
       final api = ref.read(apiClientProvider);
@@ -45,7 +57,9 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
       final selected = id ?? (branch == _branch ? _orderId : null);
       final details = selected == null
           ? null : _map(await api.get(ApiPaths.prepaidOrder(selected)));
-      if (!mounted) return;
+      // Discard an old branch's async response after the selected branch moves.
+      if (!mounted ||
+          ref.read(appStateProvider).currentBranchId != branch) return;
       setState(() {
         _branch = branch;
         _orders = (rows as List).map(_map).toList();
@@ -396,14 +410,23 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
     final branch = app.currentBranchId;
-    if (branch != null && branch != _branch && !_busy) {
+    if (branch != _branch && !_busy) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_busy) _reload();
       });
     }
-    final order = _detail == null ? null : _map(_detail!['order']);
-    final payments = _detail == null ? <Map<String, dynamic>>[]
+    // Never display or act on a previous branch's order during a switch.
+    final branchReady = branch != null && branch == _branch;
+    final order = !branchReady || _detail == null
+        ? null : _map(_detail!['order']);
+    final payments = !branchReady || _detail == null
+        ? <Map<String, dynamic>>[]
         : (_detail!['payments'] as List).map(_map).toList();
+    final visibleOrders = branchReady ? _orders : <Map<String, dynamic>>[];
+    final invoice = order == null ? null : PrepaidInvoiceReadiness.check(
+      order: order,
+      payments: payments,
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('Prepaid Sales Orders'), actions: [
         if (branch != null && app.can('sales.view'))
@@ -436,6 +459,14 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
               Text("Order ${order['order_no']}",
                 style: Theme.of(context).textTheme.titleMedium),
               Text("Status: ${order['status']} · Net ₹${order['net_amount']}"),
+              if (invoice != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  child: Text(
+                    invoice.message,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
               Wrap(spacing: 8, children: [
                 if (order['status'] == 'discount_pending' &&
                     (app.can('sales.discount.approve') ||
@@ -445,10 +476,15 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                       'Only approve within your own authorized branch / Head Office limit.',
                       ApiPaths.prepaidApproveDiscount(_id(order['id'])!), _id(order['id'])!),
                     child: const Text('Approve discount')),
-                if (order['status'] == 'approved' && app.can('sales.receipt.create'))
+                if (order['status'] == 'approved' &&
+                    app.can('sales.receipt.create') &&
+                    invoice?.remainingPaise != null &&
+                    invoice!.remainingPaise! > 0 &&
+                    !invoice.awaitingUpiVerification)
                   OutlinedButton(onPressed: _busy ? null : () => _collect(order),
                     child: const Text('Record Cash / UPI')),
-                if (order['status'] == 'approved' && app.can('sales.create'))
+                if (order['status'] == 'approved' &&
+                    app.can('sales.create') && invoice?.canPost == true)
                   FilledButton(onPressed: _busy ? null : () =>
                     _confirm('Post invoice',
                       'This posts inventory and accounts only after 100% confirmed Cash / verified UPI.',
@@ -476,12 +512,14 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
         const Divider(),
         Expanded(child: branch == null
           ? const Center(child: Text('Select an authorized branch.'))
-          : _orders.isEmpty
-            ? const Center(child: Text('No prepaid orders in this branch.'))
+          : visibleOrders.isEmpty
+            ? Center(child: Text(branchReady
+                ? 'No prepaid orders in this branch.'
+                : 'Loading authorised branch orders...'))
             : ListView.builder(
-                itemCount: _orders.length,
+                itemCount: visibleOrders.length,
                 itemBuilder: (ctx, i) {
-                  final o = _orders[i];
+                  final o = visibleOrders[i];
                   final id = _id(o['id']);
                   return ListTile(
                     selected: _orderId == id,

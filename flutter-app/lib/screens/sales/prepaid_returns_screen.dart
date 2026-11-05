@@ -70,7 +70,9 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
       final payments = order == null ? <Map<String, dynamic>>[] :
           ((order['payments'] as List?) ?? const [])
               .map(_map).toList();
-      if (!mounted) return;
+      // A late response from the previous branch must never reach the UI.
+      if (!mounted ||
+          ref.read(appStateProvider).currentBranchId != branch) return;
       setState(() {
         _loadedBranch = branch;
         _selectedId = id;
@@ -213,7 +215,11 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
         if (mounted && !_busy) _reload();
       });
     }
-    final detail = _detail;
+    // Hide previous branch records immediately, including while a reload runs.
+    final visibleBranch = branch != null && branch == _loadedBranch;
+    final detail = visibleBranch ? _detail : null;
+    final visibleReturns = visibleBranch
+        ? _returns : <Map<String, dynamic>>[];
     final check = detail?['refund_evidence_check'] is Map
         ? Map<String, dynamic>.from(detail!['refund_evidence_check'] as Map)
         : <String, dynamic>{};
@@ -331,12 +337,14 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
           flex: 2,
           child: branch == null
               ? const Center(child: Text('Select an authorized branch.'))
-              : _returns.isEmpty
-                  ? const Center(child: Text('No prepaid return requests.'))
+              : visibleReturns.isEmpty
+                  ? Center(child: Text(visibleBranch
+                      ? 'No prepaid return requests.'
+                      : 'Loading authorised branch returns...'))
                   : ListView.builder(
-                      itemCount: _returns.length,
+                      itemCount: visibleReturns.length,
                       itemBuilder: (ctx, index) {
-                        final item = _returns[index];
+                        final item = visibleReturns[index];
                         final id = _id(item['id']);
                         return ListTile(
                           selected: _selectedId == id,
