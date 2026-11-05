@@ -36,9 +36,11 @@ class GuidedWorkspaceSection {
             description: 'Check the branch calendar and permitted holiday actions.',
             icon: Icons.calendar_today_outlined,
           ),
-        'Hierarchy' => const GuidedWorkspaceSection(
-            title: 'Reporting Hierarchy',
-            description: 'Check team reporting links and missing assignments.',
+        'Team Directory' => const GuidedWorkspaceSection(
+            title: 'Team Directory & Reporting',
+            description:
+                'Review reporting gaps and expand the directory below. '
+                'Employee master editing stays in Organization.',
             icon: Icons.account_tree_outlined,
           ),
         'Employees' => const GuidedWorkspaceSection(

@@ -35,7 +35,18 @@ if (!widget.includes('required this.loader') ||
     widget.includes('() => _future = Future<dynamic>.sync(widget.loader)')) {
   violations.push('widgets/async_panel.dart: request factory / retry invariant');
 }
-if (total < 42) violations.push('AsyncPanel census below audited 42 screen callsites: ' + total);
+// The original 42-callsite audit included two independent employee loads in
+// Team Operations (Hierarchy + Employees). Both now share ONE authorised
+// Team Directory request; this intentional consolidation reduces the audited
+// census by exactly one without weakening any loader/retry invariant.
+const team = fs.readFileSync(path.join(root, 'screens', 'organization', 'team_screen.dart'), 'utf8');
+const teamEmployeeCalls = [...team.matchAll(/ApiPaths\.employees/g)].length;
+if (teamEmployeeCalls !== 1 ||
+    !team.includes("ValueKey('canonical-team-directory')") ||
+    !team.includes('onOpenEmployee: _employeeDesignations')) {
+  violations.push('Team Directory consolidation must preserve one authorised employee loader and existing detail action');
+}
+if (total < 41) violations.push('AsyncPanel census below audited 41 screen callsites after duplicate Team employee panel consolidation: ' + total);
 if (violations.length) {
   console.error('FAIL async panel reliability: ' + violations.join(', '));
   process.exit(1);
