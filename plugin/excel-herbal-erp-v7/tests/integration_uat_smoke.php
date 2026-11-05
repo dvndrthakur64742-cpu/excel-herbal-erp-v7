@@ -167,12 +167,94 @@ $maker = uat_actor(30, [1,2], [
     Capabilities::TRANSFER_CREATE,Capabilities::INVENTORY_VIEW,Capabilities::EXPENSE_CREATE,Capabilities::PAYROLL_GENERATE,Capabilities::DAILY_OTHERS,
 ], 'SYSADMIN');
 
+// Synthetic role projections: the capability list AND branch set, never
+// the job title alone, determine server-side access.
+$branchManager = uat_actor(20, [2], [
+    Capabilities::DAILY_APPROVE, Capabilities::EXPENSE_APPROVE,
+    Capabilities::SALES_CREATE, Capabilities::INVENTORY_VIEW,
+], 'BM');
+$financeReviewer = uat_actor(30, [1,2], [
+    Capabilities::BANK_RECONCILE, Capabilities::EXPENSE_APPROVE,
+], 'FINANCE');
+$headOffice = uat_actor(20, [1,2], [
+    Capabilities::SALES_DISCOUNT_HO_APPROVE, Capabilities::SALES_VIEW,
+], 'MD');
+
 $failed = 0;
 function uat_case(string $name, callable $fn): void {
     global $failed;
     try { $fn(); echo "PASS {$name}\n"; }
     catch (Throwable $e) { $failed++; echo "FAIL {$name}: ".get_class($e).' '.$e->getMessage()."\n"; }
 }
+
+function uat_expect_denial(callable $action, string $expected, string $label): void {
+    try {
+        $action();
+    } catch (DomainException $e) {
+        if ($e->codeKey !== $expected || $e->httpStatus < 400) {
+            throw new RuntimeException(
+                $label.': expected '.$expected.', got '.$e->codeKey.' / '.$e->httpStatus
+            );
+        }
+        return;
+    }
+    throw new RuntimeException($label.': forbidden action was accepted');
+}
+
+uat_case('uat_staff_bm_finance_ho_role_scopes_no_writes', function () use (
+    $self, $branchManager, $financeReviewer, $headOffice, $wpdb
+) {
+    $tables = [
+        'prepaid_sales_orders', 'stock_transfers', 'expenses', 'payroll_runs',
+        'audit_log', 'journal_entries', 'stock_ledger',
+    ];
+    $before = [];
+    foreach ($tables as $name) {
+        $before[$name] = (int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table($name));
+    }
+    $order = [
+        'branch_id'=>1, 'channel'=>'b2c',
+        'lines'=>[['product_id'=>100, 'quantity'=>'1']],
+    ];
+    uat_expect_denial(fn()=>uat_dispatch('sales.order_create', $self, $order),
+        'permission_denied', 'Staff cannot create prepaid Sales orders');
+    uat_expect_denial(fn()=>uat_dispatch('finance.expense', $self, [
+        'branch_id'=>1, 'expense_head_id'=>1, 'amount'=>1,
+        'payment_account_id'=>1, 'expense_date'=>uat_date(),
+        'description'=>'Unauthorised fixture expense',
+    ]), 'permission_denied', 'Staff cannot create Finance expenses');
+    uat_expect_denial(fn()=>uat_dispatch('inventory.transfer_create', $self, [
+        'source_branch_id'=>1, 'destination_branch_id'=>2,
+        'lines'=>[['product_id'=>100, 'quantity'=>1]],
+        'notes'=>'Unauthorised fixture transfer',
+    ]), 'permission_denied', 'Staff cannot create stock transfers');
+    uat_expect_denial(fn()=>uat_dispatch('payroll.generate', $self, [
+        'branch_id'=>1, 'period_start'=>uat_date(), 'period_end'=>uat_date(),
+    ]), 'permission_denied', 'Staff cannot generate Payroll');
+    uat_expect_denial(fn()=>uat_dispatch('org.document_download', $self, [
+        'id'=>10, 'document_id'=>72,
+    ]), 'permission_denied', 'Staff cannot download restricted HR documents');
+
+    uat_expect_denial(fn()=>uat_dispatch('sales.order_create', $branchManager, $order),
+        'branch_forbidden', 'Branch Manager cannot create Sales orders in other branch');
+    uat_expect_denial(fn()=>uat_dispatch('finance.expenses', $branchManager, [
+        'branch_id'=>1,
+    ]), 'branch_forbidden', 'Branch Manager cannot list other-branch expenses');
+    uat_expect_denial(fn()=>uat_dispatch('sales.order_create', $financeReviewer, $order),
+        'permission_denied', 'Bank verifier cannot create Sales orders');
+    uat_expect_denial(fn()=>uat_dispatch('sales.order_create', $headOffice, $order),
+        'permission_denied', 'HO approval capability does not grant Sales creation');
+    $policy = uat_dispatch('sales.discount_policy', $headOffice);
+    if (!array_key_exists('configured', $policy)) {
+        throw new RuntimeException('Head Office cannot read authorised discount policy');
+    }
+    foreach ($tables as $name) {
+        $count = (int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table($name));
+        if ($count !== $before[$name]) {
+            throw new RuntimeException('Denied action mutated '.$name);
+        }
+    }
+});
 
 uat_case('uat_branch_scope_fail_closed', function () use ($self) {
     try {
@@ -214,6 +296,16 @@ uat_case('uat_daily_order_full_cycle', function () use ($self, $maker, $manager,
     if (($created['status'] ?? '') !== 'morning_draft') throw new RuntimeException('daily create status mismatch');
     if ((uat_dispatch('daily.submit',$self,['id'=>$cycle])['status'] ?? '') !== 'stock_requested') throw new RuntimeException('daily submit failed');
     if ((uat_dispatch('daily.review',$maker,['id'=>$request])['status'] ?? '') !== 'reviewed') throw new RuntimeException('independent review failed');
+    // A review must not give the maker or an unrelated branch approval rights.
+    $foreignBM = uat_actor(20, [2], [Capabilities::DAILY_APPROVE], 'BM');
+    uat_expect_denial(fn()=>uat_dispatch('daily.approve',$self,['id'=>$request]),
+        'maker_checker_required', 'Field Staff cannot approve own request');
+    uat_expect_denial(fn()=>uat_dispatch('daily.approve',$foreignBM,['id'=>$request]),
+        'acting_authority_denied', 'Manager of other branch cannot approve');
+    $statusBefore = (string)$wpdb->get_var($wpdb->prepare(
+        'SELECT status FROM '.Db::table('daily_requests').' WHERE id=%d', $request
+    ));
+    if ($statusBefore !== 'reviewed') throw new RuntimeException('Denied Daily approval changed request state');
     if ((uat_dispatch('daily.approve',$manager,['id'=>$request])['status'] ?? '') !== 'approved') throw new RuntimeException('daily approve failed');
     $lineId=(int)$wpdb->get_var($wpdb->prepare('SELECT id FROM '.Db::table('daily_request_lines').' WHERE daily_request_id=%d LIMIT 1',$request));
     if ((uat_dispatch('daily.issue',$manager,['id'=>$request,'allocations'=>[['request_line_id'=>$lineId,'quantity'=>2]]])['status'] ?? '') !== 'awaiting_receipt') throw new RuntimeException('staged allocation failed');
@@ -253,11 +345,26 @@ uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($mak
     if(abs($source-93.0)>0.001||abs($dest-5.0)>0.001) throw new RuntimeException("transfer invariant mismatch source={$source} dest={$dest}");
 });
 
-uat_case('uat_finance_expense_maker_checker', function () use ($maker,$manager,$wpdb) {
+uat_case('uat_finance_expense_maker_checker', function () use ($self,$maker,$manager,$financeReviewer,$branchManager,$wpdb) {
     $expense=uat_dispatch('finance.expense',$maker,[
         'branch_id'=>1,'expense_head_id'=>1,'amount'=>75,'payment_account_id'=>1,'expense_date'=>uat_date(),'description'=>'UAT controlled expense',
     ]);
-    $decision=uat_dispatch('finance.expense_decision',$manager,['id'=>(int)$expense['id'],'approve'=>true]);
+    $expenseId = (int)$expense['id'];
+    $journalsBefore = (int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'));
+    uat_expect_denial(fn()=>uat_dispatch('finance.expense_decision',$self,['id'=>$expenseId,'approve'=>true]),
+        'permission_denied', 'Staff cannot approve expense');
+    uat_expect_denial(fn()=>uat_dispatch('finance.expense_decision',$financeReviewer,['id'=>$expenseId,'approve'=>true]),
+        'maker_checker_required', 'Expense maker cannot approve own payment');
+    uat_expect_denial(fn()=>uat_dispatch('finance.expense_decision',$branchManager,['id'=>$expenseId,'approve'=>true]),
+        'branch_forbidden', 'Other-branch manager cannot approve expense');
+    $pending = (string)$wpdb->get_var($wpdb->prepare(
+        'SELECT status FROM '.Db::table('expenses').' WHERE id=%d', $expenseId
+    ));
+    $journalCount = (int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'));
+    if ($pending !== 'pending' || $journalCount !== $journalsBefore) {
+        throw new RuntimeException('Denied expense approval created journal or altered state');
+    }
+    $decision=uat_dispatch('finance.expense_decision',$manager,['id'=>$expenseId,'approve'=>true]);
     $journal=(int)($decision['journal_entry_id']??0);
     if(($decision['status']??'')!=='approved'||$journal<1) throw new RuntimeException('expense approval/journal failed');
     $dr=(float)$wpdb->get_var('SELECT COALESCE(SUM(debit),0) FROM '.Db::table('journal_lines').' WHERE journal_entry_id='.$journal);
@@ -265,11 +372,23 @@ uat_case('uat_finance_expense_maker_checker', function () use ($maker,$manager,$
     if(abs($dr-75.0)>0.005||abs($cr-75.0)>0.005) throw new RuntimeException('expense journal not balanced');
 });
 
-uat_case('uat_payroll_generate_approve_pay', function () use ($maker,$manager,$wpdb) {
+uat_case('uat_payroll_generate_approve_pay', function () use ($self,$maker,$manager,$wpdb) {
     $date=uat_date();
     $generated=uat_dispatch('payroll.generate',$maker,['branch_id'=>1,'period_start'=>$date,'period_end'=>$date]);
     $id=(int)$generated['id'];
     if(($generated['status']??'')!=='draft'||(float)$generated['net_total']<=0) throw new RuntimeException('payroll generation failed');
+    uat_expect_denial(fn()=>uat_dispatch('payroll.approve',$self,['id'=>$id]),
+        'permission_denied', 'Staff cannot approve Payroll');
+    $selfPayrollApprover = uat_actor(30, [1,2], [Capabilities::PAYROLL_APPROVE], 'FINANCE');
+    uat_expect_denial(fn()=>uat_dispatch('payroll.approve',$selfPayrollApprover,['id'=>$id]),
+        'maker_checker_required', 'Payroll maker cannot approve own run');
+    $foreignPayrollApprover = uat_actor(20, [2], [Capabilities::PAYROLL_APPROVE], 'BM');
+    uat_expect_denial(fn()=>uat_dispatch('payroll.approve',$foreignPayrollApprover,['id'=>$id]),
+        'branch_forbidden', 'Other-branch manager cannot approve Payroll');
+    $statusBefore = (string)$wpdb->get_var($wpdb->prepare(
+        'SELECT status FROM '.Db::table('payroll_runs').' WHERE id=%d', $id
+    ));
+    if ($statusBefore !== 'draft') throw new RuntimeException('Denied Payroll approval changed status');
     if((uat_dispatch('payroll.approve',$manager,['id'=>$id])['status']??'')!=='approved') throw new RuntimeException('payroll approval failed');
     $paid=uat_dispatch('payroll.pay',$manager,['id'=>$id,'payment_account_id'=>1,'payment_date'=>$date]);
     if(($paid['status']??'')!=='paid'||(int)($paid['payment_journal_entry_id']??0)<1) throw new RuntimeException('payroll payment failed');
