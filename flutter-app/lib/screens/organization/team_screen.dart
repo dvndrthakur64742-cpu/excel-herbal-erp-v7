@@ -12,6 +12,7 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/business_date_field.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
+import '../../widgets/guided_workspace_switcher.dart';
 import '../../widgets/gps_route_view.dart';
 import 'employee_designations_screen.dart';
 
@@ -159,13 +160,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Team Operations'),
-          bottom: TabBar(
-            isScrollable: tabs.length > 3,
-            tabs: [for (final tab in tabs) Tab(text: tab.$1)],
-          ),
-        ),
+        appBar: AppBar(title: const Text('Team Operations')),
         body: SafeArea(
           child: Column(
             children: [
@@ -188,12 +183,16 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                   child: ModuleMessageBanner(message: message!),
                 ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
-                child: ModuleSectionHeader(
-                  title: 'Team Workspace',
-                  subtitle:
-                      'Use the tabs below for the team functions allowed by your role.',
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 7),
+                child: Builder(
+                  builder: (tabContext) => GuidedWorkspaceSwitcher(
+                    title: 'Choose your team task',
+                    sections: [
+                      for (final tab in tabs)
+                        GuidedWorkspaceSection.forTab(tab.$1),
+                    ],
+                  ),
                 ),
               ),
               Expanded(
