@@ -276,6 +276,13 @@ class AppController extends StateNotifier<AppState> {
     }
   }
 
+  /// A previously rejected login or expired saved session should not leave a
+  /// stale warning visible while the employee starts entering fresh details.
+  void clearLoginError() {
+    if (state.authenticated || state.loading || state.error == null) return;
+    state = state.copyWith(clearError: true);
+  }
+
   Future<void> login(String mobile, String password) {
     final existing = _loginFuture;
     if (existing != null) return existing;
