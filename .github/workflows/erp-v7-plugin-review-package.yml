@@ -1,0 +1,167 @@
+name: ERP V7 WordPress Plugin Review Package
+
+on:
+  pull_request:
+    paths:
+      - 'plugin/excel-herbal-erp-v7/**'
+      - '.github/workflows/erp-v7-plugin-review-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eh7-plugin-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: none
+          coverage: none
+      - name: Validate tracked source and PHP release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 plugin/excel-herbal-erp-v7/tests/static_checks.py
+          expected_header='Version: 7.3.12-rc1'
+          expected_schema="VERSION='7.3.12-reward-payroll-allocated-6'"
+          grep -Fq "$expected_header" plugin/excel-herbal-erp-v7/excel-herbal-erp-v7.php
+          grep -Fq "$expected_schema" plugin/excel-herbal-erp-v7/src/Database/Schema.php
+          while IFS= read -r -d '' php_file; do
+            php -l "$php_file" >/dev/null
+          done < <(find plugin/excel-herbal-erp-v7 -type f -name '*.php' -print0)
+          node --test uat/release/release-metadata-ux.test.mjs uat/release/schema-migration-inventory.test.mjs
+          php plugin/excel-herbal-erp-v7/tests/mobile_rest_authentication.php
+          php plugin/excel-herbal-erp-v7/tests/deployment_diagnostics.php
+          php plugin/excel-herbal-erp-v7/tests/sales_default_branch_regression.php
+          echo "PASS PHP 8.3 syntax and version-alignment checks"
+
+      - name: Build isolated WordPress plugin ZIP (NOT DEPLOYED)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import re
+          import subprocess
+          import tarfile
+          import tempfile
+          import zipfile
+
+          sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert re.fullmatch(r'[0-9a-f]{40}', sha), 'Reviewed commit SHA missing'
+          stage_root = pathlib.Path(tempfile.mkdtemp(prefix='eh7-review-'))
+          plugin = stage_root / 'excel-herbal-erp-v7'
+          plugin.mkdir()
+          with tempfile.TemporaryFile() as archive:
+              subprocess.run(['git', 'archive', '--format=tar', 'HEAD:plugin/excel-herbal-erp-v7'],
+                             stdout=archive, check=True)
+              archive.seek(0)
+              with tarfile.open(fileobj=archive, mode='r:') as tar:
+                  for member in tar.getmembers():
+                      part = pathlib.PurePosixPath(member.name)
+                      if member.issym() or member.islnk() or member.isdev() or member.name.startswith('/') or '..' in part.parts:
+                          raise RuntimeError('Unsafe repository archive path: ' + member.name)
+                  tar.extractall(plugin, filter='data')
+
+          entry = (plugin / 'excel-herbal-erp-v7.php').read_text()
+          schema = (plugin / 'src/Database/Schema.php').read_text()
+          assert 'Version: 7.3.12-rc1' in entry
+          assert "define('EH7_VERSION','7.3.12-rc1')" in entry
+          assert "VERSION='7.3.12-reward-payroll-allocated-6'" in schema
+          (plugin / 'build-meta.php').write_text(
+              "<?php\nif(!defined('ABSPATH'))exit;\n"
+              "// Reviewed source marker; does not imply hosted install or backup approval.\n"
+              "if(!defined('EH7_SOURCE_HEAD'))define('EH7_SOURCE_HEAD','" + sha + "');\n"
+          )
+          review = [
+              'Excel Herbal ERP V7 — STAGING REVIEW ONLY — NOT DEPLOYED',
+              'Source commit: ' + sha,
+              'Plugin version: 7.3.12-rc1',
+              'Schema version: 7.3.12-reward-payroll-allocated-6',
+              'This archive contains a WordPress plugin, NOT a Flutter web app.',
+              'DO NOT install over office.excelherbal.in before a fresh full files+DB backup,',
+              'restore rehearsal, source comparison and written release acceptance.',
+              'Return/refund evidence verification is NOT a real payout or tax credit note.',
+          ]
+          (plugin / 'RELEASE-REVIEW-ONLY.txt').write_text('\n'.join(review) + '\n')
+          files = sorted(p for p in plugin.rglob('*') if p.is_file())
+          if not files:
+              raise RuntimeError('Empty plugin')
+          forbidden = {'wp-config.php', '.env', 'local-uat-app.json', 'local-uat-db.json'}
+          for p in files:
+              if p.is_symlink() or p.name in forbidden or p.name.endswith('.key') or p.name.endswith('.pem'):
+                  raise RuntimeError('Unsafe package entry: ' + str(p))
+
+          name = 'excel-herbal-erp-v7-7.3.12-rc1-STAGING-REVIEW-' + sha[:8] + '.zip'
+          target = pathlib.Path('dist') / name
+          with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+              for p in files:
+                  z.write(p, pathlib.PurePosixPath('excel-herbal-erp-v7') / p.relative_to(plugin).as_posix())
+          with zipfile.ZipFile(target) as z:
+              assert z.testzip() is None, 'ZIP CRC error'
+              names = z.namelist()
+              assert len(names) == len(set(names)) == len(files), 'Missing/duplicate ZIP entries'
+              assert 'excel-herbal-erp-v7/excel-herbal-erp-v7.php' in names
+              assert 'excel-herbal-erp-v7/build-meta.php' in names
+              meta = z.read('excel-herbal-erp-v7/build-meta.php').decode()
+              assert sha in meta, 'Incorrect source marker in release package'
+          digest = hashlib.sha256(target.read_bytes()).hexdigest()
+          manifest = {
+              'status': 'STAGING_REVIEW_ONLY_NOT_DEPLOYED',
+              'source_sha': sha,
+              'plugin_version': '7.3.12-rc1',
+              'schema_version': '7.3.12-reward-payroll-allocated-6',
+              'sha256': digest,
+              'zip_name': name,
+              'file_count': len(files),
+              'release_blockers': ['hosted full backup+restore rehearsal', 'site source alignment',
+                                   'employee/branch UAT', 'unfinished refund/credit-note posting']
+          }
+          (pathlib.Path('dist') / 'MANIFEST.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          (pathlib.Path('dist') / 'SHA256SUMS.txt').write_text(digest + '  ' + name + '\n')
+          print('PASS review package SHA256=' + digest + ' file_count=' + str(len(files)))
+          print('PASS exact source marker ' + sha)
+          print('NOT DEPLOYED — backup and rollback gate remains required')
+          PY
+
+      - name: Verify manifest against ZIP before publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+          python3 - <<'PY'
+          import hashlib, json, pathlib, zipfile
+          base = pathlib.Path('dist')
+          meta = json.loads((base / 'MANIFEST.json').read_text())
+          target = base / meta['zip_name']
+          assert meta['sha256'] == hashlib.sha256(target.read_bytes()).hexdigest()
+          with zipfile.ZipFile(target) as z:
+              assert z.testzip() is None
+              assert len(z.namelist()) == meta['file_count']
+          print('PASS signed-off integrity manifest cross-check')
+          PY
+
+      - name: Upload review-only plugin archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh7-wordpress-plugin-STAGING-REVIEW-ONLY
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14

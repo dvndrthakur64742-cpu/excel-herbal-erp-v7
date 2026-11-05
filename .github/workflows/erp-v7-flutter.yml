@@ -1,0 +1,144 @@
+name: ERP V7 Flutter UAT Quality Gates
+
+on:
+  pull_request:
+    paths:
+      - 'flutter-app/**'
+      - '.github/workflows/erp-v7-flutter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eh7-flutter-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-uat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'
+          channel: stable
+          cache: true
+      - name: Check Flutter version
+        run: flutter --version
+      - name: Resolve packages
+        working-directory: flutter-app
+        run: flutter pub get
+      - name: Analyze Dart
+        working-directory: flutter-app
+        run: flutter analyze --no-pub
+      - name: Enforce professional UX loading and genuine retry contracts
+        working-directory: flutter-app
+        run: node tool/verify_async_panel_loaders.cjs
+      - name: Fail on new unsupported Flutter API routes
+        working-directory: flutter-app
+        run: |
+          python3 tool/verify_api_paths_against_backend.py --baseline
+          python3 tool/verify_api_paths_against_backend.py
+          python3 -m unittest discover -s tool -p 'test_verify_api_paths*.py'
+      - name: Link canonical PHP plugin for cross-module contract tests
+        run: |
+          test -d plugin/excel-herbal-erp-v7
+          mkdir -p backend
+          ln -s ../plugin/excel-herbal-erp-v7 backend/excel-herbal-erp-v7
+      - name: Run independent Flutter client unit/widget tests
+        working-directory: flutter-app
+        shell: bash
+        run: |
+          mapfile -t CLIENT_TESTS < <(find test -type f -name '*_test.dart' \
+            ! -name 'privacy_authority_contract_test.dart' \
+            ! -name 'frontend_functional_navigation_test.dart' \
+            ! -name 'reports_account_ledger_contract_test.dart' \
+            ! -name 'employee_dashboard_gps_contract_test.dart' | sort)
+          test "${#CLIENT_TESTS[@]}" -gt 0
+          flutter test --no-pub "${CLIENT_TESTS[@]}"
+      - name: Compile isolated UAT Web build (never production)
+        working-directory: flutter-app
+        run: >
+          flutter build web --release
+          --dart-define=EH7_ENVIRONMENT=uat
+          --dart-define=EH7_API_BASE_URL=https://wordpress-uat-production.up.railway.app/wp-json/excel-herbal-erp/v7
+      - name: Assert web build has UAT target, not live server
+        run: |
+          test -f flutter-app/build/web/main.dart.js
+          grep -q 'wordpress-uat-production.up.railway.app' flutter-app/build/web/main.dart.js
+          if grep -q 'eh7_live_credentials' flutter-app/build/web/main.dart.js; then
+            echo 'Unsafe credential marker found in web bundle'; exit 1
+          fi
+          (cd flutter-app/build/web && sha256sum index.html main.dart.js > SHA256SUMS.txt)
+      - name: Upload UAT-only Web candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh7-flutter-web-uat-review
+          path: flutter-app/build/web/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Audit Flutter and PHP compatibility (release-blocking)
+        working-directory: flutter-app
+        run: |
+          flutter test --no-pub \
+            test/privacy_authority_contract_test.dart \
+            test/frontend_functional_navigation_test.dart \
+            test/reports_account_ledger_contract_test.dart \
+            test/employee_dashboard_gps_contract_test.dart
+
+      # Review artifact only. The target is classified as production by the
+      # app's existing host-safety allowlist, even though office is a development
+      # website. Do not upload/deploy this package to office automatically.
+      - name: Compile office-host Flutter Web review candidate (no deployment)
+        working-directory: flutter-app
+        shell: bash
+        run: |
+          flutter clean
+          flutter pub get
+          flutter build web --release \
+            --base-href=/wp-content/uploads/eh7-flutter-web/ \
+            --pwa-strategy=none \
+            --dart-define=EH7_ENVIRONMENT=production \
+            --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+      - name: Verify reviewed website target and generate manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="flutter-app/build/web"
+          test -s "$output/main.dart.js"
+          test -s "$output/flutter_bootstrap.js"
+          grep -Fq '<base href="/wp-content/uploads/eh7-flutter-web/">' "$output/index.html"
+          grep -Fq 'https://office.excelherbal.in/wp-json/excel-herbal-erp/v7' "$output/main.dart.js"
+          if grep -Fq 'wordpress-uat-production.up.railway.app' "$output/main.dart.js"; then
+            echo "Blocked: unexpected Railway UAT API in office review bundle" >&2
+            exit 1
+          fi
+          if grep -Fq 'eh7_live_credentials' "$output/main.dart.js"; then
+            echo "Blocked: credential marker found" >&2
+            exit 1
+          fi
+          cat > "$output/RELEASE-REVIEW.txt" <<EOF
+          Excel Herbal ERP / Flutter Web review candidate
+          CI checkout SHA (may be PR merge): $GITHUB_SHA
+          Source head SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          Intended host: https://office.excelherbal.in
+          API: https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+          Base href: /wp-content/uploads/eh7-flutter-web/
+          PWA strategy: none
+          Status: REVIEW ONLY - NOT DEPLOYED
+          Preflight: verified hosted files/database backup, restore rehearsal, authenticated bootstrap and source alignment required.
+          EOF
+          (
+            cd "$output"
+            find . -type f ! -path '*/.*' ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+      - name: Publish office Web review artifact (never auto deploy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh7-office-flutter-web-REVIEW-ONLY
+          path: flutter-app/build/web/
+          if-no-files-found: error
+          retention-days: 14

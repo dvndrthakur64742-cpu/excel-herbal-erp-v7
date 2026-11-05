@@ -1,0 +1,15 @@
+# Secrets and databases
+.env
+.env.*
+*.pem
+*.key
+wp-config.php
+*.sql
+*.sqlite
+*.sqlite3
+# Local generated artifacts
+*.zip
+*.log
+.DS_Store
+.idea/
+.vscode/

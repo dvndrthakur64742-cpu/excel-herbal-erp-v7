@@ -1,0 +1,63 @@
+name: ERP V7 Isolated UAT WordPress Image
+
+on:
+  pull_request:
+    paths:
+      - 'uat/railway/**'
+      - 'uat/local/**'
+      - 'plugin/excel-herbal-erp-v7/**'
+      - '.github/workflows/erp-v7-uat-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-uat-wordpress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Railway recovery safety gate (synthetic snapshots)
+        run: node --test uat/railway/recovery-preflight.test.mjs
+      - name: Validate Office-shaped synthetic migration fixture contract
+        run: node --test uat/railway/ci-live-shaped-fixture.test.mjs
+      - name: Validate localhost-only persistent UAT Docker Compose
+        env:
+          EH7_LOCAL_SOURCE_SHA: ${{ github.sha }}
+          EH7_LOCAL_DB_ROOT_PASSWORD: ci-only-root-password
+          EH7_LOCAL_DB_PASSWORD: ci-only-db-password
+          EH7_LOCAL_ADMIN_PASSWORD: ci-only-admin-password
+          EH7_LOCAL_LIMITED_PASSWORD: ci-only-limited-password
+        run: |
+          docker compose --env-file uat/local/.env.example -f uat/local/compose.yml config --format json > /tmp/eh7-local-uat-compose.json
+          node -e '
+            const f = require("fs");
+            const c = JSON.parse(f.readFileSync("/tmp/eh7-local-uat-compose.json","utf8"));
+            const wp=c.services["uat-wordpress"],db=c.services["uat-db"];
+            if(!wp||!db||!Array.isArray(wp.ports)||!wp.ports.some(p=>p.host_ip==="127.0.0.1"&&Number(p.published)===18880&&Number(p.target)===80))throw Error("UAT WordPress must be loopback only");
+            if(Array.isArray(db.ports)&&db.ports.length)throw Error("UAT MariaDB must never publish ports");
+            if(wp.environment.EH7_UAT_MODE!=="local"||wp.environment.EH7_UAT_SITE_URL!=="http://127.0.0.1:18880")throw Error("Wrong local UAT host allowlist");
+            if(!Array.isArray(db.volumes)||!db.volumes.some(v=>v.target==="/var/lib/mysql"))throw Error("Persistent local database volume missing");
+            console.log("PASS local Docker Compose, loopback access and private MariaDB volume");
+          '
+      - name: Validate UAT-only startup shell
+        run: |
+          bash -n uat/railway/eh7-uat-entrypoint.sh
+          grep -q 'RAILWAY_GIT_COMMIT_SHA' uat/railway/eh7-uat-entrypoint.sh
+          grep -q 'rotate_synthetic_marker' uat/railway/eh7-uat-entrypoint.sh
+          grep -q 'wordpress-uat-production.up.railway.app' uat/railway/eh7-uat-entrypoint.sh
+      - name: Build WordPress UAT image from current plugin
+        run: docker build --pull -f uat/railway/Dockerfile -t eh7-uat:review .
+      - name: Verify immutable plugin version and Apache rewrite
+        run: |
+          docker run --rm --entrypoint sh eh7-uat:review -ec '
+            test -f /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
+            grep -q "7.3.12-rc1" /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
+            test -e /etc/apache2/mods-enabled/rewrite.load
+            test -e /etc/apache2/conf-enabled/eh7-uat-rewrite.conf
+            php -l /usr/src/wordpress/wp-content/plugins/excel-herbal-erp-v7/excel-herbal-erp-v7.php
+            /usr/local/bin/wp --version --allow-root
+          '
+      - name: Full isolated WordPress activation, database migration and REST smoke
+        run: bash uat/railway/ci-wordpress-smoke.sh

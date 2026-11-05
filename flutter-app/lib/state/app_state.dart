@@ -1,0 +1,430 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/api_client.dart';
+import '../core/api_paths.dart';
+import '../core/app_config.dart';
+import '../core/navigation_authority.dart';
+import '../core/bootstrap_projection.dart';
+import '../core/bootstrap_retry_policy.dart';
+import '../core/providers.dart';
+import '../core/secure_session.dart';
+import '../core/ui_error.dart';
+
+class AppState {
+  const AppState({
+    this.loading = true,
+    this.authenticated = false,
+    this.bootstrap,
+    this.currentBranchId,
+    this.error,
+    this.errorReference,
+  });
+
+  final bool loading;
+  final bool authenticated;
+  final Map<String, dynamic>? bootstrap;
+  final int? currentBranchId;
+  final String? error;
+  /// Safe server-generated diagnostic reference, never credentials.
+  final String? errorReference;
+
+  BootstrapProjection get projection => BootstrapProjection.fromMap(bootstrap);
+
+  List<Map<String, dynamic>> get branches =>
+      projection.branches.map((branch) => branch.raw).toList(growable: false);
+
+  Map<String, dynamic> get me => projection.identity.raw;
+
+  Map<String, dynamic> get employee => projection.identity.employee.raw;
+
+  Map<String, dynamic> get company => projection.company.raw;
+
+  String get companyName => projection.company.name;
+
+  String get employeeName {
+    final name = projection.identity.employee.fullName;
+    return name.isEmpty ? 'ERP User' : name;
+  }
+
+  String get primaryDesignationCode =>
+      projection.identity.employee.designationCode;
+
+  String get primaryDesignationName {
+    final name = projection.identity.employee.designationName;
+    return name.isNotEmpty ? name : primaryDesignationCode;
+  }
+
+  String get primaryDesignationLabel {
+    final name = primaryDesignationName;
+    final code = primaryDesignationCode;
+    if (name.isEmpty) return '—';
+    if (code.isEmpty || name.toUpperCase() == code.toUpperCase()) return name;
+    return '$name ($code)';
+  }
+
+  /// Reporting category is a dashboard/reporting grouping only. It must never
+  /// be treated as a permission or branch-authority source on the client.
+  String get reportingCategory =>
+      projection.identity.employee.reportingCategory;
+
+  List<Map<String, dynamic>> get additionalDesignations =>
+      ((employee['additional_designations'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(growable: false);
+
+  bool get additionalDesignationAuthorityInherited =>
+      employee['additional_designations_authority_inherited'] == true;
+
+  bool get businessAccessBlocked => projection.identity.branchIds.isEmpty;
+
+  /// A management summary is only appropriate when the server projected the
+  /// Team workspace and the actor also has report authority. reports.view by
+  /// itself (for example an accounting-only role) does not imply team scope.
+  bool get managementDashboardVisible =>
+      sectionVisible('team') && can('reports.view');
+
+  /// Legacy tools are limited to self-service and employee-login management.
+  /// Communication has its own canonical module and must not expose this route.
+  bool get erpToolsVisible => canAny(const [
+        'workforce.attendance.self',
+        'workforce.leave.self',
+        'workforce.field_visit.self',
+        'organization.employee.manage',
+      ]);
+
+  String get currentBranchName {
+    if (businessAccessBlocked) return 'No Authorised Branch';
+    if (currentBranchId == null) return 'All Authorised Branches';
+    for (final branch in projection.branches) {
+      if (branch.id == currentBranchId) return branch.label;
+    }
+    return 'Authorised Branch';
+  }
+
+  /// Server-projected ERP business date in WordPress business timezone.
+  /// Invalid calendar dates are rejected instead of silently normalised.
+  String? get serverBusinessDate {
+    final raw = '${bootstrap?['business_date'] ?? ''}'.trim();
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(raw)) return null;
+    final parsed = DateTime.tryParse('${raw}T00:00:00Z');
+    if (parsed == null) return null;
+    final normalized =
+        '${parsed.year.toString().padLeft(4, '0')}-'
+        '${parsed.month.toString().padLeft(2, '0')}-'
+        '${parsed.day.toString().padLeft(2, '0')}';
+    return normalized == raw ? raw : null;
+  }
+
+  bool get usingFallbackBusinessDate => serverBusinessDate == null;
+
+  String get businessTimezone =>
+      '${bootstrap?['business_timezone'] ?? ''}'.trim();
+
+  String get serverTimestamp =>
+      '${bootstrap?['server_timestamp'] ?? ''}'.trim();
+
+  String get apiContractVersion =>
+      '${bootstrap?['api_contract'] ?? ''}'.trim();
+
+  String? get bootstrapCompatibilityError {
+    if (bootstrap == null) return 'ERP startup data is unavailable.';
+    if (serverBusinessDate == null) {
+      return 'ERP server business date is unavailable or invalid.';
+    }
+    if (businessTimezone.isEmpty) {
+      return 'ERP business timezone is unavailable.';
+    }
+    if (DateTime.tryParse(serverTimestamp) == null) {
+      return 'ERP server timestamp is unavailable or invalid.';
+    }
+    final features = bootstrap?['features'];
+    final featureContract = features is Map
+        ? '${features['api_contract'] ?? ''}'.trim()
+        : '';
+    if (apiContractVersion.isEmpty ||
+        featureContract.isEmpty ||
+        apiContractVersion != featureContract) {
+      return 'ERP API contract metadata is unavailable or incompatible.';
+    }
+    return null;
+  }
+
+
+  /// A failed authenticated bootstrap retains the user session, but the
+  /// recovery screen must show the actual safe API/network error first.
+  /// Otherwise a null bootstrap masks it as "startup data unavailable".
+  /// Keep the compatibility validator authoritative for business posting:
+  /// this getter only controls the explanatory text, not bootstrapReady.
+  String get bootstrapFailureMessage {
+    final requestError = error?.trim();
+    if (requestError != null && requestError.isNotEmpty) return requestError;
+    return bootstrapCompatibilityError ??
+        'Required ERP startup information is temporarily unavailable.';
+  }
+
+  bool get bootstrapReady => bootstrapCompatibilityError == null;
+
+  /// Production must never post ERP transactions using an untrusted device
+  /// date. Local-date fallback is deliberately limited to build/UAT mode.
+  String get businessDate {
+    final projected = serverBusinessDate;
+    if (projected != null) return projected;
+    if (AppConfig.isProduction) {
+      throw StateError('ERP server business date is unavailable or invalid.');
+    }
+    final d = DateTime.now();
+    return '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+  }
+
+  String get businessMonthStart => '${businessDate.substring(0, 8)}01';
+  List<String> get capabilities => projection.identity.capabilities;
+
+  /// No branch authority means no business capability may be exercised on the
+  /// client. The raw server projection remains inspectable through
+  /// [capabilities], but UI permission checks fail closed until a branch is
+  /// authorised. `erp.access` is retained only for the authenticated shell.
+  bool can(String capability) {
+    if (businessAccessBlocked && capability != 'erp.access') return false;
+    return capabilities.contains(capability);
+  }
+
+  bool canAny(Iterable<String> wanted) => wanted.any(can);
+  bool sectionVisible(String id) => sections.any((s) => '${s['id']}' == id);
+
+  /// Navigation is server-projected, but capability filters are repeated here
+  /// defensively so a stale bootstrap/navigation cache cannot expose a tool
+  /// entry that the current actor is not allowed to open.
+  List<Map<String, dynamic>> get bottomNav {
+    if (businessAccessBlocked) {
+      return const [
+        {'id': 'home', 'label': 'Home'},
+        {'id': 'profile', 'label': 'Profile'},
+      ];
+    }
+    final items =
+        (((bootstrap?['navigation'] as Map?)?['bottom_nav'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+    final seen = <String>{};
+    return items.where((item) {
+      final id = '${item['id']}';
+      // Both the server's navigation and the live capability list must agree.
+      // Deduplicate stale entries so phones do not show repeated destinations.
+      return seen.add(id) &&
+          NavigationAuthority.bottomAllowed(
+            id,
+            can,
+            erpToolsVisible: erpToolsVisible,
+          );
+    }).toList(growable: false);
+  }
+
+  bool get branchSelectorVisible =>
+      projection.branches.length > 1 &&
+      projection.identity.branchSelectorVisible;
+
+  List<Map<String, dynamic>> get sections {
+    final projected =
+        (((bootstrap?['navigation'] as Map?)?['sections'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+    if (businessAccessBlocked) {
+      return projected
+          .where((section) => '${section['id']}' == 'home')
+          .toList(growable: false);
+    }
+    final seen = <String>{};
+    return projected.where((section) {
+      final id = '${section['id']}';
+      // A cached navigation projection cannot regrant a revoked capability.
+      return seen.add(id) && NavigationAuthority.sectionAllowed(id, can);
+    }).toList(growable: false);
+  }
+
+  AppState copyWith({
+    bool? loading,
+    bool? authenticated,
+    Map<String, dynamic>? bootstrap,
+    int? currentBranchId,
+    String? error,
+    String? errorReference,
+    bool clearError = false,
+  }) => AppState(
+    loading: loading ?? this.loading,
+    authenticated: authenticated ?? this.authenticated,
+    bootstrap: bootstrap ?? this.bootstrap,
+    currentBranchId: currentBranchId ?? this.currentBranchId,
+    error: clearError ? null : (error ?? this.error),
+    errorReference: clearError || (error != null && errorReference == null)
+        ? null
+        : (errorReference ?? this.errorReference),
+  );
+}
+
+class AppController extends StateNotifier<AppState> {
+  AppController(this.api, this.session) : super(const AppState()) {
+    initialize();
+  }
+
+  final ApiClient api;
+  final SecureSession session;
+  Future<void>? _loginFuture;
+
+  Future<void> initialize() async {
+    try {
+      final token = await session.accessToken();
+      if (token == null || token.isEmpty) {
+        state = const AppState(loading: false);
+        return;
+      }
+      await refreshBootstrap();
+    } catch (_) {
+      // Secure storage may be unavailable after a browser/profile change.
+      // Never leave startup spinning indefinitely or silently erase tokens.
+      state = const AppState(
+        loading: false,
+        error: 'Unable to read your saved session. Reopen the app or contact your administrator.',
+      );
+    }
+  }
+
+  /// A previously rejected login or expired saved session should not leave a
+  /// stale warning visible while the employee starts entering fresh details.
+  void clearLoginError() {
+    if (state.authenticated || state.loading || state.error == null) return;
+    state = state.copyWith(clearError: true);
+  }
+
+  Future<void> login(String mobile, String password) {
+    final existing = _loginFuture;
+    if (existing != null) return existing;
+    final future = _performLogin(mobile, password);
+    _loginFuture = future;
+    return future.whenComplete(() => _loginFuture = null);
+  }
+
+  Future<void> _performLogin(String mobile, String password) async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      await api.login(mobile, password);
+      await refreshBootstrap();
+    } catch (e) {
+      state = AppState(loading: false, error: UiError.message(e));
+    }
+  }
+
+  /// Retry only transient read-only bootstrap failures. Never retry login,
+  /// payments or other mutations, permission errors, or contract mismatches.
+  Future<dynamic> _fetchBootstrap() async {
+    try {
+      return await api.get(ApiPaths.bootstrap);
+    } on ApiException catch (error) {
+      if (!BootstrapRetryPolicy.shouldRetry(error)) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      return api.get(ApiPaths.bootstrap);
+    }
+  }
+
+  Future<void> refreshBootstrap() async {
+    try {
+      final data = Map<String, dynamic>.from(
+        await _fetchBootstrap() as Map,
+      );
+      final projection = BootstrapProjection.fromMap(data);
+      final ids = projection.identity.branchIds;
+      final assigned = projection.identity.assignedBranchId;
+      final current =
+          state.currentBranchId != null && ids.contains(state.currentBranchId)
+          ? state.currentBranchId
+          : (ids.length == 1
+                ? ids.first
+                : (assigned != null && ids.contains(assigned)
+                      ? assigned
+                      : null));
+      final next = AppState(
+        loading: false,
+        authenticated: true,
+        bootstrap: data,
+        currentBranchId: current,
+      );
+      final compatibilityError = next.bootstrapCompatibilityError;
+      state = compatibilityError == null
+          ? next
+          : next.copyWith(error: compatibilityError);
+    } on ApiException catch (e) {
+      // 403 means authenticated but not authorised for that resource. It must
+      // never destroy a valid employee session.
+      if (e.statusCode == 401) {
+        await session.clear();
+        state = AppState(loading: false, error: UiError.message(e));
+        return;
+      }
+      if (e.statusCode == 403) {
+        // Revoke stale projected branch/capability access immediately while
+        // keeping the authenticated session for recovery or administrator help.
+        final token = await session.accessToken();
+        state = AppState(
+          loading: false,
+          authenticated: token?.isNotEmpty ?? false,
+          error: UiError.message(e),
+          errorReference: UiError.reference(e),
+        );
+        return;
+      }
+      final token = await session.accessToken();
+      state = state.copyWith(
+        loading: false,
+        authenticated: state.authenticated || (token?.isNotEmpty ?? false),
+        error: UiError.message(e),
+        errorReference: UiError.reference(e),
+      );
+    } catch (e) {
+      final token = await session.accessToken();
+      state = state.copyWith(
+        loading: false,
+        authenticated: state.authenticated || (token?.isNotEmpty ?? false),
+        error: UiError.message(e),
+      );
+    }
+  }
+
+  void selectBranch(int id) {
+    final ids = state.projection.branches.map((branch) => branch.id).toSet();
+    if (ids.contains(id)) {
+      state = state.copyWith(currentBranchId: id, clearError: true);
+    }
+  }
+
+  /// Clears only the current branch selection. Authorised branch IDs remain
+  /// server-projected in bootstrap and are never expanded.
+  void selectAllAuthorisedBranches() {
+    if (!state.branchSelectorVisible || state.businessAccessBlocked) return;
+    state = AppState(
+      loading: state.loading,
+      authenticated: state.authenticated,
+      bootstrap: state.bootstrap,
+      currentBranchId: null,
+      error: null,
+    );
+  }
+
+  Future<void> retryBootstrap() async {
+    state = state.copyWith(loading: true, clearError: true);
+    await refreshBootstrap();
+  }
+
+  Future<void> logout() async {
+    await api.logout();
+    state = const AppState(loading: false);
+  }
+}
+
+final appStateProvider = StateNotifierProvider<AppController, AppState>(
+  (ref) => AppController(
+    ref.watch(apiClientProvider),
+    ref.watch(secureSessionProvider),
+  ),
+);
