@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../screens/administration/administration_screen.dart';
 import '../screens/communication/communication_screen.dart';
-import '../screens/communication/tasks_screen.dart';
 import '../screens/finance/finance_screen.dart';
 import '../screens/home/actions_screen.dart';
 import '../screens/home/enterprise_hub_screen.dart';
@@ -102,10 +101,20 @@ class _AppShellState extends ConsumerState<AppShell> {
           appBar: AppBar(
             title: Text('${items[safeIndex]['label']}'),
             actions: [
+              if (!app.businessAccessBlocked)
+                IconButton(
+                  tooltip: 'Global Search',
+                  onPressed: () => _openModule('global_search'),
+                  icon: const Icon(Icons.search_rounded),
+                ),
               if (app.sectionVisible('communication'))
                 IconButton(
-                  tooltip: 'Announcements & notifications',
-                  onPressed: () => _openModule('communication'),
+                  tooltip: 'Notifications',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const CommunicationScreen(initialTab: 2),
+                    ),
+                  ),
                   icon: const Icon(Icons.notifications_none_rounded),
                 ),
               const SizedBox(width: 4),
@@ -198,6 +207,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ],
                   ),
                 ),
+                if (!app.businessAccessBlocked)
+                  IconButton(
+                    tooltip: 'Global Search',
+                    onPressed: () => _selectDesktopRoute('global_search'),
+                    icon: const Icon(Icons.search_rounded),
+                  ),
               ],
             ),
           ),
@@ -210,11 +225,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                 _desktopTile('home', 'Home', Icons.home_outlined),
                 if (app.sectionVisible('my_work'))
                   _desktopTile('my_work', 'My Work', Icons.work_outline),
-                if (app.can('communication.view'))
-                  _desktopTile('tasks', 'My Tasks', Icons.task_alt_outlined),
                 if (_approvalVisible(app) ||
-                    !app.businessAccessBlocked ||
-                    app.erpToolsVisible) ...[
+                    app.can('administration.access.manage')) ...[
                   const SizedBox(height: 10),
                   _sectionLabel(context, 'CONTROL'),
                 ],
@@ -223,12 +235,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                     'approvals',
                     'Approvals',
                     Icons.approval_outlined,
-                  ),
-                if (!app.businessAccessBlocked)
-                  _desktopTile(
-                    'global_search',
-                    'Global Search',
-                    Icons.manage_search_outlined,
                   ),
                 if (app.can('administration.access.manage'))
                   _desktopTile(
@@ -247,7 +253,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                     .map(
                       (s) => _desktopTile(
                         '${s['id']}',
-                        '${s['label']}',
+                        '${s['id']}' == 'communication'
+                            ? 'Inbox & Tasks'
+                            : '${s['label']}',
                         _icon('${s['id']}'),
                       ),
                     ),
@@ -358,7 +366,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       'quick_actions' => ActionsScreen(
           openConnectedAction: _openConnectedAction,
         ),
-      'tasks' => const TasksScreen(),
+      'tasks' => const CommunicationScreen(initialTab: 0),
       'erp_tools' => const ErpToolsScreen(),
       'approvals' => const EnterpriseHubScreen(
           key: ValueKey('desktop-enterprise-approvals'),
@@ -410,8 +418,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     final designation =
         '${employee['designation_name'] ?? employee['designation_code'] ?? ''}'
             .trim();
+    final tasksInBottomBar = app.bottomNav.any(
+      (item) => '${item['id']}' == 'tasks',
+    );
     final moduleSections = app.sections
         .where((s) => !const {'home', 'my_work'}.contains('${s['id']}'))
+        // Self-service Tasks already opens the full Communication workspace.
+        // Keep the separate module entry only for authorised managers.
+        .where((s) => !('${s['id']}' == 'communication' &&
+            tasksInBottomBar && !app.can('communication.manage')))
         .toList();
 
     return Drawer(
@@ -540,8 +555,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         icon: _icon('${section['id']}'),
                       ),
                   ],
-                  if (_approvalVisible(app) ||
-                      !app.businessAccessBlocked) ...[
+                  if (_approvalVisible(app)) ...[
                     const SizedBox(height: 12),
                     _drawerSectionLabel('WORKSPACE TOOLS'),
                   ],
@@ -551,13 +565,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                       id: 'approvals',
                       label: 'Approvals',
                       icon: Icons.approval_outlined,
-                    ),
-                  if (!app.businessAccessBlocked)
-                    _drawerTile(
-                      app: app,
-                      id: 'global_search',
-                      label: 'Global Search',
-                      icon: Icons.manage_search_outlined,
                     ),
                 ],
               ),
@@ -672,7 +679,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         'actions' => ActionsScreen(
             openConnectedAction: _openConnectedAction,
           ),
-        'tasks' => const TasksScreen(),
+        'tasks' => const CommunicationScreen(initialTab: 0),
         'erp_tools' => const ErpToolsScreen(),
         'approvals' => const EnterpriseHubScreen(initialTab: 0),
         'global_search' => const EnterpriseHubScreen(initialTab: 1),

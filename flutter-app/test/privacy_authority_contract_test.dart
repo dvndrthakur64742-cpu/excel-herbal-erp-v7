@@ -219,7 +219,9 @@ void main() {
     expect(communication, isNot(contains('Due At (optional ISO date/time)')));
     expect(appState, isNot(contains("'communication.view',")));
     expect(navigation, contains("['id'=>'tasks','label'=>'My Tasks']"));
-    expect(shell, contains("_desktopTile('tasks', 'My Tasks'"));
+    expect(shell, isNot(contains("_desktopTile('tasks', 'My Tasks'")));
+    expect(shell, contains("'tasks' => const CommunicationScreen(initialTab: 0)"));
+    expect(shell, contains("'Inbox & Tasks'"));
   });
 
   test('management dashboard loads independent summaries concurrently', () {

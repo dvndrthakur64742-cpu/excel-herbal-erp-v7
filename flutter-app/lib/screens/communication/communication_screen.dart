@@ -13,7 +13,11 @@ import '../../widgets/module_workspace.dart';
 import 'tasks_screen.dart';
 
 class CommunicationScreen extends ConsumerStatefulWidget {
-  const CommunicationScreen({super.key});
+  const CommunicationScreen({super.key, this.initialTab = 0})
+      : assert(initialTab >= 0 && initialTab <= 2);
+
+  /// 0 Tasks, 1 Announcements, 2 Notifications — all share one inbox.
+  final int initialTab;
 
   @override
   ConsumerState<CommunicationScreen> createState() =>
@@ -30,6 +34,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
     final app = ref.watch(appStateProvider);
     return DefaultTabController(
       length: 3,
+      initialIndex: widget.initialTab,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Communication'),
