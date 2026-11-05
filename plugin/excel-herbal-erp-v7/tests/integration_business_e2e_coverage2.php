@@ -175,7 +175,7 @@ e2_case('e2_full_prepayment_and_no_customer_credit',function()use($maker,$approv
         ]);
         throw new RuntimeException('receipt was accepted for a paid sale');
     } catch (DomainException $e) {
-        if ($e->codeKey !== 'customer_advance_disabled') throw $e;
+        if ($e->codeKey !== 'sale_not_outstanding') throw $e;
     }
     $open=e2_dispatch('sales.open_sales',$approver,[
         'branch_id'=>1,'customer_id'=>(int)$customer['id'],
