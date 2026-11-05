@@ -40,6 +40,23 @@ void main() {
     expect(state.message, contains('500.00'));
   });
 
+  test('cash collection amount is limited to outstanding whole paise', () {
+    expect(PrepaidInvoiceReadiness.collectionAmountError('0.00', 5999),
+        isNotNull);
+    expect(PrepaidInvoiceReadiness.collectionAmountError('60.00', 5999),
+        contains('exceeds remaining'));
+    expect(PrepaidInvoiceReadiness.collectionAmountError('59.99', 5999),
+        isNull);
+    expect(PrepaidInvoiceReadiness.collectionAmountError('0.01', 1),
+        isNull);
+    expect(PrepaidInvoiceReadiness.collectionAmountError('1.001', 100),
+        isNotNull);
+    expect(PrepaidInvoiceReadiness.collectionAmountError('NaN', 100),
+        isNotNull);
+    expect(PrepaidInvoiceReadiness.collectionAmountError('1.00', 0),
+        contains('No outstanding'));
+  });
+
   test('only fully covered confirmed Cash allows invoice', () {
     final partial = PrepaidInvoiceReadiness.check(
       order: order('approved', '500.00'),
@@ -73,6 +90,36 @@ void main() {
       payments: [cash, {...upi, 'status': 'confirmed'}],
     );
     expect(verified.canPost, isTrue);
+  });
+
+  test('pending payment cannot be mislabelled as bank-verified UPI', () {
+    final invalidCash = PrepaidInvoiceReadiness.check(
+      order: order('approved', '500.00'),
+      payments: [payment('cash', 'pending', '500.00')],
+    );
+    expect(invalidCash.canPost, isFalse);
+    expect(invalidCash.awaitingUpiVerification, isFalse);
+    expect(invalidCash.message, contains('Finance review'));
+
+    for (final pending in [
+      payment('upi', 'pending', '0.00'),
+      payment('upi', 'pending', 'NaN'),
+      payment('upi', 'pending', '-1.00'),
+    ]) {
+      final result = PrepaidInvoiceReadiness.check(
+        order: order('approved', '500.00'),
+        payments: [pending],
+      );
+      expect(result.canPost, isFalse);
+      expect(result.awaitingUpiVerification, isFalse);
+      expect(result.message, contains('Invalid pending UPI'));
+    }
+    final valid = PrepaidInvoiceReadiness.check(
+      order: order('approved', '500.00'),
+      payments: [payment('upi', 'pending', '500.00')],
+    );
+    expect(valid.awaitingUpiVerification, isTrue);
+    expect(valid.canPost, isFalse);
   });
 
   test('overpayment, unrecognised method and malformed money fail closed', () {

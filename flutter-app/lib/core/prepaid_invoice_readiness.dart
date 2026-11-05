@@ -29,6 +29,21 @@ class PrepaidInvoiceReadiness {
   static String format(int paise) =>
       '${paise ~/ 100}.${(paise % 100).toString().padLeft(2, '0')}';
 
+  /// Client-side entry guidance only. The server remains authoritative.
+  static String? collectionAmountError(String value, int remainingPaise) {
+    final entered = _money(value);
+    if (entered == null || entered <= 0) {
+      return 'Enter a valid positive amount in rupees.';
+    }
+    if (remainingPaise <= 0) {
+      return 'No outstanding amount remains. Refresh this order.';
+    }
+    if (entered > remainingPaise) {
+      return 'Received amount exceeds remaining ₹${format(remainingPaise)}.';
+    }
+    return null;
+  }
+
   static PrepaidInvoiceReadiness check({
     required Map<String, dynamic> order,
     required List<Map<String, dynamic>> payments,
@@ -64,6 +79,20 @@ class PrepaidInvoiceReadiness {
     for (final payment in payments) {
       final paymentStatus = '${payment['status']}';
       if (paymentStatus == 'pending') {
+        final method = payment['method'].toString();
+        if (method != 'upi') {
+          return const PrepaidInvoiceReadiness(
+            canPost: false,
+            message: 'Pending non-UPI payment needs Finance review.',
+          );
+        }
+        final pendingAmount = _money(payment['amount']);
+        if (pendingAmount == null || pendingAmount <= 0) {
+          return const PrepaidInvoiceReadiness(
+            canPost: false,
+            message: 'Invalid pending UPI collection. Contact Finance.',
+          );
+        }
         pendingUpi = true;
         continue;
       }
