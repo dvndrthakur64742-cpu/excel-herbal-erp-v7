@@ -318,6 +318,7 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                   validator: (v) =>
                       PrepaidInvoiceReadiness.collectionAmountError(
                         (v ?? '').trim(), remainingPaise),
+                ),
                 if (isUpi) TextFormField(controller: reference,
                   decoration: const InputDecoration(labelText: 'UPI transaction ID *'),
                   validator: (v) => (v ?? '').trim().length >= 6
@@ -481,7 +482,7 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                     invoice!.remainingPaise! > 0 &&
                     !invoice.awaitingUpiVerification)
                   OutlinedButton(onPressed: _busy ? null : () =>
-                    _collect(order, invoice!.remainingPaise!),
+                    _collect(order, invoice.remainingPaise!),
                     child: const Text('Record Cash / UPI')),
                 if (order['status'] == 'approved' &&
                     app.can('sales.create') && invoice?.canPost == true)
