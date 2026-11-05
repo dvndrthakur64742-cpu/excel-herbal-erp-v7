@@ -84,7 +84,9 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    final button = tester.widget<FilledButton>(find.byType(FilledButton));
+    final button = tester.widget<FilledButton>(
+      find.byWidgetPredicate((widget) => widget is FilledButton),
+    );
     expect(button.onPressed, isNull);
     expect(find.text('Select an authorised branch to continue.'),
         findsOneWidget);
