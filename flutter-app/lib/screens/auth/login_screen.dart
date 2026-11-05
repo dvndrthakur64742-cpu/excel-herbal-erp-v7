@@ -232,6 +232,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (validationError != null) {
       setState(() => validationError = null);
     }
+    ref.read(appStateProvider.notifier).clearLoginError();
   }
 
   void _login(bool loading) {

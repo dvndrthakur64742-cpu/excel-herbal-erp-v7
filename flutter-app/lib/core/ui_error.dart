@@ -43,6 +43,11 @@ class UiError {
 
   static String _api(ApiException error) {
     if (error.statusCode == 401) {
+      // Login credential rejection is not an expired employee session.
+      // Keep the wording generic so an attacker cannot enumerate accounts.
+      if (error.code == 'invalid_credentials') {
+        return 'Mobile number or password is incorrect.';
+      }
       return 'Your session has expired. Please sign in again.';
     }
     if (error.statusCode == 403) {
