@@ -113,6 +113,10 @@ class BusinessFormat {
   };
 
   static const _labelOverrides = {
+    'transfer_number': 'Transfer',
+    'source_branch_name': 'From',
+    'destination_branch_name': 'To',
+    'items_summary': 'Items',
     'reference': 'Reference',
     'entry_no': 'Entry No.',
     'sale_no': 'Sale No.',
