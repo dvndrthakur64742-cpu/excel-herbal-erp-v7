@@ -87,6 +87,7 @@ class NavigationAuthority {
     'sales.create',
     'sales.receipt.create',
     'inventory.transfer.create',
+    'inventory.adjustment.create',
     'purchase.create',
     'finance.expense.create',
   ];
