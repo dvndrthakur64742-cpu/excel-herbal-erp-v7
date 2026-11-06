@@ -480,7 +480,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         _section(
           context,
           'Receivable Position',
-          'Accounting receivable report se matched customer rows.',
+          'Customer records matched to the Accounts Receivable report.',
           _relatedList(context, receivables, empty: 'No receivable row.'),
         ),
       ],
@@ -538,7 +538,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         _section(
           context,
           'Payable Position',
-          'Accounting payable report se matched supplier rows.',
+          'Supplier records matched to the Accounts Payable report.',
           _relatedList(context, payables, empty: 'No payable row.'),
         ),
       ],
@@ -594,7 +594,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         _section(
           context,
           'Supplier',
-          'Is bill se linked supplier master.',
+          'Supplier master linked to this bill.',
           _linkedEntityCard(context, supplier, 'supplier'),
         ),
       ],
@@ -603,7 +603,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         _section(
           context,
           'Accounting Report Match',
-          'Current month purchase report me matched bill record.',
+          'Matching bill from the current month purchase report.',
           _overviewCard(context, match),
         ),
       ],
@@ -663,7 +663,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
       _section(
         context,
         'Commercial History',
-        'Effective commercial revisions; current values ko overwrite karke history hide nahi hoti.',
+        'Commercial revisions preserve previous values and their effective dates.',
         _relatedList(
           context,
           history,
@@ -862,7 +862,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
       _section(
         context,
         'Route',
-        'Transfer authority ke branch IDs ko authorised branch names me resolve kiya gaya hai.',
+        'Transfer branch IDs are displayed as authorised branch names.',
         Card(
           child: ListTile(
             leading: const Icon(Icons.route_outlined),
@@ -1306,7 +1306,7 @@ class _WorkspaceError extends StatelessWidget {
           const Icon(Icons.error_outline_rounded, size: 42),
           const SizedBox(height: 12),
           Text(
-            'Workspace data load nahi ho paya.',
+            'Workspace data could not be loaded.',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 6),
