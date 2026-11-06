@@ -48,6 +48,14 @@ class _FakeApi extends ApiClient {
 }
 
 void main() {
+  test('authenticated Flutter calls include a proxy-safe ERP bearer header', () {
+    const token = 'synthetic-bearer-do-not-use';
+    final headers = ApiClient.bearerHeaders(token);
+    expect(headers['Authorization'], 'Bearer $token');
+    expect(headers['X-EH7-Authorization'], 'Bearer $token');
+    expect(headers.length, 2);
+  });
+
   test('unauthorised login and expired session have distinct safe messages', () {
     expect(
       UiError.message(const ApiException(
