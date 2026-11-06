@@ -133,6 +133,8 @@ class BusinessFormat {
     'paid_amount': 'Paid',
     'outstanding_amount': 'Outstanding',
     'product_name': 'Product',
+    'expiry_tracking': 'Expiry Tracking',
+    'batch_tracking': 'Batch Tracking',
     'supplier_name': 'Supplier',
     'customer_name': 'Customer',
     'employee_name': 'Employee',
@@ -239,6 +241,17 @@ class BusinessFormat {
       return '—';
     final k = key.toLowerCase();
     if (k == 'status') return status(value);
+    if (k == 'expiry_tracking' || k == 'batch_tracking') {
+      final flag = '$value'.trim().toLowerCase();
+      if (value == true || const {'1', 'yes', 'true', 'on', 'enabled'}.contains(flag)) {
+        return 'Yes';
+      }
+      if (value == false || const {'0', 'no', 'false', 'off', 'disabled'}.contains(flag)) {
+        return 'No';
+      }
+      // Do not invent a Yes/No value for an unknown backend flag.
+      return '—';
+    }
     if (k == 'login_enabled') {
       final raw = '$value'.trim().toLowerCase();
       return value == true || raw == '1' || raw == 'true'
