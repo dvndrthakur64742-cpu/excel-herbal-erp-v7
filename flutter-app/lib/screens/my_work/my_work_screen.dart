@@ -16,6 +16,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/evening_submit_confirmation.dart';
+import '../../widgets/erp_status_badge.dart';
 import '../../widgets/gps_route_view.dart';
 
 part 'my_work_attendance.dart';

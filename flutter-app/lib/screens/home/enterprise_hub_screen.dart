@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
+import '../../widgets/erp_status_badge.dart';
 import '../../core/stock_search_preview.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
@@ -920,7 +921,7 @@ class _ApprovalCard extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              _StatusChip(item.status),
+              ErpStatusBadge(status: item.status),
             ],
           ),
           const SizedBox(height: 7),
@@ -1038,19 +1039,6 @@ class _SearchHitCard extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(text, style: Theme.of(context).textTheme.labelSmall),
-  );
-}
 
 class _SearchHelp extends StatelessWidget {
   const _SearchHelp();
