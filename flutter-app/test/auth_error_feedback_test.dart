@@ -67,6 +67,54 @@ void main() {
     );
   });
 
+  testWidgets('expired saved session at startup opens a clean login screen',
+      (tester) async {
+    final session = _FakeSession()..token = 'synthetic-expired-token';
+    final controller = AppController(_FakeApi(session), session);
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [appStateProvider.overrideWith((ref) => controller)],
+      child: const MaterialApp(home: LoginScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(session.clearCount, 1);
+    expect(session.token, isNull);
+    expect(controller.state.authenticated, isFalse);
+    expect(controller.state.error, isNull);
+    expect(find.text('Your session has expired. Please sign in again.'),
+        findsNothing);
+    expect(find.text('SIGN IN'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('fresh sign-in 401 is not misreported as an expired session', () {
+    expect(
+      UiError.loginMessage(const ApiException(
+        'not_authenticated',
+        'Server rejected unauthenticated request.',
+        401,
+      )),
+      'Sign-in could not be completed. Please retry or contact your administrator.',
+    );
+    expect(
+      UiError.loginMessage(const ApiException(
+        'invalid_credentials',
+        'Invalid login credentials.',
+        401,
+      )),
+      'Mobile number or password is incorrect.',
+    );
+    expect(
+      UiError.message(const ApiException(
+        'not_authenticated',
+        'ERP session invalid or expired.',
+        401,
+      )),
+      'Your session has expired. Please sign in again.',
+    );
+  });
+
   testWidgets('expired session warning goes away on typing',
       (tester) async {
     final session = _FakeSession();
