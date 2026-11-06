@@ -35,6 +35,19 @@ class UiError {
         : 'This action could not be completed. Please try again.';
   }
 
+  /// New sign-in attempts are not session refreshes. A gateway or server 401
+  /// must not be labelled an "expired session" before authentication succeeds.
+  /// Keep credential errors generic to prevent user/account enumeration.
+  static String loginMessage(Object error) {
+    if (error is ApiException && error.statusCode == 401) {
+      if (error.code == 'invalid_credentials') {
+        return 'Mobile number or password is incorrect.';
+      }
+      return 'Sign-in could not be completed. Please retry or contact your administrator.';
+    }
+    return message(error);
+  }
+
   static String? reference(Object error) {
     if (error is! ApiException) return null;
     final value = error.requestId?.trim();
