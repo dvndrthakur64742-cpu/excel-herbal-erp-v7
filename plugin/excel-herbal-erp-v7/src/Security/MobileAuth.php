@@ -100,8 +100,22 @@ final class MobileAuth{
  }
 
  private static function authorizationHeader():string{
+  // Respect the normal WordPress Authorization header first. In particular,
+  // an explicit invalid bearer must never be replaced by a valid fallback.
   foreach(['HTTP_AUTHORIZATION','REDIRECT_HTTP_AUTHORIZATION','Authorization'] as$key){$value=trim((string)($_SERVER[$key]??''));if($value!=='')return$value;}
-  if(function_exists('getallheaders')){foreach((array)getallheaders() as$name=>$value)if(strcasecmp((string)$name,'Authorization')===0&&trim((string)$value)!=='')return trim((string)$value);}
+  $headers=function_exists('getallheaders')?(array)getallheaders():[];
+  foreach($headers as$name=>$value){if(strcasecmp((string)$name,'Authorization')===0&&trim((string)$value)!=='')return trim((string)$value);}
+
+  // Some Apache/FastCGI proxies strip Authorization. The Flutter client also
+  // sends X-EH7-Authorization expressly for this case. Accept it ONLY inside
+  // the ERP REST namespace: do not turn a mobile token into universal
+  // WordPress authentication for unrelated plugins or admin endpoints.
+  if(!defined('REST_REQUEST')||!REST_REQUEST)return'';
+  global $wp;
+  $route=(string)($wp->query_vars['rest_route']??'');
+  if(!preg_match('#^/excel-herbal-erp/v7(?:/|$)#',$route))return'';
+  foreach(['HTTP_X_EH7_AUTHORIZATION','REDIRECT_HTTP_X_EH7_AUTHORIZATION'] as$key){$value=trim((string)($_SERVER[$key]??''));if($value!=='')return$value;}
+  foreach($headers as$name=>$value){if(strcasecmp((string)$name,'X-EH7-Authorization')===0&&trim((string)$value)!=='')return trim((string)$value);}
   return'';
  }
  private static function deviceKey(string $deviceId):?string{$deviceId=trim($deviceId);if($deviceId==='')return null;if(strlen($deviceId)>190)throw new DomainException('Device identity is invalid.','device_identity_invalid',422);return hash('sha256',$deviceId);}
