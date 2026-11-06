@@ -280,6 +280,12 @@ class BusinessFormat {
     }
     if (k == 'source_type' || k == 'type')
       return _titleWords('$value'.replaceAll('_', ' '));
+    if (k == 'product_name') {
+      return '$value'.trim().split(RegExp(r'\\s+')).map((word) {
+        if (word.isEmpty || RegExp(r'\\d').hasMatch(word)) return word;
+        return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+      }).join(' ');
+    }
     if (k.contains('name')) return displayName('$value');
     return '$value';
   }
