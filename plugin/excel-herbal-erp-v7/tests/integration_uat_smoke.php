@@ -345,6 +345,61 @@ uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($mak
     if(abs($source-93.0)>0.001||abs($dest-5.0)>0.001) throw new RuntimeException("transfer invariant mismatch source={$source} dest={$dest}");
 });
 
+uat_case('uat_inventory_transfer_list_branches_units_and_scope', function () use ($manager,$branchManager,$wpdb) {
+    // This suite recreates a disposable MariaDB schema: no production data is touched.
+    $rows = uat_dispatch('inventory.transfers', $manager, ['branch_id'=>1]);
+    $received = null;
+    foreach ($rows as $row) {
+        if (($row['status'] ?? '') === 'received') { $received = $row; break; }
+    }
+    if (!$received) throw new RuntimeException('Expected received transfer missing from source branch');
+    if (($received['source_branch_name'] ?? '') !== 'UAT Branch One'
+        || ($received['destination_branch_name'] ?? '') !== 'UAT Branch Two'
+        || (int)($received['line_count'] ?? 0) !== 1
+        || abs((float)($received['single_quantity'] ?? 0)-5.0)>0.001
+        || ($received['single_uom'] ?? '') !== 'PCS') {
+        throw new RuntimeException('Transfer list lost human-readable branches, one-line quantity or UOM');
+    }
+    $destinationRows = uat_dispatch('inventory.transfers', $branchManager, ['branch_id'=>2]);
+    if (!array_filter($destinationRows, fn($r)=>(int)$r['id']===(int)$received['id'])) {
+        throw new RuntimeException('Authorised destination branch cannot see its transfer');
+    }
+    uat_expect_denial(
+        fn()=>uat_dispatch('inventory.transfers', $branchManager, ['branch_id'=>1]),
+        'branch_forbidden', 'Destination-only manager cannot list source branch'
+    );
+
+    uat_insert($wpdb,'products', [
+        'id'=>101,'company_id'=>1,'sku'=>'UAT-KG-101','name'=>'UAT Bulk Product',
+        'uom'=>'KG','batch_tracking'=>'off','expiry_tracking'=>0,
+        'status'=>'active','created_at'=>'2026-01-01 00:00:00',
+    ]);
+    uat_insert($wpdb,'stock_transfers', [
+        'id'=>900,'company_id'=>1,'source_branch_id'=>1,
+        'destination_branch_id'=>2,'status'=>'draft','created_by'=>30,
+        'created_at'=>'2026-01-01 00:00:00',
+    ]);
+    uat_insert($wpdb,'stock_transfer_lines', [
+        'transfer_id'=>900,'product_id'=>100,'batch_id'=>null,'quantity'=>3,
+    ]);
+    uat_insert($wpdb,'stock_transfer_lines', [
+        'transfer_id'=>900,'product_id'=>101,'batch_id'=>null,'quantity'=>7,
+    ]);
+    $rows = uat_dispatch('inventory.transfers', $manager, ['branch_id'=>1]);
+    $multi = null;
+    foreach ($rows as $row) {
+        if ((int)$row['id']===900) { $multi=$row; break; }
+    }
+    if (!$multi || (int)($multi['line_count'] ?? 0)!==2) {
+        throw new RuntimeException('Mixed-unit transfer line count is wrong');
+    }
+    // Multi-product transfers must be presented as counts, not a sum across KG and PCS.
+    if (($multi['source_branch_name'] ?? '') !== 'UAT Branch One'
+        || ($multi['destination_branch_name'] ?? '') !== 'UAT Branch Two') {
+        throw new RuntimeException('Mixed-unit transfer branch labels are wrong');
+    }
+});
+
 uat_case('uat_finance_expense_maker_checker', function () use ($self,$maker,$manager,$financeReviewer,$branchManager,$wpdb) {
     $expense=uat_dispatch('finance.expense',$maker,[
         'branch_id'=>1,'expense_head_id'=>1,'amount'=>75,'payment_account_id'=>1,'expense_date'=>uat_date(),'description'=>'UAT controlled expense',
