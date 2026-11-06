@@ -240,7 +240,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       (s) => _desktopTile(
                         '${s['id']}',
                         '${s['id']}' == 'communication'
-                            ? 'Inbox & Tasks'
+                            ? kCommunicationWorkspaceTitle
                             : '${s['label']}',
                         _icon('${s['id']}'),
                       ),
@@ -320,7 +320,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
         title: Text(
           label,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
@@ -525,7 +525,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                       _drawerTile(
                         app: app,
                         id: '${section['id']}',
-                        label: '${section['label']}',
+                        label: '${section['id']}' == 'communication'
+                            ? kCommunicationWorkspaceTitle
+                            : '${section['label']}',
                         icon: _icon('${section['id']}'),
                       ),
                   ],
@@ -618,7 +620,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
         title: Text(
           label,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
