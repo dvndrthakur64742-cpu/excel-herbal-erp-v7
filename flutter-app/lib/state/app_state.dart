@@ -280,7 +280,10 @@ class AppController extends StateNotifier<AppState> {
         state = const AppState(loading: false);
         return;
       }
-      await refreshBootstrap();
+      // A saved token may have expired while the app was closed. Recover to a
+      // clean sign-in screen instead of presenting a stale login error before
+      // the employee has tried to sign in again.
+      await refreshBootstrap(fromStoredSession: true);
     } catch (_) {
       // Secure storage may be unavailable after a browser/profile change.
       // Never leave startup spinning indefinitely or silently erase tokens.
@@ -312,7 +315,7 @@ class AppController extends StateNotifier<AppState> {
       await api.login(mobile, password);
       await refreshBootstrap();
     } catch (e) {
-      state = AppState(loading: false, error: UiError.message(e));
+      state = AppState(loading: false, error: UiError.loginMessage(e));
     }
   }
 
@@ -328,7 +331,7 @@ class AppController extends StateNotifier<AppState> {
     }
   }
 
-  Future<void> refreshBootstrap() async {
+  Future<void> refreshBootstrap({bool fromStoredSession = false}) async {
     try {
       final data = Map<String, dynamic>.from(
         await _fetchBootstrap() as Map,
@@ -359,7 +362,13 @@ class AppController extends StateNotifier<AppState> {
       // never destroy a valid employee session.
       if (e.statusCode == 401) {
         await session.clear();
-        state = AppState(loading: false, error: UiError.message(e));
+        // Only a silent *cold-start* recovery suppresses the expected expired
+        // token notice. An already active session that is revoked during work
+        // must still tell the employee why a new sign-in is necessary.
+        state = AppState(
+          loading: false,
+          error: fromStoredSession ? null : UiError.message(e),
+        );
         return;
       }
       if (e.statusCode == 403) {
