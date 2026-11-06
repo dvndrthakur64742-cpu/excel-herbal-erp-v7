@@ -20,7 +20,7 @@ class GpsRouteQuery {
         : '${parsed.year.toString().padLeft(4, '0')}-'
             '${parsed.month.toString().padLeft(2, '0')}-'
             '${parsed.day.toString().padLeft(2, '0')}';
-    if (businessDate != normalized) {
+    if (parsed == null || businessDate != normalized) {
       throw FormatException('Invalid ERP business date.', businessDate);
     }
     if (employeeId != null && employeeId <= 0) {
