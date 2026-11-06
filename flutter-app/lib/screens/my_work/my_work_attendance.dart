@@ -145,7 +145,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
             ApiPaths.gpsRoute,
             query: GpsRouteQuery.forBusinessDate(app.businessDate),
           ),
-          emptyMessage: 'Aaj abhi koi GPS route point record nahi hua.',
+          emptyMessage: 'No GPS route points have been recorded today.',
           builder: (context, data) {
             final points = ((data as List?) ?? const [])
                 .whereType<Map>()
