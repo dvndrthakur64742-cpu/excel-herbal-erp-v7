@@ -113,6 +113,9 @@ class BusinessFormat {
   };
 
   static const _labelOverrides = {
+    'search_branch': 'Branch',
+    'search_custodian': 'Custodian',
+    'search_quantity': 'Quantity',
     'reference': 'Reference',
     'entry_no': 'Entry No.',
     'sale_no': 'Sale No.',

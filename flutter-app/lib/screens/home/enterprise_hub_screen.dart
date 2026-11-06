@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
+import '../../core/stock_search_preview.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -575,6 +576,12 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
               recordType: recordType,
               row: row,
               title: _searchTitle(row, titleKeys, group),
+              previewFields: recordType == 'stock'
+                  ? StockSearchPreview.fields(
+                      row,
+                      selectedBranchName: app.currentBranchName,
+                    )
+                  : null,
             ),
           );
           if (hits.length >= 120) return;
@@ -829,11 +836,13 @@ class _SearchHit {
     required this.recordType,
     required this.row,
     required this.title,
+    this.previewFields,
   });
   final String group;
   final String recordType;
   final Map<String, dynamic> row;
   final String title;
+  final List<MapEntry<String, dynamic>>? previewFields;
 }
 
 class _SearchResult {
@@ -950,7 +959,7 @@ class _SearchHitCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visible = hit.row.entries
+    final visible = hit.previewFields ?? hit.row.entries
         .where(
           (e) =>
               !BusinessFormat.isTechnicalKey(e.key) &&
