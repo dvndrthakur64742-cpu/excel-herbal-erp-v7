@@ -87,6 +87,8 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   Widget _dutyTab(AppState app) {
     final api = ref.watch(apiClientProvider);
     final tracker = ref.watch(gpsTrackingProvider);
+    // Holidays below still use the current calendar year.
+    final now = DateTime.now();
 
     return RefreshIndicator(
       onRefresh: () async {
