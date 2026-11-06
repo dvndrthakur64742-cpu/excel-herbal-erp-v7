@@ -92,9 +92,9 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('Transfer #38'), findsOneWidget);
-    expect(find.text('Head Office'), findsOneWidget);
-    expect(find.text('Mandi'), findsOneWidget);
-    expect(find.text('4 PCS'), findsOneWidget);
+    expect(find.textContaining('From: Head Office'), findsOneWidget);
+    expect(find.textContaining('To: Mandi'), findsOneWidget);
+    expect(find.textContaining('Items: 4 PCS'), findsOneWidget);
     expect(find.byType(DataTable), findsNothing);
     expect(tester.takeException(), isNull);
   });
