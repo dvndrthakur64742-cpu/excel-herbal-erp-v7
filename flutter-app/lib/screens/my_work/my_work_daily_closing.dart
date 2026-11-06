@@ -101,12 +101,12 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
 
                   if (ret + wh > issued + 0.0001) {
                     throw Exception(
-                      '${l['product_name']}: Return + Wholesale issued quantity se zyada nahi ho sakta.',
+                      '${l['product_name']}: Return plus Wholesale quantity cannot exceed issued stock.',
                     );
                   }
                   if (wh > 0 && (!whRate.isFinite || whRate <= 0 || whRate > retailRate + .005)) {
                     throw Exception(
-                      '${l['product_name']}: Wholesale rate 0 se zyada aur retail rate se kam/equal hona chahiye.',
+                      '${l['product_name']}: Wholesale rate must be above zero and no greater than the retail rate.',
                     );
                   }
                   if (wh > 0) anyWholesale = true;
@@ -121,7 +121,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
 
                 if (wholesaleEnabled && !anyWholesale) {
                   throw Exception(
-                    'Wholesale Yes select kiya hai. Kam se kam ek Wholesale Qty enter karein.',
+                    'Wholesale is enabled. Enter at least one wholesale quantity.',
                   );
                 }
                 if (wholesaleEnabled && customer.text.trim().isEmpty) {
@@ -335,8 +335,8 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                                       const SizedBox(height: 6),
                                       Text(
                                         wholesaleEnabled
-                                            ? 'Wholesale Qty/Rate enter karein. Discount ka 50% BM Profit aur 50% Salary Fund se ghatega. HO, Office aur Points unchanged rahenge.'
-                                            : 'Wholesale No: sirf Return Qty enter karein.',
+                                            ? 'Enter Wholesale Qty and Rate. Half the discount reduces BM Profit and half reduces Salary Fund. Head Office, Office and Points remain unchanged.'
+                                            : 'Wholesale disabled: enter Return Qty only.',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
                                     ],
@@ -360,8 +360,8 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                                       Expanded(
                                         child: Text(
                                           wholesaleEnabled
-                                              ? 'Return aur Wholesale enter karein. ERP Retail Sold calculate karega; Wholesale Discount BM Profit aur Salary Fund se 50/50 katega. Limit se zyada discount save nahi hoga.'
-                                              : 'Sirf Return Qty enter karein. Retail Sold ERP automatically calculate karega.',
+                                              ? 'Enter Return and Wholesale quantities. ERP calculates Retail Sold; the wholesale discount is split equally between BM Profit and Salary Fund. Discounts over the limit cannot be saved.'
+                                              : 'Enter Return Qty only. ERP calculates Retail Sold automatically.',
                                         ),
                                       ),
                                     ],
@@ -1032,7 +1032,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
                             if (reconciliationDifference > .01) ...[
                               const SizedBox(height: 6),
                               Text(
-                                'Server total ${BusinessFormat.money(backendExpected)} · Product calculation ${BusinessFormat.money(calculatedExpected)}. Final Post blocked hai jab tak dono totals reconcile nahi hote.',
+                                'Server total ${BusinessFormat.money(backendExpected)} · Product calculation ${BusinessFormat.money(calculatedExpected)}. Final Post stays blocked until both totals reconcile.',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -1155,7 +1155,7 @@ extension _MyWorkDailyClosingImpl on _MyWorkScreenState {
           serverExpected: backendExpected,
         )) {
           throw Exception(
-            'Final Post blocked: payment components aur product/server reconciliation verify karein.',
+            'Final Post blocked: verify payment components and reconcile product and server totals.',
           );
         }
         await api.post(ApiPaths.finalPost(id), data: {'cash': c, 'upi': u});

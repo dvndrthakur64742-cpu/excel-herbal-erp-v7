@@ -3,7 +3,7 @@ part of 'finance_screen.dart';
 extension _FinanceBankFeature on _FinanceScreenState {
   Widget _bank(AppState app, dynamic api) {
     if (app.currentBranchId == null)
-      return const Center(child: Text('Branch select karein.'));
+      return const Center(child: Text('Select a branch.'));
     return Column(
       children: [
         if (app.can('finance.bank_reconcile'))
@@ -25,7 +25,7 @@ extension _FinanceBankFeature on _FinanceScreenState {
               ApiPaths.bankReconciliations,
               query: {'branch_id': app.currentBranchId},
             ),
-            emptyMessage: 'Koi Bank Reconciliation nahi hai.',
+            emptyMessage: 'No bank reconciliation records yet.',
             builder: (context, data) => RecordsList(
               recordType: 'bank_reconciliation',
               rows: _rows(data),
@@ -140,7 +140,7 @@ extension _FinanceBankFeature on _FinanceScreenState {
         final closingValue = double.tryParse(closing.text.trim());
         if (openingValue == null || closingValue == null) {
           throw Exception(
-            'Opening aur Closing Balance valid number me enter karein.',
+            'Enter valid numbers for Opening and Closing Balance.',
           );
         }
         final r = await api.post(
@@ -157,7 +157,7 @@ extension _FinanceBankFeature on _FinanceScreenState {
         if (mounted)
           _setFinanceState(() {
             message =
-                'Bank reconciliation #${(r as Map)['id']} created. Statement lines import karein.';
+                'Bank reconciliation #${(r as Map)['id']} created. Import statement lines to continue.';
             refresh++;
           });
       }
@@ -344,7 +344,7 @@ extension _FinanceBankFeature on _FinanceScreenState {
                 final creditValue = double.tryParse(credit.text.trim());
                 String? error;
                 if (debitValue == null || creditValue == null) {
-                  error = 'Debit/Credit valid number me enter karein.';
+                  error = 'Enter valid Debit and Credit amounts.';
                 } else {
                   error = TransactionGuardrails.bankStatementLine(
                     date: date.text.trim(),

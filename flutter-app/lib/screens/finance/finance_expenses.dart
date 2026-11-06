@@ -3,7 +3,7 @@ part of 'finance_screen.dart';
 extension _FinanceExpensesFeature on _FinanceScreenState {
   Widget _expenses(AppState app, dynamic api) {
     if (app.currentBranchId == null)
-      return const Center(child: Text('Branch select karein.'));
+      return const Center(child: Text('Select a branch.'));
     return Column(
       children: [
         if (app.can('finance.expense.create'))
@@ -25,7 +25,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
               ApiPaths.expenses,
               query: {'branch_id': app.currentBranchId},
             ),
-            emptyMessage: 'Koi expense record nahi hai.',
+            emptyMessage: 'No expense records yet.',
             builder: (context, data) => RecordsList(
               recordType: 'expense',
               rows: _rows(data),
@@ -136,7 +136,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
       if (ok == true) {
         final expenseAmount = double.tryParse(amount.text.trim());
         if (expenseAmount == null) {
-          throw Exception('Expense amount valid number me enter karein.');
+          throw Exception('Enter a valid expense amount.');
         }
         final guardError = TransactionGuardrails.expense(
           expenseHeadId: head,
@@ -157,7 +157,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
         );
         if (mounted)
           _setFinanceState(() {
-            message = 'Expense approval ke liye submit ho gaya.';
+            message = 'Expense submitted for approval.';
             refresh++;
           });
       }

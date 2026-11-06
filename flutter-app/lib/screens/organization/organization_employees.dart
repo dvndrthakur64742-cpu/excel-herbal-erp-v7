@@ -95,19 +95,21 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                     TextField(
                       controller: code,
                       decoration: const InputDecoration(
-                        labelText: 'Employee Code',
+                        labelText: 'Employee Code *',
+                        helperText: 'Required · unique within your company',
                       ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: name,
-                      decoration: const InputDecoration(labelText: 'Full Name'),
+                      decoration: const InputDecoration(labelText: 'Full Name *'),
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
                       initialValue: designationCode,
                       decoration: const InputDecoration(
-                        labelText: 'Designation',
+                        labelText: 'Designation *',
+                        helperText: 'Required · choose an active designation',
                       ),
                       items: designations
                           .map(
@@ -178,15 +180,24 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                         ),
                         decoration: const InputDecoration(
                           labelText: 'Monthly Salary',
+                          prefixText: '₹ ',
+                          helperText: 'INR per month · enter 0 if not yet allocated',
                         ),
                       ),
                       const SizedBox(height: 10),
                     ],
                     BusinessDateField(
                       controller: joining,
-                      label: 'Joining Date',
+                      label: 'Joining Date *',
                     ),
                     const SizedBox(height: 10),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '* Required: Employee Code, Full Name, Designation and Joining Date. Mobile and Email are optional.',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -282,7 +293,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       if (mounted)
         _setOrganizationState(() {
           refresh++;
-          message = 'Employee create ho gaya.';
+          message = 'Employee created successfully.';
         });
     } catch (e) {
       if (mounted) _setOrganizationState(() => message = UiError.message(e));

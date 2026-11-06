@@ -5,7 +5,7 @@ extension _FinancePeriodsFeature on _FinanceScreenState {
     if (!app.can('finance.period.manage'))
       return const Center(
         child: Text(
-          'Accounting Period control aapke role ke liye authorised nahi hai.',
+          'Your role is not authorised to manage accounting periods.',
         ),
       );
     return Column(
@@ -25,7 +25,7 @@ extension _FinancePeriodsFeature on _FinanceScreenState {
           child: AsyncPanel(
             key: ValueKey('periods-$refresh'),
             loader: () => api.get(ApiPaths.periods),
-            emptyMessage: 'Koi accounting period record nahi hai.',
+            emptyMessage: 'No accounting period records yet.',
             builder: (context, data) => RecordsList(
               recordType: 'accounting_period',
               rows: _rows(data),

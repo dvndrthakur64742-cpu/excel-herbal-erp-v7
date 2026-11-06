@@ -73,12 +73,34 @@ function uat_rebuild_schema(Eh7IntegrationWpdb $db): void {
     }
     $db->query('SET FOREIGN_KEY_CHECKS=1');
     uat_create_options($db);
+    // WordPress owns wp_users in production. The disposable integration DB
+    // needs its minimal read-only identity table for the employee LEFT JOIN.
+    if ($db->query('DROP TABLE IF EXISTS '.$db->users) === false) {
+        throw new RuntimeException('Synthetic WP users reset failed');
+    }
+    if ($db->query('CREATE TABLE '.$db->users.' ('.
+        'ID BIGINT UNSIGNED NOT NULL,PRIMARY KEY(ID)'.
+        ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4') === false) {
+        throw new RuntimeException('Synthetic WP users table missing: '.$db->last_error);
+    }
 }
 function uat_seed(Eh7IntegrationWpdb $db): void {
     uat_insert($db, 'companies', ['id'=>1,'name'=>'UAT Disposable Company','status'=>'active','created_at'=>'2026-01-01 00:00:00']);
     foreach ([[1,'B1','UAT Branch One',1],[2,'B2','UAT Branch Two',0]] as [$id,$code,$name,$ho]) {
         uat_insert($db, 'branches', ['id'=>$id,'company_id'=>1,'code'=>$code,'name'=>$name,'is_head_office'=>$ho,'status'=>'active','created_at'=>'2026-01-01 00:00:00']);
     }
+    uat_insert($db, 'designations', [
+        'company_id'=>1,'code'=>'FE','name'=>'Field Executive',
+        'sequence_no'=>1,'field_role'=>1,'status'=>'active',
+    ]);
+    uat_insert($db, 'designations', [
+        'company_id'=>1,'code'=>'SYSADMIN','name'=>'System Administrator',
+        'sequence_no'=>2,'field_role'=>0,'status'=>'active',
+    ]);
+    uat_insert($db, 'designations', [
+        'company_id'=>2,'code'=>'FE','name'=>'Other Company Role',
+        'sequence_no'=>1,'field_role'=>0,'status'=>'active',
+    ]);
     foreach ([[10,'E10','Field Employee',1,'FE',501],[20,'E20','UAT Manager',2,'SYSADMIN',502],[30,'E30','UAT Maker',2,'SYSADMIN',503]] as [$id,$code,$name,$branch,$designation,$wp]) {
         uat_insert($db, 'employees', [
             'id'=>$id,'company_id'=>1,'employee_code'=>$code,'wp_user_id'=>$wp,'designation_code'=>$designation,
@@ -256,6 +278,24 @@ uat_case('uat_staff_bm_finance_ho_role_scopes_no_writes', function () use (
     }
 });
 
+uat_case('uat_employee_directory_names_and_company_scope', function () use ($manager) {
+    $rows = uat_dispatch('org.employees', $manager, ['branch_id'=>1]);
+    $employee = null;
+    foreach ($rows as $row) {
+        if ((int)($row['id'] ?? 0)===10) { $employee=$row; break; }
+    }
+    if (!$employee || $employee['full_name'] !== 'Field Employee'
+        || ($employee['designation_code'] ?? '') !== 'FE'
+        || ($employee['designation_name'] ?? '') !== 'Field Executive') {
+        throw new RuntimeException('Employee directory did not use own-company designation name');
+    }
+    $otherBranch = uat_actor(20,[2],[Capabilities::EMP_VIEW],'BM');
+    uat_expect_denial(
+        fn()=>uat_dispatch('org.employees',$otherBranch,['branch_id'=>1]),
+        'branch_forbidden','Employee directory leaked another branch'
+    );
+});
+
 uat_case('uat_branch_scope_fail_closed', function () use ($self) {
     try {
         uat_dispatch('daily.create', $self, [
@@ -343,6 +383,61 @@ uat_case('uat_inventory_transfer_create_dispatch_receive', function () use ($mak
     $source=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=1 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     $dest=(float)$wpdb->get_var('SELECT quantity FROM '.Db::table('stock_balances').' WHERE company_id=1 AND branch_id=2 AND product_id=100 AND batch_key=0 AND custodian_key=0');
     if(abs($source-93.0)>0.001||abs($dest-5.0)>0.001) throw new RuntimeException("transfer invariant mismatch source={$source} dest={$dest}");
+});
+
+uat_case('uat_inventory_transfer_list_branches_units_and_scope', function () use ($manager,$branchManager,$wpdb) {
+    // This suite recreates a disposable MariaDB schema: no production data is touched.
+    $rows = uat_dispatch('inventory.transfers', $manager, ['branch_id'=>1]);
+    $received = null;
+    foreach ($rows as $row) {
+        if (($row['status'] ?? '') === 'received') { $received = $row; break; }
+    }
+    if (!$received) throw new RuntimeException('Expected received transfer missing from source branch');
+    if (($received['source_branch_name'] ?? '') !== 'UAT Branch One'
+        || ($received['destination_branch_name'] ?? '') !== 'UAT Branch Two'
+        || (int)($received['line_count'] ?? 0) !== 1
+        || abs((float)($received['single_quantity'] ?? 0)-5.0)>0.001
+        || ($received['single_uom'] ?? '') !== 'PCS') {
+        throw new RuntimeException('Transfer list lost human-readable branches, one-line quantity or UOM');
+    }
+    $destinationRows = uat_dispatch('inventory.transfers', $branchManager, ['branch_id'=>2]);
+    if (!array_filter($destinationRows, fn($r)=>(int)$r['id']===(int)$received['id'])) {
+        throw new RuntimeException('Authorised destination branch cannot see its transfer');
+    }
+    uat_expect_denial(
+        fn()=>uat_dispatch('inventory.transfers', $branchManager, ['branch_id'=>1]),
+        'branch_forbidden', 'Destination-only manager cannot list source branch'
+    );
+
+    uat_insert($wpdb,'products', [
+        'id'=>101,'company_id'=>1,'sku'=>'UAT-KG-101','name'=>'UAT Bulk Product',
+        'uom'=>'KG','batch_tracking'=>'off','expiry_tracking'=>0,
+        'status'=>'active','created_at'=>'2026-01-01 00:00:00',
+    ]);
+    uat_insert($wpdb,'stock_transfers', [
+        'id'=>900,'company_id'=>1,'source_branch_id'=>1,
+        'destination_branch_id'=>2,'status'=>'draft','created_by'=>30,
+        'created_at'=>'2026-01-01 00:00:00',
+    ]);
+    uat_insert($wpdb,'stock_transfer_lines', [
+        'transfer_id'=>900,'product_id'=>100,'batch_id'=>null,'quantity'=>3,
+    ]);
+    uat_insert($wpdb,'stock_transfer_lines', [
+        'transfer_id'=>900,'product_id'=>101,'batch_id'=>null,'quantity'=>7,
+    ]);
+    $rows = uat_dispatch('inventory.transfers', $manager, ['branch_id'=>1]);
+    $multi = null;
+    foreach ($rows as $row) {
+        if ((int)$row['id']===900) { $multi=$row; break; }
+    }
+    if (!$multi || (int)($multi['line_count'] ?? 0)!==2) {
+        throw new RuntimeException('Mixed-unit transfer line count is wrong');
+    }
+    // Multi-product transfers must be presented as counts, not a sum across KG and PCS.
+    if (($multi['source_branch_name'] ?? '') !== 'UAT Branch One'
+        || ($multi['destination_branch_name'] ?? '') !== 'UAT Branch Two') {
+        throw new RuntimeException('Mixed-unit transfer branch labels are wrong');
+    }
 });
 
 uat_case('uat_finance_expense_maker_checker', function () use ($self,$maker,$manager,$financeReviewer,$branchManager,$wpdb) {

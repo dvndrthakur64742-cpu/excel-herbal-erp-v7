@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/entity_relations.dart';
+import '../../core/stock_custody_text.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
 
@@ -479,7 +480,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         _section(
           context,
           'Receivable Position',
-          'Accounting receivable report se matched customer rows.',
+          'Customer records matched to the Accounts Receivable report.',
           _relatedList(context, receivables, empty: 'No receivable row.'),
         ),
       ],
@@ -537,7 +538,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         _section(
           context,
           'Payable Position',
-          'Accounting payable report se matched supplier rows.',
+          'Supplier records matched to the Accounts Payable report.',
           _relatedList(context, payables, empty: 'No payable row.'),
         ),
       ],
@@ -593,7 +594,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         _section(
           context,
           'Supplier',
-          'Is bill se linked supplier master.',
+          'Supplier master linked to this bill.',
           _linkedEntityCard(context, supplier, 'supplier'),
         ),
       ],
@@ -602,7 +603,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
         _section(
           context,
           'Accounting Report Match',
-          'Current month purchase report me matched bill record.',
+          'Matching bill from the current month purchase report.',
           _overviewCard(context, match),
         ),
       ],
@@ -613,6 +614,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     BuildContext context,
     Map<String, dynamic> data,
   ) {
+    final app = ref.read(appStateProvider);
+    final selectedBranch = _branchLabel(app, _branchId(app));
     final product = data['product'] is Map
         ? Map<String, dynamic>.from(data['product'] as Map)
         : widget.row;
@@ -622,7 +625,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     return [
       _metrics(context, [
         _Metric(
-          'Available Stock',
+          'Stock Held in Branch',
           BusinessFormat.quantity(quantity),
           Icons.inventory_2_outlined,
         ),
@@ -643,18 +646,24 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
       _section(
         context,
         'Current Stock & Batches',
-        'Selected branch ke stock rows; batch/custodian detail backend ke according.',
+        'Includes branch warehouse and employee-held balances. Not all stock is available for issue or sale.',
         _relatedList(
           context,
           stock,
-          empty: 'Current branch me stock nahi hai.',
+          empty: 'No stock is recorded for the selected branch.',
+          titleBuilder: (row) =>
+              '${StockCustodyText.holder(row)} · '
+              '${BusinessFormat.quantity(row['quantity'])} '
+              '${StockCustodyText.unit(row)}',
+          subtitleBuilder: (row) =>
+              StockCustodyText.details(row, branchName: selectedBranch),
         ),
       ),
       const SizedBox(height: 16),
       _section(
         context,
         'Commercial History',
-        'Effective commercial revisions; current values ko overwrite karke history hide nahi hoti.',
+        'Commercial revisions preserve previous values and their effective dates.',
         _relatedList(
           context,
           history,
@@ -853,7 +862,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
       _section(
         context,
         'Route',
-        'Transfer authority ke branch IDs ko authorised branch names me resolve kiya gaya hai.',
+        'Transfer branch IDs are displayed as authorised branch names.',
         Card(
           child: ListTile(
             leading: const Icon(Icons.route_outlined),
@@ -1035,6 +1044,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     List<Map<String, dynamic>> rows, {
     String? recordType,
     required String empty,
+    String Function(Map<String, dynamic>)? titleBuilder,
+    String Function(Map<String, dynamic>)? subtitleBuilder,
   }) {
     if (rows.isEmpty) return _EmptyBox(message: empty);
     return Column(
@@ -1044,8 +1055,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Card(
               child: ListTile(
-                title: Text(_rowTitle(row)),
-                subtitle: Text(_rowSubtitle(row)),
+                title: Text(titleBuilder?.call(row) ?? _rowTitle(row)),
+                subtitle: Text(subtitleBuilder?.call(row) ?? _rowSubtitle(row)),
                 trailing: EntityWorkspaceScreen.supports(recordType)
                     ? const Icon(Icons.arrow_forward_ios_rounded, size: 16)
                     : null,
@@ -1295,7 +1306,7 @@ class _WorkspaceError extends StatelessWidget {
           const Icon(Icons.error_outline_rounded, size: 42),
           const SizedBox(height: 12),
           Text(
-            'Workspace data load nahi ho paya.',
+            'Workspace data could not be loaded.',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 6),

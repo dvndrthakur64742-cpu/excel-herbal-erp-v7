@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
+import '../../core/gps_route_query.dart';
 import '../../core/daily_order_workflow.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
@@ -398,17 +399,13 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     final employeeId = int.tryParse('${row['employee_id'] ?? ''}') ?? 0;
     if (employeeId <= 0) return;
     final app = ref.read(appStateProvider);
-    final date = DateTime.tryParse(app.businessDate) ?? DateTime.now();
-    final from = DateTime(date.year, date.month, date.day).toUtc();
-    final to = DateTime(date.year, date.month, date.day, 23, 59, 59).toUtc();
     try {
       final data = await ref.read(apiClientProvider).get(
         ApiPaths.gpsRoute,
-        query: {
-          'employee_id': employeeId,
-          'from': from.toIso8601String(),
-          'to': to.toIso8601String(),
-        },
+        query: GpsRouteQuery.forBusinessDate(
+          app.businessDate,
+          employeeId: employeeId,
+        ),
       );
       if (!mounted) return;
       final points = (data as List)
