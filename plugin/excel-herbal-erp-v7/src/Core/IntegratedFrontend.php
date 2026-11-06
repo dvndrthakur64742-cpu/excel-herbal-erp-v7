@@ -71,7 +71,8 @@ final class IntegratedFrontend
 
     public static function maybeServe(): void
     {
-        if ((function_exists('is_admin') && is_admin()) ||
+        if ((defined('REST_REQUEST') && REST_REQUEST) || isset($_GET['rest_route']) ||
+            (function_exists('is_admin') && is_admin()) ||
             (function_exists('wp_doing_ajax') && wp_doing_ajax())) {
             return;
         }
