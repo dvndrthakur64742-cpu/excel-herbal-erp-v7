@@ -12,6 +12,8 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/module_workspace.dart';
 import 'tasks_screen.dart';
 
+const String kCommunicationWorkspaceTitle = 'Inbox & Tasks';
+
 class CommunicationScreen extends ConsumerStatefulWidget {
   const CommunicationScreen({super.key, this.initialTab = 0})
       : assert(initialTab >= 0 && initialTab <= 2);
@@ -37,7 +39,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
       initialIndex: widget.initialTab,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Communication'),
+          title: const Text(kCommunicationWorkspaceTitle),
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Tasks'),
@@ -52,9 +54,9 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
                 child: ModuleWorkspaceHeader(
-                  title: 'Communication',
+                  title: kCommunicationWorkspaceTitle,
                   subtitle:
-                      'Tasks, announcements and notifications in one workspace.',
+                      'Choose Tasks, Announcements or Notifications from the tabs above.',
                   icon: Icons.forum_outlined,
                   contextLabel: 'Business date · ${app.businessDate}',
                 ),
@@ -98,7 +100,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
               const Padding(
                 padding: EdgeInsets.fromLTRB(12, 12, 12, 7),
                 child: ModuleSectionHeader(
-                  title: 'Communication Workspace',
+                  title: 'Your messages and tasks',
                   subtitle:
                       'Review assigned work and stay current with business updates.',
                 ),

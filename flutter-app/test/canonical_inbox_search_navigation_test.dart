@@ -44,6 +44,7 @@ void main() {
     expect(shell, contains("tasksInBottomBar && !app.can('communication.manage')"));
     expect(shell, contains("app.sectionVisible('communication')"));
     expect(shell, isNot(contains("_desktopTile('tasks', 'My Tasks'")));
-    expect(shell, contains("'Inbox & Tasks'"));
+    expect(kCommunicationWorkspaceTitle, 'Inbox & Tasks');
+    expect(shell, contains('kCommunicationWorkspaceTitle'));
   });
 }

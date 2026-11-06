@@ -7,7 +7,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
     final api = ref.read(apiClientProvider);
     if (app.currentBranchId == null) {
       if (mounted) {
-        _setFeatureState(() => message = 'Authorised Branch select karein.');
+        _setFeatureState(() => message = 'Select an authorised branch.');
       }
       return;
     }
@@ -15,7 +15,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
       if (mounted) {
         _setFeatureState(
           () => message =
-              'Daily Order create karne ki permission aapke role mein nahi hai.',
+              'Your role is not authorised to create Daily Orders.',
         );
       }
       return;
@@ -151,7 +151,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
               if (lines.isEmpty) {
                 setLocalState(
                   () => formError =
-                      'Kam se kam ek product ki quantity enter karein.',
+                      'Enter a quantity for at least one product.',
                 );
                 return;
               }
@@ -470,7 +470,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                     Expanded(
                       child: visibleProducts.isEmpty
                           ? const Center(
-                              child: Text('Matching product nahi mila.'),
+                              child: Text('No matching product found.'),
                             )
                           : LayoutBuilder(
                               builder: (context, constraints) {
@@ -1127,7 +1127,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
           }
         }
         if (lines.isEmpty) {
-          throw Exception('Kam se kam ek additional product required hai.');
+          throw Exception('Add at least one additional product.');
         }
         await api.post(ApiPaths.dailyAdditional(id), data: {'lines': lines});
         if (mounted) {
@@ -1253,7 +1253,7 @@ extension _MyWorkDailyOrderImpl on _MyWorkScreenState {
                         ? (isAdditional
                             ? 'Approved additional quantity available hai. ERP FEFO allocation record karega; employee physical receipt confirm karega tab custody move hogi.'
                             : 'Approved quantity available hai. ERP FEFO allocation record karega; employee physical receipt confirm karega tab custody move hogi.')
-                        : 'Stock shortage detected. Neeche Required vs Available check karein. Shortage clear hone tak Issue button blocked rahega.',
+                        : 'Stock shortage detected. Check Required versus Available below. Issue remains disabled until the shortage is resolved.',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       color: allAvailable

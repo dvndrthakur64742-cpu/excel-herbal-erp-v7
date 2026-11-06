@@ -461,57 +461,10 @@ extension _MyWorkDailyOverviewImpl on _MyWorkScreenState {
     return map[status] ?? status;
   }
 
-  Widget _orderStatusChipImpl(String status) {
-    Color background;
-    Color foreground;
-    IconData icon;
-    switch (status) {
-      case 'completed':
-        background = const Color(0xFFDFF3E6);
-        foreground = ExcelBrand.primaryDark;
-        icon = Icons.check_circle_outline_rounded;
-        break;
-      case 'approved':
-      case 'issued':
-      case 'stock_requested':
-      case 'evening_submitted':
-        background = const Color(0xFFFFF0D8);
-        foreground = const Color(0xFF8A5700);
-        icon = Icons.schedule_rounded;
-        break;
-      case 'cancelled':
-        background = const Color(0xFFFFE6E6);
-        foreground = const Color(0xFF9B3030);
-        icon = Icons.cancel_outlined;
-        break;
-      default:
-        background = const Color(0xFFF0F3F1);
-        foreground = ExcelBrand.muted;
-        icon = Icons.edit_note_rounded;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: foreground),
-          const SizedBox(width: 4),
-          Text(
-            _MyWorkDaily(this)._statusText(status),
-            style: TextStyle(
-              color: foreground,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _orderStatusChipImpl(String status) => ErpStatusBadge(
+    status: status,
+    label: _MyWorkDaily(this)._statusText(status),
+  );
 
   String _dailyRowStatusText(Map<String, dynamic> row) {
     final status = '${row['status'] ?? ''}';

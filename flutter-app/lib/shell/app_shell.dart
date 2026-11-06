@@ -20,6 +20,7 @@ import '../screens/tools/erp_tools_screen.dart';
 import '../core/overlay_transition.dart';
 import '../state/app_state.dart';
 import '../theme/excel_brand.dart';
+import '../widgets/brand_logo.dart';
 import 'shell_layout.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -167,22 +168,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             padding: const EdgeInsets.fromLTRB(18, 20, 16, 16),
             child: Row(
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
-                  ),
-                  child: Image.asset(
-                    'assets/branding/excel-herbal-logo.webp',
-                    fit: BoxFit.contain,
-                  ),
-                ),
+                const BrandLogo(width: 56, height: 56),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -254,7 +240,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       (s) => _desktopTile(
                         '${s['id']}',
                         '${s['id']}' == 'communication'
-                            ? 'Inbox & Tasks'
+                            ? kCommunicationWorkspaceTitle
                             : '${s['label']}',
                         _icon('${s['id']}'),
                       ),
@@ -334,7 +320,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
         title: Text(
           label,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
@@ -452,19 +438,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        width: 116,
-                        height: 42,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Image.asset(
-                          'assets/branding/excel-herbal-logo.webp',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
+                      const BrandLogo(width: 116, height: 42),
                       const Spacer(),
                       IconButton(
                         tooltip: 'Close menu',
@@ -551,7 +525,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                       _drawerTile(
                         app: app,
                         id: '${section['id']}',
-                        label: '${section['label']}',
+                        label: '${section['id']}' == 'communication'
+                            ? kCommunicationWorkspaceTitle
+                            : '${section['label']}',
                         icon: _icon('${section['id']}'),
                       ),
                   ],
@@ -644,7 +620,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
         title: Text(
           label,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontWeight: selected ? FontWeight.w700 : FontWeight.w600,

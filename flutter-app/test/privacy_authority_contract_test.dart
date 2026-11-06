@@ -221,7 +221,8 @@ void main() {
     expect(navigation, contains("['id'=>'tasks','label'=>'My Tasks']"));
     expect(shell, isNot(contains("_desktopTile('tasks', 'My Tasks'")));
     expect(shell, contains("'tasks' => const CommunicationScreen(initialTab: 0)"));
-    expect(shell, contains("'Inbox & Tasks'"));
+    expect(communication, contains("kCommunicationWorkspaceTitle = 'Inbox & Tasks'"));
+    expect(shell, contains('kCommunicationWorkspaceTitle'));
   });
 
   test('management dashboard loads independent summaries concurrently', () {
