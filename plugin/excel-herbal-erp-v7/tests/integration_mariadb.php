@@ -30,6 +30,7 @@ if (!function_exists('wp_json_encode')) {
 
 final class Eh7IntegrationWpdb {
     public string $prefix = 'wp_';
+    public string $users = 'wp_users';
     public string $last_error = '';
     public int $insert_id = 0;
 
