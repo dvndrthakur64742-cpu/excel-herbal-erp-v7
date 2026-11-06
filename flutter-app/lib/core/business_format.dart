@@ -259,8 +259,8 @@ class BusinessFormat {
           ? 'Enabled'
           : 'Disabled';
     }
+    if (k == 'designation_code') return '$value'.trim().toUpperCase();
     if (const {
-      'designation_code',
       'reporting_category',
       'role_code',
     }.contains(k)) {
