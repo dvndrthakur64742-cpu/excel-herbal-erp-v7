@@ -79,6 +79,18 @@ function uat_seed(Eh7IntegrationWpdb $db): void {
     foreach ([[1,'B1','UAT Branch One',1],[2,'B2','UAT Branch Two',0]] as [$id,$code,$name,$ho]) {
         uat_insert($db, 'branches', ['id'=>$id,'company_id'=>1,'code'=>$code,'name'=>$name,'is_head_office'=>$ho,'status'=>'active','created_at'=>'2026-01-01 00:00:00']);
     }
+    uat_insert($db, 'designations', [
+        'company_id'=>1,'code'=>'FE','name'=>'Field Executive',
+        'sequence_no'=>1,'field_role'=>1,'status'=>'active',
+    ]);
+    uat_insert($db, 'designations', [
+        'company_id'=>1,'code'=>'SYSADMIN','name'=>'System Administrator',
+        'sequence_no'=>2,'field_role'=>0,'status'=>'active',
+    ]);
+    uat_insert($db, 'designations', [
+        'company_id'=>2,'code'=>'FE','name'=>'Other Company Role',
+        'sequence_no'=>1,'field_role'=>0,'status'=>'active',
+    ]);
     foreach ([[10,'E10','Field Employee',1,'FE',501],[20,'E20','UAT Manager',2,'SYSADMIN',502],[30,'E30','UAT Maker',2,'SYSADMIN',503]] as [$id,$code,$name,$branch,$designation,$wp]) {
         uat_insert($db, 'employees', [
             'id'=>$id,'company_id'=>1,'employee_code'=>$code,'wp_user_id'=>$wp,'designation_code'=>$designation,
@@ -254,6 +266,24 @@ uat_case('uat_staff_bm_finance_ho_role_scopes_no_writes', function () use (
             throw new RuntimeException('Denied action mutated '.$name);
         }
     }
+});
+
+uat_case('uat_employee_directory_names_and_company_scope', function () use ($manager) {
+    $rows = uat_dispatch('org.employees', $manager, ['branch_id'=>1]);
+    $employee = null;
+    foreach ($rows as $row) {
+        if ((int)($row['id'] ?? 0)===10) { $employee=$row; break; }
+    }
+    if (!$employee || $employee['full_name'] !== 'Field Employee'
+        || ($employee['designation_code'] ?? '') !== 'FE'
+        || ($employee['designation_name'] ?? '') !== 'Field Executive') {
+        throw new RuntimeException('Employee directory did not use own-company designation name');
+    }
+    $otherBranch = uat_actor(20,[2],[Capabilities::EMP_VIEW],'BM');
+    uat_expect_denial(
+        fn()=>uat_dispatch('org.employees',$otherBranch,['branch_id'=>1]),
+        'branch_forbidden','Employee directory leaked another branch'
+    );
 });
 
 uat_case('uat_branch_scope_fail_closed', function () use ($self) {
