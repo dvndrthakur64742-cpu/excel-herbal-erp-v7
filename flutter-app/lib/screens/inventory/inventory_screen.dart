@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
+import '../../core/transfer_list_presentation.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
 import '../../core/whole_pcs.dart';
@@ -91,7 +92,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 ),
           builder: (context, data) => RecordsList(
             recordType: 'stock_transfer',
-            rows: _rows(data),
+            titleKeys: const ['transfer_number'],
+            rows: _rows(data)
+                .map((row) => TransferListPresentation.row(row, app.branches))
+                .toList(growable: false),
             onTap: _transferActions,
           ),
         ),

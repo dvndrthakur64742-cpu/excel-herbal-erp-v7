@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/entity_relations.dart';
+import '../../core/stock_custody_text.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
 
@@ -613,6 +614,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     BuildContext context,
     Map<String, dynamic> data,
   ) {
+    final app = ref.read(appStateProvider);
+    final selectedBranch = _branchLabel(app, _branchId(app));
     final product = data['product'] is Map
         ? Map<String, dynamic>.from(data['product'] as Map)
         : widget.row;
@@ -622,7 +625,7 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     return [
       _metrics(context, [
         _Metric(
-          'Available Stock',
+          'Stock Held in Branch',
           BusinessFormat.quantity(quantity),
           Icons.inventory_2_outlined,
         ),
@@ -643,11 +646,17 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
       _section(
         context,
         'Current Stock & Batches',
-        'Selected branch ke stock rows; batch/custodian detail backend ke according.',
+        'Includes branch warehouse and employee-held balances. Not all stock is available for issue or sale.',
         _relatedList(
           context,
           stock,
-          empty: 'Current branch me stock nahi hai.',
+          empty: 'No stock is recorded for the selected branch.',
+          titleBuilder: (row) =>
+              '${StockCustodyText.holder(row)} · '
+              '${BusinessFormat.quantity(row['quantity'])} '
+              '${StockCustodyText.unit(row)}',
+          subtitleBuilder: (row) =>
+              StockCustodyText.details(row, branchName: selectedBranch),
         ),
       ),
       const SizedBox(height: 16),
@@ -1035,6 +1044,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
     List<Map<String, dynamic>> rows, {
     String? recordType,
     required String empty,
+    String Function(Map<String, dynamic>)? titleBuilder,
+    String Function(Map<String, dynamic>)? subtitleBuilder,
   }) {
     if (rows.isEmpty) return _EmptyBox(message: empty);
     return Column(
@@ -1044,8 +1055,8 @@ class _EntityWorkspaceScreenState extends ConsumerState<EntityWorkspaceScreen> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Card(
               child: ListTile(
-                title: Text(_rowTitle(row)),
-                subtitle: Text(_rowSubtitle(row)),
+                title: Text(titleBuilder?.call(row) ?? _rowTitle(row)),
+                subtitle: Text(subtitleBuilder?.call(row) ?? _rowSubtitle(row)),
                 trailing: EntityWorkspaceScreen.supports(recordType)
                     ? const Icon(Icons.arrow_forward_ios_rounded, size: 16)
                     : null,

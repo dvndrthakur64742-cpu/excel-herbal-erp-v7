@@ -507,6 +507,11 @@ class _RecordsListState extends State<RecordsList> {
     }
 
     final typePriority = switch (widget.recordType) {
+      'stock_transfer' => const [
+        'source_branch_name',
+        'destination_branch_name',
+        'items_summary',
+      ],
       'stock' => const [
         'quantity',
         'custodian_name',
@@ -680,6 +685,13 @@ class _RecordsListState extends State<RecordsList> {
         'outstanding_amount',
         'status',
         'address',
+      ],
+      'stock_transfer' => const [
+        'transfer_number',
+        'source_branch_name',
+        'destination_branch_name',
+        'items_summary',
+        'status',
       ],
       'stock' => const [
         'product_name',
