@@ -259,7 +259,12 @@ class BusinessFormat {
           ? 'Enabled'
           : 'Disabled';
     }
-    if (k == 'designation_code') return '$value'.trim().toUpperCase();
+    if (k == 'designation_code') {
+      final code = '$value'.trim();
+      return code.contains('_') || code.contains(' ')
+          ? _titleWords(code.replaceAll('_', ' ').toLowerCase())
+          : code.toUpperCase();
+    }
     if (const {
       'reporting_category',
       'role_code',
