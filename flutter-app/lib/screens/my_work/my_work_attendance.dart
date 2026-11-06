@@ -5,9 +5,6 @@ extension _MyWorkAttendance on _MyWorkScreenState {
     final api = ref.watch(apiClientProvider);
     final app = ref.watch(appStateProvider);
     final tracker = ref.watch(gpsTrackingProvider);
-    final routeDay = DateTime.tryParse(app.businessDate) ?? DateTime.now();
-    final routeFrom = DateTime(routeDay.year, routeDay.month, routeDay.day).toUtc();
-    final routeTo = DateTime(routeDay.year, routeDay.month, routeDay.day, 23, 59, 59).toUtc();
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
       children: [
@@ -133,7 +130,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
             leading: const Icon(Icons.route_outlined),
             title: const Text('Today’s GPS Route'),
             subtitle: const Text(
-              'Check-in duty ke dauran server par record hue GPS points, route trace aur distance.',
+              'View GPS points, route trace and distance recorded during duty.' ,
             ),
             trailing: IconButton(
               tooltip: 'Refresh today’s route',
@@ -146,12 +143,9 @@ extension _MyWorkAttendance on _MyWorkScreenState {
           key: ValueKey('gps-route-$refresh'),
           loader: () => api.get(
             ApiPaths.gpsRoute,
-            query: {
-              'from': routeFrom.toIso8601String(),
-              'to': routeTo.toIso8601String(),
-            },
+            query: GpsRouteQuery.forBusinessDate(app.businessDate),
           ),
-          emptyMessage: 'Aaj abhi koi GPS route point record nahi hua.',
+          emptyMessage: 'No GPS route points have been recorded today.',
           builder: (context, data) {
             final points = ((data as List?) ?? const [])
                 .whereType<Map>()

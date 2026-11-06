@@ -113,6 +113,13 @@ class BusinessFormat {
   };
 
   static const _labelOverrides = {
+    'search_branch': 'Branch',
+    'search_custodian': 'Custodian',
+    'search_quantity': 'Quantity',
+    'transfer_number': 'Transfer',
+    'source_branch_name': 'From',
+    'destination_branch_name': 'To',
+    'items_summary': 'Items',
     'reference': 'Reference',
     'entry_no': 'Entry No.',
     'sale_no': 'Sale No.',
@@ -126,13 +133,16 @@ class BusinessFormat {
     'paid_amount': 'Paid',
     'outstanding_amount': 'Outstanding',
     'product_name': 'Product',
+    'expiry_tracking': 'Expiry Tracking',
+    'batch_tracking': 'Batch Tracking',
     'supplier_name': 'Supplier',
     'customer_name': 'Customer',
     'employee_name': 'Employee',
     'branch_name': 'Branch',
     'full_name': 'Name',
     'employee_code': 'Employee Code',
-    'designation_code': 'Designation',
+    'designation_code': 'Designation Code',
+    'designation_name': 'Designation',
     'reporting_category': 'Reporting Group',
     'role_code': 'Role',
     'login_enabled': 'Login Access',
@@ -232,14 +242,30 @@ class BusinessFormat {
       return '—';
     final k = key.toLowerCase();
     if (k == 'status') return status(value);
+    if (k == 'expiry_tracking' || k == 'batch_tracking') {
+      final flag = '$value'.trim().toLowerCase();
+      if (value == true || const {'1', 'yes', 'true', 'on', 'enabled'}.contains(flag)) {
+        return 'Yes';
+      }
+      if (value == false || const {'0', 'no', 'false', 'off', 'disabled'}.contains(flag)) {
+        return 'No';
+      }
+      // Do not invent a Yes/No value for an unknown backend flag.
+      return '—';
+    }
     if (k == 'login_enabled') {
       final raw = '$value'.trim().toLowerCase();
       return value == true || raw == '1' || raw == 'true'
           ? 'Enabled'
           : 'Disabled';
     }
+    if (k == 'designation_code') {
+      final code = '$value'.trim();
+      return code.contains('_') || code.contains(' ')
+          ? _titleWords(code.replaceAll('_', ' ').toLowerCase())
+          : code.toUpperCase();
+    }
     if (const {
-      'designation_code',
       'reporting_category',
       'role_code',
     }.contains(k)) {
@@ -260,6 +286,12 @@ class BusinessFormat {
     }
     if (k == 'source_type' || k == 'type')
       return _titleWords('$value'.replaceAll('_', ' '));
+    if (k == 'product_name') {
+      return '$value'.trim().split(RegExp(r'\s+')).map((word) {
+        if (word.isEmpty || RegExp(r'\d').hasMatch(word)) return word;
+        return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+      }).join(' ');
+    }
     if (k.contains('name')) return displayName('$value');
     return '$value';
   }

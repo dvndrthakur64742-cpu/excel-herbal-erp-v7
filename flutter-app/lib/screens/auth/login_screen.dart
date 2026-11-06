@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_config.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
+import '../../widgets/brand_logo.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -56,26 +57,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Center(
-                          child: Container(
-                            width: 190,
-                            height: 108,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: Image.asset(
-                              'assets/branding/excel-herbal-logo.webp',
-                              fit: BoxFit.contain,
-                            ),
-                          ),
+                        const Center(
+                          child: BrandLogo(width: 188, height: 72),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Excel Herbal',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 3),
                         Text(
                           'Employee Workspace',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineSmall,
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 6),
                         Text(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/business_format.dart';
+import 'erp_status_badge.dart';
 import '../screens/common/record_detail_screen.dart';
 import '../shell/shell_layout.dart';
 
@@ -507,6 +508,11 @@ class _RecordsListState extends State<RecordsList> {
     }
 
     final typePriority = switch (widget.recordType) {
+      'stock_transfer' => const [
+        'source_branch_name',
+        'destination_branch_name',
+        'items_summary',
+      ],
       'stock' => const [
         'quantity',
         'custodian_name',
@@ -574,9 +580,10 @@ class _RecordsListState extends State<RecordsList> {
         'status',
       ],
       'employee' => const [
+        'designation_name',
         'employee_code',
-        'designation_code',
         'mobile',
+        'designation_code',
         'status',
       ],
       'candidate' => const [
@@ -681,6 +688,13 @@ class _RecordsListState extends State<RecordsList> {
         'status',
         'address',
       ],
+      'stock_transfer' => const [
+        'transfer_number',
+        'source_branch_name',
+        'destination_branch_name',
+        'items_summary',
+        'status',
+      ],
       'stock' => const [
         'product_name',
         'sku',
@@ -716,11 +730,12 @@ class _RecordsListState extends State<RecordsList> {
         'status',
       ],
       'employee' => const [
-        'employee_name',
+        'full_name',
+        'designation_name',
         'employee_code',
-        'designation_code',
         'mobile',
         'status',
+        'designation_code',
       ],
       'product' => const [
         'product_name',
@@ -927,7 +942,7 @@ class _BusinessCard extends StatelessWidget {
                         ),
                         if (status != null) ...[
                           const SizedBox(width: 6),
-                          _StatusPill(BusinessFormat.status(status)),
+                          ErpStatusBadge(status: '$status'),
                         ],
                       ],
                     ),
@@ -1053,22 +1068,3 @@ class _FieldValue extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(
-      label,
-      style: Theme.of(
-        context,
-      ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
-    ),
-  );
-}
