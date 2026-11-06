@@ -7,6 +7,7 @@ import '../../core/api_paths.dart';
 import '../../core/open_document.dart';
 import '../../core/providers.dart';
 import '../../core/business_format.dart';
+import '../../core/gps_route_query.dart';
 import '../../core/ui_error.dart';
 import '../../theme/excel_brand.dart';
 import '../../widgets/business_date_field.dart';
@@ -86,20 +87,6 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
   Widget _dutyTab(AppState app) {
     final api = ref.watch(apiClientProvider);
     final tracker = ref.watch(gpsTrackingProvider);
-    final now = DateTime.now();
-    final from = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    ).toUtc().toIso8601String();
-    final to = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      23,
-      59,
-      59,
-    ).toUtc().toIso8601String();
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -296,7 +283,10 @@ class _ErpToolsScreenState extends ConsumerState<ErpToolsScreen> {
           const SizedBox(height: 14),
           _futureCard(
             title: 'Today’s GPS Route',
-            future: api.get(ApiPaths.gpsRoute, query: {'from': from, 'to': to}),
+            future: api.get(
+              ApiPaths.gpsRoute,
+              query: GpsRouteQuery.forBusinessDate(app.businessDate),
+            ),
             builder: (data) {
               final rows = _rows(data);
               if (rows.isEmpty) {
