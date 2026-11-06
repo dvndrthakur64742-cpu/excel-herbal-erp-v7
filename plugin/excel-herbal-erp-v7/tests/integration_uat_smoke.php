@@ -73,6 +73,16 @@ function uat_rebuild_schema(Eh7IntegrationWpdb $db): void {
     }
     $db->query('SET FOREIGN_KEY_CHECKS=1');
     uat_create_options($db);
+    // WordPress owns wp_users in production. The disposable integration DB
+    // needs its minimal read-only identity table for the employee LEFT JOIN.
+    if ($db->query('DROP TABLE IF EXISTS '.$db->users) === false) {
+        throw new RuntimeException('Synthetic WP users reset failed');
+    }
+    if ($db->query('CREATE TABLE '.$db->users.' ('.
+        'ID BIGINT UNSIGNED NOT NULL,PRIMARY KEY(ID)'.
+        ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4') === false) {
+        throw new RuntimeException('Synthetic WP users table missing: '.$db->last_error);
+    }
 }
 function uat_seed(Eh7IntegrationWpdb $db): void {
     uat_insert($db, 'companies', ['id'=>1,'name'=>'UAT Disposable Company','status'=>'active','created_at'=>'2026-01-01 00:00:00']);
