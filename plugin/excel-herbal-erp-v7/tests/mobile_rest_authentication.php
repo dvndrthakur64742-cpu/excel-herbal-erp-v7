@@ -16,8 +16,10 @@ namespace {
         public bool $allowAccess=false;
         public int $updates=0;
         public string $lastQuery='';
+        public string $lastAccessHash='';
         public function prepare(string $query,...$args):string {
             $this->lastQuery=$query;
+            if(str_contains($query,'access_hash=%s'))$this->lastAccessHash=(string)($args[0]??'');
             return 'mock prepared query';
         }
         public function get_row(string $sql,$type=null):?array {
@@ -79,6 +81,45 @@ namespace {
     checkAuth(str_contains($GLOBALS['fake_db']->lastQuery,'revoked_at IS NULL') &&
       str_contains($GLOBALS['fake_db']->lastQuery,'access_expires_at'),
       'live expiry/revocation guards were removed');
+
+    // Simulate a proxy that stripped the standard Authorization header.
+    // Flutter sends the X-EH7-Authorization fallback on the same request.
+    unset($_SERVER['HTTP_AUTHORIZATION']);
+    $_SERVER['HTTP_X_EH7_AUTHORIZATION']='Bearer synthetic-fallback-token';
+    $before=$GLOBALS['fake_db']->updates;
+    $fallback=$class::restAuthentication(null);
+    checkAuth($fallback===true && $GLOBALS['fake_db']->updates===$before+1,
+      'ERP fallback bearer was not accepted after proxy removed Authorization');
+    checkAuth($GLOBALS['fake_db']->lastAccessHash===hash('sha256','synthetic-fallback-token'),
+      'fallback token did not reach the existing expiry and revocation query');
+
+    // A present standard header takes precedence, even if the fallback token
+    // differs. The fallback must not silently override a bad primary header.
+    $_SERVER['HTTP_AUTHORIZATION']='Bearer synthetic-primary-token';
+    $class::restAuthentication(null);
+    checkAuth($GLOBALS['fake_db']->lastAccessHash===hash('sha256','synthetic-primary-token'),
+      'fallback unexpectedly overrode the standard Authorization header');
+
+    // Mobile ERP credentials cannot become WordPress-wide REST credentials.
+    unset($_SERVER['HTTP_AUTHORIZATION']);
+    $wp->query_vars['rest_route']='/wp/v2/users';
+    checkAuth($class::user(0)===0,
+      'custom ERP bearer header authenticated an unrelated WP REST route');
+    checkAuth($class::restAuthentication(null)===null,
+      'fallback header altered unrelated WordPress REST gate');
+    $wp->query_vars['rest_route']='/excel-herbal-erp/v7/health';
+
+    // Unknown fallback bearer must fail the same 401 gate as a bad standard one.
+    $GLOBALS['fake_db']->allowAccess=false;
+    $before=$GLOBALS['fake_db']->updates;
+    $_SERVER['HTTP_X_EH7_AUTHORIZATION']='Bearer invalid-fallback-token';
+    $badFallback=$class::restAuthentication(null);
+    checkAuth($badFallback instanceof WP_Error &&
+      $badFallback->get_error_code()==='not_authenticated' &&
+      ($badFallback->get_error_data()['status']??0)===401 &&
+      $GLOBALS['fake_db']->updates===$before,
+      'invalid fallback bearer failed open or wrote session state');
+    unset($_SERVER['HTTP_X_EH7_AUTHORIZATION']);
 
     echo "PASS legacy REST gate registered with WordPress filter priority 90\n";
     echo "PASS cookie-only and unrelated routes unchanged; prior authentication errors retained\n";
