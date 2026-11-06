@@ -1,0 +1,91 @@
+name: ERP V7 Unified WordPress Plugin QA Package
+
+on:
+  pull_request:
+    paths:
+      - 'plugin/excel-herbal-erp-v7/**'
+      - 'flutter-app/**'
+      - 'ci/pack-unified-plugin.py'
+      - '.github/workflows/erp-v7-unified-plugin.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eh7-unified-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unified-review-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: PHP 8.3 runtime and syntax
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: none
+
+      - name: Fail-closed frontend route and PHP checks
+        run: |
+          set -euo pipefail
+          php plugin/excel-herbal-erp-v7/tests/integrated_frontend_contract.php
+          php -l plugin/excel-herbal-erp-v7/src/Core/Plugin.php
+          php -l plugin/excel-herbal-erp-v7/src/Core/IntegratedFrontend.php
+          python3 plugin/excel-herbal-erp-v7/tests/static_checks.py
+
+      - name: Install pinned Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'
+          channel: stable
+          cache: true
+
+      - name: Compile reviewed office-host frontend (never deploy)
+        working-directory: flutter-app
+        run: |
+          flutter pub get
+          flutter analyze --no-pub
+          flutter build web --release \
+            --base-href=/wp-content/uploads/eh7-flutter-web/ \
+            --pwa-strategy=none \
+            --dart-define=EH7_ENVIRONMENT=production \
+            --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+
+      - name: Build and cryptographically check one-plugin ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/pack-unified-plugin.py --web-dir flutter-app/build/web --output-dir dist-unified
+          (cd dist-unified && sha256sum -c SHA256SUMS.txt)
+          python3 - <<'PY'
+          import json, pathlib, zipfile
+          root = pathlib.Path('dist-unified')
+          m = json.loads((root/'SINGLE-PLUGIN-QA-MANIFEST.json').read_text())
+          assert m['source_sha'] == __import__('subprocess').check_output(
+              ['git','rev-parse','HEAD'], text=True).strip()
+          with zipfile.ZipFile(root/m['zip_name']) as z:
+              assert z.testzip() is None
+              assert len(z.namelist()) == m['file_count']
+              assert all(x.startswith('excel-herbal-erp-v7/') for x in z.namelist())
+              assert not any('/tests/' in x for x in z.namelist())
+              assert b'__EH7_PLUGIN_ASSET_BASE__' in z.read(
+                'excel-herbal-erp-v7/web/eh7-app-shell.txt')
+          print('PASS reviewed single plugin ZIP integrity, source and safe preview route')
+          PY
+
+      - name: Upload QA package for manual review ONLY
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh7-backend-flutter-ONE-WP-PLUGIN-QA-ONLY
+          path: dist-unified/*
+          if-no-files-found: error
+          retention-days: 14

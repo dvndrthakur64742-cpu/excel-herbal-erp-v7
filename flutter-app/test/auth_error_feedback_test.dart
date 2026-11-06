@@ -48,9 +48,59 @@ class _FakeApi extends ApiClient {
 }
 
 void main() {
+  test('authenticated Flutter calls include a proxy-safe ERP bearer header', () {
+    const token = 'synthetic-bearer-do-not-use';
+    final headers = ApiClient.bearerHeaders(token);
+    expect(headers['Authorization'], 'Bearer $token');
+    expect(headers['X-EH7-Authorization'], 'Bearer $token');
+    expect(headers.length, 2);
+  });
+
   test('unauthorised login and expired session have distinct safe messages', () {
     expect(
       UiError.message(const ApiException(
+        'invalid_credentials',
+        'Invalid login credentials.',
+        401,
+      )),
+      'Mobile number or password is incorrect.',
+    );
+    expect(
+      UiError.message(const ApiException(
+        'not_authenticated',
+        'ERP session invalid or expired.',
+        401,
+      )),
+      'Your session has expired. Please sign in again.',
+    );
+  });
+
+  test('expired saved session at startup is silently cleared', () async {
+    final session = _FakeSession()..token = 'synthetic-expired-token';
+    final controller = AppController(_FakeApi(session), session);
+    addTearDown(controller.dispose);
+
+    // This verifies the constructor's unawaited cold-start bootstrap in a
+    // real async unit test instead of racing the widget-test fake async clock.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(session.clearCount, 1);
+    expect(session.token, isNull);
+    expect(controller.state.loading, isFalse);
+    expect(controller.state.authenticated, isFalse);
+    expect(controller.state.error, isNull);
+  });
+
+  test('fresh sign-in 401 is not misreported as an expired session', () {
+    expect(
+      UiError.loginMessage(const ApiException(
+        'not_authenticated',
+        'Server rejected unauthenticated request.',
+        401,
+      )),
+      'Sign-in could not be completed. Please retry or contact your administrator.',
+    );
+    expect(
+      UiError.loginMessage(const ApiException(
         'invalid_credentials',
         'Invalid login credentials.',
         401,
