@@ -56,7 +56,7 @@ void main() {
   });
 
   test('internal values are readable business labels', () {
-    expect(BusinessFormat.label('designation_code'), 'Designation');
+    expect(BusinessFormat.label('designation_code'), 'Designation Code');
     expect(BusinessFormat.label('reporting_category'), 'Reporting Group');
     expect(BusinessFormat.label('login_enabled'), 'Login Access');
     expect(BusinessFormat.value('login_enabled', true), 'Enabled');

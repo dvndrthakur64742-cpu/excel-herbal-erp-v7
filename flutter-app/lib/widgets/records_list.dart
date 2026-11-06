@@ -580,9 +580,10 @@ class _RecordsListState extends State<RecordsList> {
         'status',
       ],
       'employee' => const [
+        'designation_name',
         'employee_code',
-        'designation_code',
         'mobile',
+        'designation_code',
         'status',
       ],
       'candidate' => const [
@@ -729,11 +730,12 @@ class _RecordsListState extends State<RecordsList> {
         'status',
       ],
       'employee' => const [
-        'employee_name',
+        'full_name',
+        'designation_name',
         'employee_code',
-        'designation_code',
         'mobile',
         'status',
+        'designation_code',
       ],
       'product' => const [
         'product_name',

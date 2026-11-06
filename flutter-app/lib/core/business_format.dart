@@ -141,7 +141,8 @@ class BusinessFormat {
     'branch_name': 'Branch',
     'full_name': 'Name',
     'employee_code': 'Employee Code',
-    'designation_code': 'Designation',
+    'designation_code': 'Designation Code',
+    'designation_name': 'Designation',
     'reporting_category': 'Reporting Group',
     'role_code': 'Role',
     'login_enabled': 'Login Access',
@@ -258,8 +259,13 @@ class BusinessFormat {
           ? 'Enabled'
           : 'Disabled';
     }
+    if (k == 'designation_code') {
+      final code = '$value'.trim();
+      return code.contains('_') || code.contains(' ')
+          ? _titleWords(code.replaceAll('_', ' ').toLowerCase())
+          : code.toUpperCase();
+    }
     if (const {
-      'designation_code',
       'reporting_category',
       'role_code',
     }.contains(k)) {
