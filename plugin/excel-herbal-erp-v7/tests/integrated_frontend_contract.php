@@ -11,6 +11,21 @@ function ensure($pass, $message): void {
 }
 ensure(UI::isPreviewRequest('/erp/', 'https://office.excelherbal.in/'),
     'exact /erp/ preview route');
+ensure(UI::isSiteRootRequest('/', 'https://office.excelherbal.in/'),
+    'exact Office homepage is eligible only after administrator opt-in');
+ensure(!UI::isSiteRootRequest('/erp/', 'https://office.excelherbal.in/'),
+    'preview is not mistaken for homepage');
+ensure(!UI::isSiteRootRequest('/wp-json/excel-herbal-erp/v7/health',
+    'https://office.excelherbal.in/'),
+    'WP REST routes cannot be mistaken for homepage');
+ensure(!UI::isSiteRootRequest('/wp-admin/',
+    'https://office.excelherbal.in/'),
+    'WordPress administration cannot be mistaken for homepage');
+ensure(UI::isSiteRootRequest('/company/', 'https://uat.invalid/company/'),
+    'subdirectory site root is matched exactly');
+ensure(!UI::isSiteRootRequest('/', 'https://uat.invalid/company/'),
+    'subdirectory site does not hijack host root');
+
 ensure(UI::isPreviewRequest('/erp?review=1', 'https://office.excelherbal.in/'),
     'preview query parameters do not break routing');
 ensure(!UI::isPreviewRequest('/erp-danger', 'https://office.excelherbal.in/'),
