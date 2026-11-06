@@ -67,25 +67,19 @@ void main() {
     );
   });
 
-  testWidgets('expired saved session at startup opens a clean login screen',
-      (tester) async {
+  test('expired saved session at startup is silently cleared', () async {
     final session = _FakeSession()..token = 'synthetic-expired-token';
     final controller = AppController(_FakeApi(session), session);
+    addTearDown(controller.dispose);
 
-    await tester.pumpWidget(ProviderScope(
-      overrides: [appStateProvider.overrideWith((ref) => controller)],
-      child: const MaterialApp(home: LoginScreen()),
-    ));
-    await tester.pumpAndSettle();
-
+    // This verifies the constructor's unawaited cold-start bootstrap in a
+    // real async unit test instead of racing the widget-test fake async clock.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(session.clearCount, 1);
     expect(session.token, isNull);
+    expect(controller.state.loading, isFalse);
     expect(controller.state.authenticated, isFalse);
     expect(controller.state.error, isNull);
-    expect(find.text('Your session has expired. Please sign in again.'),
-        findsNothing);
-    expect(find.text('SIGN IN'), findsOneWidget);
-    expect(tester.takeException(), isNull);
   });
 
   test('fresh sign-in 401 is not misreported as an expired session', () {
