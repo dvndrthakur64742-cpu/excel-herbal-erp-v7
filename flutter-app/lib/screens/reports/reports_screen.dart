@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
+import '../../core/report_branch_scope.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
@@ -90,9 +91,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 : asOfReports.contains(activeType)
                     ? BusinessFormat.date(app.businessDate)
                     : '${BusinessFormat.date(fromValue)} – ${BusinessFormat.date(toValue)}';
-    final scopeLabel = app.currentBranchId == null
-        ? baseScopeLabel
-        : '$baseScopeLabel · Branch ${app.currentBranchId}';
+    final scopeLabel = ReportBranchScope.caption(
+      periodLabel: baseScopeLabel,
+      branchId: app.currentBranchId,
+      authorisedBranches: app.branches,
+    );
 
     final reportView = activeType == 'account_ledger'
         ? _AccountLedgerPanel(
