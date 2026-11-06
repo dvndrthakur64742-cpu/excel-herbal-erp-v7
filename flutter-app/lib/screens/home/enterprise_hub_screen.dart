@@ -79,7 +79,7 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
 
   Widget _approvalTab(AppState app) {
     if (app.currentBranchId == null) {
-      return const Center(child: Text('Branch select karein.'));
+      return const Center(child: Text('Select a branch.'));
     }
     return FutureBuilder<_ApprovalResult>(
       key: ValueKey('approval-${app.currentBranchId}-$refresh'),
@@ -539,7 +539,7 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       setState(() {
         searchText = q;
         searchFuture = null;
-        message = 'Search ke liye kam se kam 2 characters enter karein.';
+        message = 'Enter at least 2 characters to search.';
       });
       return;
     }
