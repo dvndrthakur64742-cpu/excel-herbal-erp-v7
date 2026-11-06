@@ -221,9 +221,6 @@ void main() {
     expect(navigation, contains("['id'=>'tasks','label'=>'My Tasks']"));
     expect(shell, isNot(contains("_desktopTile('tasks', 'My Tasks'")));
     expect(shell, contains("'tasks' => const CommunicationScreen(initialTab: 0)"));
-    final communication = File(
-      'lib/screens/communication/communication_screen.dart',
-    ).readAsStringSync();
     expect(communication, contains("kCommunicationWorkspaceTitle = 'Inbox & Tasks'"));
     expect(shell, contains('kCommunicationWorkspaceTitle'));
   });
