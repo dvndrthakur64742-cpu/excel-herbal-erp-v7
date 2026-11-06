@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/business_format.dart';
+import 'erp_status_badge.dart';
 import '../screens/common/record_detail_screen.dart';
 import '../shell/shell_layout.dart';
 
@@ -939,7 +940,7 @@ class _BusinessCard extends StatelessWidget {
                         ),
                         if (status != null) ...[
                           const SizedBox(width: 6),
-                          _StatusPill(BusinessFormat.status(status)),
+                          ErpStatusBadge(status: '$status'),
                         ],
                       ],
                     ),
@@ -1065,22 +1066,3 @@ class _FieldValue extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(
-      label,
-      style: Theme.of(
-        context,
-      ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
-    ),
-  );
-}
