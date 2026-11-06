@@ -3,7 +3,7 @@ part of 'finance_screen.dart';
 extension _FinanceClosingFeature on _FinanceScreenState {
   Widget _closing(AppState app, dynamic api) {
     if (app.currentBranchId == null)
-      return const Center(child: Text('Branch select karein.'));
+      return const Center(child: Text('Select a branch.'));
     return Column(
       children: [
         Padding(
@@ -34,7 +34,7 @@ extension _FinanceClosingFeature on _FinanceScreenState {
               ApiPaths.branchClosing,
               query: {'branch_id': app.currentBranchId},
             ),
-            emptyMessage: 'Koi Branch Closing record nahi hai.',
+            emptyMessage: 'No branch closing records yet.',
             builder: (context, data) => RecordsList(
               recordType: 'branch_closing',
               rows: _rows(data),
