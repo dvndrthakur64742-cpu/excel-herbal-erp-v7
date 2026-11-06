@@ -8,6 +8,8 @@ void main() {
     expect(BusinessFormat.label('designation_name'), 'Designation');
     expect(BusinessFormat.label('designation_code'), 'Designation Code');
     expect(BusinessFormat.value('designation_code', 'FE'), 'FE');
+    expect(BusinessFormat.value('designation_code', 'BRANCH_MANAGER'),
+        'Branch Manager');
     expect(BusinessFormat.value('designation_name', 'FIELD EXECUTIVE'),
         'FIELD EXECUTIVE');
   });
