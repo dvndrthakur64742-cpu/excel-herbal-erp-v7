@@ -7,7 +7,7 @@ final class OrganizationEmployeeService{
   $db=Db::wpdb();
   $where=$status==='all'?"e.status IN ('active','inactive')":"e.status='".$status."'";
   $rows=(array)$db->get_results($db->prepare(
-   "SELECT e.id,e.employee_code,e.full_name,e.mobile,e.email,e.designation_code,e.reporting_designation_code,e.assigned_branch_id,e.reporting_employee_id,e.monthly_salary,e.joining_date,e.separation_date,e.status,CASE WHEN u.ID IS NULL THEN 0 ELSE 1 END AS login_enabled FROM ".Db::table('employees')." e LEFT JOIN {$db->users} u ON u.ID=e.wp_user_id WHERE e.company_id=%d AND e.assigned_branch_id=%d AND {$where} ORDER BY CASE WHEN e.status='active' THEN 0 ELSE 1 END,e.full_name",
+   "SELECT e.id,e.employee_code,e.full_name,e.mobile,e.email,e.designation_code,d.name AS designation_name,e.reporting_designation_code,e.assigned_branch_id,e.reporting_employee_id,e.monthly_salary,e.joining_date,e.separation_date,e.status,CASE WHEN u.ID IS NULL THEN 0 ELSE 1 END AS login_enabled FROM ".Db::table('employees')." e LEFT JOIN ".Db::table('designations')." d ON d.company_id=e.company_id AND d.code=e.designation_code LEFT JOIN {$db->users} u ON u.ID=e.wp_user_id WHERE e.company_id=%d AND e.assigned_branch_id=%d AND {$where} ORDER BY CASE WHEN e.status='active' THEN 0 ELSE 1 END,e.full_name",
    $a->companyId,$branch
   ),ARRAY_A);
   $visible=array_flip(HierarchyScope::visibleEmployeeIds($a,$branch));
