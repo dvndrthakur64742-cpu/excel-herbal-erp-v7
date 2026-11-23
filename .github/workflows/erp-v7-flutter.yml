@@ -103,6 +103,10 @@ jobs:
             --pwa-strategy=none \
             --dart-define=EH7_ENVIRONMENT=production \
             --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+      - name: F13 live-engine mobile zoom acceptance (local offline Chrome)
+        run: |
+          node ci/check-flutter-web-viewport.mjs flutter-app/build/web
+
       - name: Verify reviewed website target and generate manifest
         shell: bash
         run: |
