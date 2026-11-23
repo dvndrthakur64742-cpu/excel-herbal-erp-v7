@@ -57,6 +57,18 @@ eh7_host_check($missing['http_document_root_available'] === false &&
     $missing['same_directory'] === null,
     'Missing HTTP document root remains unknown, never guessed');
 
+class WP_Error
+{
+    public function __construct(
+        public string $code,
+        public string $message,
+        public array $data
+    ) {}
+}
+function register_rest_route(string $namespace, string $route, array $args): void
+{
+    $GLOBALS['eh7_diagnostic_route'] = compact('namespace', 'route', 'args');
+}
 $GLOBALS['eh7_can_manage'] = false;
 function current_user_can(string $cap): bool
 {
@@ -82,7 +94,30 @@ try {
     eh7_host_check(str_contains($e->getMessage(), 'administrator'),
         'Non-admin user denied before metadata output');
 }
+// Verify the WP REST route uses WordPress administrator capability, not
+// the ordinary ERP employee bearer or an anonymous public callback.
+D::registerRestRoute();
+$route = $GLOBALS['eh7_diagnostic_route'];
+eh7_host_check($route['namespace'] === 'eh7-host-diagnostics/v1' &&
+    $route['route'] === '/root' &&
+    $route['args']['methods'] === 'GET',
+    'Separate read-only root REST route registered');
+$permission = $route['args']['permission_callback'];
+eh7_host_check($permission() === false,
+    'Anonymous/ordinary staff cannot call root inspector via REST');
+$denied = D::restReport();
+eh7_host_check($denied instanceof WP_Error &&
+    $denied->code === 'eh7_host_diagnostics_forbidden' &&
+    $denied->data['status'] === 403,
+    'Direct unauthorized REST callback also denies with 403');
 $GLOBALS['eh7_can_manage'] = true;
+eh7_host_check($permission() === true,
+    'WordPress administrator may inspect the safe REST metadata');
+$api = D::restReport();
+eh7_host_check($api['ok'] === true &&
+    $api['data']['same_directory'] === false &&
+    !str_contains(json_encode($api, JSON_THROW_ON_ERROR), $dir),
+    'Authorized REST response contains metadata but never the root path');
 ob_start();
 D::adminPage();
 $html = ob_get_clean();
