@@ -1,0 +1,57 @@
+name: ERP V7 Admin Hosting Diagnostics Safety Gates
+
+on:
+  pull_request:
+    paths:
+      - 'plugin/excel-herbal-erp-v7/src/Core/HostingRootDiagnostics.php'
+      - 'plugin/excel-herbal-erp-v7/src/Core/Plugin.php'
+      - 'plugin/excel-herbal-erp-v7/tests/hosting_root_diagnostics_contract.php'
+      - '.github/workflows/erp-v7-host-inspector.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-inspector-contracts:
+    name: PHP ${{ matrix.php }} read-only and admin security tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+      - name: Syntax and security-contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l plugin/excel-herbal-erp-v7/src/Core/HostingRootDiagnostics.php
+          php -l plugin/excel-herbal-erp-v7/src/Core/Plugin.php
+          php -l plugin/excel-herbal-erp-v7/tests/hosting_root_diagnostics_contract.php
+          php plugin/excel-herbal-erp-v7/tests/hosting_root_diagnostics_contract.php
+          php plugin/excel-herbal-erp-v7/tests/integrated_frontend_contract.php
+
+  root-preflight-regressions:
+    name: Offline root and REST regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test fail-closed root-route logic with local fixtures
+        run: node --test ci/office-origin-preflight.test.mjs
