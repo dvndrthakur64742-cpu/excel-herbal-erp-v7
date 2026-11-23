@@ -1,0 +1,61 @@
+name: ERP V7 Hosting Root Route Safety Gate
+
+on:
+  pull_request:
+    paths:
+      - 'ci/office-origin-preflight.mjs'
+      - 'ci/office-origin-preflight.test.mjs'
+      - '.github/workflows/erp-v7-host-route-preflight.yml'
+  workflow_dispatch:
+    inputs:
+      expected_source:
+        description: '40-character Git source SHA already reviewed for release'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  offline-synthetic-tests:
+    name: Offline routing and no-credentials safety tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test source-only root, REST and preview failure paths
+        run: node --test ci/office-origin-preflight.test.mjs
+
+  hosted-readonly-review:
+    if: github.event_name == 'workflow_dispatch'
+    needs: offline-synthetic-tests
+    name: Public Office route inspection (no writes, no auth)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Probe anonymous public routes only
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_source }}
+        run: |
+          set -euo pipefail
+          node ci/office-origin-preflight.mjs --origin=https://office.excelherbal.in --expected-sha="$EXPECTED_SHA" --output=dist/office-origin-preflight.json
+      - name: Publish JSON evidence even on blocked cutover
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh7-office-anonymous-cutover-review
+          path: dist/office-origin-preflight.json
+          if-no-files-found: warn
+          retention-days: 14
