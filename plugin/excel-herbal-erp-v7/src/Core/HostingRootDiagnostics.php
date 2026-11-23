@@ -15,6 +15,7 @@ final class HostingRootDiagnostics
     public static function boot(): void
     {
         add_action('admin_menu', [self::class, 'registerMenu']);
+        add_action('rest_api_init', [self::class, 'registerRestRoute']);
     }
 
     public static function registerMenu(): void
@@ -26,6 +27,41 @@ final class HostingRootDiagnostics
             'eh7-host-root-diagnostics',
             [self::class, 'adminPage']
         );
+    }
+
+    /**
+     * Optional administrative REST access for connected diagnostics.
+     * It is intentionally NOT inside the employee bearer-token ERP API.
+     * WordPress roles and application-password authentication remain in force.
+     */
+    public static function registerRestRoute(): void
+    {
+        register_rest_route('eh7-host-diagnostics/v1', '/root', [
+            'methods' => 'GET',
+            'permission_callback' => static function (): bool {
+                return current_user_can('manage_options');
+            },
+            'callback' => [self::class, 'restReport'],
+        ]);
+    }
+
+    /** Only a WordPress administrator may obtain sanitized metadata. */
+    public static function restReport()
+    {
+        if (!current_user_can('manage_options')) {
+            return new \WP_Error(
+                'eh7_host_diagnostics_forbidden',
+                'ERP hosting diagnostics require administrator access.',
+                ['status' => 403]
+            );
+        }
+        return [
+            'ok' => true,
+            'data' => self::inspect(
+                defined('ABSPATH') ? (string) ABSPATH : '',
+                isset($_SERVER['DOCUMENT_ROOT']) ? (string) $_SERVER['DOCUMENT_ROOT'] : null
+            ),
+        ];
     }
 
     /**
