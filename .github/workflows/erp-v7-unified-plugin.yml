@@ -45,7 +45,7 @@ jobs:
       - name: Install pinned Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.5'
+          flutter-version: '3.47.7'
           channel: stable
           cache: true
 
@@ -59,6 +59,10 @@ jobs:
             --pwa-strategy=none \
             --dart-define=EH7_ENVIRONMENT=production \
             --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
+
+      - name: F13 live-engine mobile zoom acceptance (local offline Chrome)
+        run: |
+          node ci/check-flutter-web-viewport.mjs flutter-app/build/web
 
       - name: Build and cryptographically check one-plugin ZIP
         shell: bash
