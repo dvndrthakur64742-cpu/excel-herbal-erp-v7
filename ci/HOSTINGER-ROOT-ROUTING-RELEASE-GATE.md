@@ -17,6 +17,28 @@
 
 Root PHP/template routing **may be bypassed by a static document index or host rewrite**, but the exact server configuration is not proven. Do not assume a specific file exists, or blame the firewall/CDN without logs. Live WPVibe WP-CLI and file-read tools can receive the same homepage HTML; do not treat that response as a WP-CLI command result.
 
+## New admin-only diagnostic available in the next QA build
+
+This branch adds **Tools → ERP Hosting Diagnostics** within the existing ERP WordPress plugin.
+An authenticated WordPress administrator can also read the **same redacted metadata**
+through the canonical WordPress REST URL:
+
+`GET https://office.excelherbal.in/wp-json/eh7-host-diagnostics/v1/root`
+
+The API **requires WordPress `manage_options`** and returns HTTP 403 to other roles.
+It reports presence/readability, file size, UTC modification date and boolean indicators
+for old `eh7-web-*` references, rewrite directives and document-index rules. It does
+**not** disclose physical directory paths, raw `.htaccess` content or credentials.
+It does not follow file symlinks or perform any writes.
+
+This endpoint is **not present on the existing live build** until a reviewed single-plugin
+QA candidate containing this branch is installed after backup/restore readiness.
+Do not use `/?rest_route=...` to reach it on the current site: the alternate query
+form is known to return the old homepage HTML. Use the canonical `/wp-json/` URL.
+
+The diagnostic is a source of additional evidence, not proof of the exact host rewrite,
+and does not authorize a homepage cutover.
+
 ## Safest next actions — inspection first
 
 1. **Confirm restore capability**: capture full WordPress files + SQL backup and verify restore on separate hosting/UAT. Keep a copy of installed ERP and UI installer, plus rollback contacts and window. **No successful backup/restore has been confirmed in this task.**
