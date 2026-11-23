@@ -9,6 +9,7 @@ final class Plugin{
     public static function activate():void{Schema::maybeUpgrade();}
     public static function boot():void{
         IntegratedFrontend::boot();
+        HostingRootDiagnostics::boot();
         $schemaOk=Schema::maybeUpgrade();
         add_filter('rest_pre_serve_request',[\ExcelHerbal\ERP7\Organization\DocumentVault::class,'serve'],10,4);
         \ExcelHerbal\ERP7\Payroll\PayrollAdmin::boot();
