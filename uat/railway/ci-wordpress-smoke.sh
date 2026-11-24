@@ -175,6 +175,10 @@ if(!x.ok)throw new Error("Health JSON is not ok");
 if(x?.data?.version!=="7.3.12-rc1" || x?.data?.schema!=="7.3.12-reward-payroll-allocated-6" || !x?.data?.schema_installed)throw new Error("Plugin/schema release health mismatch");
 console.log("PASS pretty REST health JSON and 7.3.12 plugin/schema");
 '
+# F16 real REST permissions on EXACT source-pinned disposable WordPress.
+# Business endpoints are GET-only; only synthetic login/logout make writes.
+# Runs before the older auth smoke so session-count preflight is idle.
+EH7_CI_ISOLATED=1 node uat/railway/ci-business-role-gate.mjs
 node uat/railway/ci-auth-smoke.mjs
 
 # Credential changes run only after synthetic user HTTP login tests complete.
