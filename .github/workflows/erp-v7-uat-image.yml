@@ -78,7 +78,7 @@ jobs:
           if s.count(with_config)==1:
               s=s.replace(with_config, '_flutter.loader.load({\n  config: { canvasKitBaseUrl: "/canvaskit/" },',1)
           elif s.count(no_config)==1:
-              s=s.replace(no_config, '_flutter.loader.load({config:{canvasKitBaseUrl:"/canvaskit/"}});',1)
+              s=s.replace(no_config, '_flutter.loader.load({ config: { canvasKitBaseUrl: "/canvaskit/" } });',1)
           else:
               raise AssertionError('Unknown Flutter loader syntax; refusing unsafe renderer patch')
           p.write_text(s)
