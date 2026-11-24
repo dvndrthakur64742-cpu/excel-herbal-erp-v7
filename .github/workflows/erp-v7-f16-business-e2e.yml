@@ -42,6 +42,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Enforce reviewed Live base and prior role-matrix source
         shell: bash
