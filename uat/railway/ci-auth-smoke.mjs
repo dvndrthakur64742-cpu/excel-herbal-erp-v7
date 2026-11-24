@@ -1,3 +1,4 @@
+import {assertForbiddenReply} from './ci-role-denial-contract.mjs';
 // All requests use the ephemeral localhost CI WordPress container and synthetic identity.
 // This test never prints passwords or session tokens.
 const base = 'http://127.0.0.1:18880/wp-json/excel-herbal-erp/v7';
@@ -90,6 +91,20 @@ for (const [route, label] of fieldReadOnly) {
     'Authenticated ' + label + ' read failed: HTTP ' + response.code);
 }
 console.log('PASS field dashboard: scoped identity, navigation, attendance, leave and daily stock reads');
+const restrictedReads = [
+  ['/inventory/stock?branch_id=' + assignedBranchId, 'inventory stock'],
+  ['/sales/orders?branch_id=' + assignedBranchId, 'sales orders'],
+  ['/finance/bootstrap', 'finance workspace'],
+  ['/payroll/runs', 'payroll runs'],
+  ['/organization/employees', 'HR employee directory'],
+  ['/workforce/gps/team', 'team GPS tracking'],
+];
+for (const [route, label] of restrictedReads) {
+  const response = await api(route, { token: initial.access_token });
+  assertForbiddenReply(response, 'permission_denied', 'limited employee ' + label);
+}
+console.log('PASS limited employee denied six restricted modules without any business data');
+
 const refresh = await api('/auth/refresh', {
   method: 'POST',
   payload: {
@@ -168,3 +183,25 @@ must(adminBootstrap.body.data?.navigation?.sections?.some(
   (item) => item.id === 'home'),
   'Administrator desktop dashboard not reachable');
 console.log('PASS admin dashboard: five real scoped module GET workflows');
+const foreignOrderAccess = await api('/sales/orders?branch_id=999', { token: adminToken });
+assertForbiddenReply(foreignOrderAccess, 'branch_forbidden', 'admin unauthorized branch orders');
+console.log('PASS synthetic admin cannot bypass assigned branch scope');
+
+for (const [token, label] of [
+  [refresh.body.data.access_token, 'employee'],
+  [adminToken, 'administrator'],
+]) {
+  const logout = await api('/auth/logout', { method: 'POST', token });
+  must(logout.code === 200 && logout.body?.ok === true,
+    'Synthetic ' + label + ' logout failed');
+  const after = await api('/bootstrap', { token });
+  must([401, 403].includes(after.code) && after.body?.ok === false,
+    'Revoked ' + label + ' token remained usable');
+}
+const completed = await api('/health');
+must(completed.code === 200 &&
+  completed.body?.data?.environment === 'staging' &&
+  completed.body?.data?.staging_safety?.active_mobile_sessions_zero === true,
+  'Synthetic sessions were not cleaned up after F17 role authorization test');
+console.log('PASS both WordPress HTTP role sessions revoked and synthetic staging left idle');
+
