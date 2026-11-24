@@ -179,6 +179,10 @@ console.log("PASS pretty REST health JSON and 7.3.12 plugin/schema");
 # Business endpoints are GET-only; only synthetic login/logout make writes.
 # Runs before the older auth smoke so session-count preflight is idle.
 EH7_CI_ISOLATED=1 node uat/railway/ci-business-role-gate.mjs
+# F19 real headless Chrome Flutter UX -> disposable WordPress REST.
+# Network interception permits only the CI Railway-shaped UAT hostname,
+# but proxies all requests exclusively to localhost; logs out every session.
+EH7_CI_ISOLATED=1 node uat/railway/ci-f19-browser-login.cjs flutter-app/build/web
 node uat/railway/ci-auth-smoke.mjs
 
 # Credential changes run only after synthetic user HTTP login tests complete.
