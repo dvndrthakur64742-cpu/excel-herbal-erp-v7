@@ -247,15 +247,18 @@ async function smokeActor(browser,origin,actor){
     await enableSemantics(page);
     const labels=await deepSemantics(page);
     check(labels.some(x=>/mobile number/i.test(x.label))&&
-      labels.some(x=>/password/i.test(x.label))&&
-      labels.some(x=>/sign in/i.test(x.label)),
-      'Flutter accessible Login Screen incomplete: '+
+      labels.some(x=>/password/i.test(x.label)),
+      'Flutter accessible Login fields incomplete: '+
       labels.map(x=>x.label).slice(0,25).join('|').slice(0,500));
     await clickSemantic(page,/mobile number/i);
-    await page.keyboard.type(actor.mobile,{delay:15});
+    await new Promise(resolve=>setTimeout(resolve,220));
+    await page.keyboard.type(actor.mobile,{delay:28});
     await clickSemantic(page,/password/i);
-    await page.keyboard.type(actor.password,{delay:12});
-    await clickSemantic(page,/sign in/i);
+    await new Promise(resolve=>setTimeout(resolve,220));
+    await page.keyboard.type(actor.password,{delay:28});
+    // The real Flutter LoginScreen has Password.onSubmitted -> _login;
+    // keyboard Enter avoids brittle canvas pixel coordinates.
+    await page.keyboard.press('Enter');
     await page.waitForFunction(
       ()=>document.querySelector('flutter-view')!==null,
       {timeout:15000}
