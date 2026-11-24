@@ -132,7 +132,12 @@ async function browserRequest(request,stats,origin){
       const data=JSON.parse(b.toString('utf8'));
       stats.bootstrap200++;
       stats.employeeId=Number(data?.data?.me?.employee?.id)||0;
-      stats.navigationCount=data?.data?.navigation?.sections?.length||0;
+      stats.designation=String(data?.data?.me?.employee?.designation_code||'');
+      stats.assignedBranch=Number(data?.data?.me?.assigned_branch_id)||0;
+      stats.branchIds=(data?.data?.me?.branch_ids||[]).map(Number);
+      stats.capabilities=data?.data?.me?.capabilities||[];
+      stats.sectionIds=(data?.data?.navigation?.sections||[]).map(x=>x.id);
+      stats.navigationCount=stats.sectionIds.length;
     }
     if(response.status>=400)stats.failures.push(relative+':'+response.status);
     const replyHeaders={...corsHeaders(),'Content-Type':type};
@@ -209,7 +214,8 @@ async function smokeActor(browser,origin,actor){
   const context=await browser.createBrowserContext();
   const page=await context.newPage();
   const stats={login200:0,bootstrap200:0,navigationCount:0,
-    employeeId:0,blockedExternal:0,failures:[],errors:[],tokens:new Set(),
+    employeeId:0,designation:'',assignedBranch:0,branchIds:[],capabilities:[],sectionIds:[],
+    blockedExternal:0,failures:[],errors:[],tokens:new Set(),
     requestFailures:[],badResponses:[],consoleErrors:[]};
   try{
     await page.setViewport({width:actor.width,height:actor.height,
@@ -284,6 +290,32 @@ async function smokeActor(browser,origin,actor){
     check(stats.employeeId===actor.employeeId,
       'Wrong synthetic employee identity after browser sign-in');
     check(stats.navigationCount>0,'Authenticated Flutter navigation is empty');
+    check(stats.sectionIds.includes('home'),'Authenticated Home is missing');
+    if(actor.label==='Branch Manager Mobile'){
+      check(stats.designation==='BM'&&stats.assignedBranch===1&&
+        stats.branchIds.length===1&&stats.branchIds[0]===1,
+        'BM browser has unexpected designation or cross-branch assignment');
+      check(stats.capabilities.includes('sales.view')&&
+        stats.capabilities.includes('finance.branch_close')&&
+        !stats.capabilities.includes('administration.access.manage')&&
+        !stats.capabilities.includes('payroll.salary.view')&&
+        !stats.sectionIds.includes('administration'),
+        'BM role navigation or capabilities are excessively privileged');
+      const accessToken=[...stats.tokens][0];
+      check(typeof accessToken==='string','BM browser access token not captured');
+      const own=await localApi(API_ROOT+'/sales/orders?branch_id=1',{token:accessToken});
+      const foreign=await localApi(API_ROOT+'/sales/orders?branch_id=999',{token:accessToken});
+      const payroll=await localApi(API_ROOT+'/payroll/runs',{token:accessToken});
+      check(own.status===200&&own.body?.ok===true,
+        'BM own-branch Sales Orders access denied');
+      check(foreign.status===403&&foreign.body?.ok===false&&
+        !Object.hasOwn(foreign.body,'data'),
+        'BM unauthorized branch Orders were accessible or leaked');
+      check(payroll.status===403&&payroll.body?.ok===false&&
+        !Object.hasOwn(payroll.body,'data'),
+        'BM Payroll should be forbidden');
+      console.log('PASS F20 Branch Manager: own branch orders 200; cross-branch and payroll 403; no admin module');
+    }
     check(stats.errors.length===0,'Flutter/proxy exceptions: '+stats.errors.join(';'));
     console.log('PASS F19 '+actor.label+
       ': real Flutter Chrome login -> isolated WP authenticated bootstrap, navigation='+
@@ -311,9 +343,11 @@ async function main(){
   try{
     await smokeActor(browser,origin,{label:'Employee Mobile',width:390,height:844,
       mobile:'9000000002',password:'eh7_ci_limited_password_only',employeeId:2});
+    await smokeActor(browser,origin,{label:'Branch Manager Mobile',width:390,height:844,
+      mobile:'9000000003',password:'eh7_ci_bm_password_only',employeeId:3});
     await smokeActor(browser,origin,{label:'Head Office Desktop',width:1366,height:768,
       mobile:'9000000001',password:'eh7_ci_admin_password_only',employeeId:1});
-    console.log('PASS F19 browser-integrated synthetic Employee/Head Office UAT; no production network or business writes');
+    console.log('PASS F20 browser-integrated synthetic Employee/BM/Head Office UAT; no production network or business writes');
   }finally{
     await browser.close();
     await new Promise(resolve=>server.close(resolve));
