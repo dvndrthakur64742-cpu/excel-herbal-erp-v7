@@ -197,16 +197,43 @@ async function clickSemantic(page,pattern) {
 async function smokeActor(browser,origin,actor){
   const page=await browser.newPage();
   const stats={login200:0,bootstrap200:0,navigationCount:0,
-    employeeId:0,blockedExternal:0,failures:[],errors:[],tokens:new Set()};
+    employeeId:0,blockedExternal:0,failures:[],errors:[],tokens:new Set(),
+    requestFailures:[],badResponses:[],consoleErrors:[]};
   try{
     await page.setViewport({width:actor.width,height:actor.height,
       isMobile:actor.width<600,hasTouch:actor.width<600,deviceScaleFactor:1});
     page.on('pageerror',e=>stats.errors.push('Flutter JS: '+String(e.message).slice(0,150)));
+    page.on('requestfailed',r=>{
+      try{const u=new URL(r.url());stats.requestFailures.push(u.pathname+':'+(r.failure()?.errorText||''));}
+      catch{}
+    });
+    page.on('response',r=>{
+      if(r.status()>=400){
+        try{stats.badResponses.push(new URL(r.url()).pathname+':'+r.status());}catch{}
+      }
+    });
+    page.on('console',m=>{
+      if(m.type()==='error')stats.consoleErrors.push(m.text().slice(0,150));
+    });
     await page.setRequestInterception(true);
     page.on('request',req=>{void browserRequest(req,stats,origin);});
     const response=await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:30000});
     check(response?.status()===200,'Local Flutter root HTTP failure');
-    await page.waitForFunction(()=>!!document.querySelector('flutter-view'),{timeout:35000});
+    try {
+      await page.waitForFunction(()=>!!document.querySelector('flutter-view'),{timeout:35000});
+    } catch (error) {
+      const dom=await page.evaluate(()=>({
+        title:document.title,
+        html:document.documentElement.outerHTML.slice(0,1800),
+        scripts:[...document.querySelectorAll('script[src]')].map(e=>e.getAttribute('src')),
+      })).catch(()=>({page:'evaluation failed'}));
+      throw Error('Flutter did not mount: '+JSON.stringify({
+        blockedExternal:stats.blockedExternal,proxyErrors:stats.errors.slice(0,6),
+        requestFailures:stats.requestFailures.slice(0,12),
+        httpFailures:stats.badResponses.slice(0,12),
+        consoleErrors:stats.consoleErrors.slice(0,8),dom
+      }).slice(0,2800));
+    }
     await new Promise(resolve=>setTimeout(resolve,2200));
     await enableSemantics(page);
     const labels=await deepSemantics(page);
