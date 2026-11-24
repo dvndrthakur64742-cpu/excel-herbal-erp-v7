@@ -510,5 +510,112 @@ uat_case('uat_no_negative_stock_and_balanced_journals', function () use ($wpdb) 
     if($negative!==0||$unbalanced!==0) throw new RuntimeException("closing invariant mismatch negative_stock={$negative} unbalanced_journals={$unbalanced}");
 });
 
+// F17: Check the FULL synthetic business chain after all prior UAT cases.
+// The single disposable MariaDB schema started with 100 PCS in Branch 1;
+// employee sold 2 PCS and the inter-branch transfer moved 5 PCS to Branch 2.
+// Cash/UPI must have been independently reconciled into one daily journal,
+// while expense/payroll journals remain separately balanced.
+uat_case('f17_daily_stock_transfer_cash_upi_and_ledger_cross_reconciliation', function () use ($wpdb) {
+    $db = $wpdb;
+    $cycles = (array)$db->get_results(
+        'SELECT id FROM '.Db::table('daily_cycles').
+        " WHERE company_id=1 AND branch_id=1 AND employee_id=10 AND status='completed'",
+        ARRAY_A
+    );
+    if (count($cycles) !== 1) throw new RuntimeException('Expected exactly one completed synthetic Daily Order');
+    $cycleId = (int)$cycles[0]['id'];
+    $evenings = (array)$db->get_results($db->prepare(
+        'SELECT status,expected_amount,cash_amount,upi_amount FROM '.Db::table('evening_settlements').
+        ' WHERE daily_cycle_id=%d', $cycleId
+    ), ARRAY_A);
+    if (count($evenings) !== 1 || ($evenings[0]['status'] ?? '') !== 'posted'
+        || abs((float)$evenings[0]['expected_amount'] - 200.0) > 0.005
+        || abs((float)$evenings[0]['cash_amount'] - 100.0) > 0.005
+        || abs((float)$evenings[0]['upi_amount'] - 100.0) > 0.005) {
+        throw new RuntimeException('Evening settlement is not exactly 200=100 cash +100 verified UPI');
+    }
+    $receipts = (array)$db->get_results($db->prepare(
+        'SELECT amount,status,bank_evidence_ref FROM '.Db::table('daily_upi_receipts').
+        ' WHERE company_id=1 AND branch_id=1 AND daily_cycle_id=%d', $cycleId
+    ), ARRAY_A);
+    if (count($receipts) !== 1 || ($receipts[0]['status'] ?? '') !== 'verified'
+        || ($receipts[0]['bank_evidence_ref'] ?? '') !== 'BANKMATCH001'
+        || abs((float)$receipts[0]['amount'] - 100.0) > 0.005) {
+        throw new RuntimeException('Bank evidence or UPI verification missing/duplicated');
+    }
+
+    // No second Daily final-post can hide behind a balanced journal.
+    $journals = (array)$db->get_results($db->prepare(
+        'SELECT id FROM '.Db::table('journal_entries').
+        " WHERE company_id=1 AND branch_id=1 AND source_type='daily_cycle' AND source_id=%d AND status='posted'",
+        $cycleId
+    ), ARRAY_A);
+    if (count($journals) !== 1) throw new RuntimeException('Expected one and only one posted Daily journal');
+    $journalId = (int)$journals[0]['id'];
+    $lines = (array)$db->get_results($db->prepare(
+        'SELECT account_id,SUM(debit) debit,SUM(credit) credit FROM '.Db::table('journal_lines').
+        ' WHERE journal_entry_id=%d GROUP BY account_id', $journalId
+    ), ARRAY_A);
+    $actual = [];
+    foreach ($lines as $line) {
+        $key = (int)$line['account_id'];
+        if (isset($actual[$key])) throw new RuntimeException('Daily journal repeated account row');
+        $actual[$key] = [(float)$line['debit'], (float)$line['credit']];
+    }
+    // In this synthetic fixture: 1 Cash, 2 UPI, 3 Sales, 4 COGS, 5 Inventory.
+    $expected = [
+        1 => [100.0, 0.0], 2 => [100.0, 0.0], 3 => [0.0, 200.0],
+        4 => [100.0, 0.0], 5 => [0.0, 100.0],
+    ];
+    if (count($actual) !== count($expected)) {
+        throw new RuntimeException('Daily journal account count mismatch');
+    }
+    foreach ($expected as $accountId => $amounts) {
+        if (!isset($actual[$accountId])
+            || abs($actual[$accountId][0] - $amounts[0]) > 0.005
+            || abs($actual[$accountId][1] - $amounts[1]) > 0.005) {
+            throw new RuntimeException('Daily Cash/UPI/Sales/COGS/Inventory journal account mismatch: '.$accountId);
+        }
+    }
+    $perf = (int)$db->get_var($db->prepare(
+        'SELECT COUNT(*) FROM '.Db::table('performance_entries').
+        " WHERE company_id=1 AND employee_id=10 AND source_type='daily_cycle' AND source_id=%d",
+        $cycleId
+    ));
+    if ($perf !== 1) throw new RuntimeException('Daily settlement produced missing/duplicate performance allocation');
+
+    $balances = (array)$db->get_results(
+        'SELECT branch_id,custodian_key,quantity FROM '.Db::table('stock_balances').
+        ' WHERE company_id=1 AND product_id=100', ARRAY_A
+    );
+    $perLocation = []; $sum = 0.0;
+    foreach ($balances as $row) {
+        $key = (int)$row['branch_id'].':'.(int)$row['custodian_key'];
+        if (isset($perLocation[$key])) throw new RuntimeException('Duplicate synthetic warehouse/custodian balance');
+        $perLocation[$key] = (float)$row['quantity'];
+        $sum += (float)$row['quantity'];
+    }
+    // 100 opening - 2 sold = 98 remaining, irrespective of internal custody movement.
+    if (abs($sum - 98.0) > 0.001
+        || abs(($perLocation['1:0'] ?? 0) - 93.0) > 0.001
+        || abs(($perLocation['2:0'] ?? 0) - 5.0) > 0.001
+        || abs(($perLocation['1:10'] ?? 0)) > 0.001) {
+        throw new RuntimeException('Cross-workflow inventory did not reconcile to 93+5 and zero employee custody');
+    }
+    $received = (int)$db->get_var(
+        'SELECT COUNT(*) FROM '.Db::table('stock_transfers').
+        " WHERE company_id=1 AND source_branch_id=1 AND destination_branch_id=2 AND status='received'"
+    );
+    if ($received !== 1) throw new RuntimeException('Transferred stock arrived without exactly one receipt');
+
+    // Expense + payroll both ran in this same schema; none may leave unbalanced postings.
+    $unbalanced = (int)$db->get_var(
+        'SELECT COUNT(*) FROM (SELECT je.id FROM '.Db::table('journal_entries').' je JOIN '.
+        Db::table('journal_lines').' jl ON jl.journal_entry_id=je.id'.
+        ' GROUP BY je.id HAVING ABS(SUM(jl.debit)-SUM(jl.credit)) > 0.005) x'
+    );
+    if ($unbalanced !== 0) throw new RuntimeException('Combined Daily, expense, payroll and transfer journals out of balance');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
