@@ -1,0 +1,117 @@
+name: ERP V7 F16 Latest-Source Business End-to-End QA
+
+on:
+  pull_request:
+    paths:
+      - 'ci/f16-business-uat-gate.py'
+      - 'ci/test_f16_business_uat_gate.py'
+      - '.github/workflows/erp-v7-f16-business-e2e.yml'
+      - 'plugin/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  latest-source-synthetic-business-uat:
+    name: F16 reviewed-source MariaDB business UAT (no Office)
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: synthetic_only_f16
+          MARIADB_DATABASE: eh7_test_f16_latest
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      EH7_INTEGRATION_MODE: synthetic
+      EH7_MARIADB_HOST: 127.0.0.1
+      EH7_MARIADB_PORT: 3306
+      EH7_MARIADB_USER: root
+      EH7_MARIADB_PASSWORD: synthetic_only_f16
+      EH7_MARIADB_DATABASE: eh7_test_f16_latest
+    steps:
+      - name: Checkout exact PR head source, not an older local candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Enforce reviewed Live base and prior role-matrix source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git rev-parse HEAD)"
+          test "$(printf '%s' "$source_sha" | wc -c)" -eq 40
+          git merge-base --is-ancestor 31d3319a4d726103e256e43ab20e16b99d50e810 HEAD
+          git merge-base --is-ancestor 0bc221862538d1af6ecd3cbc1c93d1711a01db19 HEAD
+          test "$EH7_INTEGRATION_MODE" = synthetic
+          test "$EH7_MARIADB_HOST" = 127.0.0.1
+          test "$EH7_MARIADB_DATABASE" = eh7_test_f16_latest
+          echo "PASS F16 source descends from reviewed Live base and F15 role matrix"
+          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
+
+      - name: PHP 8.3 and mysqli isolated test runtime
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, mbstring, json
+          tools: none
+          coverage: none
+
+      - name: Prove gate rejects skipped and soft-passed cases
+        run: python3 -m unittest -v ci/test_f16_business_uat_gate.py
+
+      - name: Execute PHP business transactions on disposable MariaDB
+        shell: bash
+        working-directory: plugin/excel-herbal-erp-v7
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/f16-test-logs"
+          php tests/integration_prepaid_sales.php |
+            tee "$GITHUB_WORKSPACE/f16-test-logs/prepaid.log"
+          php tests/integration_daily_disposition.php |
+            tee "$GITHUB_WORKSPACE/f16-test-logs/daily.log"
+          php tests/integration_uat_smoke.php |
+            tee "$GITHUB_WORKSPACE/f16-test-logs/uat.log"
+          php tests/integration_business_e2e_coverage2.php |
+            tee "$GITHUB_WORKSPACE/f16-test-logs/business.log"
+
+      - name: Require source-pinned proof of all 17 mandatory business cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/f16-business-uat-gate.py \
+            --source-sha="$SOURCE_SHA" \
+            --log-dir=f16-test-logs \
+            --output=f16-qa-evidence/F16-LATEST-SOURCE-BUSINESS-UAT.json
+          python3 - <<'PY'
+          import json, subprocess
+          with open('f16-qa-evidence/F16-LATEST-SOURCE-BUSINESS-UAT.json') as f:
+              report = json.load(f)
+          sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert report['source_sha'] == sha
+          assert report['gate'] == 'PASS'
+          assert report['required_suites'] == 4
+          assert report['mandatory_named_business_cases'] == 17
+          assert report['production_mutation_performed'] is False
+          assert report['real_staff_acceptance_verified'] is False
+          assert report['production_backup_restore_verified'] is False
+          print('PASS full synthetic F16 business UAT; source '+sha[:12])
+          PY
+
+      - name: Upload sanitized evidence only, never staff data or test logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh7-f16-latest-source-synthetic-business-uat
+          path: f16-qa-evidence/F16-LATEST-SOURCE-BUSINESS-UAT.json
+          if-no-files-found: error
+          retention-days: 14
