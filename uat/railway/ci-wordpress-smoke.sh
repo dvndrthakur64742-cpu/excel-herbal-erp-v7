@@ -179,7 +179,11 @@ console.log("PASS pretty REST health JSON and 7.3.12 plugin/schema");
 # Business endpoints are GET-only; only synthetic login/logout make writes.
 # Runs before the older auth smoke so session-count preflight is idle.
 EH7_CI_ISOLATED=1 node uat/railway/ci-business-role-gate.mjs
-# F19 real headless Chrome Flutter UX -> disposable WordPress REST.
+# F20 safely add a third synthetic BM user only inside ephemeral WordPress.
+# Uses application services and company/branch source attestation, never SQL shortcuts.
+docker cp uat/railway/ci-f20-seed-bm.php "$wp_container:/tmp/eh7-ci-f20-bm.php"
+docker exec "$wp_container" wp eval-file /tmp/eh7-ci-f20-bm.php   --path=/var/www/html --allow-root
+# F19/F20 real headless Chrome Flutter UX -> disposable WordPress REST.
 # Network interception permits only the CI Railway-shaped UAT hostname,
 # but proxies all requests exclusively to localhost; logs out every session.
 EH7_CI_ISOLATED=1 node uat/railway/ci-f19-browser-login.cjs flutter-app/build/web
