@@ -64,6 +64,21 @@ jobs:
             --pwa-strategy=none \
             --dart-define=EH7_ENVIRONMENT=uat \
             --dart-define=EH7_API_BASE_URL=https://wordpress-uat-production.up.railway.app/wp-json/excel-herbal-erp/v7
+      - name: Bind temporary Flutter renderer to local CanvasKit assets (no CDN)
+        working-directory: flutter-app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('build/web/flutter_bootstrap.js')
+          s=p.read_text()
+          target='_flutter.loader.load({'
+          assert s.count(target)==1, 'Flutter bootstrap layout changed'
+          assert Path('build/web/canvaskit/canvaskit.wasm').is_file()
+          assert Path('build/web/canvaskit/canvaskit.js').is_file()
+          s=s.replace(target, '_flutter.loader.load({\n  config: { canvasKitBaseUrl: "/canvaskit/" },',1)
+          p.write_text(s)
+          print('PASS F19 UAT browser uses only locally served CanvasKit, never external CDN')
+          PY
       - name: Install Chrome browser harness in temporary CI directory
         run: |
           command -v google-chrome
