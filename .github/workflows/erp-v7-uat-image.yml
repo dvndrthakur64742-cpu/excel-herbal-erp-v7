@@ -71,11 +71,16 @@ jobs:
           from pathlib import Path
           p=Path('build/web/flutter_bootstrap.js')
           s=p.read_text()
-          target='_flutter.loader.load({'
-          assert s.count(target)==1, 'Flutter bootstrap layout changed'
+          with_config='_flutter.loader.load({'
+          no_config='_flutter.loader.load();'
           assert Path('build/web/canvaskit/canvaskit.wasm').is_file()
           assert Path('build/web/canvaskit/canvaskit.js').is_file()
-          s=s.replace(target, '_flutter.loader.load({\n  config: { canvasKitBaseUrl: "/canvaskit/" },',1)
+          if s.count(with_config)==1:
+              s=s.replace(with_config, '_flutter.loader.load({\n  config: { canvasKitBaseUrl: "/canvaskit/" },',1)
+          elif s.count(no_config)==1:
+              s=s.replace(no_config, '_flutter.loader.load({config:{canvasKitBaseUrl:"/canvaskit/"}});',1)
+          else:
+              raise AssertionError('Unknown Flutter loader syntax; refusing unsafe renderer patch')
           p.write_text(s)
           print('PASS F19 UAT browser uses only locally served CanvasKit, never external CDN')
           PY
