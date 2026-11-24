@@ -34,6 +34,10 @@ jobs:
           Write-Host "PASS native readiness doctor"
       - name: Syntax-check localhost-only login smoke test (no secrets or server)
         run: node --check uat/windows/local-auth-smoke.mjs
+      - name: Verify 24 synthetic least-privilege API outcomes offline (no secrets)
+        run: |
+          node --check uat/windows/candidate-three-role-readonly.mjs
+          node --test uat/windows/candidate-three-role-readonly.test.mjs
       - name: Run fast local QA in Windows PowerShell
         shell: pwsh
         run: |
