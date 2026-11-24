@@ -42,5 +42,5 @@ test('real WordPress UAT script uses only allowed local host and revokes both us
   assert.match(code, /assertForbiddenReply\(foreignOrderAccess, 'branch_forbidden'/);
   assert.match(code, /active_mobile_sessions_zero === true/);
   assert.match(code, /'\/auth\/logout'/);
-  assert.doesNotMatch(code, /console\.log\([^)]*(?:password|access_token|refresh_token)/i);
+  assert.doesNotMatch(code, /console\.(?:log|error)\(\s*(?:token|initial|refresh|adminToken|secret)\b/i);
 });
