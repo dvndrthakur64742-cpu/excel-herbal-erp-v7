@@ -204,7 +204,10 @@ async function clickSemantic(page,pattern) {
 }
 
 async function smokeActor(browser,origin,actor){
-  const page=await browser.newPage();
+  // Each synthetic staff role needs an isolated browser storage/cookie context:
+  // closing a tab alone does not clear FlutterSecureStorage/localStorage.
+  const context=await browser.createBrowserContext();
+  const page=await context.newPage();
   const stats={login200:0,bootstrap200:0,navigationCount:0,
     employeeId:0,blockedExternal:0,failures:[],errors:[],tokens:new Set(),
     requestFailures:[],badResponses:[],consoleErrors:[]};
@@ -245,11 +248,19 @@ async function smokeActor(browser,origin,actor){
     }
     await new Promise(resolve=>setTimeout(resolve,2200));
     await enableSemantics(page);
-    const labels=await deepSemantics(page);
+    let labels=[];
+    for(let tick=0;tick<24;tick++){
+      labels=await deepSemantics(page);
+      if(labels.some(x=>/mobile number/i.test(x.label))&&
+        labels.some(x=>/password/i.test(x.label)))break;
+      await new Promise(resolve=>setTimeout(resolve,500));
+    }
     check(labels.some(x=>/mobile number/i.test(x.label))&&
       labels.some(x=>/password/i.test(x.label)),
       'Flutter accessible Login fields incomplete: '+
-      labels.map(x=>x.label).slice(0,25).join('|').slice(0,500));
+      JSON.stringify({labels:labels.map(x=>x.label).slice(0,25),
+        js:stats.errors.slice(0,5),http:stats.badResponses.slice(0,5),
+        network:stats.requestFailures.slice(0,6)}).slice(0,900));
     await clickSemantic(page,/mobile number/i);
     await new Promise(resolve=>setTimeout(resolve,220));
     await page.keyboard.type(actor.mobile,{delay:28});
@@ -279,6 +290,7 @@ async function smokeActor(browser,origin,actor){
       stats.navigationCount+', blockedExternal='+stats.blockedExternal);
   }finally{
     await page.close().catch(()=>{});
+    await context.close().catch(()=>{});
     for(const token of stats.tokens){
       const out=await localApi(API_ROOT+'/auth/logout',{method:'POST',token});
       check(out.status===200,'F19 synthetic logout failed');
