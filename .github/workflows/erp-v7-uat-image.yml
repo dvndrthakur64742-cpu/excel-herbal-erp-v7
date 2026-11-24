@@ -47,6 +47,11 @@ jobs:
           grep -q 'RAILWAY_GIT_COMMIT_SHA' uat/railway/eh7-uat-entrypoint.sh
           grep -q 'rotate_synthetic_marker' uat/railway/eh7-uat-entrypoint.sh
           grep -q 'wordpress-uat-production.up.railway.app' uat/railway/eh7-uat-entrypoint.sh
+      - name: F17 offline assertions for forbidden role REST responses
+        run: |
+          node --test uat/railway/ci-role-denial-contract.test.mjs
+          node --check uat/railway/ci-auth-smoke.mjs
+
       - name: Build WordPress UAT image from current plugin
         run: docker build --pull -f uat/railway/Dockerfile -t eh7-uat:review .
       - name: Verify immutable plugin version and Apache rewrite
