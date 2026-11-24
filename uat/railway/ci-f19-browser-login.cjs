@@ -43,6 +43,9 @@ async function preflight(){
     'F19 refuses execution outside exact-source ephemeral GitHub CI');
   const html=await fs.readFile(path.join(WEB,'index.html'),'utf8');
   const main=await fs.readFile(path.join(WEB,'main.dart.js'),'utf8');
+  const bootstrap=await fs.readFile(path.join(WEB,'flutter_bootstrap.js'),'utf8');
+  check(bootstrap.includes('canvasKitBaseUrl: "/canvaskit/"'),
+    'F19 browser assets must use local-only CanvasKit instead of an external CDN');
   check(/<base href="\/">/.test(html),'F19 expects a localhost-only Flutter UAT root build');
   check(main.includes(API_HOST)&&!main.includes('eh7_live_credentials'),
     'F19 source bundle is not a reviewed synthetic UAT target');
