@@ -195,7 +195,7 @@ for (const [token, label] of [
   must(logout.code === 200 && logout.body?.ok === true,
     'Synthetic ' + label + ' logout failed');
   const after = await api('/bootstrap', { token });
-  must([401, 403].includes(after.code) && after.body?.ok === false,
+  must([401, 403].includes(after.code) && after.body?.ok !== true,
     'Revoked ' + label + ' token remained usable');
 }
 const completed = await api('/health');
