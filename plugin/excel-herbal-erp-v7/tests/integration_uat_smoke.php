@@ -617,5 +617,48 @@ uat_case('f17_daily_stock_transfer_cash_upi_and_ledger_cross_reconciliation', fu
     if ($unbalanced !== 0) throw new RuntimeException('Combined Daily, expense, payroll and transfer journals out of balance');
 });
 
+// F17 follow-up: a replay of the same final-post must not collect money,
+// deduct employee custody, create another journal or award salary points twice.
+uat_case('f17_completed_daily_final_post_replay_is_read_only', function () use ($manager, $wpdb) {
+    $db = $wpdb;
+    $cycleId = (int)$db->get_var(
+        'SELECT id FROM '.Db::table('daily_cycles').
+        " WHERE company_id=1 AND branch_id=1 AND employee_id=10 AND status='completed' LIMIT 1"
+    );
+    if ($cycleId < 1) throw new RuntimeException('No completed synthetic Daily cycle for replay');
+    $tables = ['journal_entries', 'journal_lines', 'performance_entries', 'stock_ledger', 'audit_log'];
+    $before = [];
+    foreach ($tables as $table) {
+        $before[$table] = (int)$db->get_var('SELECT COUNT(*) FROM '.Db::table($table));
+    }
+    $stockBefore = (array)$db->get_results(
+        'SELECT branch_id,product_id,batch_key,custodian_key,quantity,average_unit_cost FROM '.
+        Db::table('stock_balances').' ORDER BY branch_id,product_id,batch_key,custodian_key', ARRAY_A
+    );
+    try {
+        uat_dispatch('daily.final_post', $manager, [
+            'id'=>$cycleId, 'cash'=>100, 'upi'=>100,
+        ]);
+    } catch (DomainException $e) {
+        // A completed cycle is not in the evening_submitted state. The state
+        // rejection is the required behavior; do not assume one error-code label.
+        foreach ($tables as $table) {
+            $count = (int)$db->get_var('SELECT COUNT(*) FROM '.Db::table($table));
+            if ($count !== $before[$table]) {
+                throw new RuntimeException('Replay changed '.$table.' rows: '.$before[$table].' -> '.$count);
+            }
+        }
+        $stockAfter = (array)$db->get_results(
+            'SELECT branch_id,product_id,batch_key,custodian_key,quantity,average_unit_cost FROM '.
+            Db::table('stock_balances').' ORDER BY branch_id,product_id,batch_key,custodian_key', ARRAY_A
+        );
+        if ($stockBefore !== $stockAfter) {
+            throw new RuntimeException('Rejected Daily replay changed warehouse or custody stock');
+        }
+        return;
+    }
+    throw new RuntimeException('Completed Daily cycle was final-posted twice');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
