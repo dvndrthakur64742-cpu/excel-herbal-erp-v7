@@ -167,25 +167,31 @@ async function deepSemantics(page) {
   });
 }
 async function enableSemantics(page) {
-  const button=await page.evaluate(()=>{
-    function find(n){
-      if(!n)return null;
-      if(n.nodeType===1){
-        if(n.tagName.toLowerCase()==='flt-semantics-placeholder') {
-          const r=n.getBoundingClientRect();
-          return {x:r.x+r.width/2,y:r.y+r.height/2};
+  // Flutter's real accessibility opt-in is an intentionally offscreen 1px
+  // element at left=-1, top=-1. Mouse-coordinate clicking cannot reach it.
+  const activated = await page.evaluate(() => {
+    function locate(node) {
+      if (!node) return null;
+      if (node.nodeType === 1) {
+        if (node.tagName.toLowerCase() === 'flt-semantics-placeholder') return node;
+        if (node.shadowRoot) {
+          const inside = locate(node.shadowRoot);
+          if (inside) return inside;
         }
-        if(n.shadowRoot){const result=find(n.shadowRoot);if(result)return result;}
       }
-      for(const child of n.children||[]){const r=find(child);if(r)return r;}
+      for (const child of node.children || []) {
+        const found = locate(child);
+        if (found) return found;
+      }
       return null;
     }
-    return find(document.body);
+    const target = locate(document.body);
+    if (!target) return false;
+    target.click();
+    return true;
   });
-  if(button&&button.x>0&&button.y>0){
-    await page.mouse.click(button.x,button.y);
-    await new Promise(resolve=>setTimeout(resolve,900));
-  }
+  check(activated, 'Flutter accessibility placeholder not found');
+  await new Promise(resolve => setTimeout(resolve, 1100));
 }
 async function clickSemantic(page,pattern) {
   const nodes=await deepSemantics(page);
