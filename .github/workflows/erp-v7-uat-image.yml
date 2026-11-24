@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: F16 exact-source REST authority offline safety contracts
+        run: node --test uat/railway/ci-business-role-gate.test.mjs
       - name: Validate Railway recovery safety gate (synthetic snapshots)
         run: node --test uat/railway/recovery-preflight.test.mjs
       - name: Validate Office-shaped synthetic migration fixture contract
