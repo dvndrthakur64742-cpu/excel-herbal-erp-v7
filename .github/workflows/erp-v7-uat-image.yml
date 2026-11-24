@@ -49,6 +49,47 @@ jobs:
           grep -q 'RAILWAY_GIT_COMMIT_SHA' uat/railway/eh7-uat-entrypoint.sh
           grep -q 'rotate_synthetic_marker' uat/railway/eh7-uat-entrypoint.sh
           grep -q 'wordpress-uat-production.up.railway.app' uat/railway/eh7-uat-entrypoint.sh
+      - name: Install pinned Flutter SDK for F19 isolated browser UAT
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - name: Compile source-matched synthetic Flutter Web for isolated browser
+        working-directory: flutter-app
+        run: |
+          flutter pub get
+          flutter build web --release \
+            --base-href=/ \
+            --pwa-strategy=none \
+            --dart-define=EH7_ENVIRONMENT=uat \
+            --dart-define=EH7_API_BASE_URL=https://wordpress-uat-production.up.railway.app/wp-json/excel-herbal-erp/v7
+      - name: Bind temporary Flutter renderer to local CanvasKit assets (no CDN)
+        working-directory: flutter-app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('build/web/flutter_bootstrap.js')
+          s=p.read_text()
+          with_config='_flutter.loader.load({'
+          no_config='_flutter.loader.load();'
+          assert Path('build/web/canvaskit/canvaskit.wasm').is_file()
+          assert Path('build/web/canvaskit/canvaskit.js').is_file()
+          if s.count(with_config)==1:
+              s=s.replace(with_config, '_flutter.loader.load({\n  config: { canvasKitBaseUrl: "/canvaskit/" },',1)
+          elif s.count(no_config)==1:
+              s=s.replace(no_config, '_flutter.loader.load({ config: { canvasKitBaseUrl: "/canvaskit/" } });',1)
+          else:
+              raise AssertionError('Unknown Flutter loader syntax; refusing unsafe renderer patch')
+          p.write_text(s)
+          print('PASS F19 UAT browser uses only locally served CanvasKit, never external CDN')
+          PY
+      - name: Install Chrome browser harness in temporary CI directory
+        run: |
+          command -v google-chrome
+          npm install --no-save --no-package-lock --no-audit --no-fund \
+            --prefix /tmp/eh7-f19-deps puppeteer-core@24.26.1
+          node --check uat/railway/ci-f19-browser-login.cjs
       - name: Build WordPress UAT image from current plugin
         run: docker build --pull -f uat/railway/Dockerfile -t eh7-uat:review .
       - name: Verify immutable plugin version and Apache rewrite
