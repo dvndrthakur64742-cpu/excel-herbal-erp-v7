@@ -42,12 +42,35 @@ class HomeScreen extends ConsumerWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
           MediaQuery.sizeOf(context).width >= 960 ? 28 : 16,
-          24,
+          16,
           MediaQuery.sizeOf(context).width >= 960 ? 28 : 16,
-          36,
+          24,
         ),
         children: [
           _IdentityHero(app: app),
+          const SizedBox(height: 10),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              Text('Business date: ${app.businessDate} · ${app.businessTimezone}'),
+              TextButton.icon(
+                onPressed: () async {
+                  await ref.read(appStateProvider.notifier).refreshBootstrap();
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Refresh dashboard'),
+              ),
+              if (app.sectionVisible('my_work') && app.can('workforce.attendance.self') &&
+                  !app.businessAccessBlocked && openConnectedAction != null)
+                FilledButton.icon(
+                  onPressed: () => openConnectedAction!('attendance'),
+                  icon: const Icon(Icons.fingerprint, size: 18),
+                  label: const Text('Attendance / Punch'),
+                ),
+            ],
+          ),
           if (app.branchSelectorVisible) ...[
             const SizedBox(height: 12),
             const BranchSelector(),

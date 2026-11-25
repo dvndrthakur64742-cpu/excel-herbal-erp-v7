@@ -70,7 +70,7 @@ abstract final class HomeStartTaskPlanner {
       ownWork.add(const HomeStartTask(
         id: 'attendance',
         title: "Today's Duty",
-        description: 'View automatic attendance and GPS status',
+        description: 'Check attendance, duty time and GPS status',
         icon: Icons.schedule_outlined,
       ));
     }
@@ -173,14 +173,14 @@ class HomeStartTasks extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Start here',
+          'Quick actions',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w900,
               ),
         ),
         const SizedBox(height: 5),
         Text(
-          'Choose a task to open its usual ERP workflow.',
+          'Open an authorised workflow.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: ExcelBrand.muted,
               ),
@@ -205,8 +205,6 @@ class HomeStartTasks extends StatelessWidget {
                     width: tileWidth,
                     child: _TaskCard(
                       task: tasks[i],
-                      primary: i == 0,
-                      compact: columns == 1,
                       onPressed: () => onOpen(tasks[i]),
                     ),
                   ),
@@ -220,21 +218,11 @@ class HomeStartTasks extends StatelessWidget {
 }
 
 class _TaskCard extends StatelessWidget {
-  const _TaskCard({
-    required this.task,
-    required this.primary,
-    required this.compact,
-    required this.onPressed,
-  });
-
+  const _TaskCard({required this.task, required this.onPressed});
   final HomeStartTask task;
-  final bool primary;
-  final bool compact;
   final VoidCallback onPressed;
-
   @override
   Widget build(BuildContext context) {
-    if (compact) {
       return Card(
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
@@ -285,54 +273,6 @@ class _TaskCard extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ),
-      );
-    }
-    return Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(17),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 43,
-                height: 43,
-                decoration: BoxDecoration(
-                  color: ExcelBrand.primarySoft,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(task.icon, color: ExcelBrand.primaryDark),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                task.title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                task.description,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: ExcelBrand.muted,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              if (primary)
-                FilledButton.icon(
-                  onPressed: onPressed,
-                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                  label: const Text('Open task'),
-                )
-              else
-                OutlinedButton.icon(
-                  onPressed: onPressed,
-                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                  label: const Text('Open task'),
-                ),
-            ],
           ),
         ),
       );

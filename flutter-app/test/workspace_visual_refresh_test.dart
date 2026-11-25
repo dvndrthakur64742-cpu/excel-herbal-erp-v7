@@ -31,6 +31,21 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('desktop shared header does not consume dashboard', (tester) async {
+    tester.view.physicalSize = const Size(1366, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SingleChildScrollView(
+      child: WorkspaceBanner(eyebrow: 'Excel Herbal', title: 'Operations workspace',
+        subtitle: 'Head Office', icon: Icons.dashboard_outlined),
+    ))));
+    expect(tester.getSize(find.byType(WorkspaceBanner)).height, lessThan(120));
+    expect(tester.takeException(), isNull);
+  });
+
   test('dashboard/report hierarchy is backed by live scoped modules', () {
     final home = File('lib/screens/home/home_screen.dart').readAsStringSync();
     final reports =
