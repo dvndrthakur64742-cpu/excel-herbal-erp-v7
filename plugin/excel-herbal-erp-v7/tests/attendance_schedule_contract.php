@@ -100,3 +100,36 @@ $wpdb->failEligibility = true;
 $wpdb->closed = [];
 ScheduledAttendanceService::run();
 dutyAssert($wpdb->closed === [] && $GLOBALS['duty_heartbeats'] === 1, 'failed eligibility query does not mutate attendance or advance heartbeat');
+
+
+// F28 approved schedule is tested separately from the legacy live scheduler.
+require_once __DIR__.'/../src/Workforce/SelfAttendancePolicy.php';
+use ExcelHerbal\ERP7\Workforce\SelfAttendancePolicy;
+$zone = new DateTimeZone('Asia/Kolkata');
+$at = fn(string $time) => new DateTimeImmutable('2026-11-25 '.$time, $zone);
+$punch = $at('09:00:00');
+foreach ([
+    ['08:59:59',false],['09:00:00',true],['18:59:59',true],['19:00:00',false],
+] as [$time,$expected]) {
+    dutyAssert(SelfAttendancePolicy::state($at($time),null,null)['can_check_in']===$expected,'self check-in boundary '.$time);
+}
+foreach ([
+    ['10:29:59',false],['10:30:00',true],['16:59:59',true],['17:00:00',false],
+] as [$time,$expected]) {
+    dutyAssert(SelfAttendancePolicy::state($at($time),$punch,null)['gps_should_track']===$expected,'GPS boundary '.$time);
+}
+dutyAssert(!SelfAttendancePolicy::state($at('12:00:00'),null,null)['gps_should_track'],'no check-in means no GPS');
+dutyAssert(!SelfAttendancePolicy::state($at('12:00:00'),$punch,$at('11:00:00'))['gps_should_track'],'early checkout stops GPS');
+dutyAssert(!SelfAttendancePolicy::state($at('12:00:00'),null,null,true)['can_check_in'],'excused day blocks self check-in');
+dutyAssert(SelfAttendancePolicy::state($at('18:59:59'),$punch,null)['can_check_out'],'checkout allowed until 19:00');
+$cutoff=SelfAttendancePolicy::state($at('19:00:00'),$punch,null);
+dutyAssert(!$cutoff['can_check_out']&&$cutoff['auto_checkout_due']&&$cutoff['auto_checkout_utc']==='2026-11-25 13:30:00','automatic checkout due at 19:00 IST');
+dutyAssert(SelfAttendancePolicy::state($at('18:00:00'),$at('09:01:00'),$at('17:59:59'))['late_check_in'],'late check-in uses official 09:00');
+dutyAssert(SelfAttendancePolicy::state($at('18:00:00'),$punch,$at('17:59:59'))['early_checkout'],'early checkout uses official 18:00');
+dutyAssert(!SelfAttendancePolicy::state($at('18:00:00'),$punch,$at('18:00:00'))['early_checkout'],'18:00 is normal checkout');
+try {
+    SelfAttendancePolicy::schedule(['auto_checkout'=>'16:00:00']);
+    dutyAssert(false,'invalid schedule rejected');
+} catch (\ExcelHerbal\ERP7\Domain\DomainException $e) {
+    dutyAssert(true,'invalid schedule rejected');
+}
