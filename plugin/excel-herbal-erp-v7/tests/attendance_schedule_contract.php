@@ -19,3 +19,23 @@ $work=file_get_contents(__DIR__.'/../src/Workforce/WorkforceService.php');
 dutyAssert(str_contains($work,"'attendance_manual_disabled',403") && str_contains($work,"get_gmt_from_date"),'manual check-in denied and UTC duty times used');
 $plugin=file_get_contents(__DIR__.'/../src/Core/Plugin.php');
 dutyAssert(str_contains($plugin,'ScheduledAttendanceService::boot()')&&str_contains($plugin,'ScheduledAttendanceService::deactivate()'),'scheduler lifecycle registered');
+
+require_once __DIR__.'/../src/Workforce/ScheduledAttendanceService.php';
+use ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService;
+$now=1800000000;
+foreach([
+    [0,0,'not_scheduled'],
+    [0,$now+300,'unverified'],
+    [$now+60,$now+300,'clock_mismatch'],
+    [$now-901,$now+300,'stale'],
+    [$now-60,$now-901,'overdue'],
+    [$now-900,$now+300,'recent'],
+] as [$last,$next,$expected]){
+    $health=ScheduledAttendanceService::evaluateHealth($last,$next,$now);
+    dutyAssert($health['status']===$expected,'attendance scheduler telemetry '.$expected);
+    dutyAssert($health['last_success_utc']===($last>0?gmdate('Y-m-d H:i:s',$last):null),'scheduler last successful UTC '.$expected);
+}
+$scheduler=file_get_contents(__DIR__.'/../src/Workforce/ScheduledAttendanceService.php');
+dutyAssert(str_contains($scheduler,'self::recordSuccessfulTick();'),'successful tick telemetry recorded');
+$diag=file_get_contents(__DIR__.'/../src/Administration/MaintenanceService.php');
+dutyAssert(str_contains($diag,"'today_overdue_without_checkout'")&&str_contains($diag,'ScheduledAttendanceService::health()'),'read-only diagnostics include overdue today and scheduler health');
