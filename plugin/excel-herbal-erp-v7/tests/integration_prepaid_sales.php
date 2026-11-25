@@ -276,6 +276,21 @@ $verifiedCash=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
 );
 checkSales($verifiedCash['status']==='evidence_verified' &&
  $verifiedCash['refund_disbursed']===false,'independent manual cash proof check is NOT disbursement');
+$auditBeforeRetry=(int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('audit_log'));
+$submitRetry=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::submit(
+ $evidenceMaker,$returnId,(int)$originals[0]['id'],'100.00','UAT-CASH-REF-001'
+);
+checkSales($submitRetry['id']===$cashEvidence['id'] && $submitRetry['status']==='evidence_verified',
+ 'lost submission response returns current state of original evidence');
+$verifyRetry=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
+ $evidenceCashChecker,(int)$cashEvidence['id'],'UAT-CASH-CHECK-001'
+);
+checkSales($verifyRetry===$verifiedCash,'lost verification response returns prior result');
+denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::verify(
+ $evidenceCashChecker,(int)$cashEvidence['id'],'UAT-CASH-CHECK-002'
+),'refund_evidence_state_invalid');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('audit_log'))===$auditBeforeRetry,
+ 'refund evidence retries do not duplicate audit events');
 $partialPreflight=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::detail($returnApprover,$returnId);
 checkSales($partialPreflight['refund_evidence_check']['evidence_complete']===false &&
  in_array('refund_evidence_missing',$partialPreflight['refund_evidence_check']['blockers'],true),
