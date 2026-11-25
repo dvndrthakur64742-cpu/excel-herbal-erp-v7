@@ -14,6 +14,7 @@ import '../../widgets/guided_workspace_switcher.dart';
 import 'acting_duty_admin_panel.dart';
 import 'attendance_policy_panel.dart';
 import 'gps_exception_panel.dart';
+import 'attendance_time_review_panel.dart';
 
 class AdministrationScreen extends ConsumerStatefulWidget {
   const AdministrationScreen({super.key, this.initialSection});
@@ -62,6 +63,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         tabs.add(('Attendance Policy', const AttendancePolicyPanel()));
         if (app.can('workforce.attendance.manage')) {
           tabs.add(('GPS Exceptions', GpsExceptionPanel(branchId: app.currentBranchId)));
+          tabs.add(('Attendance Corrections', AttendanceTimeReviewPanel(admin: true, branchId: app.currentBranchId)));
         }
       }
     }
