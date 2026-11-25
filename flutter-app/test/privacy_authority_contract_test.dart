@@ -237,7 +237,11 @@ void main() {
     expect(home, contains("app.can('daily_order.others')"));
     expect(home, contains("app.can('performance.view')"));
     expect(home, contains('final rows = await Future.wait(['));
-    expect(home, contains('Future<List<Map<String, dynamic>>> _safeRows'));
+    expect(home, contains('Future<List<Map<String, dynamic>>?> _safeRows'));
+    // A failed independent request is unknown, not a verified zero.
+    expect(home, contains('if (value is! List || value.any((row) => row is! Map)) return null;'));
+    expect(home, contains("cards.add(const _Metric('Daily orders', 'Unavailable'"));
+    expect(home, contains("cards.add(const _Metric('Sales summary', 'Unavailable'"));
   });
 
   test('business date inputs use picker widgets instead of raw format typing', () {
