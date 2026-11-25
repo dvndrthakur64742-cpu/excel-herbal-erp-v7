@@ -13,6 +13,7 @@ import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/report_branch_scope.dart';
 import '../../core/report_query_identity.dart';
+import '../../core/report_period.dart';
 import '../../core/price_distribution_export.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
@@ -35,6 +36,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   String reportingCategory = '';
   DateTime? _fromDate;
   DateTime? _toDate;
+  DateTime? _asOfDate;
 
   @override
   Widget build(BuildContext context) {
@@ -68,18 +70,30 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       'account_ledger',
     };
     const asOfReports = {'trial', 'balance_sheet'};
-    final defaultFrom = DateTime.tryParse(app.businessMonthStart) ??
-        DateTime(DateTime.now().year, DateTime.now().month, 1);
-    final defaultTo = DateTime.tryParse(app.businessDate) ?? DateTime.now();
-    final fromDate = _fromDate ?? defaultFrom;
-    final toDate = _toDate ?? defaultTo;
+    final defaultTo = ReportPeriod.businessDay(app.businessDate);
+    if (defaultTo == null) {
+      return Scaffold(body: Center(child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Server business date unavailable. Reports cannot be loaded safely.'),
+          TextButton(onPressed: () => ref.read(appStateProvider.notifier).refreshBootstrap(),
+            child: const Text('Retry')),
+        ],
+      )));
+    }
+    final defaultFrom = DateTime(defaultTo.year, defaultTo.month, 1);
+    final toDate = _toDate == null || _toDate!.isAfter(defaultTo) ? defaultTo : _toDate!;
+    final fromDate = _fromDate == null || _fromDate!.isAfter(toDate)
+        ? (defaultFrom.isAfter(toDate) ? toDate : defaultFrom) : _fromDate!;
+    final asOfDate = _asOfDate == null || _asOfDate!.isAfter(defaultTo) ? defaultTo : _asOfDate!;
+    final asOfValue = _dateKey(asOfDate);
     final fromValue = _dateKey(fromDate);
     final toValue = _dateKey(toDate);
     final query = <String, dynamic>{
       if (app.currentBranchId != null) 'branch_id': app.currentBranchId,
       if (periodReports.contains(activeType)) 'from': fromValue,
       if (periodReports.contains(activeType)) 'to': toValue,
-      if (asOfReports.contains(activeType)) 'to': app.businessDate,
+      if (asOfReports.contains(activeType)) 'to': asOfValue,
       if (activeType == 'price_distribution' && reportingCategory.isNotEmpty)
         'reporting_category': reportingCategory,
     };
@@ -91,13 +105,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     .contains(activeType)
                 ? 'Current position'
                 : asOfReports.contains(activeType)
-                    ? BusinessFormat.date(app.businessDate)
+                    ? 'As of ${BusinessFormat.date(asOfValue)}'
                     : '${BusinessFormat.date(fromValue)} – ${BusinessFormat.date(toValue)}';
-    final scopeLabel = ReportBranchScope.caption(
-      periodLabel: baseScopeLabel,
-      branchId: app.currentBranchId,
-      authorisedBranches: app.branches,
-    );
+    final scopeLabel = app.currentBranchId == null
+        ? '$baseScopeLabel · ${needsBranch ? 'Select branch' : 'All authorised scope'}'
+        : ReportBranchScope.caption(
+            periodLabel: baseScopeLabel,
+            branchId: app.currentBranchId,
+            authorisedBranches: app.branches,
+          );
 
     final reportView = activeType == 'account_ledger'
         ? _AccountLedgerPanel(
@@ -167,14 +183,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                                 Text(
                                   '${available.length} authorised report views',
                                   style: const TextStyle(
-                                    color: Color(0xFFE0F2E7),
+                                    color: ExcelBrand.primaryDark,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 Text(
                                   scopeLabel,
                                   style: const TextStyle(
-                                    color: Color(0xFFB4EBCB),
+                                    color: ExcelBrand.muted,
                                   ),
                                 ),
                               ],
@@ -231,6 +247,28 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                             runSpacing: 8,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
+                              PopupMenuButton<String>(
+                                tooltip: 'Quick report period',
+                                onSelected: (value) {
+                                  final period = ReportPeriod.preset(defaultTo, value);
+                                  setState(() {
+                                    _fromDate = period.$1;
+                                    _toDate = period.$2;
+                                  });
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(value: 'today', child: Text('Today')),
+                                  PopupMenuItem(value: 'week', child: Text('Last 7 days')),
+                                  PopupMenuItem(value: 'month', child: Text('This month')),
+                                  PopupMenuItem(value: 'previous_month', child: Text('Previous month')),
+                                  PopupMenuItem(value: 'year', child: Text('Calendar year to date')),
+                                ],
+                                child: const Padding(padding: EdgeInsets.all(10),
+                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                    Icon(Icons.date_range_outlined, size: 18),
+                                    SizedBox(width: 6), Text('Quick period'), Icon(Icons.arrow_drop_down),
+                                  ])),
+                              ),
                               OutlinedButton.icon(
                                 icon: const Icon(Icons.calendar_month_outlined),
                                 label: Text('From ${BusinessFormat.date(fromValue)}'),
@@ -239,7 +277,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                                     context: context,
                                     initialDate: fromDate,
                                     firstDate: DateTime(2000),
-                                    lastDate: DateTime(2100),
+                                    lastDate: defaultTo,
                                     helpText: 'Report start date',
                                   );
                                   if (picked == null || !mounted) return;
@@ -262,7 +300,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                                     context: context,
                                     initialDate: toDate,
                                     firstDate: DateTime(2000),
-                                    lastDate: DateTime(2100),
+                                    lastDate: defaultTo,
                                     helpText: 'Report end date',
                                   );
                                   if (picked == null || !mounted) return;
@@ -287,6 +325,24 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                               ),
                             ],
                           ),
+                        ),
+                      if (asOfReports.contains(activeType))
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                          child: Wrap(spacing: 8, children: [
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.calendar_month_outlined),
+                              label: Text('As of ${BusinessFormat.date(asOfValue)}'),
+                              onPressed: () async {
+                                final picked = await showDatePicker(context: context,
+                                  initialDate: asOfDate, firstDate: DateTime(2000),
+                                  lastDate: defaultTo, helpText: 'Report closing date');
+                                if (picked != null && mounted) setState(() => _asOfDate = picked);
+                              },
+                            ),
+                            TextButton(onPressed: () => setState(() => _asOfDate = null),
+                              child: const Text('Current date')),
+                          ]),
                         ),
                       Expanded(child: reportView),
                     ],
