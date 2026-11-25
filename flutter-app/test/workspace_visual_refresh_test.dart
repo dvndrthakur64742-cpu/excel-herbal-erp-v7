@@ -37,8 +37,20 @@ void main() {
         File('lib/screens/reports/reports_screen.dart').readAsStringSync();
     final shell = File('lib/shell/app_shell.dart').readAsStringSync();
     expect(home, contains('WorkspaceBanner('));
-    expect(home, contains('_BranchContextCard()'));
-    expect(home, contains('app.managementDashboardVisible'));
+    // The canonical selector is now visible before management KPIs, rather
+    // than being wrapped in a large duplicate branch-context card.
+    expect(home, contains('if (app.branchSelectorVisible)'));
+    expect('const BranchSelector()'.allMatches(home).length, 1);
+    expect(home, contains('if (branch != null && app.managementDashboardVisible)'));
+    final selector = home.indexOf('const BranchSelector()');
+    final overview = home.indexOf('_ManagementOverview(');
+    final shortcuts = home.indexOf('HomeStartTasks(');
+    expect(selector, greaterThanOrEqualTo(0));
+    expect(overview, greaterThan(selector));
+    expect(shortcuts, greaterThan(overview));
+    expect(home, contains('ExpansionTile('));
+    expect(home, contains('children: [_AuthorityCard(app: app)]'));
+    expect(home, contains("cards.add(const _Metric('Daily orders', 'Unavailable'"));
     expect(reports, contains('WorkspaceBanner('));
     expect(reports, contains('REPORT LIBRARY'));
     expect(reports, contains('constraints.maxWidth >= 900'));
