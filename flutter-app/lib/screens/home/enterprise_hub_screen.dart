@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../widgets/erp_status_badge.dart';
+import '../../widgets/home_query.dart';
+import '../../widgets/branch_selector.dart';
+import '../../core/operational_health_text.dart';
 import '../../core/stock_search_preview.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
@@ -79,12 +82,12 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
 
   Widget _approvalTab(AppState app) {
     if (app.currentBranchId == null) {
-      return const Center(child: Text('Select a branch.'));
+      return const Column(children: [Padding(padding: EdgeInsets.all(12), child: BranchSelector()), Expanded(child: Center(child: Text('Select an authorised branch.')))]);
     }
-    return FutureBuilder<_ApprovalResult>(
-      key: ValueKey('approval-${app.currentBranchId}-$refresh'),
-      future: _loadApprovals(app),
-      builder: (context, snapshot) {
+    return HomeQuery<_ApprovalResult>(
+      scope: (ref.watch(apiClientProvider), app, refresh),
+      loader: () => _loadApprovals(app),
+      builder: (context, snapshot, retry) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -103,10 +106,12 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 sliver: SliverToBoxAdapter(
-                  child: _ApprovalHeader(
-                    count: result.items.length,
-                    warnings: result.errors.length,
-                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const BranchSelector(),
+                    Text(app.currentBranchName),
+                    TextButton.icon(onPressed: retry, icon: const Icon(Icons.refresh), label: const Text('Refresh approvals')),
+                    _ApprovalHeader(count: result.items.length, warnings: result.errors.length),
+                  ]),
                 ),
               ),
               if (result.errors.isNotEmpty)
@@ -117,7 +122,7 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Text(
-                          'Some optional approval sources could not be loaded (${result.errors.length}). Other authorised approvals are still shown.',
+                          'Some approval sources could not be loaded (${result.errors.length}). The list is incomplete; refresh to retry.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
@@ -125,9 +130,9 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                   ),
                 ),
               if (result.items.isEmpty)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   hasScrollBody: false,
-                  child: Center(child: Text('No pending approvals.')),
+                  child: Center(child: Text(OperationalHealthText.approvalEmpty(result.errors.length))),
                 )
               else
                 SliverPadding(
@@ -264,9 +269,10 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
     }) async {
       try {
         final raw = await api.get(path, query: query);
-        return ((raw as List?) ?? const [])
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
+        if (raw is! List || raw.any((row) => row is! Map)) {
+          throw const FormatException('Invalid approval source');
+        }
+        return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       } catch (e) {
         errors.add('$path: $e');
         return const [];
@@ -884,7 +890,7 @@ class _ApprovalHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '$count pending item${count == 1 ? '' : 's'} in your authorised branch scope${warnings > 0 ? ' · $warnings source warning${warnings == 1 ? '' : 's'}' : ''}.',
+                  OperationalHealthText.approvalCount(count, warnings),
                 ),
               ],
             ),
