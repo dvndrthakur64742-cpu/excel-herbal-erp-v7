@@ -12,6 +12,7 @@ import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/guided_workspace_switcher.dart';
 import 'acting_duty_admin_panel.dart';
+import 'attendance_policy_panel.dart';
 
 class AdministrationScreen extends ConsumerStatefulWidget {
   const AdministrationScreen({super.key, this.initialSection});
@@ -55,6 +56,10 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
     }
     if (app.can('administration.access.manage')) {
       tabs.add(('Access', _accessTab(app.currentBranchId)));
+      if (const {'SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'}
+          .contains(app.primaryDesignationCode.trim().toUpperCase())) {
+        tabs.add(('Attendance Policy', const AttendancePolicyPanel()));
+      }
     }
     if (app.can('administration.audit.view')) {
       tabs.add((

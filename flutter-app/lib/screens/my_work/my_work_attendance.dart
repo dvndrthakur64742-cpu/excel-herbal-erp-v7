@@ -1,6 +1,38 @@
 part of 'my_work_screen.dart';
 
 extension _MyWorkAttendance on _MyWorkScreenState {
+  Future<void> _selfPunch(Map<String, dynamic> record, bool checkIn) async {
+    if (_attendancePunchBusy) return;
+    _setFeatureState(() { _attendancePunchBusy = true; message = null; });
+    try {
+      final branch = int.tryParse('${record['assigned_branch_id']}');
+      if (checkIn && (branch == null || branch < 1)) {
+        throw Exception('Assigned branch required.');
+      }
+      final fix = await _position();
+      if (!mounted) return;
+      await ref.read(apiClientProvider).post(
+        checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
+        data: {
+          if (checkIn) 'branch_id': branch,
+          'lat': fix.latitude,
+          'lng': fix.longitude,
+        },
+      );
+      if (!mounted) return;
+      if (!checkIn) ref.read(gpsTrackingProvider).stop(status: 'checked_out');
+      _setFeatureState(() {
+        refresh++;
+        message = checkIn ? 'Check-in saved.' : 'Checkout saved.';
+      });
+      await ref.read(gpsTrackingProvider).sync();
+    } catch (e) {
+      if (mounted) _setFeatureState(() => message = UiError.message(e));
+    } finally {
+      if (mounted) _setFeatureState(() => _attendancePunchBusy = false);
+    }
+  }
+
   Widget _attendance() {
     final api = ref.watch(apiClientProvider);
     final app = ref.watch(appStateProvider);
@@ -16,6 +48,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
             final r = data is Map
                 ? Map<String, dynamic>.from(data)
                 : <String, dynamic>{};
+            final selfMode = r['attendance_mode'] == 'self';
             final checkedIn =
                 '${r['check_in_at'] ?? ''}'.trim().isNotEmpty;
             final checkedOut =
@@ -59,9 +92,9 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                                   'Check-In: ${DateTimeText.local(r['check_in_at'])}',
                                 )
                               else
-                                const Text(
-                                  'Duty automatically starts at 10:30 AM; no manual check-in is required.',
-                                ),
+                                Text(selfMode
+                                    ? 'Check in yourself with your current location.'
+                                    : 'Duty automatically starts at 10:30 AM; no manual check-in is required.'),
                               if (checkedIn) ...[
                                 const SizedBox(height: 2),
                                 Text(
@@ -78,10 +111,33 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Chip(
-                  avatar: Icon(Icons.schedule_outlined, size: 18),
-                  label: Text('Duty is automatic · 10:30 AM–5:00 PM'),
-                ),
+                if (selfMode) ...[
+                  Text('Office: ${r['official_start']}–${r['official_end']} · '
+                      'GPS: ${r['gps_start_time']}–${r['gps_stop_time']} · '
+                      'Auto checkout: ${r['auto_checkout_time']}'),
+                  if (r['checkout_mode'] == 'auto')
+                    const Text('Automatic checkout · not a verified employee punch'),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: !_attendancePunchBusy &&
+                            (checkedIn ? r['can_check_out'] == true : r['can_check_in'] == true)
+                        ? () => _selfPunch(r, !checkedIn)
+                        : null,
+                    icon: Icon(checkedIn ? Icons.logout : Icons.login),
+                    label: Text(_attendancePunchBusy ? 'Saving…' :
+                        checkedOut ? 'Attendance completed' :
+                        checkedIn ? 'Check Out' : 'Check In'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _setFeatureState(() => refresh++),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh attendance'),
+                  ),
+                ] else
+                  const Chip(
+                    avatar: Icon(Icons.schedule_outlined, size: 18),
+                    label: Text('Duty is automatic · 10:30 AM–5:00 PM'),
+                  ),
               ],
             );
           },

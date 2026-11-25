@@ -49,7 +49,7 @@ void main() {
     expect(workspace, contains('_tabletCardWidth = 819'));
   });
 
-  test('My Work attendance reflects server-scheduled duty without manual actions', () {
+  test('My Work attendance supports self punches only in server-enabled mode', () {
     final source = File(
       'lib/screens/my_work/my_work_attendance.dart',
     ).readAsStringSync();
@@ -64,8 +64,13 @@ void main() {
     expect(source, contains("Attendance pending"));
     expect(source, contains("Check-Out: pending"));
     expect(source, isNot(contains("Future<void> _attendanceAction(")));
-    expect(source, isNot(contains("ApiPaths.checkIn")));
-    expect(source, isNot(contains("ApiPaths.checkOut")));
+    expect(source, contains("ApiPaths.checkIn"));
+    expect(source, contains("ApiPaths.checkOut"));
+    expect(source, contains("r['attendance_mode'] == 'self'"));
+    expect(source, contains("r['can_check_in'] == true"));
+    expect(source, contains("r['can_check_out'] == true"));
+    expect(source, contains("'lat': fix.latitude"));
+    expect(source, contains("'lng': fix.longitude"));
   });
 
   test('desktop shell avoids a second competing workspace header', () {

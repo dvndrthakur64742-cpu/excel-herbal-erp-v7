@@ -23,7 +23,7 @@ arPass(count(array_filter($api,static fn($r)=>
     $r['required_params']===[]
 ))===1,'allocation inherits idempotency, never a direct Pay endpoint');
 $schema=Schema::definitions();
-arPass(Schema::VERSION==='7.3.12-reward-payroll-allocated-6',
+arPass(Schema::VERSION==='7.3.12-self-attendance-7',
     'allocation migration version is current');
 $allocation=$schema['reward_payroll_allocations']??'';
 foreach([

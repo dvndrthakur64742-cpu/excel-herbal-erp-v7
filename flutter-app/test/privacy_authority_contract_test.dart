@@ -92,7 +92,7 @@ void main() {
     expect(access, contains('array_column(\$before,\'capability\')'));
   });
 
-  test('attendance duty is server scheduled with no manual attendance writes', () {
+  test('attendance punches are server-authorized and GPS route has no manual switch', () {
     final attendance = File(
       'lib/screens/my_work/my_work_attendance.dart',
     ).readAsStringSync();
@@ -102,8 +102,13 @@ void main() {
     expect(attendance, contains('Duty is automatic · 10:30 AM–5:00 PM'));
     expect(attendance, contains('ApiPaths.attendanceToday'));
     expect(attendance, contains('ApiPaths.gpsRoute'));
-    expect(attendance, isNot(contains('ApiPaths.checkIn')));
-    expect(attendance, isNot(contains('ApiPaths.checkOut')));
+    expect(attendance, contains('ApiPaths.checkIn'));
+    expect(attendance, contains('ApiPaths.checkOut'));
+    expect(attendance, contains("r['attendance_mode'] == 'self'"));
+    expect(attendance, contains("r['can_check_in'] == true"));
+    expect(attendance, contains("r['can_check_out'] == true"));
+    expect(attendance, contains("'lat': fix.latitude"));
+    expect(attendance, contains("'lng': fix.longitude"));
   });
 
   test('existing accounting and reconciliation reports are exposed by capability', () {

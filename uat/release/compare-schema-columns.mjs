@@ -108,7 +108,7 @@ if(process.argv[1] && fileURLToPath(import.meta.url).toLowerCase()===process.arg
   if(expected.size!==85)throw Error('Expected exact 85 canonical source tables; schema changed');
   const actual=parseLive(liveData.rows,liveData.table_prefix);
   const result=compare(expected,actual);
-  writeFileSync(REPORT,JSON.stringify({kind:'PRIVATE_READ_ONLY_COLUMN_RECONCILIATION',source_git_schema_version:'7.3.12-reward-payroll-allocated-6',...result},null,2)+'\n');
+  writeFileSync(REPORT,JSON.stringify({kind:'PRIVATE_READ_ONLY_COLUMN_RECONCILIATION',source_git_schema_version:'7.3.12-self-attendance-7',...result},null,2)+'\n');
   console.log(JSON.stringify({
     source_tables:result.source_tables,live_tables:result.live_tables,
     common_tables:result.common_tables,

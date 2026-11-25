@@ -2242,6 +2242,24 @@
       "required_params": []
     },
     {
+      "method": "GET",
+      "path": "/administration/attendance-policy",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/administration/attendance-policy",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "effective_from",
+        "times",
+        "reason"
+      ]
+    },
+    {
       "method": "POST",
       "path": "/administration/maintenance/cleanup",
       "auth": true,

@@ -129,10 +129,8 @@ final class MaintenanceService{
   $scheduler=ScheduledAttendanceService::health();
   // Count today's still-open duty rows after the configured end, without
   // altering timestamps or historical exceptions.
-  $todayOverdue=0;
-  if(current_time('H:i:s')>=GpsDutyPolicy::STOP){
-   $todayOverdue=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$attendance} WHERE company_id=%d AND check_in_at IS NOT NULL AND check_out_at IS NULL AND checkout_exception=0 AND business_date=%s",$c,Db::today()));
-  }
+  $legacyStopReached=current_time('H:i:s')>=GpsDutyPolicy::STOP?1:0;
+  $todayOverdue=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$attendance} WHERE company_id=%d AND check_in_at IS NOT NULL AND check_out_at IS NULL AND checkout_exception=0 AND business_date=%s AND ((check_in_mode='self' AND auto_checkout_due_at<=%s) OR ((check_in_mode IS NULL OR check_in_mode<>'self') AND %d=1))",$c,Db::today(),Db::now(),$legacyStopReached));
   $staleCycles=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$cycles} WHERE company_id=%d AND status NOT IN ('completed','cancelled') AND business_date<%s",$c,Db::today()));
   $legacyDraftPayroll=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$payroll} WHERE company_id=%d AND status='draft' AND (calculation_version IS NULL OR calculation_version='')",$c));
   $roleRows=(array)$db->get_results($db->prepare("SELECT name FROM {$roles} WHERE company_id=%d AND active=1",$c),ARRAY_A);$roleNames=[];$duplicateRoleNames=0;foreach($roleRows as$r){$n=strtolower(trim(preg_replace('/\\s+/',' ',(string)($r['name']??''))));if($n==='')continue;if(isset($roleNames[$n]))$duplicateRoleNames++;else$roleNames[$n]=1;}

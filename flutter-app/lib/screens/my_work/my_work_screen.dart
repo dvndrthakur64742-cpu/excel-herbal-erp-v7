@@ -46,6 +46,7 @@ class _MyWorkScreenState extends ConsumerState<MyWorkScreen> {
   String? message;
   bool _handledInitialAction = false;
   bool _dailyOrderOpening = false;
+  bool _attendancePunchBusy = false;
 
   @override
   void initState() {

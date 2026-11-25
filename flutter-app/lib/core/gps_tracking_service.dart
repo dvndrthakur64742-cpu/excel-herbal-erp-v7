@@ -259,13 +259,14 @@ class GpsTrackingService extends ChangeNotifier {
     notifyListeners();
     try {
       final position = await _location.currentFix();
+      if (!_active) return; // Checkout or GPS cutoff may occur while locating.
       await _api.post(
         ApiPaths.gpsPoints,
         data: {
           'lat': position.latitude,
           'lng': position.longitude,
           'accuracy': position.accuracy,
-          'source': kIsWeb ? 'duty_web' : 'duty',
+          'source': 'duty',
           'recorded_at': DateTime.now().toUtc().toIso8601String(),
         },
       );

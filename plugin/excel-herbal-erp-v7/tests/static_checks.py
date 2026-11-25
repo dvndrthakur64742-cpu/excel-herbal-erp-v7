@@ -81,12 +81,16 @@ for metric in [
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
 print('PASS operational diagnostics anomaly coverage')
 schema=(root/'src/Database/Schema.php').read_text()
-assert "7.3.12-reward-payroll-allocated-6" in schema,'schema version not advanced for reward approval and prior migrations'
+assert "7.3.12-self-attendance-7" in schema,'schema version not advanced for reward approval and prior migrations'
 for token in [
  'checkout_exception',
  'checkout_exception_reason',
  'checkout_exception_by',
  'checkout_exception_at',
+ 'check_in_mode',
+ 'checkout_mode',
+ 'auto_checkout_due_at',
+ 'checkout_processed_at',
 ]:
  assert token in schema,('missing attendance checkout exception schema field',token)
 maintenance=(root/'src/Administration/MaintenanceService.php').read_text()
