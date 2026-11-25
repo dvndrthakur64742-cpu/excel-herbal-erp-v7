@@ -37,7 +37,7 @@ $tables=[
     'audit_log','journal_lines','journal_entries','reversals','counter_sale_lines','counter_sales','stock_ledger','stock_balances',
     'prepaid_refund_evidence','prepaid_return_requests','prepaid_sales_order_payments','prepaid_sales_order_lines','prepaid_sales_orders','distributor_price_slabs',
     'product_commercial_revisions','products','parties','accounts','number_series','settings','accounting_periods',
-    'branch_closings','employees','branches','companies',
+    'bank_statement_lines','bank_reconciliations','branch_closings','employees','branches','companies',
 ];
 $definitions=Schema::definitions();
 foreach($tables as $name){
