@@ -18,10 +18,16 @@ final class SelfAttendancePolicy {
     // A coordinated rollout starts on a business-date boundary. Existing
     // installations keep their previous mode until the approved cutover date.
     public static function enabled(int $companyId, string $date): bool {
-        $from = function_exists('get_option')
-            ? get_option('eh7_self_attendance_from_'.$companyId, '') : '';
-        return is_string($from) && preg_match('/^\d{4}-\d{2}-\d{2}$/D', $from)
-            && $from <= $date;
+        return SelfAttendanceSettings::forDate($companyId,$date)!==null;
+    }
+
+    public static function snapshot(?array $row): array {
+        if (($row['check_in_mode']??null)!=='self') return self::DEFAULTS;
+        $settings=json_decode((string)($row['attendance_policy_json']??''),true);
+        if (!is_array($settings) || array_diff_key(self::DEFAULTS,$settings)) {
+            throw new DomainException('Attendance schedule snapshot is missing.','attendance_policy_snapshot_missing',503);
+        }
+        return self::schedule($settings);
     }
 
     public static function schedule(array $settings = []): array {

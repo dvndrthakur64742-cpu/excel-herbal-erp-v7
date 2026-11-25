@@ -39,7 +39,10 @@ final class SelfAttendanceService {
             $db = Db::wpdb();
             $now = self::now();
             $date = $now->format('Y-m-d');
-            $state = SelfAttendancePolicy::state($now, null, null);
+            $revision=SelfAttendanceSettings::forDate($a->companyId,$date);
+            if (!$revision) throw new DomainException('Self attendance is not active.','attendance_policy_inactive',409);
+            $times=$revision['times'];
+            $state = SelfAttendancePolicy::state($now, null, null,false,$times);
             if (!$state['can_check_in']) {
                 throw new DomainException('Check-in is outside the permitted time window.', 'attendance_window_closed', 409);
             }
@@ -65,7 +68,7 @@ final class SelfAttendanceService {
                 'company_id'=>$a->companyId,'branch_id'=>$branch,'employee_id'=>$a->employeeId,
                 'business_date'=>$date,'status'=>'present','check_in_at'=>$stamp,
                 'check_in_lat'=>$lat,'check_in_lng'=>$lng,'check_in_mode'=>'self',
-                'auto_checkout_due_at'=>$state['auto_checkout_utc'],'created_at'=>$stamp,
+                'auto_checkout_due_at'=>$state['auto_checkout_utc'],'attendance_policy_json'=>wp_json_encode($times),'created_at'=>$stamp,
             ], 'An attendance record already exists for today.', 'attendance_exists');
             $id = (int)$db->insert_id;
             Audit::add($a,'attendance.self_check_in','attendance',$id,['branch_id'=>$branch,'business_date'=>$date]);
@@ -111,12 +114,15 @@ final class SelfAttendanceService {
         $utc = new \DateTimeZone('UTC');
         $in = !empty($row['check_in_at']) ? new \DateTimeImmutable($row['check_in_at'],$utc) : null;
         $out = !empty($row['check_out_at']) ? new \DateTimeImmutable($row['check_out_at'],$utc) : null;
-        $state = SelfAttendancePolicy::state($now,$in,$out);
+        $revision=SelfAttendanceSettings::forDate($a->companyId,$date);
+        if (!$revision) throw new DomainException('Self attendance is not active.','attendance_policy_inactive',409);
+        $times=($row['check_in_mode']??null)==='self'?SelfAttendancePolicy::snapshot($row):$revision['times'];
+        $state = SelfAttendancePolicy::state($now,$in,$out,false,$times);
         $state['can_check_in'] = $state['can_check_in'] && !$row && $a->hasBranch($a->assignedBranchId);
         $state['can_check_out'] = $state['can_check_out'] && ($row['check_in_mode']??null)==='self' && $a->hasBranch((int)($row['branch_id']??0));
-        return array_merge($row??['business_date'=>$date],GpsDutyPolicy::state($row,$now->format('Y-m-d H:i:s')),$state,[
+        return array_merge($row??['business_date'=>$date],GpsDutyPolicy::state($row,$now->format('Y-m-d H:i:s'),$times),$state,[
             'attendance_mode'=>'self','assigned_branch_id'=>$a->assignedBranchId,
-            'official_start'=>'09:00','official_end'=>'18:00','auto_checkout_time'=>'19:00',
+            'official_start'=>substr($times['duty_start'],0,5),'official_end'=>substr($times['duty_end'],0,5),'auto_checkout_time'=>substr($times['auto_checkout'],0,5),
             'latest_gps_at'=>$row ? $db->get_var($db->prepare("SELECT recorded_at FROM ".Db::table('gps_points')." WHERE company_id=%d AND employee_id=%d AND attendance_id=%d ORDER BY recorded_at DESC,id DESC LIMIT 1",$a->companyId,$a->employeeId,(int)$row['id'])) : null,
         ]);
     }
