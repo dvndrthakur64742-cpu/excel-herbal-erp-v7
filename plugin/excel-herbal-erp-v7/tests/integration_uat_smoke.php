@@ -969,6 +969,22 @@ uat_case('f31_gps_exception_request_independent_head_office_decision',function()
         $setTime('2031-01-03 09:00:00');
         uat_expect_denial(fn()=>$decide($review,(int)$r['id'],'approved'),'gps_exception_expired','No backdated approval');
         if($decide($review,(int)$r['id'],'rejected')['status']!=='rejected')throw new RuntimeException('Expired request cannot be closed');
+        // A different business day and punch require a different approval.
+        $setTime('2031-01-03 09:00:00');
+        uat_expect_denial(fn()=>uat_dispatch('work.check_in',$employee,['branch_id'=>1,'gps_exception_id'=>$id]),'gps_exception_not_approved','Past used exception cannot authorize new day');
+        $normal=uat_dispatch('work.check_in',$employee,['branch_id'=>1,'lat'=>31.7,'lng'=>76.9]);
+        $setTime('2031-01-03 18:00:00');
+        $out=$request('check_out');
+        $outId=(int)$out['id'];
+        $decide($review,$outId,'approved');
+        $result=uat_dispatch('work.check_out',$employee,['gps_exception_id'=>$outId]);
+        $row=$wpdb->get_row($wpdb->prepare("SELECT * FROM ".Db::table('attendance')." WHERE id=%d",(int)$normal['id']),ARRAY_A);
+        if($result['checkout_mode']!=='self'||$row['check_out_at']!=='2031-01-03 18:00:00'||$row['check_out_lat']!==null||$row['check_out_lng']!==null)throw new RuntimeException('Approved checkout not recorded correctly');
+        if(abs((float)$row['check_in_lat']-31.7)>.000001||abs((float)$row['check_in_lng']-76.9)>.000001)throw new RuntimeException('Checkout exception modified check-in evidence');
+        uat_expect_denial(fn()=>uat_dispatch('work.check_out',$employee,['gps_exception_id'=>$outId]),'attendance_open_required','Consumed exception cannot repeat checkout');
+        $state=$wpdb->get_var($wpdb->prepare("SELECT status FROM ".Db::table('attendance_gps_exceptions')." WHERE id=%d",$outId));
+        if($state!=='used')throw new RuntimeException('Approved checkout not consumed');
+
         $audit=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=1 AND entity_type='attendance_gps_exception' AND entity_id=%s",(string)$id));
         if($audit!==3)throw new RuntimeException('Request, review and consumption audit missing');
     }finally{
