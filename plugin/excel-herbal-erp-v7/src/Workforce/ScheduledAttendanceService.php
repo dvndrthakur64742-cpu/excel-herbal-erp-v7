@@ -108,43 +108,56 @@ final class ScheduledAttendanceService {
         ), ARRAY_A);
 
         if ($db->last_error !== '') {
-            throw new \RuntimeException('Scheduled attendance eligibility query failed.');
+            error_log('EH7 scheduled attendance eligibility query failed; heartbeat not advanced.');
+            return;
         }
 
+        $failed = 0;
         foreach ((array)$rows as $row) {
             $companyId = (int)$row['company_id'];
             $employeeId = (int)$row['employee_id'];
             $branchId = (int)$row['branch_id'];
 
-            Db::mustQuery($db, $db->prepare(
-                "INSERT INTO {$attendance}
-                    (company_id,branch_id,employee_id,business_date,status,check_in_at,created_at)
-                 VALUES (%d,%d,%d,%s,'present',%s,%s)
-                 ON DUPLICATE KEY UPDATE id=id",
-                $companyId, $branchId, $employeeId, $date, $startUtc, Db::now()
-            ));
+            try {
+                Db::mustQuery($db, $db->prepare(
+                    "INSERT INTO {$attendance}
+                        (company_id,branch_id,employee_id,business_date,status,check_in_at,created_at)
+                     VALUES (%d,%d,%d,%s,'present',%s,%s)
+                     ON DUPLICATE KEY UPDATE id=id",
+                    $companyId, $branchId, $employeeId, $date, $startUtc, Db::now()
+                ));
 
-            Db::mustUpdate($db, $attendance, [
-                'branch_id' => $branchId,
-                'check_in_at' => $startUtc,
-                'status' => 'present',
-            ], [
-                'company_id' => $companyId,
-                'employee_id' => $employeeId,
-                'business_date' => $date,
-                'check_in_at' => null,
-            ]);
-
-            if ($localTime >= GpsDutyPolicy::STOP) {
                 Db::mustUpdate($db, $attendance, [
-                    'check_out_at' => $stopUtc,
+                    'branch_id' => $branchId,
+                    'check_in_at' => $startUtc,
+                    'status' => 'present',
                 ], [
                     'company_id' => $companyId,
                     'employee_id' => $employeeId,
                     'business_date' => $date,
-                    'check_out_at' => null,
+                    'check_in_at' => null,
                 ]);
+
+                if ($localTime >= GpsDutyPolicy::STOP) {
+                    Db::mustUpdate($db, $attendance, [
+                        'check_out_at' => $stopUtc,
+                    ], [
+                        'company_id' => $companyId,
+                        'employee_id' => $employeeId,
+                        'business_date' => $date,
+                        'check_out_at' => null,
+                    ]);
+                }
+            } catch (\Throwable $error) {
+                // A failed employee row must not prevent later employees or
+                // other WordPress cron jobs from being processed. The next
+                // scheduled tick safely retries the idempotent writes.
+                $failed++;
             }
+        }
+        if ($failed > 0) {
+            error_log('EH7 scheduled attendance: '.$failed.' employee row(s) failed; retry on next tick; heartbeat not advanced.');
+            return;
         }
         self::recordSuccessfulTick();
     }
