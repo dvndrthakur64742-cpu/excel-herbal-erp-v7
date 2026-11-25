@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/report_branch_scope.dart';
+import '../../core/price_distribution_export.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
 import '../../theme/excel_brand.dart';
@@ -116,6 +117,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   if (activeType == 'price_distribution') {
                     return _PriceDistributionPanel(
                       data: data,
+                      scope: scopeLabel,
                       reportingCategory: reportingCategory,
                       onReportingCategoryChanged: (value) =>
                           setState(() => reportingCategory = value),
@@ -626,11 +628,13 @@ class _ReportOption {
 class _PriceDistributionPanel extends StatelessWidget {
   const _PriceDistributionPanel({
     required this.data,
+    required this.scope,
     required this.reportingCategory,
     required this.onReportingCategoryChanged,
   });
 
   final dynamic data;
+  final String scope;
   final String reportingCategory;
   final ValueChanged<String> onReportingCategoryChanged;
 
@@ -712,6 +716,11 @@ class _PriceDistributionPanel extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
+        _ReportExportActions(
+          title: 'Price Distribution',
+          scope: '$scope · ${reportingCategory.isEmpty ? 'All visible employees' : BusinessFormat.status(reportingCategory)}',
+          rows: priceDistributionExportRows(rows),
+        ),
         if (rows.isEmpty)
           const Card(
             child: Padding(
