@@ -31,6 +31,7 @@ $prefix = $wpdb->prefix . 'eh7_';
 // Its dummy rows and live-shaped extra columns/indexes must survive migration.
 require '/tmp/eh7-ci-live-shaped-fixture.php';
 $toRebuild = [
+    'attendance_gps_exceptions' => ['uq_employee_punch','company_branch_status'],
     'prepaid_return_requests' => ['uq_prepaid_return'],
     'prepaid_refund_evidence' => [
         'uq_refund_original_payment',
@@ -213,7 +214,7 @@ try {
     }
     update_option('eh7_schema_version', '7.3.10-prepaid-sales-1', false);
     $expected = \ExcelHerbal\ERP7\Database\Schema::VERSION;
-    if ($expected !== '7.3.12-self-attendance-7') {
+    if ($expected !== '7.3.12-gps-exception-8') {
         throw new \RuntimeException('Unexpected migration release: ' . $expected);
     }
     if (\ExcelHerbal\ERP7\Database\Schema::maybeUpgrade() !== true ||
