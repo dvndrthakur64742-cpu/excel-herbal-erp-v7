@@ -70,6 +70,21 @@ final class PrepaidRefundEvidenceService {
             if(strtolower((string)$account['subtype'])!==$payment['method'])
                 throw new DomainException('Original payment account/method mismatch.','refund_payment_account_invalid',409);
             $t=Db::table('prepaid_refund_evidence');
+            // The return row serializes submissions for this return. A lost
+            // response can be recovered only by the original submitter.
+            $existing=$db->get_row($db->prepare(
+                "SELECT * FROM {$t} WHERE company_id=%d AND order_payment_id=%d",
+                $a->companyId,$originalPaymentId
+            ),ARRAY_A);
+            if($existing){
+                if((int)$existing['return_id']!==$returnId || (int)$existing['branch_id']!==$branch ||
+                   (int)$existing['submitted_by']!==$a->employeeId || $existing['evidence_reference']!==$reference ||
+                   Money::minor((string)$existing['amount'])!==$minor || $existing['method']!==$payment['method'] ||
+                   (int)$existing['payment_account_id']!==(int)$payment['payment_account_id'])
+                    throw new DomainException('Refund evidence already registered for payment/reference.','refund_evidence_duplicate',409);
+                return ['id'=>(int)$existing['id'],'return_id'=>$returnId,'status'=>$existing['status'],
+                    'refund_disbursed'=>false,'credit_note_posted'=>false,'stock_posted'=>false];
+            }
             Db::mustInsert($db,$t,[
                 'company_id'=>$a->companyId,'branch_id'=>$branch,
                 'return_id'=>$returnId,'order_payment_id'=>$originalPaymentId,
@@ -106,6 +121,11 @@ final class PrepaidRefundEvidenceService {
             $required=$ev['method']==='upi'?Capabilities::BANK_RECONCILE:Capabilities::REVERSAL_APPROVE;
             Guard::branch($a,(int)$ev['branch_id'],$required);
             $r=self::returnRow($a,(int)$ev['return_id'],true);
+            if($r['status']==='refund_pending' && $ev['status']==='evidence_verified' &&
+               (int)$ev['verified_by']===$a->employeeId && $ev['verification_reference']===$verificationReference){
+                return ['id'=>$id,'return_id'=>(int)$r['id'],'status'=>'evidence_verified',
+                    'manual_evidence_only'=>true,'refund_disbursed'=>false,'credit_note_posted'=>false,'stock_posted'=>false];
+            }
             if($r['status']!=='refund_pending'||$ev['status']!=='evidence_submitted')
                 throw new DomainException('Refund evidence is not awaiting verification.','refund_evidence_state_invalid',409);
             if((int)$ev['submitted_by']===$a->employeeId)
