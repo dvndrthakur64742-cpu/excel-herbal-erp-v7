@@ -82,6 +82,7 @@ final class ApiContract
             'payroll.discard'=>['reason'],
             'payroll.policy_update'=>['leave_types','reason'],
             'admin.attendance_policy_save'=>['effective_from','times','reason'],
+            'admin.attendance_exception_ack'=>['attendance_id','reason'],
             'setup.initialize'=>['company_name','branch_code','branch_name','employee_code','employee_name'],
             'auth.login'=>['mobile','password'],
             'auth.refresh'=>['refresh_token'],

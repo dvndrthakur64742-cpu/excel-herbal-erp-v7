@@ -79,6 +79,9 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
             rows: (data as List)
                 .map((e) => Map<String, dynamic>.from(e as Map))
                 .toList(),
+            onTap: app.can('administration.access.manage')
+                ? _reviewAttendanceException
+                : null,
           ),
         ),
       ));
@@ -376,6 +379,63 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
           message = 'Holiday deactivated.';
         });
       }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    }
+  }
+
+  Future<void> _reviewAttendanceException(Map<String, dynamic> row) async {
+    if (row['can_acknowledge_missing_checkout'] != true) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Attendance review'),
+          content: const Text('No legacy missing checkout review is available for this record. Use View for recorded attendance details.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+          ],
+        ),
+      );
+      return;
+    }
+    final id = int.tryParse('${row['id']}');
+    if (id == null || id < 1) return;
+    final controller = TextEditingController();
+    String? reason;
+    try {
+      reason = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Acknowledge missing checkout'),
+          scrollable: true,
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('${row['full_name']} · ${row['business_date']}'),
+            const Text('This records your review only. It does not add a checkout time, verify attendance duration or change salary.'),
+            TextField(controller: controller, maxLength: 250, maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Review reason (minimum 10 characters)')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()),
+                child: const Text('Acknowledge exception')),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+    if (reason == null || !mounted) return;
+    if (reason.length < 10) {
+      setState(() => message = 'Review reason must contain at least 10 characters.');
+      return;
+    }
+    try {
+      await ref.read(apiClientProvider).post(ApiPaths.attendanceException,
+          data: {'attendance_id': id, 'reason': reason});
+      if (mounted) setState(() {
+        refresh++;
+        message = 'Missing checkout acknowledged. Original attendance retained.';
+      });
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
