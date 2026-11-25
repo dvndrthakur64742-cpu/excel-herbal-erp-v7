@@ -69,6 +69,14 @@ final class ScheduledAttendanceService {
     }
 
     public static function run(): void {
+        // Recover new-mode rows even before today's duty window. The stored
+        // deadline is authoritative; no historical legacy row is touched.
+        try {
+            SelfAttendanceService::closeDue();
+        } catch (\Throwable $error) {
+            error_log('EH7 automatic checkout recovery failed; heartbeat not advanced.');
+            return;
+        }
         $localTime = current_time('H:i:s');
         if ($localTime < GpsDutyPolicy::START) {
             self::recordSuccessfulTick();
@@ -115,6 +123,7 @@ final class ScheduledAttendanceService {
         $failed = 0;
         foreach ((array)$rows as $row) {
             $companyId = (int)$row['company_id'];
+            if (SelfAttendancePolicy::enabled($companyId,$date)) continue;
             $employeeId = (int)$row['employee_id'];
             $branchId = (int)$row['branch_id'];
 
