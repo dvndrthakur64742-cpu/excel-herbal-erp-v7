@@ -24,6 +24,7 @@ import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/workspace_banner.dart';
 import '../../widgets/sales_report_insights.dart';
+import '../../widgets/stock_report_insights.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -147,6 +148,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   return Column(
                     children: [
                       if (activeType == 'sales') SalesReportInsights(rows: rows, scope: scopeLabel),
+                      if (activeType == 'stock') StockReportInsights(rows: rows, scope: scopeLabel, businessDate: defaultTo),
                       _ReportExportActions(
                         title: config.title,
                         scope: scopeLabel,
