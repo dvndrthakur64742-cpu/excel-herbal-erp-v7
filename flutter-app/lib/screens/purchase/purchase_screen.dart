@@ -5,6 +5,7 @@ import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
+import '../../core/entry_form_scope.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -27,6 +28,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
   int refresh = 0;
   String? message;
   bool _handledInitialAction = false;
+  bool _entryInProgress = false;
 
   @override
   void initState() {
@@ -276,6 +278,15 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
   Future<void> _newBill() async {
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
+    if (!mounted || _entryInProgress || !app.can('purchase.create') || app.currentBranchId == null) return;
+    final scope = EntryFormScope(app, api);
+    setState(() => _entryInProgress = true);
+    final controllers = <TextEditingController>[];
+    TextEditingController controller({String? text}) {
+      final result = TextEditingController(text: text);
+      controllers.add(result);
+      return result;
+    }
     try {
       final suppliers = (await api.get(ApiPaths.suppliers) as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
@@ -284,18 +295,20 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
       int? supplierId;
-      final billNo = TextEditingController();
+      final billNo = controller();
       final qty = <int, TextEditingController>{};
       final cost = <int, TextEditingController>{};
       final batchNo = <int, TextEditingController>{};
       for (final p in products) {
         final id = int.parse('${p['id']}');
-        qty[id] = TextEditingController();
-        cost[id] = TextEditingController();
-        batchNo[id] = TextEditingController();
+        qty[id] = controller();
+        cost[id] = controller();
+        batchNo[id] = controller();
       }
       String? formError;
+      String productFilter = '';
       List<Map<String, dynamic>>? validatedLines;
+      if (!mounted || !scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) return;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -306,8 +319,12 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Text('Branch: ${app.currentBranchName} · Date: ${app.businessDate}'),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<int>(
+                      isExpanded: true,
                       initialValue: supplierId,
                       decoration: const InputDecoration(labelText: 'Supplier'),
                       items: suppliers
@@ -328,8 +345,14 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
+                    TextField(
+                      decoration: const InputDecoration(labelText: 'Find product', prefixIcon: Icon(Icons.search)),
+                      onChanged: (value) => setLocal(() => productFilter = value),
+                    ),
+                    const SizedBox(height: 8),
                     ...products.map((p) {
                       final id = int.parse('${p['id']}');
+                      if ([qty[id]!, cost[id]!, batchNo[id]!].every((c) => c.text.trim().isEmpty) && !EntryFormScope.matchesProduct(productFilter, [p['name'], p['sku']])) return const SizedBox.shrink();
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: Padding(
@@ -461,7 +484,10 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
           ),
         ),
       );
-      if (ok == true) {
+      if (ok == true && mounted) {
+        if (!scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) {
+          throw StateError('ERP scope changed. Open a new entry before submitting.');
+        }
         final lines = validatedLines!;
         final r = await api.post(
           ApiPaths.purchaseBills,
@@ -474,15 +500,17 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
           },
         );
         if (mounted)
-          setState(
-            () => message = 'Purchase bill ${(r as Map)['bill_no']} posted.',
-          );
+          setState(() {
+            message = 'Purchase bill ${(r as Map)['bill_no']} posted.';
+            refresh++;
+          });
       }
-      billNo.dispose();
-      for (final c in [...qty.values, ...cost.values, ...batchNo.values])
-        c.dispose();
+
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      for (final c in controllers) { c.dispose(); }
+      if (mounted) setState(() => _entryInProgress = false);
     }
   }
 

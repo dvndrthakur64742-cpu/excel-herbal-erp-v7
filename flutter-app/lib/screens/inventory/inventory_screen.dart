@@ -6,6 +6,7 @@ import '../../core/business_format.dart';
 import '../../core/transfer_list_presentation.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
+import '../../core/entry_form_scope.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/overlay_transition.dart';
 import '../../core/ui_error.dart';
@@ -34,6 +35,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   int refresh = 0;
   String? message;
   bool _handledInitialAction = false;
+  bool _entryInProgress = false;
 
   @override
   void initState() {
@@ -264,17 +266,27 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Future<void> _createTransfer() async {
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
+    if (!mounted || _entryInProgress || !app.can('inventory.transfer.create') || app.currentBranchId == null) return;
+    final scope = EntryFormScope(app, api);
+    setState(() => _entryInProgress = true);
+    final controllers = <TextEditingController>[];
+    TextEditingController controller({String? text}) {
+      final result = TextEditingController(text: text);
+      controllers.add(result);
+      return result;
+    }
     try {
       final stock = await _branchStock();
       if (stock.isEmpty)
         throw Exception('No stock is available for transfer in the selected branch.');
       int? dest;
       int? lineId;
-      final qty = TextEditingController();
-      final notes = TextEditingController();
+      final qty = controller();
+      final notes = controller();
       String? formError;
       Map<String, dynamic>? validatedStock;
       num? validatedQuantity;
+      if (!mounted || !scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) return;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -287,8 +299,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Text('Branch: ${app.currentBranchName} · Date: ${app.businessDate}'),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<int>(
+                      isExpanded: true,
                       initialValue: dest,
                       decoration: const InputDecoration(
                         labelText: 'Destination Branch',
@@ -387,13 +403,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   validatedQuantity = quantity;
                   Navigator.pop(context, true);
                 },
-                child: const Text('Create'),
+                child: const Text('Create transfer draft'),
               ),
             ],
           ),
         ),
       );
-      if (ok == true) {
+      if (ok == true && mounted) {
+        if (!scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) {
+          throw StateError('ERP scope changed. Open a new entry before submitting.');
+        }
         final selectedStock = validatedStock!;
         final q = validatedQuantity!;
         final batchKey = int.tryParse('${selectedStock['batch_key']}') ?? 0;
@@ -418,10 +437,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             message = 'Stock Transfer draft created.';
           });
       }
-      qty.dispose();
-      notes.dispose();
+
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      for (final c in controllers) { c.dispose(); }
+      if (mounted) setState(() => _entryInProgress = false);
     }
   }
 
