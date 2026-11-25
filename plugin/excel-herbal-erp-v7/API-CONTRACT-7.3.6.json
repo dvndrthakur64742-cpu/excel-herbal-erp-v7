@@ -2261,6 +2261,16 @@
     },
     {
       "method": "POST",
+      "path": "/administration/attendance-exception",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "attendance_id",
+        "reason"
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/administration/maintenance/cleanup",
       "auth": true,
       "idempotency_required": true,

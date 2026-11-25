@@ -821,5 +821,45 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
     }
 });
 
+// F29: only a company-wide authorized reviewer may acknowledge old legacy
+// omissions. No attendance time, GPS evidence or payroll input is fabricated.
+uat_case('f29_head_office_legacy_checkout_acknowledgement',function()use($wpdb){
+    $date='2020-01-02';
+    $table=Db::table('attendance');
+    $caps=[Capabilities::ATT_MANAGE,Capabilities::ACCESS_MANAGE];
+    $admin=uat_actor(20,[1,2],$caps,'SYSADMIN');
+    $bm=uat_actor(30,[2],$caps,'BM');
+    $own=uat_actor(10,[1,2],$caps,'SYSADMIN');
+    uat_insert($wpdb,'attendance',['company_id'=>1,'branch_id'=>1,'employee_id'=>10,'business_date'=>$date,
+        'check_in_at'=>$date.' 05:00:00','status'=>'present','created_at'=>$date.' 05:00:00']);
+    $id=(int)$wpdb->insert_id;
+    $reason='Reviewed synthetic missing checkout evidence';
+    $post=static fn($actor,$record,$why)=>uat_dispatch('admin.attendance_exception_ack',$actor,['attendance_id'=>$record,'reason'=>$why]);
+    $before=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d",$id),ARRAY_A);
+    uat_expect_denial(fn()=>$post($bm,$id,$reason),'attendance_exception_forbidden','BM cannot acknowledge legacy attendance');
+    uat_expect_denial(fn()=>$post($own,$id,$reason),'maker_checker_required','No own attendance acknowledgement');
+    uat_expect_denial(fn()=>$post($admin,$id,'short'),'attendance_exception_invalid','Audit reason required');
+    uat_expect_denial(fn()=>$post(new Actor(1,20,2,1,[1,2],$caps,'SYSADMIN'),$id,$reason),'attendance_exception_forbidden','No authority in an unconfigured foreign company');
+    uat_insert($wpdb,'attendance',['company_id'=>2,'branch_id'=>1,'employee_id'=>10,'business_date'=>$date,
+        'check_in_at'=>$date.' 05:00:00','status'=>'present','created_at'=>$date.' 05:00:00']);
+    $foreignId=(int)$wpdb->insert_id;
+    uat_expect_denial(fn()=>$post($admin,$foreignId,$reason),'attendance_not_found','No foreign company record acknowledgement');
+    $rows=uat_dispatch('work.attendance_report',$admin,['branch_id'=>1,'from'=>$date,'to'=>$date]);
+    if(count($rows)!==1||$rows[0]['can_acknowledge_missing_checkout']!==true)throw new RuntimeException('Eligible review action not projected');
+    $result=$post($admin,$id,$reason);
+    $after=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d",$id),ARRAY_A);
+    if($result['checkout_exception']!==1||(int)$after['checkout_exception']!==1||(int)$after['checkout_exception_by']!==20||$after['checkout_exception_reason']!==$reason)throw new RuntimeException('Acknowledgement not stored');
+    foreach($before as $field=>$value){
+        if(!in_array($field,['checkout_exception','checkout_exception_reason','checkout_exception_by','checkout_exception_at'],true)&&$after[$field]!==$value)throw new RuntimeException('Original attendance evidence changed: '.$field);
+    }
+    uat_expect_denial(fn()=>$post($admin,$id,$reason),'attendance_exception_state_invalid','Duplicate acknowledgement denied');
+    $count=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=1 AND entity_type='attendance' AND entity_id=%s AND action='attendance.checkout_missing_acknowledged'",(string)$id));
+    if($count!==1)throw new RuntimeException('Exactly one review audit required');
+    uat_insert($wpdb,'attendance',['company_id'=>1,'branch_id'=>2,'employee_id'=>30,'business_date'=>$date,
+        'check_in_at'=>$date.' 05:00:00','check_in_mode'=>'self','auto_checkout_due_at'=>$date.' 13:30:00','status'=>'present','created_at'=>$date.' 05:00:00']);
+    $selfId=(int)$wpdb->insert_id;
+    uat_expect_denial(fn()=>$post($admin,$selfId,$reason),'attendance_exception_state_invalid','New-mode row reserved for auto recovery');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
