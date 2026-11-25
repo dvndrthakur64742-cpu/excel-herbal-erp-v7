@@ -316,6 +316,47 @@ async function smokeActor(browser,origin,actor){
         'BM Payroll should be forbidden');
       console.log('PASS F20 Branch Manager: own branch orders 200; cross-branch and payroll 403; no admin module');
     }
+    // F34: use the exact authenticated browser session against the real,
+    // isolated WordPress REST routes. No new business writes are permitted.
+    const attendanceToken=[...stats.tokens][0];
+    check(typeof attendanceToken==='string','Attendance browser session missing');
+    const attendanceRead=async(route)=>localApi(API_ROOT+route,{token:attendanceToken});
+    const assertRead=(response,label)=>{
+      check(response.status===200&&response.body?.ok===true,label+' failed HTTP '+response.status);
+      return response.body.data;
+    };
+    const assertDenied=(response,label)=>{
+      check(response.status===403&&response.body?.ok===false&&!Object.hasOwn(response.body,'data'),label+' was not denied without data');
+    };
+    const reviewRoutes=['/administration/attendance-policy',
+      '/administration/gps-exceptions?branch_id=1',
+      '/administration/attendance-time-reviews?branch_id=1'];
+    if(actor.label==='Head Office Desktop'){
+      check(stats.capabilities.includes('administration.access.manage')&&stats.capabilities.includes('workforce.attendance.manage'),
+        'Synthetic HO lacks attendance review permissions');
+      const policy=assertRead(await attendanceRead(reviewRoutes[0]),'HO attendance policy');
+      const expected={duty_start:'09:00:00',gps_start:'10:30:00',gps_stop:'17:00:00',duty_end:'18:00:00',auto_checkout:'19:00:00'};
+      for(const [key,value] of Object.entries(expected))check(policy?.defaults?.[key]===value,'Incorrect default attendance time '+key);
+      check(policy.current===null&&Array.isArray(policy.upcoming)&&policy.upcoming.length===0,
+        'Fresh isolated install must not activate self attendance without a scheduled effective date');
+      for(const route of reviewRoutes.slice(1))check(Array.isArray(assertRead(await attendanceRead(route),'HO '+route)), 'Invalid inbox data');
+      for(const route of ['/administration/gps-exceptions?branch_id=999','/administration/attendance-time-reviews?branch_id=999']){
+        assertDenied(await attendanceRead(route),'HO foreign branch '+route);
+      }
+      console.log('PASS F34 HO: approved default times, explicit activation gate, two review inboxes and foreign branch denied');
+    }else{
+      for(const route of reviewRoutes)assertDenied(await attendanceRead(route),actor.label+' '+route);
+      if(actor.label==='Employee Mobile'){
+        check(stats.capabilities.includes('workforce.attendance.self'),'Employee lacks own attendance authority');
+        for(const route of ['/workforce/attendance/gps-exceptions/mine','/workforce/attendance/time-reviews/mine']){
+          const rows=assertRead(await attendanceRead(route),'Employee '+route);
+          check(Array.isArray(rows),'Invalid own attendance history response');
+          check(rows.every(row=>!Object.hasOwn(row,'employee_id')||Number(row.employee_id)===actor.employeeId),
+            'Foreign employee record in self attendance history');
+        }
+      }
+      console.log('PASS F34 '+actor.label+': protected HO attendance endpoints return 403 without data');
+    }
     check(stats.errors.length===0,'Flutter/proxy exceptions: '+stats.errors.join(';'));
     console.log('PASS F19 '+actor.label+
       ': real Flutter Chrome login -> isolated WP authenticated bootstrap, navigation='+
