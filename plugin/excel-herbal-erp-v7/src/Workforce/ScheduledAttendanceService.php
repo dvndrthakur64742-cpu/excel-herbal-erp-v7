@@ -12,6 +12,8 @@ use ExcelHerbal\ERP7\Database\Db;
 final class ScheduledAttendanceService {
     public const HOOK = 'eh7_scheduled_attendance_tick';
     public const INTERVAL = 'eh7_five_minutes';
+    private const LAST_SUCCESS_OPTION = 'eh7_attendance_scheduler_last_success_utc';
+    private const STALE_AFTER_SECONDS = 900;
 
     public static function boot(): void {
         add_filter('cron_schedules', [self::class, 'cronSchedules']);
@@ -33,9 +35,43 @@ final class ScheduledAttendanceService {
         return $schedules;
     }
 
+    /**
+     * Read-only scheduler telemetry. A recent successful tick is evidence that
+     * the scheduler ran, not proof that an employee was physically present.
+     */
+    public static function health(): array {
+        $last = function_exists('get_option') ? (int)get_option(self::LAST_SUCCESS_OPTION, 0) : 0;
+        $next = function_exists('wp_next_scheduled') ? (int)wp_next_scheduled(self::HOOK) : 0;
+        return self::evaluateHealth($last, $next, time());
+    }
+
+    public static function evaluateHealth(int $last, int $next, int $now): array {
+        $status = match (true) {
+            $next <= 0 => 'not_scheduled',
+            $last <= 0 => 'unverified',
+            $last > $now => 'clock_mismatch',
+            $now - $last > self::STALE_AFTER_SECONDS => 'stale',
+            $now - $next > self::STALE_AFTER_SECONDS => 'overdue',
+            default => 'recent',
+        };
+        return [
+            'status' => $status,
+            'last_success_utc' => $last > 0 ? gmdate('Y-m-d H:i:s', $last) : null,
+            'next_due_utc' => $next > 0 ? gmdate('Y-m-d H:i:s', $next) : null,
+            'stale_after_seconds' => self::STALE_AFTER_SECONDS,
+        ];
+    }
+
+    private static function recordSuccessfulTick(): void {
+        if (function_exists('update_option')) {
+            update_option(self::LAST_SUCCESS_OPTION, time(), false);
+        }
+    }
+
     public static function run(): void {
         $localTime = current_time('H:i:s');
         if ($localTime < GpsDutyPolicy::START) {
+            self::recordSuccessfulTick();
             return;
         }
 
@@ -70,6 +106,10 @@ final class ScheduledAttendanceService {
              ORDER BY e.company_id,e.id",
             $date, $date, $date
         ), ARRAY_A);
+
+        if ($db->last_error !== '') {
+            throw new \RuntimeException('Scheduled attendance eligibility query failed.');
+        }
 
         foreach ((array)$rows as $row) {
             $companyId = (int)$row['company_id'];
@@ -106,5 +146,6 @@ final class ScheduledAttendanceService {
                 ]);
             }
         }
+        self::recordSuccessfulTick();
     }
 }
