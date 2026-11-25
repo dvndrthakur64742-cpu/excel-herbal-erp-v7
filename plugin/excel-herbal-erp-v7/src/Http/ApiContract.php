@@ -155,6 +155,7 @@ final class ApiContract
             'sales.refund_evidence_submit'=>['original_payment_id','amount','evidence_reference'],
             'sales.refund_evidence_verify'=>['verification_reference'],
             'sales.refund_external_post'=>['bank_reference'],
+            'sales.refund_cash_post'=>['voucher_reference','paid_on'],
             'sales.counter'=>['branch_id','lines'],
             'sales.receipt'=>['branch_id','sale_id','amount','payment_account_id'],
             'purchase.supplier_create'=>['name'],
