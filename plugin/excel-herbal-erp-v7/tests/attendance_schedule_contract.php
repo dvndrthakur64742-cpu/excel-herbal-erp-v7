@@ -68,7 +68,7 @@ final class DutySchedulerFixtureDb {
     public bool $failFirst = true;
     public bool $failEligibility = false;
     public array $closed = [];
-    public function prepare($sql, ...$args) { return [$sql, $args]; }
+    public function prepare($sql, ...$args) { return json_encode([$sql, $args], JSON_THROW_ON_ERROR); }
     public function get_results($query, $mode) {
         $this->last_error = $this->failEligibility ? 'fixture query failure' : '';
         return $this->failEligibility ? [] : [
@@ -77,7 +77,8 @@ final class DutySchedulerFixtureDb {
         ];
     }
     public function query($query) {
-        if ($this->failFirst && (int)$query[1][2] === 10) return false;
+        $prepared = json_decode($query, true, 512, JSON_THROW_ON_ERROR);
+        if ($this->failFirst && (int)$prepared[1][2] === 10) return false;
         return 1;
     }
     public function update($table, $data, $where) {
