@@ -259,8 +259,14 @@ final class PayrollPerformanceService
             if ((int)($stats['invalid_salary_items']??0) > 0) throw new DomainException('Payroll contains employees without a valid fixed salary. Regenerate after salary setup.','payroll_salary_missing',422);
             $total = round((float)($stats['net_total']??0),2);
             if ($total <= 0) throw new DomainException('Payroll net total must be greater than zero before approval.','payroll_zero_total',422);
+            self::assertNoPayrollJournal($a,$id,'payroll');
+            self::assertNoPayrollJournal($a,$id,'payroll_payment');
+            if(!empty($run['journal_entry_id'])||!empty($run['payment_journal_entry_id']))
+                throw new DomainException('Draft payroll already has a journal link. Finance review required.','payroll_journal_mismatch',409);
             $expense = AccountingService::accountByCode($a, 'PAYROLL_EXPENSE');
             $payable = AccountingService::accountByCode($a, 'PAYROLL_PAYABLE');
+            if((int)$expense['id']===(int)$payable['id']||$expense['type']!=='expense'||$payable['type']!=='liability')
+                throw new DomainException('Payroll expense/payable account configuration is invalid.','payroll_journal_mismatch',409);
             $journal = AccountingService::post($a, (int) $run['branch_id'], 'payroll', $id, $run['period_end'].' 12:00:00', [
                 ['account_id' => (int) $expense['id'], 'debit' => $total],
                 ['account_id' => (int) $payable['id'], 'credit' => $total],
@@ -306,6 +312,10 @@ final class PayrollPerformanceService
             )), 2);
             if ($total <= 0) throw new DomainException('Payroll net total must be greater than zero before payment.','payroll_zero_total',422);
             $payable = AccountingService::accountByCode($a, 'PAYROLL_PAYABLE');
+            self::assertApprovedPayrollJournal($a,$run,$total,(int)$payable['id']);
+            self::assertNoPayrollJournal($a,$id,'payroll_payment');
+            if(!empty($run['payment_journal_entry_id'])||!empty($run['payment_account_id'])||!empty($run['paid_at']))
+                throw new DomainException('Payroll already has payment evidence. Finance review required.','payroll_journal_mismatch',409);
             $journal = AccountingService::post($a, (int) $run['branch_id'], 'payroll_payment', $id, $paymentDate.' 12:00:00', [
                 ['account_id' => (int) $payable['id'], 'debit' => $total],
                 ['account_id' => (int) $payment['id'], 'credit' => $total],
@@ -326,6 +336,50 @@ final class PayrollPerformanceService
             ]);
             return ['id' => $id, 'status' => 'paid', 'net_total' => $total, 'payment_journal_entry_id' => $journal];
         });
+    }
+
+    /** Called under the payroll run lock, before the idempotent journal writer.
+     * A prior inconsistent journal must not be silently adopted.
+     */
+    private static function assertNoPayrollJournal(Actor $a,int $id,string $source):void {
+        $db=Db::wpdb();
+        $rows=$db->get_results($db->prepare("SELECT id FROM ".Db::table('journal_entries').
+            " WHERE company_id=%d AND source_type=%s AND source_id=%d FOR UPDATE",$a->companyId,$source,$id),ARRAY_A);
+        if($db->last_error!==''||!is_array($rows)||count($rows)>0)
+            throw new DomainException('Unexpected payroll journal; Finance review required.','payroll_journal_mismatch',409);
+    }
+
+    /** Verify the exact immutable approval liability before clearing it.
+     * Never repair or post to a mismatched/reversed approval journal.
+     */
+    private static function assertApprovedPayrollJournal(Actor $a,array $run,float $total,int $payable):void {
+        $db=Db::wpdb();$j=Db::table('journal_entries');$id=(int)$run['id'];
+        $headers=$db->get_results($db->prepare("SELECT * FROM {$j} WHERE company_id=%d AND source_type='payroll' AND source_id=%d FOR UPDATE",$a->companyId,$id),ARRAY_A);
+        $valid=$db->last_error===''&&is_array($headers)&&count($headers)===1;
+        $h=$valid?$headers[0]:[];
+        $valid=$valid&&(int)$h['id']===(int)($run['journal_entry_id']??0)&&
+            (int)$h['branch_id']===(int)$run['branch_id']&&$h['status']==='posted'&&
+            $h['reversal_of']===null&&substr($h['entry_date'],0,10)===$run['period_end'];
+        if($valid){
+            $reversed=$db->get_var($db->prepare("SELECT COUNT(*) FROM {$j} WHERE company_id=%d AND reversal_of=%d",$a->companyId,(int)$h['id']));
+            $valid=$db->last_error===''&&$reversed!==null&&(int)$reversed===0;
+        }
+        if($valid){
+            $expense=AccountingService::accountByCode($a,'PAYROLL_EXPENSE');
+            $payableAccount=AccountingService::account($a,$payable);
+            $lines=$db->get_results($db->prepare("SELECT account_id,debit,credit FROM ".Db::table('journal_lines')." WHERE journal_entry_id=%d FOR UPDATE",(int)$h['id']),ARRAY_A);
+            $valid=$db->last_error===''&&is_array($lines)&&count($lines)===2&&
+                $expense['type']==='expense'&&$payableAccount['type']==='liability'&&(int)$expense['id']!==$payable;
+            $debit=0;$credit=0;$minor=(int)round($total*100);
+            foreach($lines??[] as $line){
+                $d=(int)round((float)$line['debit']*100);$c=(int)round((float)$line['credit']*100);
+                if((int)$line['account_id']===(int)$expense['id']&&$d===$minor&&$c===0)$debit+=$d;
+                elseif((int)$line['account_id']===$payable&&$d===0&&$c===$minor)$credit+=$c;
+                else $valid=false;
+            }
+            $valid=$valid&&$debit===$minor&&$credit===$minor;
+        }
+        if(!$valid)throw new DomainException('Approved payroll liability does not match this run and amount. Finance review required.','payroll_journal_mismatch',409);
     }
 
     public static function summary(Actor $a, int $branch, string $from, string $to, ?int $employee): array
