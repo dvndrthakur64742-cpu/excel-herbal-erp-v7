@@ -20,11 +20,14 @@ if(getenv('EH7_INTEGRATION_MODE')!=='synthetic' || !str_starts_with($database,'e
     fwrite(STDERR,"REFUSED: synthetic-only test requires EH7_INTEGRATION_MODE=synthetic and eh7_test_* database\n");
     exit(2);
 }
-if(($argv[1]??'')==='post-worker'){
+if(in_array($argv[1]??'',['post-worker','refund-worker'],true)){
     try {
         $workerDb=eh7_setup_global_db();
         $workerActor=new Actor(101,101,1,1,[1],[C::SALES_CREATE,C::SALES_VIEW],'SALES');
-        $result=PrepaidOrderService::post($workerActor,(int)($argv[2]??0));
+        if($argv[1]==='refund-worker'){
+            $checker=new Actor(103,103,1,1,[1],[C::BANK_RECONCILE,C::SALES_VIEW],'FINANCE');
+            $result=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::postExternalUpi($checker,(int)$argv[2],$argv[3]);
+        }else $result=PrepaidOrderService::post($workerActor,(int)($argv[2]??0));
         echo json_encode($result,JSON_THROW_ON_ERROR)."\n";
         exit(0);
     }catch(Throwable $e){
@@ -37,7 +40,7 @@ $tables=[
     'audit_log','journal_lines','journal_entries','reversals','counter_sale_lines','counter_sales','stock_ledger','stock_balances',
     'prepaid_refund_evidence','prepaid_return_requests','prepaid_sales_order_payments','prepaid_sales_order_lines','prepaid_sales_orders','distributor_price_slabs',
     'product_commercial_revisions','products','parties','accounts','number_series','settings','accounting_periods',
-    'branch_closings','employees','branches','companies',
+    'bank_statement_lines','bank_reconciliations','branch_closings','employees','branches','companies',
 ];
 $definitions=Schema::definitions();
 foreach($tables as $name){
@@ -154,6 +157,7 @@ PrepaidOrderService::post($seller,$hoOrder['id']);
 $race=PrepaidOrderService::create($seller,1,'b2c',null,[['product_id'=>1,'quantity'=>'1']]);
 PrepaidOrderService::collect($cashier,$race['id'],10,'100.00','cash');
 $cmd=[PHP_BINARY,__FILE__,'post-worker',(string)$race['id']];
+function raceSalesWorkers(array $cmd):array {
 $processes=[];
 foreach([1,2] as $worker){
     $pipes=[];$proc=proc_open($cmd,[1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__);
@@ -168,6 +172,9 @@ foreach($processes as [$proc,$pipes]){
     if($code!==0)throw new RuntimeException('Concurrent posting failed: '.$stderr);
     $workerResults[]=json_decode($stdout,true,512,JSON_THROW_ON_ERROR);
 }
+return $workerResults;
+}
+$workerResults=raceSalesWorkers($cmd);
 checkSales(count($workerResults)===2 && $workerResults[0]['sale_id']===$workerResults[1]['sale_id'],'concurrent invoice calls share one sale ID');
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('counter_sales'))===5,'concurrent posting created one additional invoice only');
 checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'))===5,'concurrent posting created one additional journal only');
@@ -383,4 +390,30 @@ checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger'))=
     'paid reversal did not change stock ledger');
 echo "PASS generic reversal refused fully paid prepaid invoice until verified refund workflow exists\n";
 
+// Synthetic external bank payment: no network payout or sale/stock reversal.
+$record=fn($actor,$ref)=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::postExternalUpi($actor,(int)$upiEvidence['id'],$ref);
+$ref='UAT-UPI-REF-001';
+denySales(fn()=>$record($evidenceCashChecker,$ref),'permission_denied');
+denySales(fn()=>$record($evidenceUpiChecker,'wrong-ref'),'refund_post_evidence_invalid');
+denySales(fn()=>$record($evidenceUpiChecker,$ref),'refund_bank_debit_invalid');
+$bankId=(int)$db->get_var('SELECT payment_account_id FROM '.Db::table('prepaid_refund_evidence').' WHERE id='.(int)$upiEvidence['id']);
+$date=Db::today();
+$rec=\ExcelHerbal\ERP7\Finance\FinanceBankService::bankCreate($evidenceUpiChecker,1,$bankId,$date,$date,500,400);
+\ExcelHerbal\ERP7\Finance\FinanceBankService::bankImport($evidenceUpiChecker,(int)$rec['id'],[
+    ['txn_date'=>$date,'debit'=>100,'reference'=>$ref]
+]);
+denySales(fn()=>$record($evidenceUpiChecker,$ref),'account_missing');
+Db::mustInsert($db,Db::table('accounts'),['company_id'=>1,'code'=>'REFUND_CLEARING','name'=>'Refund clearing','type'=>'asset','active'=>1]);
+$parallel=raceSalesWorkers([PHP_BINARY,__FILE__,'refund-worker',(string)$upiEvidence['id'],$ref]);
+$result=$parallel[0];
+checkSales($parallel[1]===$result,'concurrent refund submissions share one journal');
+checkSales((int)$db->get_var("SELECT COUNT(*) FROM ".Db::table('journal_entries')." WHERE source_type='external_upi_refund'")===1,'only one external refund journal exists');
+checkSales($result['journal_id']>0 && $record($evidenceUpiChecker,$ref)===$result,'external refund retries return one journal');
+$totals=$db->get_row('SELECT SUM(debit) d,SUM(credit) c FROM '.Db::table('journal_lines').' WHERE journal_entry_id='.(int)$result['journal_id'],ARRAY_A);
+checkSales((float)$totals['d']===100.0 && (float)$totals['c']===100.0,'external payment balanced once');
+checkSales($db->get_var('SELECT status FROM '.Db::table('bank_statement_lines').' WHERE reconciliation_id='.(int)$rec['id'])==='matched','external UPI debit matched atomically');
+$lineId=(int)$db->get_var('SELECT id FROM '.Db::table('bank_statement_lines').' WHERE reconciliation_id='.(int)$rec['id']);
+denySales(fn()=>\ExcelHerbal\ERP7\Finance\FinanceBankService::bankExclude($evidenceUpiChecker,$lineId,'synthetic reason'),'refund_bank_match_required');
+$proofs=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::list($evidenceUpiChecker,$returnId);
+checkSales((int)$proofs[1]['external_journal_id']===$result['journal_id'],'posted journal visible in return evidence list');
 echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction and concurrent posting integration (synthetic only)\n";

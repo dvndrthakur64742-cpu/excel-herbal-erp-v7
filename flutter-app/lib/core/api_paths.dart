@@ -143,6 +143,8 @@ abstract final class ApiPaths {
       '/sales/returns/$id/decision';
   static String prepaidRefundEvidence(int returnId) =>
       '/sales/returns/$returnId/refund-evidence';
+  static String prepaidExternalRefund(int id) =>
+      '/sales/refund-evidence/$id/external-post';
   static String prepaidRefundEvidenceVerify(int id) =>
       '/sales/refund-evidence/$id/verify';
 
