@@ -861,5 +861,57 @@ uat_case('f29_head_office_legacy_checkout_acknowledgement',function()use($wpdb){
     uat_expect_denial(fn()=>$post($admin,$selfId,$reason),'attendance_exception_state_invalid','New-mode row reserved for auto recovery');
 });
 
+// F30 uses an actual dispatcher, synthetic historical business dates and an
+// isolated database. No production attendance or stock rows are involved.
+uat_case('f30_self_punch_gps_receipt_window_and_daily_order_evidence',function()use($wpdb){
+    $date='2026-01-05';
+    $actor=uat_actor(10,[1],[Capabilities::ATT_SELF,Capabilities::DAILY_SELF],'FE');
+    $admin=uat_actor(20,[1,2],[Capabilities::ACCESS_MANAGE],'SYSADMIN');
+    $setTime=static function(string $stamp):void{
+        $GLOBALS['eh7_test_clock_utc']=strtotime($stamp.' UTC');
+    };
+    $point=static fn($stamp)=>uat_dispatch('work.gps_point',$actor,[],[
+        'lat'=>31.71,'lng'=>76.91,'source'=>'duty','recorded_at'=>$date.'T'.$stamp.'Z',
+    ]);
+    $order=static fn()=>uat_dispatch('daily.create',$actor,[
+        'branch_id'=>1,'employee_id'=>10,'business_date'=>$date,'lines'=>[['product_id'=>100,'quantity'=>1]],
+    ]);
+    $att=Db::table('attendance');$points=Db::table('gps_points');
+    try {
+        $setTime('2026-01-04 12:00:00');
+        uat_dispatch('admin.attendance_policy_save',$admin,[],[
+            'effective_from'=>$date,'times'=>\ExcelHerbal\ERP7\Workforce\SelfAttendancePolicy::DEFAULTS,
+            'reason'=>'Disposable fixture policy for GPS and order crosscheck',
+        ]);
+        $setTime($date.' 09:00:00');
+        uat_expect_denial(fn()=>$point('09:00:00'),'gps_checkin_required','No GPS without check-in');
+        $p=uat_dispatch('work.check_in',$actor,['branch_id'=>1,'lat'=>31.70,'lng'=>76.90]);
+        $id=(int)$p['id'];
+        uat_expect_denial(fn()=>$point('09:00:00'),'gps_window_not_started','GPS cannot begin before 10:30');
+        uat_expect_denial($order,'daily_attendance_required','Self punch location alone is not route evidence');
+        $setTime($date.' 10:30:00');
+        uat_expect_denial(fn()=>$point('10:30:01'),'gps_recorded_time_invalid','Future device timestamp denied');
+        uat_expect_denial(fn()=>$point('10:29:59'),'gps_window_not_started','Pre-window GPS timestamp denied');
+        $gps=$point('10:30:00');
+        if((int)$gps['id']<1)throw new RuntimeException('GPS point not saved');
+        $r=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$att} WHERE id=%d",$id),ARRAY_A);
+        if(abs((float)$r['check_in_lat']-31.70)>.000001||abs((float)$r['check_in_lng']-76.90)>.000001)throw new RuntimeException('Route point overwrote punch coordinates');
+        $d=$order();
+        if(($d['status']??'')!=='morning_draft')throw new RuntimeException('Verified route point did not authorize daily order');
+        $setTime($date.' 17:00:00');
+        uat_expect_denial(fn()=>$point('16:59:59'),'gps_window_closed','Backdated upload after GPS cutoff denied');
+        $r=uat_dispatch('work.attendance_today',$actor);
+        if(!$r['can_check_out']||$r['gps_should_track'])throw new RuntimeException('GPS cutoff must not close employee duty');
+        $setTime($date.' 18:00:00');
+        uat_dispatch('work.check_out',$actor,['lat'=>31.72,'lng'=>76.92]);
+        uat_expect_denial(fn()=>$point('16:59:59'),'gps_checkin_required','No GPS after checkout');
+        $count=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$points} WHERE attendance_id=%d",$id));
+        if($count!==1)throw new RuntimeException('Denied GPS requests persisted unexpected points');
+    }finally{
+        unset($GLOBALS['eh7_test_clock_utc']);
+        $wpdb->query($wpdb->prepare("DELETE FROM ".Db::table('settings')." WHERE company_id=1 AND setting_key=%s",'attendance_policy@'.$date));
+    }
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);

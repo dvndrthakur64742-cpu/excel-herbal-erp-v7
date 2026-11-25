@@ -21,8 +21,16 @@ final class RecoveryService {
         return Transaction::run(function()use($a,$data,$gps,$recorded){
             $db=Db::wpdb();$att=$db->get_row($db->prepare("SELECT * FROM ".Db::table('attendance')." WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",$a->companyId,$a->employeeId,Db::today()),ARRAY_A);
             if(!$att||!$att['check_in_at']||$att['check_out_at'])throw new DomainException('Active check-in required for GPS tracking.','gps_checkin_required',409);
+            // New self-attendance mode is live-only route tracking. Both
+            // receipt and claimed capture must lie within the persisted window.
+            // A backdated device timestamp must not extend the tracking window.
+            $received=Db::now();
+            if (($att['check_in_mode']??null)==='self') {
+                GpsDutyPolicy::assertRecordedAt($received,$att);
+                if ($recorded>$received) throw new DomainException('GPS capture is ahead of server time.','gps_recorded_time_invalid',422);
+            }
             GpsDutyPolicy::assertRecordedAt($recorded,$att);
-            $utc=new \DateTimeZone('UTC');$recordedAt=new \DateTimeImmutable($recorded,$utc);$earliest=(new \DateTimeImmutable((string)$att['check_in_at'],$utc))->modify('-5 minutes');$latest=(new \DateTimeImmutable('now',$utc))->modify('+10 minutes');if($recordedAt<$earliest||$recordedAt>$latest)throw new DomainException('GPS recorded_at is outside the active attendance window.','gps_recorded_time_invalid',422);
+            $utc=new \DateTimeZone('UTC');$recordedAt=new \DateTimeImmutable($recorded,$utc);$earliest=(new \DateTimeImmutable((string)$att['check_in_at'],$utc))->modify('-5 minutes');$latest=(new \DateTimeImmutable($received,$utc))->modify('+10 minutes');if($recordedAt<$earliest||$recordedAt>$latest)throw new DomainException('GPS recorded_at is outside the active attendance window.','gps_recorded_time_invalid',422);
             $branch=(int)$att['branch_id']; if(!$a->hasBranch($branch))throw new DomainException('Attendance branch is outside effective authority.','branch_forbidden',403);
             $visitId=isset($data['field_visit_id'])?(int)$data['field_visit_id']:0;
             if($visitId){$v=$db->get_row($db->prepare("SELECT id FROM ".Db::table('field_visits')." WHERE id=%d AND company_id=%d AND employee_id=%d AND status='in_progress'",$visitId,$a->companyId,$a->employeeId),ARRAY_A);if(!$v)throw new DomainException('Active field visit not found.','field_visit_not_found',404);}
