@@ -703,6 +703,10 @@ class _RecordsListState extends State<RecordsList> {
       }
     }
 
+    if (widget.recordType == 'employee' && widget.rows.isNotEmpty &&
+        widget.rows.every((row) => '${row['designation_name'] ?? ''}'.trim().isNotEmpty)) {
+      available.remove('designation_code');
+    }
     final ordered = <String>[];
     final typeKeys = switch (widget.recordType) {
       'customer' => const [
@@ -867,25 +871,11 @@ class _RecordsListState extends State<RecordsList> {
   }) {
     final value = BusinessFormat.value(key, rawValue);
     final child = key == 'status'
-        ? Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              BusinessFormat.status(rawValue),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          )
+        ? ErpStatusBadge(status: '${rawValue ?? ''}')
         : Text(
             value,
             textAlign: _isNumericKey(key) ? TextAlign.right : TextAlign.left,
-            maxLines: 2,
+            maxLines: key == 'code' || key.endsWith('_code') ? 1 : 2,
             overflow: TextOverflow.ellipsis,
             style: primary
                 ? Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -903,6 +893,7 @@ class _RecordsListState extends State<RecordsList> {
   double _cellWidth(String key) {
     if (key.contains('name') || key == 'title' || key == 'memo') return 240;
     if (key == 'status') return 160;
+    if (key == 'code' || key.endsWith('_code')) return 230;
     if (key.endsWith('_at')) return 190;
     return 170;
   }

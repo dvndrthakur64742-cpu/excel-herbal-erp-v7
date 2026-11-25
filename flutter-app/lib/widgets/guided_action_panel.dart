@@ -53,7 +53,7 @@ class GuidedActionPanel extends StatelessWidget {
                 ? actions.skip(1).toList(growable: false)
                 : secondaryActions.toList(growable: false);
 
-            return Column(
+            return SizedBox(width: double.infinity, child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -95,7 +95,7 @@ class GuidedActionPanel extends StatelessWidget {
                 ] else
                   _ActionGrid(actions: actions),
               ],
-            );
+            ));
           },
         ),
       ),
@@ -111,7 +111,8 @@ class _ActionGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
-          final columns = constraints.maxWidth >= 960 ? 3 : 2;
+          final preferred = constraints.maxWidth >= 960 ? 3 : 2;
+          final columns = actions.length < preferred ? actions.length : preferred;
           const space = 11.0;
           final width =
               (constraints.maxWidth - space * (columns - 1)) / columns;
@@ -158,7 +159,21 @@ class _ActionRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(13),
         border: Border.all(color: scheme.outlineVariant),
       ),
-      child: Column(
+      child: LayoutBuilder(builder: (context, constraints) {
+        if (constraints.maxWidth >= 390) {
+          return Row(children: [
+            Icon(action.icon, color: scheme.primary, size: 24),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(action.title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              Text(action.enabled ? action.description : 'Select an authorised branch to continue.', style: Theme.of(context).textTheme.bodySmall),
+            ])),
+            const SizedBox(width: 12),
+            button,
+          ]);
+        }
+        return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -192,7 +207,7 @@ class _ActionRow extends StatelessWidget {
           const SizedBox(height: 10),
           Align(alignment: Alignment.centerLeft, child: button),
         ],
-      ),
+      ); }),
     );
   }
 }
