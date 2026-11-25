@@ -10,6 +10,7 @@ import '../../theme/excel_brand.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/workspace_banner.dart';
 import '../../widgets/home_start_tasks.dart';
+import '../../widgets/home_query.dart';
 import '../my_work/my_work_workspace_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -116,7 +117,7 @@ class HomeScreen extends ConsumerWidget {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: _AttendanceCard(api: api, businessTimezone: app.businessTimezone)),
+                        Expanded(child: _AttendanceCard(api: api, app: app)),
                         const SizedBox(width: 14),
                         Expanded(
                           child: _PersonalPerformanceCard(
@@ -130,7 +131,7 @@ class HomeScreen extends ConsumerWidget {
                   }
                   return Column(
                     children: [
-                      if (attendance) _AttendanceCard(api: api, businessTimezone: app.businessTimezone),
+                      if (attendance) _AttendanceCard(api: api, app: app),
                       if (performance) ...[
                         if (attendance) const SizedBox(height: 12),
                         _PersonalPerformanceCard(
@@ -280,27 +281,27 @@ class _AuthorityCard extends StatelessWidget {
 }
 
 class _AttendanceCard extends StatelessWidget {
-  const _AttendanceCard({required this.api, required this.businessTimezone});
+  const _AttendanceCard({required this.api, required this.app});
 
   final dynamic api;
-  final String businessTimezone;
+  final AppState app;
+  String get businessTimezone => app.businessTimezone;
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<dynamic>(
-        future: api.get(ApiPaths.attendanceToday),
-        builder: (context, snapshot) {
+  Widget build(BuildContext context) => HomeQuery<dynamic>(
+        scope: (api, app),
+        loader: () => api.get(ApiPaths.attendanceToday),
+        builder: (context, snapshot, retry) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const _LoadingCard(label: 'Loading attendance...');
           }
           if (snapshot.hasError) {
-            return const _InfoNotice(
-              icon: Icons.info_outline,
-              text: 'Attendance status is temporarily unavailable.',
-            );
+            return _RetryNotice(message: 'Attendance status is temporarily unavailable.', onRetry: retry);
           }
-          final row = snapshot.data is Map
-              ? Map<String, dynamic>.from(snapshot.data as Map)
-              : <String, dynamic>{};
+          if (snapshot.data is! Map) {
+            return _RetryNotice(message: 'Attendance response is unavailable.', onRetry: retry);
+          }
+          final row = Map<String, dynamic>.from(snapshot.data as Map);
           if (row.isEmpty) {
             return const _InfoNotice(
               icon: Icons.schedule_outlined,
@@ -471,8 +472,9 @@ class _PersonalPerformanceCard extends StatelessWidget {
   final int branch;
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<dynamic>(
-        future: api.get(
+  Widget build(BuildContext context) => HomeQuery<dynamic>(
+        scope: (api, app, branch),
+        loader: () => api.get(
           ApiPaths.performanceSummary,
           query: {
             'branch_id': branch,
@@ -481,21 +483,18 @@ class _PersonalPerformanceCard extends StatelessWidget {
             'employee_id': app.employee['id'],
           },
         ),
-        builder: (context, snapshot) {
+        builder: (context, snapshot, retry) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const _LoadingCard(label: 'Loading performance...');
           }
           if (snapshot.hasError || snapshot.data is! List) {
-            return const _InfoNotice(
-              icon: Icons.info_outline,
-              text: 'Personal performance is temporarily unavailable.',
-            );
+            return _RetryNotice(message: 'Personal performance is temporarily unavailable.', onRetry: retry);
           }
           final rows = (snapshot.data as List)
               .whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
               .toList(growable: false);
-          if (rows.isEmpty) return const SizedBox.shrink();
+          if (rows.isEmpty) return const _InfoNotice(icon: Icons.insights_outlined, text: 'No personal performance records for this period.');
           final row = rows.first;
           return Card(
             child: Padding(
@@ -596,17 +595,15 @@ class _ManagementOverview extends StatelessWidget {
   final int branch;
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
-        future: _load(),
-        builder: (context, snapshot) {
+  Widget build(BuildContext context) => HomeQuery<Map<String, dynamic>>(
+        scope: (api, app, branch),
+        loader: _load,
+        builder: (context, snapshot, retry) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const _LoadingCard(label: 'Loading management summary…');
           }
           if (snapshot.hasError) {
-            return const _InfoNotice(
-              icon: Icons.info_outline,
-              text: 'Management summary is temporarily unavailable.',
-            );
+            return _RetryNotice(message: 'Management summary is temporarily unavailable.', onRetry: retry);
           }
           final data = snapshot.data ?? const <String, dynamic>{};
           final cards = <_Metric>[];
@@ -667,12 +664,20 @@ class _ManagementOverview extends StatelessWidget {
                   : constraints.maxWidth >= 500
                       ? (constraints.maxWidth - 12) / 2
                       : constraints.maxWidth;
-              return Wrap(
-                spacing: 12,
-                runSpacing: 12,
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final metric in cards)
-                    SizedBox(width: width, child: _MetricCard(metric: metric)),
+                  if (sales == null || (daily == null && app.can('daily_order.others')) ||
+                      (performance == null && app.can('performance.view')))
+                    _RetryNotice(message: 'Some summaries could not load. Other figures remain available.', onRetry: retry),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final metric in cards)
+                        SizedBox(width: width, child: _MetricCard(metric: metric)),
+                    ],
+                  ),
                 ],
               );
             },
@@ -890,6 +895,20 @@ class _ContextChip extends StatelessWidget {
       );
 }
 
+class _RetryNotice extends StatelessWidget {
+  const _RetryNotice({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _InfoNotice(icon: Icons.info_outline, text: message),
+      TextButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('Retry')),
+    ],
+  );
+}
+
 class _LoadingCard extends StatelessWidget {
   const _LoadingCard({required this.label});
 
@@ -907,7 +926,7 @@ class _LoadingCard extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               const SizedBox(width: 12),
-              Text(label),
+              Expanded(child: Text(label)),
             ],
           ),
         ),
