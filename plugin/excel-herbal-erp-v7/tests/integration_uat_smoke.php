@@ -1081,5 +1081,29 @@ uat_case('reversal_list_respects_branch_and_company_authority',function()use($wp
     }
 });
 
+uat_case('supplier_payment_reversal_rejects_unreconciled_bill_atomically',function()use($wpdb){
+    $branch=2;
+    uat_insert($wpdb,'purchase_bills',['company_id'=>1,'branch_id'=>$branch,'supplier_id'=>7,
+        'bill_no'=>'UAT-REV-BAL','bill_date'=>Db::today(),'total_amount'=>'30.00','paid_amount'=>'3.00',
+        'outstanding_amount'=>'27.00','created_by'=>10,'created_at'=>Db::now()]);
+    $bill=(int)$wpdb->insert_id;
+    uat_insert($wpdb,'supplier_payments',['company_id'=>1,'branch_id'=>$branch,'supplier_id'=>7,
+        'purchase_bill_id'=>$bill,'amount'=>'7.25','payment_account_id'=>1,'journal_entry_id'=>123,
+        'paid_by'=>10,'paid_at'=>Db::now()]);
+    $payment=(int)$wpdb->insert_id;
+    $maker=uat_actor(10,[$branch],[Capabilities::REVERSAL_CREATE]);
+    $checker=uat_actor(20,[$branch],[Capabilities::REVERSAL_APPROVE]);
+    $req=uat_dispatch('finance.reversal_request',$maker,[],['source_type'=>'supplier_payment',
+        'source_id'=>$payment,'reason'=>'Synthetic reversal validation']);
+    $params=['id'=>$req['id']];
+    uat_dispatch('finance.reversal_decision',$checker,$params,['approve'=>true]);
+    uat_expect_denial(fn()=>uat_dispatch('finance.reversal_execute',$checker,$params),
+        'supplier_reversal_invalid','Bill paid balance below original payment');
+    $balance=$wpdb->get_row($wpdb->prepare('SELECT paid_amount,outstanding_amount FROM '.Db::table('purchase_bills').' WHERE id=%d',$bill),ARRAY_A);
+    $state=$wpdb->get_var($wpdb->prepare('SELECT status FROM '.Db::table('reversals').' WHERE id=%d',$req['id']));
+    if((float)$balance['paid_amount']!==3.0||(float)$balance['outstanding_amount']!==27.0||$state!=='approved')
+        throw new RuntimeException('Rejected reversal changed balances or request status');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
