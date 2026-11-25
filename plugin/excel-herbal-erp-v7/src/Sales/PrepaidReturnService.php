@@ -55,13 +55,14 @@ final class PrepaidReturnService {
             $a->companyId,(int)$r['branch_id'],(int)$r['order_id']
         ),ARRAY_A);
         $evidence=(array)$db->get_results($db->prepare(
-            'SELECT order_payment_id,company_id,branch_id,return_id,payment_account_id,'.
+            'SELECT id,order_payment_id,company_id,branch_id,return_id,payment_account_id,evidence_reference,'.
             'method,status,amount,submitted_by,verified_by,verification_reference'.
             ' FROM '.Db::table('prepaid_refund_evidence').
             ' WHERE company_id=%d AND branch_id=%d AND return_id=%d ORDER BY id',
             $a->companyId,(int)$r['branch_id'],$id
         ),ARRAY_A);
         $r['refund_evidence_check']=PrepaidRefundEvidencePreflight::check($r,$payments,$evidence);
+        $r['refund_clearing_reconciliation']=RefundClearingReconciliation::inspect($r,$payments,$evidence,$r['refund_evidence_check']);
         return $r;
     }
 
