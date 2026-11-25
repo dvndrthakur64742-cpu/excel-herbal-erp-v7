@@ -1093,10 +1093,10 @@ uat_case('supplier_payment_reversal_rejects_unreconciled_bill_atomically',functi
     $payment=(int)$wpdb->insert_id;
     $maker=uat_actor(10,[$branch],[Capabilities::REVERSAL_CREATE]);
     $checker=uat_actor(20,[$branch],[Capabilities::REVERSAL_APPROVE]);
-    $req=uat_dispatch('finance.reversal_request',$maker,[],['source_type'=>'supplier_payment',
+    $req=uat_dispatch('finance.reversal_request',$maker,['source_type'=>'supplier_payment',
         'source_id'=>$payment,'reason'=>'Synthetic reversal validation']);
     $params=['id'=>$req['id']];
-    uat_dispatch('finance.reversal_decision',$checker,$params,['approve'=>true]);
+    uat_dispatch('finance.reversal_decision',$checker,$params+['approve'=>true]);
     uat_expect_denial(fn()=>uat_dispatch('finance.reversal_execute',$checker,$params),
         'supplier_reversal_invalid','Bill paid balance below original payment');
     $balance=$wpdb->get_row($wpdb->prepare('SELECT paid_amount,outstanding_amount FROM '.Db::table('purchase_bills').' WHERE id=%d',$bill),ARRAY_A);
