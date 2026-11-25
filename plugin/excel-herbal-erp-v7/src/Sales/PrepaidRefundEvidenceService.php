@@ -34,7 +34,7 @@ final class PrepaidRefundEvidenceService {
         $db=Db::wpdb();
         return (array)$db->get_results($db->prepare(
             'SELECT id,return_id,order_payment_id,method,amount,evidence_reference,status,'.
-            "submitted_by,submitted_at,verified_by,verified_at,verification_reference,(SELECT MAX(j.id) FROM ".Db::table('journal_entries')." j WHERE j.company_id=e.company_id AND j.source_type='external_upi_refund' AND j.source_id=e.id AND j.status='posted') AS external_journal_id".
+            "submitted_by,submitted_at,verified_by,verified_at,verification_reference,(SELECT MAX(j.id) FROM ".Db::table('journal_entries')." j WHERE j.company_id=e.company_id AND j.source_type IN ('external_upi_refund','external_cash_refund') AND j.source_id=e.id AND j.status='posted') AS external_journal_id".
             ' FROM '.Db::table('prepaid_refund_evidence').' e'.
             ' WHERE company_id=%d AND return_id=%d ORDER BY id',
             $a->companyId,(int)$r['id']
@@ -146,26 +146,38 @@ final class PrepaidRefundEvidenceService {
         });
     }
     public static function postExternalUpi(Actor $a,int $id,string $reference):array {
-        Guard::cap($a,Capabilities::BANK_RECONCILE);
+        return self::postExternal($a,$id,$reference,null);
+    }
+
+    public static function postExternalCash(Actor $a,int $id,string $reference,string $paidOn):array {
+        $date=\ExcelHerbal\ERP7\Core\Input::date($paidOn,'Cash voucher date');
+        if($date>Db::today())throw new DomainException('Cash voucher date cannot be in the future.','refund_cash_date_invalid',422);
+        return self::postExternal($a,$id,$reference,$date);
+    }
+
+    private static function postExternal(Actor $a,int $id,string $reference,?string $cashDate):array {
+        $method=$cashDate===null?'upi':'cash';
+        $cap=$method==='upi'?Capabilities::BANK_RECONCILE:Capabilities::REVERSAL_APPROVE;
+        Guard::cap($a,$cap);
         $reference=trim($reference);
-        return Transaction::run(function()use($a,$id,$reference){
+        return Transaction::run(function()use($a,$id,$reference,$cashDate,$method,$cap){
             $db=Db::wpdb();
             $ev=$db->get_row($db->prepare("SELECT * FROM ".Db::table('prepaid_refund_evidence').
                 " WHERE company_id=%d AND id=%d FOR UPDATE",$a->companyId,$id),ARRAY_A);
             if(!$ev)throw new DomainException('Refund evidence not found.','refund_evidence_not_found',404);
             $branch=(int)$ev['branch_id'];
-            Guard::branch($a,$branch,Capabilities::BANK_RECONCILE);
+            Guard::branch($a,$branch,$cap);
             $r=self::returnRow($a,(int)$ev['return_id'],true);
-            if($ev['method']!=='upi'||$ev['status']!=='evidence_verified'||(int)$ev['verified_by']<1||
+            if($ev['method']!==$method||$ev['status']!=='evidence_verified'||(int)$ev['verified_by']<1||
                (int)$ev['submitted_by']===(int)$ev['verified_by']||(int)$ev['submitted_by']===$a->employeeId||
                (int)$r['branch_id']!==$branch||$reference===''||$reference!==$ev['evidence_reference'])
-                throw new DomainException('An independently verified UPI refund reference is required.','refund_post_evidence_invalid',409);
-            $source='external_upi_refund';
-            $prior=$db->get_row($db->prepare("SELECT id,status FROM ".Db::table('journal_entries').
+                throw new DomainException('An independently verified refund voucher or bank reference is required.','refund_post_evidence_invalid',409);
+            $source='external_'.$method.'_refund';
+            $prior=$db->get_row($db->prepare("SELECT id,status,entry_date FROM ".Db::table('journal_entries').
                 " WHERE company_id=%d AND source_type=%s AND source_id=%d ORDER BY id DESC LIMIT 1 FOR UPDATE",
                 $a->companyId,$source,$id),ARRAY_A);
             if($prior){
-                if($prior['status']!=='posted')throw new DomainException('Finance review required for prior posting.','refund_prior_posting',409);
+                if($prior['status']!=='posted'||($cashDate!==null && substr($prior['entry_date'],0,10)!==$cashDate))throw new DomainException('Finance review required for prior posting.','refund_prior_posting',409);
                 return ['journal_id'=>(int)$prior['id'],'status'=>'external_payment_recorded'];
             }
             $detail=PrepaidReturnService::detail($a,(int)$r['id']);
@@ -173,13 +185,20 @@ final class PrepaidRefundEvidenceService {
                 throw new DomainException('Reconcile all original tenders before posting.','refund_evidence_incomplete',409);
             PrepaidReturnService::requirePostedSource($a->companyId,$branch,(int)$r['order_id'],(int)$r['sale_id'],(string)$r['refund_amount']);
             $account=(int)$ev['payment_account_id'];
-            $rows=$db->get_results($db->prepare("SELECT l.* FROM ".Db::table('bank_statement_lines')." l JOIN ".
-                Db::table('bank_reconciliations')." b ON b.id=l.reconciliation_id WHERE b.company_id=%d AND b.branch_id=%d
-                AND b.bank_account_id=%d AND l.reference=%s LIMIT 2 FOR UPDATE",$a->companyId,$branch,$account,$reference),ARRAY_A);
-            if(count($rows??[])!==1 || $rows[0]['status']!=='unmatched' || Money::minor($rows[0]['debit'])!==Money::minor($ev['amount']) ||
-               Money::minor($rows[0]['credit'])!==0)
-                throw new DomainException('One unmatched bank debit with the same reference and amount is required.','refund_bank_debit_invalid',409);
-            $line=$rows[0];$date=$line['txn_date'];
+            $paymentAccount=AccountingService::paymentAccount($a,$account);
+            if(strtolower((string)$paymentAccount['subtype'])!==$method)
+                throw new DomainException('Refund account must match the original payment method.','refund_payment_account_invalid',409);
+            $date=$cashDate;
+            $line=null;
+            if($method==='upi'){
+                $rows=$db->get_results($db->prepare("SELECT l.* FROM ".Db::table('bank_statement_lines')." l JOIN ".
+                    Db::table('bank_reconciliations')." b ON b.id=l.reconciliation_id WHERE b.company_id=%d AND b.branch_id=%d
+                    AND b.bank_account_id=%d AND l.reference=%s LIMIT 2 FOR UPDATE",$a->companyId,$branch,$account,$reference),ARRAY_A);
+                if(count($rows??[])!==1 || $rows[0]['status']!=='unmatched' || Money::minor($rows[0]['debit'])!==Money::minor($ev['amount']) ||
+                   Money::minor($rows[0]['credit'])!==0)
+                    throw new DomainException('One unmatched bank debit with the same reference and amount is required.','refund_bank_debit_invalid',409);
+                $line=$rows[0];$date=$line['txn_date'];
+            }
             \ExcelHerbal\ERP7\Finance\BranchDayGuard::assertOpen($a,$branch,$date);
             $clearing=AccountingService::accountByCode($a,'REFUND_CLEARING');
             if($clearing['type']!=='asset'||(int)$clearing['id']===$account)
@@ -187,11 +206,13 @@ final class PrepaidRefundEvidenceService {
             $journal=AccountingService::post($a,$branch,$source,$id,$date,[
                 ['account_id'=>(int)$clearing['id'],'debit'=>$ev['amount']],
                 ['account_id'=>$account,'credit'=>$ev['amount']]
-            ],'External UPI refund '.$reference);
-            $credit=(int)$db->get_var($db->prepare("SELECT id FROM ".Db::table('journal_lines').
-                " WHERE journal_entry_id=%d AND account_id=%d AND credit>0",$journal,$account));
-            \ExcelHerbal\ERP7\Finance\FinanceBankService::bankMatch($a,(int)$line['id'],$credit);
-            Audit::add($a,'sales.refund.external_upi_post',$source,$id,['journal_id'=>$journal,'statement_line_id'=>(int)$line['id'],'branch_id'=>$branch]);
+            ],'External '.strtoupper($method).' refund '.$reference);
+            if($line!==null){
+                $credit=(int)$db->get_var($db->prepare("SELECT id FROM ".Db::table('journal_lines').
+                    " WHERE journal_entry_id=%d AND account_id=%d AND credit>0",$journal,$account));
+                \ExcelHerbal\ERP7\Finance\FinanceBankService::bankMatch($a,(int)$line['id'],$credit);
+            }
+            Audit::add($a,'sales.refund.external_'.$method.'_post',$source,$id,['journal_id'=>$journal,'statement_line_id'=>$line===null?null:(int)$line['id'],'payment_reference'=>$reference,'paid_on'=>$date,'branch_id'=>$branch]);
             return ['journal_id'=>$journal,'status'=>'external_payment_recorded'];
         });
     }

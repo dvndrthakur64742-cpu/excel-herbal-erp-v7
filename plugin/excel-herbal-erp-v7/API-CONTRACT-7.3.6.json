@@ -1332,6 +1332,16 @@
       ]
     },
     {
+      "method": "POST",
+      "path": "/sales/refund-evidence/(?P<id>\\d+)/cash-post",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "voucher_reference",
+        "paid_on"
+      ]
+    },
+    {
       "method": "GET",
       "path": "/sales/customers",
       "auth": true,

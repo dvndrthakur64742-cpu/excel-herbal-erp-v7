@@ -216,6 +216,19 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
         ApiPaths.prepaidExternalRefund(id), data: {'bank_reference': reference}));
   }
 
+  Future<void> _recordCash(int id) async {
+    final reference = await _referenceDialog('Record cash already paid',
+        'Signed cash voucher reference',
+        explanation: 'Confirm the customer received the cash and enter the verified voucher reference.');
+    if (reference == null || !mounted) return;
+    final today = DateTime.now();
+    final date = await showDatePicker(context: context, helpText: 'Cash voucher date',
+        initialDate: today, firstDate: DateTime(2000), lastDate: today);
+    if (date == null || !mounted) return;
+    await _perform(() => ref.read(apiClientProvider).post(ApiPaths.prepaidCashRefund(id),
+        data: {'voucher_reference': reference, 'paid_on': date.toIso8601String().split('T').first}));
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
@@ -345,7 +358,11 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                                     child: const Text('Verify manually'))
                                 : proof['external_journal_id'] != null
                                     ? Text("Journal #${proof['external_journal_id']}")
-                                    : proof['method'] == 'upi' && proof['status'] == 'evidence_verified' &&
+                                    : proof['method'] == 'cash' && proof['status'] == 'evidence_verified' &&
+                                        check['evidence_complete'] == true && app.can('finance.reversal.approve')
+                                        ? TextButton(onPressed: _busy ? null : () => _recordCash(_id(proof['id'])!),
+                                            child: const Text('Record cash paid'))
+                                        : proof['method'] == 'upi' && proof['status'] == 'evidence_verified' &&
                                         check['evidence_complete'] == true && app.can('finance.bank_reconcile')
                                         ? TextButton(onPressed: _busy ? null : () => _postExternal(_id(proof['id'])!),
                                             child: const Text('Record external payment'))

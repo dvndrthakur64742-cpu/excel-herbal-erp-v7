@@ -416,4 +416,15 @@ $lineId=(int)$db->get_var('SELECT id FROM '.Db::table('bank_statement_lines').' 
 denySales(fn()=>\ExcelHerbal\ERP7\Finance\FinanceBankService::bankExclude($evidenceUpiChecker,$lineId,'synthetic reason'),'refund_bank_match_required');
 $proofs=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::list($evidenceUpiChecker,$returnId);
 checkSales((int)$proofs[1]['external_journal_id']===$result['journal_id'],'posted journal visible in return evidence list');
+$cashPost=fn($actor,$ref,$day)=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::postExternalCash($actor,(int)$cashEvidence['id'],$ref,$day);
+$voucher='UAT-CASH-REF-001';
+denySales(fn()=>$cashPost($evidenceMaker,$voucher,$date),'refund_post_evidence_invalid');
+denySales(fn()=>$cashPost($evidenceCashChecker,'OTHER-VOUCHER',$date),'refund_post_evidence_invalid');
+denySales(fn()=>$cashPost($evidenceCashChecker,$voucher,'2099-01-01'),'refund_cash_date_invalid');
+$cashJournal=$cashPost($evidenceCashChecker,$voucher,$date);
+checkSales($cashJournal['journal_id']!==$result['journal_id'] && $cashPost($evidenceCashChecker,$voucher,$date)===$cashJournal,
+    'split cash and UPI post separately and cash replay returns original journal');
+$cashCredit=$db->get_var('SELECT credit FROM '.Db::table('journal_lines').' WHERE account_id=10 AND journal_entry_id='.(int)$cashJournal['journal_id']);
+checkSales((float)$cashCredit===100.0,'cash voucher credits the original cash ledger');
+denySales(fn()=>$cashPost($evidenceCashChecker,$voucher,'2020-01-01'),'refund_prior_posting');
 echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction and concurrent posting integration (synthetic only)\n";
