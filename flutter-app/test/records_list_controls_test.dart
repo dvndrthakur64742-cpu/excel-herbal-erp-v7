@@ -136,6 +136,23 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('row count can change and all filters reset together', (tester) async {
+    await showRecords(tester, List.generate(26,
+      (i) => {'name': 'Customer ${i+1}', 'status': i.isEven ? 'active' : 'inactive'}));
+    await tester.tap(find.byTooltip('Rows per page'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('10 rows'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<DataTable>(find.byType(DataTable)).rows.length, 10);
+    await tester.enterText(find.byType(TextField), 'Customer 26');
+    await tester.pumpAndSettle();
+    expect(find.text('1–1 of 1 records'), findsOneWidget);
+    await tester.tap(find.text('Reset filters'));
+    await tester.pumpAndSettle();
+    expect(find.text('1–10 of 26 records'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('mobile status filter preserves cards and clears correctly',
       (tester) async {
     await showRecords(tester, [

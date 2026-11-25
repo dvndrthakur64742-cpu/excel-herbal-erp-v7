@@ -39,6 +39,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   int refresh = 0;
   String? message;
   bool _handledInitialAction = false;
+  bool _expenseInProgress = false;
 
   void _setFinanceState(VoidCallback update) => setState(update);
 
