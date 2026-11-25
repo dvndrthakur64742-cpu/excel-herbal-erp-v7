@@ -107,6 +107,44 @@ void main() {
     expect(opened, 'daily_create');
   });
 
+  testWidgets('mobile task title and card open the same authorised workflow',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final opened = <String>[];
+    final planned = tasks(
+      {'workforce.attendance.self', 'daily_order.self'},
+      {'home', 'my_work'},
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: HomeStartTasks(
+              tasks: planned,
+              onOpen: (task) => opened.add(task.id),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Open task'), findsNWidgets(3));
+    expect(find.byType(FilledButton), findsNothing);
+    expect(find.byType(OutlinedButton), findsNothing);
+    await tester.tap(find.text('Create Daily Order'));
+    await tester.pumpAndSettle();
+    expect(opened, ['daily_create']);
+    await tester.tap(find.text('Evening Closing'));
+    await tester.pumpAndSettle();
+    expect(opened, ['daily_create', 'evening']);
+    expect(tester.takeException(), isNull);
+  });
+
   test('daily order only submits after visible review and confirmation', () {
     final source = File(
       'lib/screens/my_work/my_work_daily_order.dart',

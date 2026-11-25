@@ -206,6 +206,7 @@ class HomeStartTasks extends StatelessWidget {
                     child: _TaskCard(
                       task: tasks[i],
                       primary: i == 0,
+                      compact: columns == 1,
                       onPressed: () => onOpen(tasks[i]),
                     ),
                   ),
@@ -222,15 +223,73 @@ class _TaskCard extends StatelessWidget {
   const _TaskCard({
     required this.task,
     required this.primary,
+    required this.compact,
     required this.onPressed,
   });
 
   final HomeStartTask task;
   final bool primary;
+  final bool compact;
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) {
+    if (compact) {
+      return Card(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        child: Semantics(
+          button: true,
+          child: InkWell(
+            onTap: onPressed,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: ExcelBrand.primarySoft,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(task.icon, size: 22,
+                        color: ExcelBrand.primaryDark),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(task.title,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        Text(task.description,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: ExcelBrand.muted)),
+                        const SizedBox(height: 5),
+                        Text('Open task',
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: ExcelBrand.primaryDark,
+                                  fontWeight: FontWeight.w700,
+                                )),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right_rounded,
+                      color: ExcelBrand.primaryDark, size: 20),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return Card(
         margin: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.all(17),
@@ -277,4 +336,5 @@ class _TaskCard extends StatelessWidget {
           ),
         ),
       );
+  }
 }
