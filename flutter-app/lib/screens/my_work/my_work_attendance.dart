@@ -225,6 +225,16 @@ extension _MyWorkAttendance on _MyWorkScreenState {
             );
           },
         ),
+        Card(child: ListTile(
+          leading: const Icon(Icons.history),
+          title: const Text('Attendance history / correction'),
+          subtitle: const Text('Review past records and request Head Office correction.'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => Scaffold(
+            appBar: AppBar(title: const Text('Attendance history')),
+            body: const SafeArea(child: AttendanceTimeReviewPanel()),
+          ))),
+        )),
         const SizedBox(height: 10),
         Card(
           child: ListTile(
