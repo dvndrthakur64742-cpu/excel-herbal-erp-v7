@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/report_branch_scope.dart';
+import '../../core/report_query_identity.dart';
 import '../../core/price_distribution_export.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
@@ -109,7 +110,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             ? const _BranchRequired()
             : AsyncPanel(
                 key: ValueKey(
-                  '$activeType-${app.currentBranchId}-$fromValue-$toValue-$reportingCategory',
+                  reportQueryIdentity(config.path, query),
                 ),
                 loader: () => api.get(config.path, query: query),
                 emptyMessage: config.emptyMessage,
@@ -949,7 +950,7 @@ class _AccountLedgerPanelState extends State<_AccountLedgerPanel> {
                     ? const Center(child: Text('Select a ledger account.'))
                     : AsyncPanel(
                         key: ValueKey(
-                          'account-ledger-$selectedId-${ledgerQuery['from']}-${ledgerQuery['to']}-${ledgerQuery['branch_id']}',
+                          reportQueryIdentity(ApiPaths.accountLedger, ledgerQuery),
                         ),
                         loader: () => widget.api.get(
                           ApiPaths.accountLedger,
