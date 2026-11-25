@@ -120,7 +120,7 @@ class HomeScreen extends ConsumerWidget {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: _AttendanceCard(api: api)),
+                        Expanded(child: _AttendanceCard(api: api, businessTimezone: app.businessTimezone)),
                         const SizedBox(width: 14),
                         Expanded(
                           child: _PersonalPerformanceCard(
@@ -134,7 +134,7 @@ class HomeScreen extends ConsumerWidget {
                   }
                   return Column(
                     children: [
-                      if (attendance) _AttendanceCard(api: api),
+                      if (attendance) _AttendanceCard(api: api, businessTimezone: app.businessTimezone),
                       if (performance) ...[
                         if (attendance) const SizedBox(height: 12),
                         _PersonalPerformanceCard(
@@ -320,9 +320,10 @@ class _AuthorityCard extends StatelessWidget {
 }
 
 class _AttendanceCard extends StatelessWidget {
-  const _AttendanceCard({required this.api});
+  const _AttendanceCard({required this.api, required this.businessTimezone});
 
   final dynamic api;
+  final String businessTimezone;
 
   @override
   Widget build(BuildContext context) => FutureBuilder<dynamic>(
@@ -395,12 +396,12 @@ class _AttendanceCard extends StatelessWidget {
                       final compact = constraints.maxWidth < 420;
                       final checkIn = _AttendanceFact(
                         title: 'CHECK-IN',
-                        value: DateTimeText.local(row['check_in_at']),
+                        value: DateTimeText.business(row['check_in_at'], businessTimezone),
                         icon: Icons.login_rounded,
                       );
                       final checkOut = _AttendanceFact(
                         title: 'CHECK-OUT',
-                        value: DateTimeText.local(row['check_out_at']),
+                        value: DateTimeText.business(row['check_out_at'], businessTimezone),
                         icon: Icons.logout_rounded,
                       );
                       if (compact) {
@@ -437,7 +438,7 @@ class _AttendanceCard extends StatelessWidget {
                               [
                                 'Duty GPS: ${BusinessFormat.status(tracker.dutyStatus)}',
                                 if (lastSync != null)
-                                  'Last sync ${BusinessFormat.dateTime(lastSync.toIso8601String())}',
+                                  'Last sync ${DateTimeText.business(lastSync.toUtc().toIso8601String(), businessTimezone)}',
                                 if (tracker.lastError != null) tracker.lastError!,
                               ].join(' · '),
                               style: Theme.of(context).textTheme.bodySmall
