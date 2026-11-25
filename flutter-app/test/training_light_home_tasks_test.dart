@@ -27,7 +27,8 @@ void main() {
       'evening',
     ]);
     expect(planned.first.title, "Today's Duty");
-    expect(planned.first.description, contains('automatic'));
+    expect(planned.first.description, contains('attendance'));
+    expect(planned.first.description, isNot(contains('automatic')));
   });
 
   test('manager reviews team workflow before lower-priority tasks', () {
@@ -142,6 +143,32 @@ void main() {
     await tester.tap(find.text('Evening Closing'));
     await tester.pumpAndSettle();
     expect(opened, ['daily_create', 'evening']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop quick actions are visible compact and clickable', (tester) async {
+    tester.view.physicalSize = const Size(1366, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final opened = <String>[];
+    final planned = tasks(
+      {'daily_order.approve', 'inventory.transfer.receive', 'sales.create'},
+      {'home', 'team', 'inventory', 'sales'},
+    );
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(
+      child: HomeStartTasks(tasks: planned, onOpen: (task) => opened.add(task.id)),
+    ))));
+    await tester.pumpAndSettle();
+    expect(find.byType(Card), findsNWidgets(3));
+    for (final card in find.byType(Card).evaluate()) {
+      expect((card.renderObject as RenderBox).size.height, lessThan(160));
+    }
+    await tester.tap(find.text('Review Daily Orders'));
+    await tester.pumpAndSettle();
+    expect(opened, ['team_orders']);
     expect(tester.takeException(), isNull);
   });
 
