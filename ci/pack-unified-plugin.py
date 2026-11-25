@@ -23,6 +23,23 @@ REPLACEMENT = '<base href="__EH7_PLUGIN_ASSET_BASE__">'
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+def version_entrypoints(index, bootstrap, commit):
+    """Prevent an older cached bootstrap/main.dart.js surviving a plugin upgrade.
+
+    Both URLs must change together. Keep the asset base and all API targets
+    unchanged. Never silently package an unrecognized Flutter entrypoint.
+    """
+    if re.fullmatch(r"[a-f0-9]{40}", commit) is None:
+        raise ValueError("Invalid frontend release identity")
+    shell_marker = 'src="flutter_bootstrap.js"'
+    build_marker = '"mainJsPath":"main.dart.js"'
+    if index.count(shell_marker) != 1 or bootstrap.count(build_marker) != 1:
+        raise ValueError("Unexpected Flutter entrypoint; cannot ensure cache invalidation")
+    return (
+        index.replace(shell_marker, f'src="flutter_bootstrap.js?v={commit}"'),
+        bootstrap.replace(build_marker, f'"mainJsPath":"main.dart.js?v={commit}"'),
+    )
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--web-dir", type=pathlib.Path, required=True)
@@ -65,9 +82,16 @@ def main():
             dest = web / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(item, dest)
+        bootstrap_path = web / "flutter_bootstrap.js"
+        index, bootstrap = version_entrypoints(index, bootstrap_path.read_text(), commit)
+        bootstrap_path.write_text(bootstrap)
         (web / "eh7-app-shell.txt").write_text(index.replace(BASE, REPLACEMENT))
         (web / ".htaccess").write_text(
             "Options -Indexes\n<IfModule mod_mime.c>\nAddType application/wasm .wasm\n</IfModule>\n"
+            "<IfModule mod_headers.c>\n"
+            "<FilesMatch \"^(flutter_bootstrap|main\\\\.dart)\\\\.js$\">\n"
+            "Header set Cache-Control \"no-cache, must-revalidate\"\n"
+            "</FilesMatch>\n</IfModule>\n"
         )
         (plugin / "RELEASE-REVIEW-ONLY.txt").write_text(
             "Single-plugin frontend QA; no homepage takeover or production deployment.\n"
@@ -110,6 +134,7 @@ def main():
             "source_sha": commit,
             "plugin_version": "7.3.12-rc1",
             "frontend_api": API,
+            "versioned_frontend_entrypoints": True,
             "preview_path": "/erp/",
             "existing_homepage_unchanged": True,
             "zip_name": name,

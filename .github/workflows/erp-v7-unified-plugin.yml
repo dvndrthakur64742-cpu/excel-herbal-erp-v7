@@ -6,6 +6,7 @@ on:
       - 'plugin/excel-herbal-erp-v7/**'
       - 'flutter-app/**'
       - 'ci/pack-unified-plugin.py'
+      - 'ci/test-versioned-web-entrypoints.py'
       - '.github/workflows/erp-v7-unified-plugin.yml'
   workflow_dispatch:
 
@@ -68,6 +69,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 ci/test-versioned-web-entrypoints.py
           python3 ci/pack-unified-plugin.py --web-dir flutter-app/build/web --output-dir dist-unified
           (cd dist-unified && sha256sum -c SHA256SUMS.txt)
           python3 - <<'PY'
@@ -83,6 +85,12 @@ jobs:
               assert not any('/tests/' in x for x in z.namelist())
               assert b'__EH7_PLUGIN_ASSET_BASE__' in z.read(
                 'excel-herbal-erp-v7/web/eh7-app-shell.txt')
+              v = m['source_sha'].encode()
+              assert m['versioned_frontend_entrypoints'] is True
+              assert b'flutter_bootstrap.js?v=' + v in z.read('excel-herbal-erp-v7/web/eh7-app-shell.txt')
+              assert b'"mainJsPath":"main.dart.js?v=' + v + b'"' in z.read('excel-herbal-erp-v7/web/flutter_bootstrap.js')
+              assert b'no-cache, must-revalidate' in z.read('excel-herbal-erp-v7/web/.htaccess')
+              assert not any(x.endswith('/flutter_service_worker.js') for x in z.namelist())
           print('PASS reviewed single plugin ZIP integrity, source and safe preview route')
           PY
 
