@@ -53,6 +53,7 @@ final class SelfAttendanceService {
             $leave = Db::table('leave_requests');
             $holidays = Db::table('holidays');
             $onLeave = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$leave} WHERE company_id=%d AND employee_id=%d AND status='approved' AND date_from<=%s AND date_to>=%s",$a->companyId,$a->employeeId,$date,$date));
+            if ($db->last_error !== '') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
             $holiday = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$holidays} WHERE company_id=%d AND active=1 AND (branch_id IS NULL OR branch_id=%d) AND holiday_date=%s",$a->companyId,$branch,$date));
             if ($db->last_error !== '') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
             if ($onLeave || $holiday) throw new DomainException('Attendance is not available on approved leave or a holiday.', 'attendance_excused', 409);
@@ -113,7 +114,7 @@ final class SelfAttendanceService {
         $state = SelfAttendancePolicy::state($now,$in,$out);
         $state['can_check_in'] = $state['can_check_in'] && !$row && $a->hasBranch($a->assignedBranchId);
         $state['can_check_out'] = $state['can_check_out'] && ($row['check_in_mode']??null)==='self' && $a->hasBranch((int)($row['branch_id']??0));
-        return array_merge($row??['business_date'=>$date],GpsDutyPolicy::state($row),$state,[
+        return array_merge($row??['business_date'=>$date],GpsDutyPolicy::state($row,$now->format('Y-m-d H:i:s')),$state,[
             'attendance_mode'=>'self','assigned_branch_id'=>$a->assignedBranchId,
             'official_start'=>'09:00','official_end'=>'18:00','auto_checkout_time'=>'19:00',
             'latest_gps_at'=>$row ? $db->get_var($db->prepare("SELECT recorded_at FROM ".Db::table('gps_points')." WHERE company_id=%d AND employee_id=%d AND attendance_id=%d ORDER BY recorded_at DESC,id DESC LIMIT 1",$a->companyId,$a->employeeId,(int)$row['id'])) : null,
