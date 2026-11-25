@@ -47,6 +47,21 @@ class HomeScreen extends ConsumerWidget {
         ),
         children: [
           _IdentityHero(app: app),
+          if (app.branchSelectorVisible) ...[
+            const SizedBox(height: 12),
+            const BranchSelector(),
+          ],
+          if (branch != null && app.managementDashboardVisible) ...[
+            const SizedBox(height: 20),
+            _SectionTitle(
+              title: 'Management Overview',
+              subtitle: '${app.currentBranchName} · ${app.businessMonthStart} to ${app.businessDate}',
+            ),
+            const SizedBox(height: 8),
+            _ManagementOverview(
+              key: ValueKey('management-$branch-${app.businessDate}'),
+              api: api, app: app, branch: branch),
+          ],
           if (startTasks.isNotEmpty && openConnectedAction != null) ...[
             const SizedBox(height: 24),
             HomeStartTasks(
@@ -54,32 +69,13 @@ class HomeScreen extends ConsumerWidget {
               onOpen: (task) => openConnectedAction!(task.id),
             ),
           ],
-          const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth >= 850 && app.branchSelectorVisible) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 390,
-                      child: const _BranchContextCard(),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(child: _AuthorityCard(app: app)),
-                  ],
-                );
-              }
-              return Column(
-                children: [
-                  if (app.branchSelectorVisible) ...[
-                    const _BranchContextCard(),
-                    const SizedBox(height: 12),
-                  ],
-                  _AuthorityCard(app: app),
-                ],
-              );
-            },
+          const SizedBox(height: 16),
+          ExpansionTile(
+            leading: const Icon(Icons.shield_outlined),
+            title: const Text('Your access'),
+            subtitle: const Text('View role and access details'),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            children: [_AuthorityCard(app: app)],
           ),
           if (app.businessAccessBlocked) ...[
             const SizedBox(height: 16),
@@ -148,16 +144,6 @@ class HomeScreen extends ConsumerWidget {
                 },
               ),
           ],
-          if (branch != null && app.managementDashboardVisible) ...[
-            const SizedBox(height: 30),
-            const _SectionTitle(
-              title: 'Management Overview',
-              subtitle:
-                  'Projected from your Team workspace, report authority and selected authorised branch.',
-            ),
-            const SizedBox(height: 8),
-            _ManagementOverview(api: api, app: app, branch: branch),
-          ],
           if (!app.managementDashboardVisible && app.can('reports.view')) ...[
             const SizedBox(height: 16),
             const _InfoNotice(
@@ -224,32 +210,6 @@ class _IdentityHero extends StatelessWidget {
     if (hour < 17) return 'afternoon';
     return 'evening';
   }
-}
-
-class _BranchContextCard extends StatelessWidget {
-  const _BranchContextCard();
-
-  @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'WORKING BRANCH',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: ExcelBrand.primaryDark,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                    ),
-              ),
-              const SizedBox(height: 10),
-              const BranchSelector(),
-            ],
-          ),
-        ),
-      );
 }
 
 class _AuthorityCard extends StatelessWidget {
@@ -526,7 +486,10 @@ class _PersonalPerformanceCard extends StatelessWidget {
             return const _LoadingCard(label: 'Loading performance...');
           }
           if (snapshot.hasError || snapshot.data is! List) {
-            return const SizedBox.shrink();
+            return const _InfoNotice(
+              icon: Icons.info_outline,
+              text: 'Personal performance is temporarily unavailable.',
+            );
           }
           final rows = (snapshot.data as List)
               .whereType<Map>()
@@ -622,6 +585,7 @@ class _PerformanceFact extends StatelessWidget {
 
 class _ManagementOverview extends StatelessWidget {
   const _ManagementOverview({
+    super.key,
     required this.api,
     required this.app,
     required this.branch,
@@ -646,8 +610,8 @@ class _ManagementOverview extends StatelessWidget {
           }
           final data = snapshot.data ?? const <String, dynamic>{};
           final cards = <_Metric>[];
-          final sales = (data['sales'] as List<Map<String, dynamic>>?) ?? const [];
-          if (sales.isNotEmpty) {
+          final sales = data['sales'] as List<Map<String, dynamic>>?;
+          if (sales != null) {
             cards.add(
               _Metric(
                 'Gross Sales',
@@ -663,17 +627,16 @@ class _ManagementOverview extends StatelessWidget {
               ),
             );
           }
-          final daily = (data['daily'] as List<Map<String, dynamic>>?) ?? const [];
-          if (daily.isNotEmpty || app.can('daily_order.others')) {
+          final daily = data['daily'] as List<Map<String, dynamic>>?;
+          if (daily != null && app.can('daily_order.others')) {
             final pending = daily.where((row) {
               final status = '${row['status'] ?? ''}'.toLowerCase();
               return status != 'completed' && status != 'cancelled';
             }).length;
-            cards.add(_Metric('Pending Daily Work', '$pending', Icons.approval_outlined));
+            cards.add(_Metric('Open daily orders (listed)', '$pending', Icons.approval_outlined));
           }
-          final performance =
-              (data['performance'] as List<Map<String, dynamic>>?) ?? const [];
-          if (performance.isNotEmpty) {
+          final performance = data['performance'] as List<Map<String, dynamic>>?;
+          if (performance != null && app.can('performance.view')) {
             cards.add(
               _Metric(
                 'Team Points',
@@ -681,6 +644,15 @@ class _ManagementOverview extends StatelessWidget {
                 Icons.leaderboard_outlined,
               ),
             );
+          }
+          if (sales == null) {
+            cards.add(const _Metric('Sales summary', 'Unavailable', Icons.warning_amber_outlined));
+          }
+          if (daily == null && app.can('daily_order.others')) {
+            cards.add(const _Metric('Daily orders', 'Unavailable', Icons.warning_amber_outlined));
+          }
+          if (performance == null && app.can('performance.view')) {
+            cards.add(const _Metric('Team points', 'Unavailable', Icons.warning_amber_outlined));
           }
           if (cards.isEmpty) {
             return const _InfoNotice(
@@ -739,11 +711,13 @@ class _ManagementOverview extends StatelessWidget {
     };
   }
 
-  Future<List<Map<String, dynamic>>> _safeRows(Future<dynamic> request) async {
+  Future<List<Map<String, dynamic>>?> _safeRows(Future<dynamic> request) async {
     try {
-      return _rows(await request);
+      final value = await request;
+      if (value is! List || value.any((row) => row is! Map)) return null;
+      return _rows(value);
     } catch (_) {
-      return <Map<String, dynamic>>[];
+      return null;
     }
   }
 
@@ -775,8 +749,8 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
         child: Container(
-          constraints: const BoxConstraints(minHeight: 142),
-          padding: const EdgeInsets.all(20),
+          constraints: const BoxConstraints(minHeight: 116),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -807,7 +781,7 @@ class _MetricCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 17),
+              const SizedBox(height: 10),
               Text(
                 metric.value,
                 maxLines: 2,
