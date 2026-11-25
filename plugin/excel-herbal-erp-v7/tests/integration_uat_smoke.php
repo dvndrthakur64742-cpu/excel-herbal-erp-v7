@@ -492,6 +492,24 @@ uat_case('uat_payroll_generate_approve_pay', function () use ($self,$maker,$mana
     ));
     if ($statusBefore !== 'draft') throw new RuntimeException('Denied Payroll approval changed status');
     if((uat_dispatch('payroll.approve',$manager,['id'=>$id])['status']??'')!=='approved') throw new RuntimeException('payroll approval failed');
+    $approvalId=(int)$wpdb->get_var('SELECT journal_entry_id FROM '.Db::table('payroll_runs').' WHERE id='.$id);
+    $journalTable=Db::table('journal_entries');
+    $itemTable=Db::table('payroll_items');
+    $item=$wpdb->get_row('SELECT id,net_salary FROM '.$itemTable.' WHERE payroll_run_id='.$id.' ORDER BY id LIMIT 1',ARRAY_A);
+    $before=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$journalTable}");
+    $pay=fn()=>uat_dispatch('payroll.pay',$manager,['id'=>$id,'payment_account_id'=>1,'payment_date'=>$date]);
+    Db::mustUpdate($wpdb,$itemTable,['net_salary'=>(float)$item['net_salary']+1],['id'=>(int)$item['id']]);
+    uat_expect_denial($pay,'payroll_journal_mismatch','Changed payroll amount cannot clear approved liability');
+    Db::mustUpdate($wpdb,$itemTable,['net_salary'=>$item['net_salary']],['id'=>(int)$item['id']]);
+    Db::mustUpdate($wpdb,$journalTable,['branch_id'=>2],['id'=>$approvalId]);
+    uat_expect_denial($pay,'payroll_journal_mismatch','Foreign branch approval journal cannot be paid');
+    Db::mustUpdate($wpdb,$journalTable,['branch_id'=>1],['id'=>$approvalId]);
+    Db::mustUpdate($wpdb,$journalTable,['status'=>'reversed'],['id'=>$approvalId]);
+    uat_expect_denial($pay,'payroll_journal_mismatch','Reversed approval journal cannot be paid');
+    Db::mustUpdate($wpdb,$journalTable,['status'=>'posted'],['id'=>$approvalId]);
+    if((int)$wpdb->get_var("SELECT COUNT(*) FROM {$journalTable}")!==$before||
+       (string)$wpdb->get_var('SELECT status FROM '.Db::table('payroll_runs').' WHERE id='.$id)!=='approved')
+        throw new RuntimeException('Denied payroll payments changed financial state');
     $paid=uat_dispatch('payroll.pay',$manager,['id'=>$id,'payment_account_id'=>1,'payment_date'=>$date]);
     if(($paid['status']??'')!=='paid'||(int)($paid['payment_journal_entry_id']??0)<1) throw new RuntimeException('payroll payment failed');
     $status=(string)$wpdb->get_var('SELECT status FROM '.Db::table('payroll_runs').' WHERE id='.$id);
