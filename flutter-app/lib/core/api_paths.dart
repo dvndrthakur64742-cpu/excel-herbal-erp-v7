@@ -119,6 +119,10 @@ abstract final class ApiPaths {
       diagnostics = '/administration/diagnostics',
       attendancePolicy = '/administration/attendance-policy',
       attendanceException = '/administration/attendance-exception',
+      gpsExceptionRequest = '/workforce/attendance/gps-exceptions',
+      gpsExceptionMine = '/workforce/attendance/gps-exceptions/mine',
+      gpsExceptionInbox = '/administration/gps-exceptions',
+      gpsExceptionDecision = '/administration/gps-exceptions/decision',
       maintenanceCleanup = '/administration/maintenance/cleanup';
 
   static String prepaidOrder(int id) => '/sales/orders/$id';
