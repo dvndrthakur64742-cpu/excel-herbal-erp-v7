@@ -98,12 +98,12 @@ class _EmptyState extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
+                constraints: const BoxConstraints(maxWidth: 560),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 26,
-                    vertical: 36,
+                    horizontal: 18,
+                    vertical: 16,
                   ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surface,
@@ -114,25 +114,25 @@ class _EmptyState extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 68,
-                        height: 68,
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
                           color: ExcelBrand.primarySoft,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Icon(
                           Icons.inbox_outlined,
-                          size: 32,
+                          size: 22,
                           color: ExcelBrand.primaryDark,
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 8),
                       Text(
                         'No records yet',
                         textAlign: TextAlign.center,
                         style: Theme.of(context)
                             .textTheme
-                            .titleLarge
+                            .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 10),
@@ -144,7 +144,7 @@ class _EmptyState extends StatelessWidget {
                               height: 1.45,
                             ),
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 8),
                       Text(
                         'Only records within your authorised selection appear here.',
                         textAlign: TextAlign.center,

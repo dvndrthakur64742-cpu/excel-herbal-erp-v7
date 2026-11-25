@@ -61,6 +61,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('single desktop action fills width with compact launcher', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var calls = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Column(children: [
+      GuidedActionPanel(title: 'Sales', subtitle: 'Open authorised task', actions: [
+        GuidedAction(id: 'prepaid', title: 'Prepaid Orders',
+          description: 'View verified payments.', icon: Icons.receipt_long,
+          primary: true, onOpen: () => calls++),
+      ]),
+    ]))));
+    await tester.pumpAndSettle();
+    final size = tester.getSize(find.byType(GuidedActionPanel));
+    expect(size.width, greaterThan(1100));
+    expect(size.height, lessThan(180));
+    await tester.tap(find.text('Start'));
+    expect(calls, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('branch-required task disables its actual launcher',
       (tester) async {
     var calls = 0;

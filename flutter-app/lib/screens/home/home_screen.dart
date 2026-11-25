@@ -28,11 +28,13 @@ class HomeScreen extends ConsumerWidget {
     final app = ref.watch(appStateProvider);
     final api = ref.watch(apiClientProvider);
     final branch = app.currentBranchId;
+    final showAttendanceShortcut = app.sectionVisible('my_work') && app.can('workforce.attendance.self') &&
+        !app.businessAccessBlocked && openConnectedAction != null;
     final startTasks = HomeStartTaskPlanner.recommend(
       can: app.can,
       sectionVisible: app.sectionVisible,
       businessAccessBlocked: app.businessAccessBlocked,
-    );
+    ).where((task) => !showAttendanceShortcut || task.id != 'attendance').toList();
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -62,12 +64,11 @@ class HomeScreen extends ConsumerWidget {
                 icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: const Text('Refresh dashboard'),
               ),
-              if (app.sectionVisible('my_work') && app.can('workforce.attendance.self') &&
-                  !app.businessAccessBlocked && openConnectedAction != null)
+              if (showAttendanceShortcut)
                 FilledButton.icon(
                   onPressed: () => openConnectedAction!('attendance'),
                   icon: const Icon(Icons.fingerprint, size: 18),
-                  label: const Text('Attendance / Punch'),
+                  label: const Text('Attendance & Duty'),
                 ),
             ],
           ),
@@ -682,11 +683,8 @@ class _ManagementOverview extends StatelessWidget {
           }
           return LayoutBuilder(
             builder: (context, constraints) {
-              final width = constraints.maxWidth >= 800
-                  ? (constraints.maxWidth - 24) / 3
-                  : constraints.maxWidth >= 500
-                      ? (constraints.maxWidth - 12) / 2
-                      : constraints.maxWidth;
+              final columns = managementColumns(constraints.maxWidth, cards.length);
+              final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -759,6 +757,14 @@ class _ManagementOverview extends StatelessWidget {
         0,
         (sum, row) => sum + (BusinessFormat.number(row[key]) ?? 0),
       );
+}
+
+// Balance four metrics across desktop or medium-width rows.
+int managementColumns(double width, int count) {
+  if (count <= 1 || width < 500) return 1;
+  if (width >= 1000 && count >= 4) return 4;
+  if (width >= 800 && count == 3) return 3;
+  return 2;
 }
 
 class _Metric {

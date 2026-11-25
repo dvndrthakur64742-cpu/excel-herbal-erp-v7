@@ -122,7 +122,7 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                 sliver: SliverToBoxAdapter(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const BranchSelector(),
-                    Text(app.currentBranchName),
+                    if (!app.branchSelectorVisible) Text(app.currentBranchName),
                     TextButton.icon(onPressed: retry, icon: const Icon(Icons.refresh), label: const Text('Refresh approvals')),
                     _ApprovalHeader(count: result.items.length, warnings: result.errors.length),
                   ]),
