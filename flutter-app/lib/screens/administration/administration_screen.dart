@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
+import '../../core/access_change_review.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -529,6 +530,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
     final selected = <String>{
       ...((role['capabilities'] as List?) ?? const []).map((e) => '$e'),
     };
+    final original = {...selected};
     final reason = TextEditingController();
     String? reasonError;
     final saved = await showDialog<bool>(
@@ -591,7 +593,21 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         ),
       ),
     );
-    if (saved == true) {
+    if (saved == true && mounted) {
+      final review = AccessChangeReview<String>(original, selected);
+      if (!review.changed) {
+        setState(() => message = 'No role permission changes.');
+        reason.dispose();
+        return;
+      }
+      final confirmed = await _reviewAccessChanges(
+        target: '${role['name']} (role)',
+        groups: [('Permissions', review)],
+      );
+      if (!confirmed || !mounted) {
+        reason.dispose();
+        return;
+      }
       await _post(
         ApiPaths.roleCapabilities(int.parse('${role['id']}')),
         {
@@ -933,7 +949,37 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             );
           }
         } else {
-          if (rolesChanged || overridesChanged) {
+          if ((rolesChanged || overridesChanged) && mounted) {
+            String roleLabel(int id) {
+              for (final role in roles) {
+                if (int.tryParse('${role['id']}') == id) {
+                  return '${role['name']} (#$id)';
+                }
+              }
+              return 'Role #$id';
+            }
+            final confirmed = await _reviewAccessChanges(
+              target: '${employee['full_name']} · ${employee['employee_code']}',
+              groups: [
+                if (rolesChanged)
+                  ('Assigned roles', AccessChangeReview<String>(
+                    originalRoles.map(roleLabel).toSet(),
+                    selectedRoles.map(roleLabel).toSet(),
+                  )),
+                if (overridesChanged) ...[
+                  ('Individual grants', AccessChangeReview<String>(
+                    originalGrants, grants,
+                  )),
+                  ('Individual denies', AccessChangeReview<String>(
+                    originalDenies, denies,
+                  )),
+                ],
+              ],
+            );
+            if (!confirmed || !mounted) {
+              reason.dispose();
+              return;
+            }
             await ref.read(apiClientProvider).post(
               ApiPaths.employeeAccess(id),
               data: {
@@ -1009,6 +1055,53 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
     }
+  }
+
+  Future<bool> _reviewAccessChanges({
+    required String target,
+    required List<(String, AccessChangeReview<String>)> groups,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Review access changes'),
+        scrollable: true,
+        content: SizedBox(
+          width: 560,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(target, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              const Text(
+                'Review these assignment changes before saving. Effective access '
+                'is determined by the server, designation defaults and branch scope. '
+                'Adding a deny blocks access; removing a deny may restore access.',
+              ),
+              for (final group in groups)
+                if (group.$2.changed) ...[
+                  const SizedBox(height: 12),
+                  Text(group.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  for (final item in group.$2.added) Text('Add: $item'),
+                  for (final item in group.$2.removed) Text('Remove: $item'),
+                ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Confirm access changes'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
   bool _sameInts(Set<int> a, Set<int> b) =>
