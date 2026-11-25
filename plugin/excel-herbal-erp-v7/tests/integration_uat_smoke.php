@@ -756,9 +756,9 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
     $setTime('2030-01-01 12:00:00');
     try {
         $payload=['effective_from'=>$date,'times'=>\ExcelHerbal\ERP7\Workforce\SelfAttendancePolicy::DEFAULTS,'reason'=>'Approved fixture schedule'];
-        $mustDeny(fn()=>uat_dispatch('admin.attendance_policy_save',$self,$payload),'permission_denied');
-        $mustDeny(fn()=>uat_dispatch('admin.attendance_policy_save',$admin,array_replace($payload,['effective_from'=>'2030-01-01'])),'attendance_policy_date_invalid');
-        $saved=uat_dispatch('admin.attendance_policy_save',$admin,$payload);
+        $mustDeny(fn()=>uat_dispatch('admin.attendance_policy_save',$self,[],$payload),'permission_denied');
+        $mustDeny(fn()=>uat_dispatch('admin.attendance_policy_save',$admin,[],array_replace($payload,['effective_from'=>'2030-01-01'])),'attendance_policy_date_invalid');
+        $saved=uat_dispatch('admin.attendance_policy_save',$admin,[],$payload);
         if($saved['effective_from']!==$date) throw new RuntimeException('Policy save failed');
         $policy=uat_dispatch('admin.attendance_policy',$admin);
         if($policy['current']!==null||count($policy['upcoming'])!==1) throw new RuntimeException('Future policy applied too early');
@@ -778,7 +778,7 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
         $setTime($date.' 10:30:00');
         $policy=uat_dispatch('admin.attendance_policy',$admin);
         if(($policy['current']['effective_from']??null)!==$date) throw new RuntimeException('Scheduled policy not active');
-        $mustDeny(fn()=>uat_dispatch('admin.attendance_policy_save',$admin,$payload),'attendance_policy_date_invalid');
+        $mustDeny(fn()=>uat_dispatch('admin.attendance_policy_save',$admin,[],$payload),'attendance_policy_date_invalid');
         $r=$read($self);
         if(!$r['gps_should_track']||$r['gps_status']!=='active') throw new RuntimeException('GPS did not activate at 10:30');
         \ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService::run();
@@ -791,6 +791,8 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
         if($p['checkout_mode']!=='self'||$p['check_out_at']!==$date.' 18:15:00') throw new RuntimeException('Self checkout not recorded');
         $mustDeny(fn()=>$checkOut($self),'attendance_open_required');
         $checkIn($another);
+        $nextTimes=array_replace($payload['times'],['duty_start'=>'09:15:00','gps_start'=>'11:00:00','gps_stop'=>'16:30:00','duty_end'=>'18:15:00','auto_checkout'=>'19:15:00']);
+        uat_dispatch('admin.attendance_policy_save',$admin,[],['effective_from'=>'2030-01-03','times'=>$nextTimes,'reason'=>'Future fixture timing']);
         $setTime($date.' 19:00:00');
         $mustDeny(fn()=>$checkOut($another),'attendance_checkout_due');
         $setTime('2030-01-03 08:00:00');
@@ -800,9 +802,22 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
         \ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService::run();
         $repeat=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$attendance} WHERE id=%d",(int)$row['id']),ARRAY_A);
         if($repeat!==$row) throw new RuntimeException('Repeated auto checkout changed stored evidence');
+        $audit=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=1 AND entity_type='attendance' AND entity_id=%s AND action='attendance.auto_checkout'",(string)$row['id']));
+        if($audit!==1) throw new RuntimeException('Expected exactly one automatic checkout audit record');
+        $setTime('2030-01-03 09:00:00');
+        if($read($self)['can_check_in']) throw new RuntimeException('Future policy start ignored');
+        $setTime('2030-01-03 09:15:00');
+        $p=$checkIn($self);
+        if($p['auto_checkout_due_at']!=='2030-01-03 19:15:00') throw new RuntimeException('Changed cutoff not snapshotted');
+        $setTime('2030-01-03 10:30:00');
+        if($read($self)['gps_should_track']) throw new RuntimeException('Old GPS start still active');
+        $setTime('2030-01-03 11:00:00');
+        if(!$read($self)['gps_should_track']) throw new RuntimeException('Configured GPS start ignored');
+        $setTime('2030-01-03 16:30:00');
+        if($read($self)['gps_should_track']||!$read($self)['can_check_out']) throw new RuntimeException('Configured GPS end ignored');
     } finally {
         unset($GLOBALS['eh7_test_clock_utc']);
-        $wpdb->query($wpdb->prepare("DELETE FROM {$settings} WHERE company_id=1 AND setting_key=%s",$policyKey));
+        $wpdb->query($wpdb->prepare("DELETE FROM {$settings} WHERE company_id=1 AND setting_key IN (%s,%s)",$policyKey,'attendance_policy@2030-01-03'));
     }
 });
 

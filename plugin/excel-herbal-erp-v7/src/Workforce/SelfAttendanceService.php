@@ -134,12 +134,38 @@ final class SelfAttendanceService {
         $db = Db::wpdb();
         $table = Db::table('attendance');
         $now = Db::now();
-        return Db::mustQuery($db,$db->prepare(
-            "UPDATE {$table} SET check_out_at=auto_checkout_due_at,checkout_mode='auto',checkout_processed_at=%s
-             WHERE check_in_mode='self' AND check_in_at IS NOT NULL AND check_out_at IS NULL
-             AND checkout_exception=0 AND auto_checkout_due_at IS NOT NULL
-             AND auto_checkout_due_at>=check_in_at AND auto_checkout_due_at<=%s",
-            $now,$now
-        ));
+        $where="check_in_mode='self' AND check_in_at IS NOT NULL AND check_out_at IS NULL
+                AND checkout_exception=0 AND auto_checkout_due_at IS NOT NULL
+                AND auto_checkout_due_at>=check_in_at AND auto_checkout_due_at<=%s";
+        $ids=$db->get_results($db->prepare("SELECT id FROM {$table} WHERE {$where} ORDER BY auto_checkout_due_at,id LIMIT 500",$now),ARRAY_A);
+        if (($db->last_error??'')!=='') throw new DomainException('Automatic checkout query failed.','attendance_checkout_unavailable',503);
+        $closed=0;$failed=0;
+        foreach ((array)$ids as $candidate) {
+            try {
+                $closed+=Transaction::run(function()use($db,$table,$where,$now,$candidate){
+                    $row=$db->get_row($db->prepare("SELECT * FROM {$table} WHERE id=%d AND {$where} FOR UPDATE",(int)$candidate['id'],$now),ARRAY_A);
+                    if (($db->last_error??'')!=='') throw new DomainException('Automatic checkout read failed.','attendance_checkout_unavailable',503);
+                    if (!$row) return 0;
+                    $id=(int)$row['id'];
+                    $updated=Db::mustUpdate($db,$table,[
+                        'check_out_at'=>$row['auto_checkout_due_at'],'checkout_mode'=>'auto','checkout_processed_at'=>$now,
+                    ],['id'=>$id,'company_id'=>(int)$row['company_id'],'check_out_at'=>null]);
+                    if ($updated!==1) throw new DomainException('Automatic checkout did not update exactly one row.','attendance_checkout_unavailable',503);
+                    Db::mustInsert($db,Db::table('audit_log'),[
+                        'company_id'=>(int)$row['company_id'],'branch_id'=>(int)$row['branch_id'],
+                        'employee_id'=>null,'wp_user_id'=>null,'action'=>'attendance.auto_checkout',
+                        'entity_type'=>'attendance','entity_id'=>(string)$id,
+                        'context_json'=>wp_json_encode(['employee_id'=>(int)$row['employee_id'],'business_date'=>$row['business_date'],
+                            'scheduled_checkout_utc'=>$row['auto_checkout_due_at'],'processed_utc'=>$now,'verified_employee_punch'=>false]),
+                        'created_at'=>$now,
+                    ]);
+                    return 1;
+                });
+            } catch (\Throwable $e) {
+                $failed++;
+            }
+        }
+        if ($failed>0) throw new DomainException('Automatic checkout recovery has pending failures.','attendance_checkout_unavailable',503);
+        return $closed;
     }
 }

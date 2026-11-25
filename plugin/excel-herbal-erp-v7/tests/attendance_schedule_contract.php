@@ -75,6 +75,8 @@ final class DutySchedulerFixtureDb {
     public function prepare($sql, ...$args) { return json_encode([$sql, $args], JSON_THROW_ON_ERROR); }
     public function get_row($query, $mode) { $this->last_error=''; return null; }
     public function get_results($query, $mode) {
+        $prepared=json_decode($query,true,512,JSON_THROW_ON_ERROR);
+        if (str_contains($prepared[0], "check_in_mode='self'")) { $this->last_error='';return []; }
         $this->last_error = $this->failEligibility ? 'fixture query failure' : '';
         return $this->failEligibility ? [] : [
             ['company_id'=>1,'employee_id'=>10,'branch_id'=>1],
