@@ -952,13 +952,25 @@ uat_case('f31_gps_exception_request_independent_head_office_decision',function()
         uat_expect_denial(fn()=>uat_dispatch('work.check_in',$employee,['branch_id'=>1]),'attendance_location_required','Approval alone does not bypass actual punch');
         $att=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ".Db::table('attendance')." WHERE company_id=1 AND employee_id=10 AND business_date=%s",$date));
         if($att!==0)throw new RuntimeException('Review manufactured attendance');
-        $p=uat_dispatch('work.check_in',$employee,['branch_id'=>1,'lat'=>31.7,'lng'=>76.9]);
+        uat_expect_denial(fn()=>uat_dispatch('work.check_in',$employee,['branch_id'=>1,'gps_exception_id'=>$id,'lat'=>31.7,'lng'=>76.9]),'gps_exception_invalid','Do not mix real coordinates with exception');
+        uat_expect_denial(fn()=>uat_dispatch('work.check_in',$employee,['branch_id'=>1,'gps_exception_id'=>$id+9999]),'gps_exception_not_approved','Invalid exception rolls back attendance');
+        $att=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ".Db::table('attendance')." WHERE company_id=1 AND employee_id=10 AND business_date=%s",$date));
+        if($att!==0)throw new RuntimeException('Invalid exception left attendance');
+        $p=uat_dispatch('work.check_in',$employee,['branch_id'=>1,'gps_exception_id'=>$id]);
+        $punch=$wpdb->get_row($wpdb->prepare("SELECT * FROM ".Db::table('attendance')." WHERE id=%d",(int)$p['id']),ARRAY_A);
+        if(!$punch||$punch['check_in_lat']!==null||$punch['check_in_lng']!==null||$punch['check_in_mode']!=='self')throw new RuntimeException('Exception punch fabricated coordinates');
+        $mine=uat_dispatch('work.gps_exception_mine',$employee);
+        if($mine[0]['status']!=='used')throw new RuntimeException('Approved exception not consumed');
+        uat_expect_denial(fn()=>uat_dispatch('work.check_in',$employee,['branch_id'=>1,'gps_exception_id'=>$id]),'attendance_exists','No second punch');
+        if(\ExcelHerbal\ERP7\Workforce\AttendanceGpsEvidence::hasVerifiedMorningPoint(1,1,10,$date))throw new RuntimeException('GPS exception incorrectly authorizes stock');
         $r=$request('check_out');
+        uat_expect_denial(fn()=>uat_dispatch('work.check_out',$employee,['gps_exception_id'=>$id]),'gps_exception_not_approved','Check-in exception cannot authorize checkout');
+        uat_expect_denial(fn()=>uat_dispatch('work.check_out',$employee,['gps_exception_id'=>(int)$r['id']]),'gps_exception_not_approved','Pending exception cannot authorize checkout');
         $setTime('2031-01-03 09:00:00');
         uat_expect_denial(fn()=>$decide($review,(int)$r['id'],'approved'),'gps_exception_expired','No backdated approval');
         if($decide($review,(int)$r['id'],'rejected')['status']!=='rejected')throw new RuntimeException('Expired request cannot be closed');
         $audit=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=1 AND entity_type='attendance_gps_exception' AND entity_id=%s",(string)$id));
-        if($audit!==2)throw new RuntimeException('Request and review audit missing');
+        if($audit!==3)throw new RuntimeException('Request, review and consumption audit missing');
     }finally{
         unset($GLOBALS['eh7_test_clock_utc']);
         $wpdb->query($wpdb->prepare("DELETE FROM ".Db::table('settings')." WHERE company_id=1 AND setting_key=%s",'attendance_policy@'.$date));
