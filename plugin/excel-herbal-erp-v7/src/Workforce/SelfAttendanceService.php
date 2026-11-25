@@ -10,10 +10,11 @@ use ExcelHerbal\ERP7\Security\Audit;
 use ExcelHerbal\ERP7\Security\Capabilities;
 use ExcelHerbal\ERP7\Security\Guard;
 
-/** Draft implementation for coordinated API/UI cutover. No hook is installed here. */
+/** Employee-owned punches; activated on an explicit company business date. */
 final class SelfAttendanceService {
     private static function now(): \DateTimeImmutable {
-        return new \DateTimeImmutable('now', wp_timezone());
+        $zone = function_exists('wp_timezone') ? wp_timezone() : new \DateTimeZone('UTC');
+        return new \DateTimeImmutable(current_time('mysql'), $zone);
     }
 
     private static function coordinates(?float $lat, ?float $lng): array {
@@ -53,17 +54,19 @@ final class SelfAttendanceService {
             $holidays = Db::table('holidays');
             $onLeave = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$leave} WHERE company_id=%d AND employee_id=%d AND status='approved' AND date_from<=%s AND date_to>=%s",$a->companyId,$a->employeeId,$date,$date));
             $holiday = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$holidays} WHERE company_id=%d AND active=1 AND (branch_id IS NULL OR branch_id=%d) AND holiday_date=%s",$a->companyId,$branch,$date));
+            if ($db->last_error !== '') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
             if ($onLeave || $holiday) throw new DomainException('Attendance is not available on approved leave or a holiday.', 'attendance_excused', 409);
             $table = Db::table('attendance');
             $existing = $db->get_row($db->prepare("SELECT id FROM {$table} WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",$a->companyId,$a->employeeId,$date),ARRAY_A);
             if ($existing) throw new DomainException('An attendance record already exists for today.', 'attendance_exists', 409);
             $stamp = $now->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
-            $id = Db::mustInsert($db, $table, [
+            Db::mustInsert($db, $table, [
                 'company_id'=>$a->companyId,'branch_id'=>$branch,'employee_id'=>$a->employeeId,
                 'business_date'=>$date,'status'=>'present','check_in_at'=>$stamp,
                 'check_in_lat'=>$lat,'check_in_lng'=>$lng,'check_in_mode'=>'self',
                 'auto_checkout_due_at'=>$state['auto_checkout_utc'],'created_at'=>$stamp,
             ], 'An attendance record already exists for today.', 'attendance_exists');
+            $id = (int)$db->insert_id;
             Audit::add($a,'attendance.self_check_in','attendance',$id,['branch_id'=>$branch,'business_date'=>$date]);
             return ['id'=>$id,'check_in_at'=>$stamp,'check_in_mode'=>'self','auto_checkout_due_at'=>$state['auto_checkout_utc']];
         });
@@ -96,6 +99,25 @@ final class SelfAttendanceService {
             Audit::add($a,'attendance.self_checkout','attendance',(int)$row['id'],['branch_id'=>$branch,'business_date'=>$row['business_date']]);
             return ['id'=>(int)$row['id'],'check_out_at'=>$stamp,'checkout_mode'=>'self'];
         });
+    }
+
+    public static function today(Actor $a): array {
+        $now = self::now();
+        $date = $now->format('Y-m-d');
+        $db = Db::wpdb();
+        $row = $db->get_row($db->prepare("SELECT * FROM ".Db::table('attendance')." WHERE company_id=%d AND employee_id=%d AND business_date=%s",$a->companyId,$a->employeeId,$date),ARRAY_A);
+        if ($db->last_error !== '') throw new DomainException('Attendance unavailable.', 'attendance_unavailable', 503);
+        $utc = new \DateTimeZone('UTC');
+        $in = !empty($row['check_in_at']) ? new \DateTimeImmutable($row['check_in_at'],$utc) : null;
+        $out = !empty($row['check_out_at']) ? new \DateTimeImmutable($row['check_out_at'],$utc) : null;
+        $state = SelfAttendancePolicy::state($now,$in,$out);
+        $state['can_check_in'] = $state['can_check_in'] && !$row && $a->hasBranch($a->assignedBranchId);
+        $state['can_check_out'] = $state['can_check_out'] && ($row['check_in_mode']??null)==='self' && $a->hasBranch((int)($row['branch_id']??0));
+        return array_merge($row??['business_date'=>$date],GpsDutyPolicy::state($row),$state,[
+            'attendance_mode'=>'self','assigned_branch_id'=>$a->assignedBranchId,
+            'official_start'=>'09:00','official_end'=>'18:00','auto_checkout_time'=>'19:00',
+            'latest_gps_at'=>$row ? $db->get_var($db->prepare("SELECT recorded_at FROM ".Db::table('gps_points')." WHERE company_id=%d AND employee_id=%d AND attendance_id=%d ORDER BY recorded_at DESC,id DESC LIMIT 1",$a->companyId,$a->employeeId,(int)$row['id'])) : null,
+        ]);
     }
 
     /** Idempotent recovery using the original, persisted cutoff. Never edits
