@@ -79,6 +79,8 @@ for metric in [
 ]:
  assert metric in maintenance,('missing operational diagnostics metric',metric)
 assert "($critical+$operational)===0?'healthy':'attention'" in maintenance,'operational anomalies do not affect diagnostics status'
+assert "$schedulerAttention=($scheduler['status']??'unverified')==='recent'?0:1;" in maintenance,'scheduler failure must raise operational attention'
+assert '$duplicateDesignationNames+$schedulerAttention;' in maintenance,'scheduler status must affect diagnostics summary'
 print('PASS operational diagnostics anomaly coverage')
 schema=(root/'src/Database/Schema.php').read_text()
 assert "7.3.12-attendance-time-review-9" in schema,'schema version not advanced for reward approval and prior migrations'

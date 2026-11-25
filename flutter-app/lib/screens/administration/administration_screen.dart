@@ -5,6 +5,7 @@ import '../../core/api_paths.dart';
 import '../../core/access_change_review.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
+import '../../core/operational_health_text.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
@@ -171,7 +172,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         final stock =
             Map<String, dynamic>.from((d['stock'] as Map?) ?? const {});
         final status = '${d['status'] ?? 'unknown'}';
-        final attention = status == 'attention';
+        final attention = OperationalHealthText.needsAttention(status, scheduler['status']);
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -182,11 +183,14 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                   attention ? Icons.warning_amber_rounded : Icons.verified_outlined,
                 ),
                 title: Text(
-                  attention ? 'Operational attention required' : 'System healthy',
+                  OperationalHealthText.title(status, scheduler['status']),
                 ),
                 subtitle: Text('Checked at ${d['checked_at'] ?? '—'}'),
               ),
             ),
+            Align(alignment: Alignment.centerRight, child: TextButton.icon(
+              onPressed: () => setState(() => refresh++),
+              icon: const Icon(Icons.refresh), label: const Text('Refresh health'))),
             const SizedBox(height: 10),
             _healthMetric(
               'Historical attendance without checkout',
@@ -205,7 +209,11 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
               ),
               _healthMetric('Today: checkout overdue',
                   attendance['today_overdue_without_checkout']),
-            ],
+            ] else
+              const Card(child: ListTile(
+                leading: Icon(Icons.warning_amber_rounded),
+                title: Text('Attendance scheduler status unavailable'),
+              )),
             _healthMetric(
               'Acknowledged missing checkout records',
               attendance['acknowledged_missing_checkout'],
@@ -254,7 +262,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
           dense: true,
           title: Text(label),
           trailing: Text(
-            '${value ?? 0}',
+            OperationalHealthText.metric(value),
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
