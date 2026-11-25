@@ -144,6 +144,9 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         final d = Map<String, dynamic>.from(data as Map);
         final attendance =
             Map<String, dynamic>.from((d['attendance'] as Map?) ?? const {});
+        final scheduler = Map<String, dynamic>.from(
+          (attendance['scheduler'] as Map?) ?? const {},
+        );
         final daily =
             Map<String, dynamic>.from((d['daily_order'] as Map?) ?? const {});
         final payroll =
@@ -178,6 +181,20 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
               'Historical attendance without checkout',
               attendance['open_past_without_checkout'],
             ),
+            if (scheduler.isNotEmpty) ...[
+              _healthMetric('Attendance scheduler status', scheduler['status']),
+              Card(
+                child: ListTile(
+                  title: const Text('Attendance scheduler timing (UTC)'),
+                  subtitle: Text(
+                    'Last successful: ${scheduler['last_success_utc'] ?? 'Not recorded'}\n'
+                    'Next scheduled: ${scheduler['next_due_utc'] ?? 'Not scheduled'}',
+                  ),
+                ),
+              ),
+              _healthMetric('Today: checkout overdue',
+                  attendance['today_overdue_without_checkout']),
+            ],
             _healthMetric(
               'Acknowledged missing checkout records',
               attendance['acknowledged_missing_checkout'],
