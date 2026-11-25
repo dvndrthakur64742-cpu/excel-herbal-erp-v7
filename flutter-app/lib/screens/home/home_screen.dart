@@ -346,7 +346,6 @@ class _AttendanceCard extends StatelessWidget {
               text: 'Attendance is not checked in yet.',
             );
           }
-          final gps = BusinessFormat.status(row['gps_status'] ?? 'unknown');
           final status = BusinessFormat.status(row['status']);
           return Card(
             child: Padding(
@@ -430,10 +429,21 @@ class _AttendanceCard extends StatelessWidget {
                           size: 16, color: ExcelBrand.muted),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          'Duty GPS: $gps  •  Route lifecycle is automatic',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: ExcelBrand.muted),
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final tracker = ref.watch(gpsTrackingProvider);
+                            final lastSync = tracker.lastSentAt;
+                            return Text(
+                              [
+                                'Duty GPS: ${BusinessFormat.status(tracker.dutyStatus)}',
+                                if (lastSync != null)
+                                  'Last sync ${BusinessFormat.dateTime(lastSync.toIso8601String())}',
+                                if (tracker.lastError != null) tracker.lastError!,
+                              ].join(' · '),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: ExcelBrand.muted),
+                            );
+                          },
                         ),
                       ),
                     ],
