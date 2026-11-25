@@ -244,6 +244,12 @@ e2_case('e2_reports_and_subledger_reconciliation',function()use($approver,$wpdb)
     if(count($purchase)!==1||abs((float)$purchase[0]['outstanding_amount']-250)>0.005)throw new RuntimeException('purchase report mismatch');
     $stockQty=0.0;foreach($stock as$r)if((int)$r['product_id']===100&&(int)$r['custodian_key']===0)$stockQty+=(float)$r['quantity'];
     if(abs($stockQty-8)>0.001)throw new RuntimeException('stock report mismatch');
+    foreach($stock as $r){
+        if(!array_key_exists('uom',$r)||!array_key_exists('expiry_tracking',$r)||!array_key_exists('expires_on',$r))
+            throw new RuntimeException('stock insights metadata missing');
+        if((int)$r['product_id']===100 && (int)$r['batch_key']===0 && $r['expires_on']!==null)
+            throw new RuntimeException('unbatched stock must not inherit expiry');
+    }
     foreach($finance as$r)if(abs((float)$r['debit']-(float)$r['credit'])>0.005)throw new RuntimeException('finance report contains unbalanced journal');
 
     $receivables=e2_dispatch('reports.receivables',$approver,['branch_id'=>1]);
