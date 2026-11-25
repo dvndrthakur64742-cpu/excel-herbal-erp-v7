@@ -5,6 +5,7 @@ import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
+import '../../core/entry_form_scope.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -28,6 +29,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   int refresh = 0;
   String? message;
   bool _handledInitialAction = false;
+  bool _entryInProgress = false;
 
   @override
   void initState() {
@@ -263,6 +265,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   Future<void> _counterSale() async {
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
+    if (!mounted || _entryInProgress || !app.can('sales.create') || app.currentBranchId == null) return;
+    final scope = EntryFormScope(app, api);
+    setState(() => _entryInProgress = true);
+    final controllers = <TextEditingController>[];
+    TextEditingController controller({String? text}) {
+      final result = TextEditingController(text: text);
+      controllers.add(result);
+      return result;
+    }
     try {
       final results = await Future.wait([
         api.get(ApiPaths.products),
@@ -308,13 +319,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
       int? customerId;
       int? accountId;
-      final paid = TextEditingController(text: '0');
+      final paid = controller(text: '0');
       final qty = <int, TextEditingController>{
-        for (var i = 0; i < stock.length; i++) i: TextEditingController(),
+        for (var i = 0; i < stock.length; i++) i: controller(),
       };
       String? formError;
+      String productFilter = '';
       List<Map<String, dynamic>>? validatedLines;
       double? validatedPaidAmount;
+      if (!mounted || !scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) return;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -325,8 +338,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Text('Branch: ${app.currentBranchName} · Date: ${app.businessDate}'),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<int?>(
+                      isExpanded: true,
                       initialValue: customerId,
                       decoration: const InputDecoration(
                         labelText: 'Customer (optional; full payment required)',
@@ -347,6 +364,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<int?>(
+                      isExpanded: true,
                       initialValue: accountId,
                       decoration: const InputDecoration(
                         labelText: 'Cash Account (legacy counter; UPI via Prepaid Orders)',
@@ -372,6 +390,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    TextField(
+                      decoration: const InputDecoration(labelText: 'Find product or batch', prefixIcon: Icon(Icons.search)),
+                      onChanged: (value) => setLocal(() => productFilter = value),
+                    ),
+                    const SizedBox(height: 8),
                     ...List.generate(stock.length, (i) {
                       final row = stock[i];
                       final pid = int.parse('${row['product_id']}');
@@ -380,6 +403,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       final batchLabel = batchKey == 0
                           ? 'No Batch'
                           : '${row['batch_no'] ?? 'Batch'}';
+                      if (qty[i]!.text.trim().isEmpty && !EntryFormScope.matchesProduct(productFilter, [row['product_name'], p['sku'], row['batch_no']])) return const SizedBox.shrink();
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: Padding(
@@ -512,7 +536,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           ),
         ),
       );
-      if (ok == true) {
+      if (ok == true && mounted) {
+        if (!scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) {
+          throw StateError('ERP scope changed. Open a new entry before submitting.');
+        }
         final lines = validatedLines!;
         final paidAmount = validatedPaidAmount!;
         final r = await api.post(
@@ -531,10 +558,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             refresh++;
           });
       }
-      paid.dispose();
-      for (final c in qty.values) c.dispose();
+
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      for (final c in controllers) { c.dispose(); }
+      if (mounted) setState(() => _entryInProgress = false);
     }
   }
 
