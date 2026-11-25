@@ -45,7 +45,7 @@ class _RecordsListState extends State<RecordsList> {
   String? _sortKey;
   bool _ascending = true;
   int _page = 0;
-  static const _pageSize = 25;
+  int _pageSize = 25;
 
   @override
   void dispose() {
@@ -153,6 +153,21 @@ class _RecordsListState extends State<RecordsList> {
                         : '${page * _pageSize + 1}–${page * _pageSize + pageRows.length} of ${rows.length} records',
                     style: Theme.of(context).textTheme.bodySmall,
                   )),
+                  PopupMenuButton<int>(
+                    tooltip: 'Rows per page',
+                    initialValue: _pageSize,
+                    onSelected: (size) => setState(() {
+                      _pageSize = size;
+                      _resetPage();
+                    }),
+                    itemBuilder: (_) => [
+                      for (final size in const [10, 25, 50])
+                        CheckedPopupMenuItem(value: size, checked: size == _pageSize,
+                          child: Text('$size rows')),
+                    ],
+                    child: Padding(padding: const EdgeInsets.all(8),
+                      child: Text('$_pageSize / page')),
+                  ),
                   IconButton(
                     tooltip: 'Previous page',
                     onPressed: page == 0 ? null : () => setState(() {
@@ -255,6 +270,18 @@ class _RecordsListState extends State<RecordsList> {
                 ),
             ],
           ),
+          if (_search.text.isNotEmpty || _status != null || _sortKey != null)
+            TextButton.icon(
+              onPressed: () => setState(() {
+                _search.clear();
+                _status = null;
+                _sortKey = null;
+                _ascending = true;
+                _resetPage();
+              }),
+              icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+              label: const Text('Reset filters'),
+            ),
           if (_sortKey != null)
             Text('${BusinessFormat.label(_sortKey!)} ${_ascending ? '↑' : '↓'}',
                 style: Theme.of(context).textTheme.bodySmall),
@@ -316,6 +343,10 @@ class _RecordsListState extends State<RecordsList> {
                 rows: [
                   for (final row in rows)
                     DataRow(
+                      color: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.hovered)) return Theme.of(context).colorScheme.primaryContainer;
+                        return rows.indexOf(row).isOdd ? Theme.of(context).colorScheme.surfaceContainerLowest : null;
+                      }),
                       onSelectChanged: (_) => _openDetail(row),
                       cells: [
                         for (final key in keys)

@@ -12,7 +12,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
             child: Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
-                onPressed: _expense,
+                onPressed: _expenseInProgress ? null : _expense,
                 icon: const Icon(Icons.add_card_outlined),
                 label: const Text('New Expense'),
               ),
@@ -40,6 +40,10 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
   Future<void> _expense() async {
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
+    if (!mounted || _expenseInProgress || !app.can('finance.expense.create') || app.currentBranchId == null) return;
+    _setFinanceState(() => _expenseInProgress = true);
+    final amount = TextEditingController();
+    final desc = TextEditingController();
     try {
       final d = Map<String, dynamic>.from(
         await api.get(ApiPaths.financeBootstrap) as Map,
@@ -60,19 +64,26 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
           )
           .toList();
       int? head, account;
-      final amount = TextEditingController();
-      final desc = TextEditingController();
+      if (!mounted || !identical(ref.read(appStateProvider), app)) return;
+      String? validation;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setLocal) => AlertDialog(
             title: const Text('Expense Entry'),
+            scrollable: true,
             content: SizedBox(
               width: 500,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Text('Branch: ${app.currentBranchName} · Date: ${app.businessDate}'),
+                  const SizedBox(height: 8),
+                  const Text('Submit for approval. This does not approve the expense.'),
+                  const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
+                    isExpanded: true,
                     initialValue: head,
                     decoration: const InputDecoration(
                       labelText: 'Expense Head',
@@ -81,7 +92,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                         .map(
                           (e) => DropdownMenuItem(
                             value: int.parse('${e['id']}'),
-                            child: Text('${e['name']}'),
+                            child: Text('${e['name']}', overflow: TextOverflow.ellipsis),
                           ),
                         )
                         .toList(),
@@ -89,6 +100,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int>(
+                    isExpanded: true,
                     initialValue: account,
                     decoration: const InputDecoration(
                       labelText: 'Payment Account',
@@ -97,7 +109,7 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                         .map(
                           (e) => DropdownMenuItem(
                             value: int.parse('${e['id']}'),
-                            child: Text('${e['code']} · ${e['name']}'),
+                            child: Text('${e['code']} · ${e['name']}', overflow: TextOverflow.ellipsis),
                           ),
                         )
                         .toList(),
@@ -109,13 +121,16 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(labelText: 'Amount'),
+                    decoration: const InputDecoration(labelText: 'Amount (required)', prefixText: '₹ '),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: desc,
                     decoration: const InputDecoration(labelText: 'Description'),
+                    maxLines: 2,
                   ),
+                  if (validation != null) Padding(padding: const EdgeInsets.only(top: 10),
+                    child: Text(validation!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
                 ],
               ),
             ),
@@ -125,15 +140,28 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, head != null && account != null),
-                child: const Text('Submit'),
+                onPressed: () {
+                  final parsed = double.tryParse(amount.text.trim());
+                  final error = TransactionGuardrails.expense(
+                    expenseHeadId: head, paymentAccountId: account,
+                    amount: parsed ?? double.nan);
+                  if (error != null) {
+                    setLocal(() => validation = error);
+                    return;
+                  }
+                  Navigator.pop(context, true);
+                },
+                child: const Text('Submit for approval'),
               ),
             ],
           ),
         ),
       );
-      if (ok == true) {
+      if (ok == true && mounted) {
+        final latest = ref.read(appStateProvider);
+        if (!identical(latest, app) || !identical(ref.read(apiClientProvider), api)) {
+          throw StateError('ERP scope changed. Open a new expense entry before submitting.');
+        }
         final expenseAmount = double.tryParse(amount.text.trim());
         if (expenseAmount == null) {
           throw Exception('Enter a valid expense amount.');
@@ -161,10 +189,12 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
             refresh++;
           });
       }
-      amount.dispose();
-      desc.dispose();
     } catch (e) {
       if (mounted) _setFinanceState(() => message = UiError.message(e));
+    } finally {
+      amount.dispose();
+      desc.dispose();
+      if (mounted) _setFinanceState(() => _expenseInProgress = false);
     }
   }
 
