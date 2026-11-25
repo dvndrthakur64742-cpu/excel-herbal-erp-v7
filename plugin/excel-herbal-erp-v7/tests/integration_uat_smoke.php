@@ -1062,5 +1062,24 @@ uat_case('f33_historical_attendance_time_review_preserves_original_and_payroll',
     if($audit!==2)throw new RuntimeException('Request and independent decision audit missing');
 });
 
+uat_case('reversal_list_respects_branch_and_company_authority',function()use($wpdb){
+    $ids=[];
+    foreach ([[1,1],[1,2],[1,null],[2,1]] as [$company,$branch]) {
+        uat_insert($wpdb,'reversals',['company_id'=>$company,'branch_id'=>$branch,
+            'source_type'=>'expense','source_id'=>123,'reason'=>'Synthetic scope test',
+            'status'=>'pending','requested_by'=>10,'requested_at'=>Db::now()]);
+        $ids[]=(int)$wpdb->insert_id;
+    }
+    foreach ([[[1],[0]],[[2],[1]],[[1,2],[0,1,2]],[[],[]]] as [$branches,$expected]) {
+        $actor=uat_actor(20,$branches,[Capabilities::REVERSAL_APPROVE]);
+        $rows=uat_dispatch('finance.reversals',$actor,['status'=>'pending']);
+        $actual=array_map('intval',array_column($rows,'id'));
+        foreach($ids as $index=>$id){
+            if(in_array($id,$actual,true)!==in_array($index,$expected,true))
+                throw new RuntimeException('Incorrect reversal scope');
+        }
+    }
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
