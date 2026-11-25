@@ -416,6 +416,10 @@ $lineId=(int)$db->get_var('SELECT id FROM '.Db::table('bank_statement_lines').' 
 denySales(fn()=>\ExcelHerbal\ERP7\Finance\FinanceBankService::bankExclude($evidenceUpiChecker,$lineId,'synthetic reason'),'refund_bank_match_required');
 $proofs=\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::list($evidenceUpiChecker,$returnId);
 checkSales((int)$proofs[1]['external_journal_id']===$result['journal_id'],'posted journal visible in return evidence list');
+$partialLedger=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::detail($returnApprover,$returnId)['refund_clearing_reconciliation'];
+checkSales($partialLedger['status']==='partially_recorded' && $partialLedger['recorded_amount']==='100.00' &&
+    $partialLedger['remaining_to_record']==='100.00' && $partialLedger['linked_clearing_debit']==='100.00',
+    'F34 actual split refund ledger shows one tender recorded and remaining amount');
 $cashPost=fn($actor,$ref,$day)=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::postExternalCash($actor,(int)$cashEvidence['id'],$ref,$day);
 $voucher='UAT-CASH-REF-001';
 denySales(fn()=>$cashPost($evidenceMaker,$voucher,$date),'refund_post_evidence_invalid');
@@ -427,4 +431,17 @@ checkSales($cashJournal['journal_id']!==$result['journal_id'] && $cashPost($evid
 $cashCredit=$db->get_var('SELECT credit FROM '.Db::table('journal_lines').' WHERE account_id=10 AND journal_entry_id='.(int)$cashJournal['journal_id']);
 checkSales((float)$cashCredit===100.0,'cash voucher credits the original cash ledger');
 denySales(fn()=>$cashPost($evidenceCashChecker,$voucher,'2020-01-01'),'refund_prior_posting');
+$beforeRead=(int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'));
+$ledger=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::detail($returnApprover,$returnId)['refund_clearing_reconciliation'];
+checkSales($ledger['status']==='refund_recorded' && $ledger['recorded_amount']==='200.00' &&
+    $ledger['cash_recorded']==='100.00' && $ledger['upi_recorded']==='100.00' &&
+    $ledger['remaining_to_record']==='0.00' && $ledger['linked_clearing_debit']==='200.00' &&
+    $ledger['credit_note_id']===null && $ledger['gst_snapshot_available']===false &&
+    (int)$ledger['invoice']['id']===$protectedSale,'F34 full split refund ledger reconciles original invoice without credit note or duplicate payment');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('journal_entries'))===$beforeRead,'F34 reconciliation is read only');
+$journalLine=(int)$db->get_var('SELECT id FROM '.Db::table('journal_lines').' WHERE journal_entry_id='.(int)$cashJournal['journal_id'].' AND account_id=10');
+Db::mustUpdate($db,Db::table('journal_lines'),['credit'=>'99.00'],['id'=>$journalLine]);
+$invalid=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::detail($returnApprover,$returnId)['refund_clearing_reconciliation'];
+checkSales($invalid['status']==='review_required'&&$invalid['recorded_amount']===null,'F34 altered journal is not counted as settled');
+Db::mustUpdate($db,Db::table('journal_lines'),['credit'=>'100.00'],['id'=>$journalLine]);
 echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction and concurrent posting integration (synthetic only)\n";

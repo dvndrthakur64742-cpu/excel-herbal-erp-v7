@@ -246,6 +246,11 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
     final check = detail?['refund_evidence_check'] is Map
         ? Map<String, dynamic>.from(detail!['refund_evidence_check'] as Map)
         : <String, dynamic>{};
+    final ledger = detail?['refund_clearing_reconciliation'] is Map
+        ? Map<String, dynamic>.from(detail!['refund_clearing_reconciliation'] as Map)
+        : <String, dynamic>{};
+    final invoice = ledger['invoice'] is Map ? Map<String, dynamic>.from(ledger['invoice'] as Map) : <String, dynamic>{};
+    final ledgerBlockers = (ledger['blockers'] as List?) ?? const [];
     final blockers = (check['blockers'] as List?) ?? const [];
     final guidance = detail == null || _evidence.any((e) => e['external_journal_id'] != null) ? null : PrepaidReturnGuidance.forStatus(
       status: detail['status'].toString(),
@@ -287,6 +292,22 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                           style: Theme.of(context).textTheme.titleMedium),
                       Text('Order #${detail['order_id']} · Status: ${detail['status']}'),
                       Text('Requested full amount: ₹${detail['refund_amount']}'),
+                      if (ledger.isNotEmpty) ...[
+                        const Divider(),
+                        Text('Refund ledger reconciliation', style: Theme.of(context).textTheme.titleMedium),
+                        if (invoice.isNotEmpty)
+                          Text("Invoice ${invoice['sale_no']} · Journal #${invoice['journal_entry_id']}"),
+                        Text('Status: ${ledger['status'] == 'refund_recorded' ? 'All refund payments recorded' : ledger['status'] == 'partially_recorded' ? 'Partially recorded' : ledger['status'] == 'review_required' ? 'Finance review required' : 'Not recorded'}'),
+                        Text("Cash recorded: ${ledger['cash_recorded'] == null ? 'Unverified' : '₹${ledger['cash_recorded']}'}"),
+                        Text("UPI recorded: ${ledger['upi_recorded'] == null ? 'Unverified' : '₹${ledger['upi_recorded']}'}"),
+                        Text("Remaining refund to record: ${ledger['remaining_to_record'] == null ? 'Unverified' : '₹${ledger['remaining_to_record']}'}"),
+                        Text("Linked refund clearing debit: ${ledger['linked_clearing_debit'] == null ? 'Unverified' : '₹${ledger['linked_clearing_debit']}'}"),
+                        const Text('Credit note not issued. Clearing debit is not the company-wide account balance.'),
+                        if (ledger['clearing_account_configured'] != true)
+                          const Text('Finance must configure an active refund clearing asset account.'),
+                        if (ledgerBlockers.isNotEmpty)
+                          Text('Ledger review: ${ledgerBlockers.join(', ')}'),
+                      ],
                       if (guidance != null) ...[
                         const SizedBox(height: 12),
                         ListTile(
