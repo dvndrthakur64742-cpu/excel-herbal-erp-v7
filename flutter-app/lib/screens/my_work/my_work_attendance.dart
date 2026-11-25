@@ -171,7 +171,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                               const SizedBox(height: 6),
                               if (checkedIn)
                                 Text(
-                                  'Check-In: ${DateTimeText.local(r['check_in_at'])}',
+                                  'Check-In: ${DateTimeText.business(r['check_in_at'], app.businessTimezone)}',
                                 )
                               else
                                 Text(selfMode
@@ -181,7 +181,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                                 const SizedBox(height: 2),
                                 Text(
                                   checkedOut
-                                      ? 'Check-Out: ${DateTimeText.local(r['check_out_at'])}'
+                                      ? 'Check-Out: ${DateTimeText.business(r['check_out_at'], app.businessTimezone)}'
                                       : 'Check-Out: pending',
                                 ),
                               ],
@@ -193,6 +193,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                   ),
                 ),
                 const SizedBox(height: 10),
+                Text('ERP business date: ${r['business_date'] ?? app.businessDate} · ${app.businessTimezone}'),
                 if (selfMode) ...[
                   Text('Office: ${r['official_start']}–${r['official_end']} · '
                       'GPS: ${r['gps_start_time']}–${r['gps_stop_time']} · '
@@ -248,7 +249,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
               [
                 BusinessFormat.status(tracker.dutyStatus),
                 if (tracker.lastSentAt != null)
-                  'Last sync ${BusinessFormat.dateTime(tracker.lastSentAt!.toIso8601String())}',
+                  'Last sync ${DateTimeText.business(tracker.lastSentAt!.toUtc().toIso8601String(), app.businessTimezone)}',
                 if (tracker.lastError != null) tracker.lastError!,
               ].join(' · '),
             ),

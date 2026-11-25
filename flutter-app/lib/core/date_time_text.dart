@@ -13,6 +13,22 @@ class DateTimeText {
     return '${_two(local.day)}-${_two(local.month)}-${local.year} ${_two(local.hour)}:${_two(local.minute)}:${_two(local.second)}';
   }
 
+  /// Operational attendance timestamps are UTC. Display India business time
+  /// irrespective of the device/browser timezone. For an unsupported zone
+  /// show explicit UTC instead of mislabelling device time as business time.
+  static String business(dynamic value, String timezone) {
+    final raw = '${value ?? ''}'.trim();
+    if (raw.isEmpty || raw == '-' || raw.toLowerCase() == 'null') return '-';
+    final parsed = _parseBackendDateTime(raw);
+    if (parsed == null) return 'Unverified time';
+    final india = timezone == 'Asia/Kolkata' || timezone == 'Asia/Calcutta';
+    final utc = parsed.toUtc();
+    final display = india ? utc.add(const Duration(hours: 5, minutes: 30)) : utc;
+    final suffix = india ? 'IST' : 'UTC';
+    return '${_two(display.day)}-${_two(display.month)}-${display.year} '
+        '${_two(display.hour)}:${_two(display.minute)}:${_two(display.second)} $suffix';
+  }
+
   static String compact(dynamic value) {
     final rendered = local(value);
     if (rendered == '-') return rendered;
