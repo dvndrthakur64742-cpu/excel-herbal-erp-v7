@@ -47,6 +47,7 @@ dutyAssert(str_contains($diag,"'today_overdue_without_checkout'")&&str_contains(
 require_once __DIR__.'/../src/Database/Db.php';
 require_once __DIR__.'/../src/Workforce/SelfAttendancePolicy.php';
 require_once __DIR__.'/../src/Workforce/SelfAttendanceService.php';
+require_once __DIR__.'/../src/Workforce/SelfAttendanceSettings.php';
 if (!defined('ARRAY_A')) define('ARRAY_A', 'ARRAY_A');
 function current_time($format, $gmt = false) {
     return match ($format) {
@@ -72,6 +73,7 @@ final class DutySchedulerFixtureDb {
     public bool $failEligibility = false;
     public array $closed = [];
     public function prepare($sql, ...$args) { return json_encode([$sql, $args], JSON_THROW_ON_ERROR); }
+    public function get_row($query, $mode) { $this->last_error=''; return null; }
     public function get_results($query, $mode) {
         $this->last_error = $this->failEligibility ? 'fixture query failure' : '';
         return $this->failEligibility ? [] : [

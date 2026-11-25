@@ -93,6 +93,11 @@ class GuidedWorkspaceSection {
             description: 'Read the immutable history of recorded ERP actions.',
             icon: Icons.history_outlined,
           ),
+        'Attendance Policy' => const GuidedWorkspaceSection(
+            title: 'Attendance Policy',
+            description: 'Set the next effective work hours, GPS window and checkout deadline.',
+            icon: Icons.schedule_outlined,
+          ),
         'System Health' => const GuidedWorkspaceSection(
             title: 'System Health',
             description: 'Review diagnostics before requesting a technical change.',

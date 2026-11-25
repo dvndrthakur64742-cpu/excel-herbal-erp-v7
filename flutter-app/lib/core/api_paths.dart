@@ -117,6 +117,7 @@ abstract final class ApiPaths {
       adminRoles = '/administration/roles',
       audit = '/administration/audit',
       diagnostics = '/administration/diagnostics',
+      attendancePolicy = '/administration/attendance-policy',
       maintenanceCleanup = '/administration/maintenance/cleanup';
 
   static String prepaidOrder(int id) => '/sales/orders/$id';

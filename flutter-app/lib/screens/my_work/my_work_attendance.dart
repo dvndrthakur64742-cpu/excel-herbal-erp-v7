@@ -112,7 +112,9 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                 ),
                 const SizedBox(height: 10),
                 if (selfMode) ...[
-                  const Text('Office: 9 AM–6 PM · GPS: 10:30 AM–5 PM · Auto checkout: 7 PM'),
+                  Text('Office: ${r['official_start']}–${r['official_end']} · '
+                      'GPS: ${r['gps_start_time']}–${r['gps_stop_time']} · '
+                      'Auto checkout: ${r['auto_checkout_time']}'),
                   if (r['checkout_mode'] == 'auto')
                     const Text('Automatic checkout · not a verified employee punch'),
                   const SizedBox(height: 8),

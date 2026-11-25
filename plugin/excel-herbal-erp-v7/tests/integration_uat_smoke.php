@@ -736,7 +736,8 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
     $self = uat_actor(30,[2],[Capabilities::ATT_SELF],'FE');
     $another = uat_actor(20,[2],[Capabilities::ATT_SELF],'FE');
     $date = '2030-01-02';
-    $option = 'eh7_self_attendance_from_1';
+    $policyKey = 'attendance_policy@'.$date;
+    $admin=uat_actor(20,[1,2],[Capabilities::ACCESS_MANAGE],'SYSADMIN');
     $setTime = static function(string $stamp): void {
         $GLOBALS['eh7_test_clock_utc'] = strtotime($stamp.' UTC');
     };
@@ -751,11 +752,16 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
         throw new RuntimeException('Expected attendance denial: '.$code);
     };
     $attendance = Db::table('attendance');
-    $options = $wpdb->prefix.'options';
-    if ($wpdb->insert($options,['option_name'=>$option,'option_value'=>$date,'autoload'=>'no'])===false) {
-        throw new RuntimeException('Cannot enable disposable company cutover');
-    }
+    $settings=Db::table('settings');
+    $setTime('2030-01-01 12:00:00');
     try {
+        $payload=['effective_from'=>$date,'times'=>\ExcelHerbal\ERP7\Workforce\SelfAttendancePolicy::DEFAULTS,'reason'=>'Approved fixture schedule'];
+        $mustDeny(fn()=>uat_dispatch('admin.attendance_policy_save',$self,$payload),'permission_denied');
+        $mustDeny(fn()=>uat_dispatch('admin.attendance_policy_save',$admin,array_replace($payload,['effective_from'=>'2030-01-01'])),'attendance_policy_date_invalid');
+        $saved=uat_dispatch('admin.attendance_policy_save',$admin,$payload);
+        if($saved['effective_from']!==$date) throw new RuntimeException('Policy save failed');
+        $policy=uat_dispatch('admin.attendance_policy',$admin);
+        if($policy['current']!==null||count($policy['upcoming'])!==1) throw new RuntimeException('Future policy applied too early');
         $setTime($date.' 08:59:59');
         $r=$read($self);
         if($r['attendance_mode']!=='self'||$r['can_check_in']!==false) throw new RuntimeException('Check-in available before 09:00');
@@ -770,6 +776,9 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
         if(abs((float)$row['check_in_lat']-31.7)>.00001||abs((float)$row['check_in_lng']-76.9)>.00001) throw new RuntimeException('Check-in location missing');
         $mustDeny(fn()=>$checkIn($self),'attendance_exists');
         $setTime($date.' 10:30:00');
+        $policy=uat_dispatch('admin.attendance_policy',$admin);
+        if(($policy['current']['effective_from']??null)!==$date) throw new RuntimeException('Scheduled policy not active');
+        $mustDeny(fn()=>uat_dispatch('admin.attendance_policy_save',$admin,$payload),'attendance_policy_date_invalid');
         $r=$read($self);
         if(!$r['gps_should_track']||$r['gps_status']!=='active') throw new RuntimeException('GPS did not activate at 10:30');
         \ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService::run();
@@ -793,7 +802,7 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
         if($repeat!==$row) throw new RuntimeException('Repeated auto checkout changed stored evidence');
     } finally {
         unset($GLOBALS['eh7_test_clock_utc']);
-        $wpdb->query($wpdb->prepare("DELETE FROM {$options} WHERE option_name=%s",$option));
+        $wpdb->query($wpdb->prepare("DELETE FROM {$settings} WHERE company_id=1 AND setting_key=%s",$policyKey));
     }
 });
 

@@ -123,11 +123,11 @@ final class ScheduledAttendanceService {
         $failed = 0;
         foreach ((array)$rows as $row) {
             $companyId = (int)$row['company_id'];
-            if (SelfAttendancePolicy::enabled($companyId,$date)) continue;
             $employeeId = (int)$row['employee_id'];
             $branchId = (int)$row['branch_id'];
 
             try {
+                if (SelfAttendancePolicy::enabled($companyId,$date)) continue;
                 Db::mustQuery($db, $db->prepare(
                     "INSERT INTO {$attendance}
                         (company_id,branch_id,employee_id,business_date,status,check_in_at,created_at)

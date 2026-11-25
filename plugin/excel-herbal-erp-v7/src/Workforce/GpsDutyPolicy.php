@@ -11,7 +11,7 @@ final class GpsDutyPolicy {
         $tz=function_exists('wp_timezone')?wp_timezone():new \DateTimeZone('UTC');
         $now=$nowLocal?new \DateTimeImmutable($nowLocal,$tz):new \DateTimeImmutable('now',$tz);
         $date=(string)($attendance['business_date']??$now->format('Y-m-d'));
-        $settings=$settings??SelfAttendancePolicy::snapshot($attendance);
+        $settings=$settings??(($attendance['check_in_mode']??null)==='self'?SelfAttendancePolicy::snapshot($attendance):['gps_start'=>self::START,'gps_stop'=>self::STOP]);
         $start=new \DateTimeImmutable($date.' '.$settings['gps_start'],$tz);
         $stop=new \DateTimeImmutable($date.' '.$settings['gps_stop'],$tz);
         $checkedIn=!empty($attendance['check_in_at']);$checkedOut=!empty($attendance['check_out_at']);
@@ -39,7 +39,7 @@ final class GpsDutyPolicy {
         $local=get_date_from_gmt($recordedUtc,'Y-m-d H:i:s');
         if($businessDate===''||substr($local,0,10)!==$businessDate)throw new DomainException('GPS point is outside the active business day.','gps_recorded_date_invalid',422);
         $time=substr($local,11,8);
-        $settings=SelfAttendancePolicy::snapshot($attendance);
+        $settings=($attendance['check_in_mode']??null)==='self'?SelfAttendancePolicy::snapshot($attendance):['gps_start'=>self::START,'gps_stop'=>self::STOP];
         if($time<$settings['gps_start'])throw new DomainException('GPS duty has not started.','gps_window_not_started',409);
         if($time>=$settings['gps_stop'])throw new DomainException('GPS duty window is closed.','gps_window_closed',409);
         if(($attendance['check_in_mode']??null)==='self' && $recordedUtc<(string)$attendance['check_in_at'])throw new DomainException('GPS point precedes employee check-in.','gps_recorded_time_invalid',422);
