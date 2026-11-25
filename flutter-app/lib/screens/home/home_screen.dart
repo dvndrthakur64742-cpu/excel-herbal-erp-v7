@@ -85,7 +85,7 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 8),
             _ManagementOverview(
               key: ValueKey('management-$branch-${app.businessDate}'),
-              api: api, app: app, branch: branch),
+              api: api, app: app, branch: branch, onOpen: openConnectedAction),
           ],
           if (startTasks.isNotEmpty && openConnectedAction != null) ...[
             const SizedBox(height: 24),
@@ -612,11 +612,13 @@ class _ManagementOverview extends StatelessWidget {
     required this.api,
     required this.app,
     required this.branch,
+    this.onOpen,
   });
 
   final dynamic api;
   final AppState app;
   final int branch;
+  final ValueChanged<String>? onOpen;
 
   @override
   Widget build(BuildContext context) => HomeQuery<Map<String, dynamic>>(
@@ -638,6 +640,7 @@ class _ManagementOverview extends StatelessWidget {
                 'Gross Sales',
                 BusinessFormat.money(_sum(sales, 'gross_amount')),
                 Icons.trending_up_rounded,
+                route: app.can('reports.view') && app.sectionVisible('reports') ? 'kpi_sales' : null,
               ),
             );
             cards.add(
@@ -645,6 +648,7 @@ class _ManagementOverview extends StatelessWidget {
                 'Outstanding',
                 BusinessFormat.money(_sum(sales, 'outstanding_amount')),
                 Icons.pending_actions_outlined,
+                route: app.can('reports.view') && app.sectionVisible('reports') ? 'kpi_sales' : null,
               ),
             );
           }
@@ -654,7 +658,8 @@ class _ManagementOverview extends StatelessWidget {
               final status = '${row['status'] ?? ''}'.toLowerCase();
               return status != 'completed' && status != 'cancelled';
             }).length;
-            cards.add(_Metric('Open daily orders (listed)', '$pending', Icons.approval_outlined));
+            cards.add(_Metric('Open daily orders (listed)', '$pending', Icons.approval_outlined,
+              route: app.sectionVisible('team') ? 'kpi_daily' : null));
           }
           final performance = data['performance'] as List<Map<String, dynamic>>?;
           if (performance != null && app.can('performance.view')) {
@@ -663,6 +668,7 @@ class _ManagementOverview extends StatelessWidget {
                 'Team Points',
                 BusinessFormat.quantity(_sum(performance, 'points')),
                 Icons.leaderboard_outlined,
+                route: app.sectionVisible('payroll_performance') ? 'kpi_performance' : null,
               ),
             );
           }
@@ -696,7 +702,8 @@ class _ManagementOverview extends StatelessWidget {
                     runSpacing: 12,
                     children: [
                       for (final metric in cards)
-                        SizedBox(width: width, child: _MetricCard(metric: metric)),
+                        SizedBox(width: width, child: _MetricCard(metric: metric,
+                          onOpen: metric.route == null || onOpen == null ? null : () => onOpen!(metric.route!))),
                     ],
                   ),
                 ],
@@ -768,21 +775,26 @@ int managementColumns(double width, int count) {
 }
 
 class _Metric {
-  const _Metric(this.label, this.value, this.icon);
+  const _Metric(this.label, this.value, this.icon, {this.route});
 
   final String label;
   final String value;
   final IconData icon;
+  final String? route;
 }
 
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.metric});
+  const _MetricCard({required this.metric, this.onOpen});
 
   final _Metric metric;
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) => Card(
-        child: Container(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onOpen,
+          child: Container(
           constraints: const BoxConstraints(minHeight: 116),
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -813,6 +825,7 @@ class _MetricCard extends StatelessWidget {
                           ),
                     ),
                   ),
+                  if (onOpen != null) const Icon(Icons.chevron_right, size: 18),
                 ],
               ),
               const SizedBox(height: 10),
@@ -825,8 +838,10 @@ class _MetricCard extends StatelessWidget {
                       color: ExcelBrand.ink,
                     ),
               ),
+              if (onOpen != null) const Text('View details', style: TextStyle(fontSize: 12, color: ExcelBrand.primaryDark)),
             ],
           ),
+        ),
         ),
       );
 }
