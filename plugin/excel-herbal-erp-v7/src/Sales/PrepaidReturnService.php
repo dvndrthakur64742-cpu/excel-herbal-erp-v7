@@ -65,7 +65,7 @@ final class PrepaidReturnService {
         return $r;
     }
 
-    private static function requirePostedSource(int $company,int $branch,int $order,int $sale,string $amount):void {
+    public static function requirePostedSource(int $company,int $branch,int $order,int $sale,string $amount):void {
         $db=Db::wpdb();
         $orders=Db::table('prepaid_sales_orders');
         $sales=Db::table('counter_sales');

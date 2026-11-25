@@ -383,4 +383,23 @@ checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('stock_ledger'))=
     'paid reversal did not change stock ledger');
 echo "PASS generic reversal refused fully paid prepaid invoice until verified refund workflow exists\n";
 
+// Synthetic external bank payment: no network payout or sale/stock reversal.
+$record=fn($actor,$ref)=>\ExcelHerbal\ERP7\Sales\PrepaidRefundEvidenceService::postExternalUpi($actor,(int)$upiEvidence['id'],$ref);
+$ref='UAT-UPI-REF-001';
+denySales(fn()=>$record($evidenceCashChecker,$ref),'permission_denied');
+denySales(fn()=>$record($evidenceUpiChecker,'wrong-ref'),'refund_post_evidence_invalid');
+denySales(fn()=>$record($evidenceUpiChecker,$ref),'refund_bank_debit_invalid');
+$bankId=(int)$db->get_var('SELECT payment_account_id FROM '.Db::table('prepaid_refund_evidence').' WHERE id='.(int)$upiEvidence['id']);
+$date=Db::today();
+$rec=\ExcelHerbal\ERP7\Finance\FinanceBankService::bankCreate($evidenceUpiChecker,1,$bankId,$date,$date,500,400);
+\ExcelHerbal\ERP7\Finance\FinanceBankService::bankImport($evidenceUpiChecker,(int)$rec['id'],[
+    ['txn_date'=>$date,'debit'=>100,'reference'=>$ref]
+]);
+denySales(fn()=>$record($evidenceUpiChecker,$ref),'account_missing');
+Db::mustInsert($db,Db::table('accounts'),['company_id'=>1,'code'=>'REFUND_CLEARING','name'=>'Refund clearing','type'=>'asset','active'=>1]);
+$result=$record($evidenceUpiChecker,$ref);
+checkSales($result['journal_id']>0 && $record($evidenceUpiChecker,$ref)===$result,'external refund retries return one journal');
+$totals=$db->get_row('SELECT SUM(debit) d,SUM(credit) c FROM '.Db::table('journal_lines').' WHERE journal_entry_id='.(int)$result['journal_id'],ARRAY_A);
+checkSales((float)$totals['d']===100.0 && (float)$totals['c']===100.0,'external payment balanced once');
+checkSales($db->get_var('SELECT status FROM '.Db::table('bank_statement_lines').' WHERE reconciliation_id='.(int)$rec['id'])==='matched','external UPI debit matched atomically');
 echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction and concurrent posting integration (synthetic only)\n";

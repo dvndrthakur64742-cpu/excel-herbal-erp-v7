@@ -207,6 +207,15 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
         data: {'verification_reference': reference}));
   }
 
+  Future<void> _postExternal(int id) async {
+    final reference = await _referenceDialog('Record external UPI payment',
+        'Refund bank transaction reference',
+        explanation: 'Match the bank statement debit and post the accounting entry for the refund already paid.');
+    if (reference == null || !mounted) return;
+    await _perform(() => ref.read(apiClientProvider).post(
+        ApiPaths.prepaidExternalRefund(id), data: {'bank_reference': reference}));
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
@@ -225,7 +234,7 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
         ? Map<String, dynamic>.from(detail!['refund_evidence_check'] as Map)
         : <String, dynamic>{};
     final blockers = (check['blockers'] as List?) ?? const [];
-    final guidance = detail == null ? null : PrepaidReturnGuidance.forStatus(
+    final guidance = detail == null || _evidence.any((e) => e['external_journal_id'] != null) ? null : PrepaidReturnGuidance.forStatus(
       status: detail['status'].toString(),
       evidenceComplete: check['evidence_complete'] == true,
     );
@@ -298,7 +307,7 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                       if (detail['status'] == 'refund_pending') ...[
                         const Divider(),
                         Text(check['evidence_complete'] == true
-                            ? 'Supporting evidence reconciled (NOT refunded)'
+                            ? 'Supporting evidence reconciled'
                             : 'Evidence incomplete — independent review required'),
                         Text('Verified evidence: ₹${check['verified_evidence_amount'] ?? '0.00'}'),
                         if (blockers.isNotEmpty)
@@ -334,12 +343,18 @@ class _PrepaidReturnsScreenState extends ConsumerState<PrepaidReturnsScreen> {
                                     onPressed: _busy ? null :
                                         () => _verifyEvidence(proof),
                                     child: const Text('Verify manually'))
-                                : null,
+                                : proof['external_journal_id'] != null
+                                    ? Text("Journal #${proof['external_journal_id']}")
+                                    : proof['method'] == 'upi' && proof['status'] == 'evidence_verified' &&
+                                        check['evidence_complete'] == true && app.can('finance.bank_reconcile')
+                                        ? TextButton(onPressed: _busy ? null : () => _postExternal(_id(proof['id'])!),
+                                            child: const Text('Record external payment'))
+                                        : null,
                           ),
                       ],
                       const Divider(),
                       const Text('No money has been refunded by ERP. '
-                          'Original invoice, stock ledger and accounting '
+                          'Original invoice and stock ledger '
                           'remain unchanged.'),
                     ],
                   ),
