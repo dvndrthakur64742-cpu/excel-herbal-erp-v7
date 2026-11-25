@@ -660,5 +660,76 @@ uat_case('f17_completed_daily_final_post_replay_is_read_only', function () use (
     throw new RuntimeException('Completed Daily cycle was final-posted twice');
 });
 
+// F25: reconcile the existing posted five-value report against its source
+// lines, and verify historical branch scope after a synthetic employee move.
+uat_case('f25_price_distribution_reconciles_and_excludes_foreign_branch_history', function () use ($wpdb) {
+    $date = uat_date();
+    $admin = uat_actor(20, [1,2], [Capabilities::REPORTS_VIEW], 'SYSADMIN');
+    $branchTwo = uat_actor(20, [2], [Capabilities::REPORTS_VIEW], 'BM');
+    $report = fn($actor, $branch, $category = '') => uat_dispatch(
+        'reports.price_distribution', $actor, [
+            'branch_id'=>$branch, 'from'=>$date, 'to'=>$date,
+            'reporting_category'=>$category,
+        ]
+    );
+    $fields = ['sale_price','ho_amount','bm_profit','salary_fund','expense','points'];
+    $expected = $wpdb->get_row(
+        'SELECT SUM(el.total_amount) sale_price,SUM(el.ho_amount) ho_amount,'.
+        'SUM(el.bm_profit) bm_profit,SUM(el.salary_fund) salary_fund,'.
+        'SUM(el.office_expense) expense,SUM(el.points) points FROM '.Db::table('daily_cycles').' c JOIN '.
+        Db::table('evening_settlements')." es ON es.daily_cycle_id=c.id AND es.status='posted' JOIN ".
+        Db::table('evening_lines')." el ON el.evening_settlement_id=es.id WHERE c.company_id=1 AND c.branch_id=1 ".
+        "AND c.employee_id=10 AND c.status='completed'", ARRAY_A
+    );
+    $baseline = $report($admin, 1, 'FIELD_EXECUTIVE');
+    if (count($baseline['rows']) !== 1 || (int)$baseline['rows'][0]['branch_id'] !== 1
+        || (int)$baseline['rows'][0]['employee_id'] !== 10
+        || (int)$baseline['rows'][0]['sale_days'] !== 1
+        || abs((float)$baseline['totals']['sale_price'] - 200.0) > 0.005) {
+        throw new RuntimeException('Expected one posted synthetic sale of 200 in Branch 1');
+    }
+    foreach ($fields as $field) {
+        if (!isset($expected[$field], $baseline['rows'][0][$field], $baseline['totals'][$field])
+            || abs((float)$baseline['rows'][0][$field] - (float)$expected[$field]) > 0.005
+            || abs((float)$baseline['totals'][$field] - (float)$expected[$field]) > 0.005) {
+            throw new RuntimeException('Price distribution differs from posted source: '.$field);
+        }
+    }
+    $empty = function(array $result) use ($fields): void {
+        if ($result['rows'] !== []) throw new RuntimeException('Foreign branch distribution rows leaked');
+        foreach ($fields as $field) {
+            if (!isset($result['totals'][$field]) || abs((float)$result['totals'][$field]) > 0.005) {
+                throw new RuntimeException('Foreign branch distribution total leaked: '.$field);
+            }
+        }
+    };
+    $empty($report($admin, 1, 'BRANCH_MANAGER'));
+    $empty($report($branchTwo, 2));
+
+    // Only this disposable fixture is altered; restore even on assertion failure.
+    if ($wpdb->query('UPDATE '.Db::table('employees').' SET assigned_branch_id=2 WHERE company_id=1 AND id=10') === false) {
+        throw new RuntimeException('Could not move synthetic employee');
+    }
+    try {
+        $empty($report($admin, 2));
+        $empty($report($branchTwo, 2));
+        $empty($report($branchTwo, null));
+        $all = $report($admin, null, 'FIELD_EXECUTIVE');
+        if (count($all['rows']) !== 1 || (int)$all['rows'][0]['branch_id'] !== 1) {
+            throw new RuntimeException('Company-wide admin lost original transaction branch');
+        }
+        foreach ($fields as $field) {
+            if (!isset($all['totals'][$field]) || abs((float)$all['totals'][$field] - (float)$expected[$field]) > 0.005) {
+                throw new RuntimeException('Company-wide report changed after employee move: '.$field);
+            }
+        }
+        uat_expect_denial(fn()=>$report($branchTwo, 1), 'branch_forbidden', 'Foreign branch price distribution');
+    } finally {
+        if ($wpdb->query('UPDATE '.Db::table('employees').' SET assigned_branch_id=1 WHERE company_id=1 AND id=10') === false) {
+            throw new RuntimeException('Could not restore synthetic employee branch');
+        }
+    }
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
