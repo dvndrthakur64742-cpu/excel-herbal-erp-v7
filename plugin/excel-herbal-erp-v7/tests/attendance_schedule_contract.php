@@ -16,7 +16,8 @@ foreach(['WorkforceService.php'=>'ensureScheduledAttendance','ScheduledAttendanc
   dutyAssert(is_string($src)&&str_contains($src,$needle),'attendance scheduler exists: '.$file);
 }
 $work=file_get_contents(__DIR__.'/../src/Workforce/WorkforceService.php');
-dutyAssert(str_contains($work,"'attendance_manual_disabled',403") && str_contains($work,"get_gmt_from_date"),'manual check-in denied and UTC duty times used');
+dutyAssert(str_contains($work,"'attendance_manual_disabled',403") && str_contains($work,"get_gmt_from_date"),'legacy manual check-in denied and UTC duty times used');
+dutyAssert(str_contains($work,'SelfAttendanceService::checkIn')&&str_contains($work,'SelfAttendanceService::checkOut'),'new-mode punches use existing API endpoints');
 $plugin=file_get_contents(__DIR__.'/../src/Core/Plugin.php');
 dutyAssert(str_contains($plugin,'ScheduledAttendanceService::boot()')&&str_contains($plugin,'ScheduledAttendanceService::deactivate()'),'scheduler lifecycle registered');
 
@@ -44,6 +45,8 @@ dutyAssert(str_contains($diag,"'today_overdue_without_checkout'")&&str_contains(
 // Exercise the real scheduler with a disposable fake DB. A single failed
 // write must not stop the remaining staff, and no false success is recorded.
 require_once __DIR__.'/../src/Database/Db.php';
+require_once __DIR__.'/../src/Workforce/SelfAttendancePolicy.php';
+require_once __DIR__.'/../src/Workforce/SelfAttendanceService.php';
 if (!defined('ARRAY_A')) define('ARRAY_A', 'ARRAY_A');
 function current_time($format, $gmt = false) {
     return match ($format) {
@@ -78,6 +81,10 @@ final class DutySchedulerFixtureDb {
     }
     public function query($query) {
         $prepared = json_decode($query, true, 512, JSON_THROW_ON_ERROR);
+        if (str_contains($prepared[0], "checkout_mode='auto'")) {
+            if (!str_contains($prepared[0], "check_in_mode='self'")) throw new RuntimeException('Legacy rows not protected');
+            return 0;
+        }
         if ($this->failFirst && (int)$prepared[1][2] === 10) return false;
         return 1;
     }
