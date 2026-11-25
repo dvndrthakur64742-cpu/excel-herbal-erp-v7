@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
@@ -7,6 +8,7 @@ import '../../widgets/erp_status_badge.dart';
 import '../../widgets/home_query.dart';
 import '../../widgets/branch_selector.dart';
 import '../../core/operational_health_text.dart';
+import '../../core/search_request_scope.dart';
 import '../../core/stock_search_preview.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
@@ -31,6 +33,18 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
   int refresh = 0;
   String searchText = '';
   Future<_SearchResult>? searchFuture;
+  final _searchController = TextEditingController();
+  final _searchFocus = FocusNode();
+  final _searchScope = SearchRequestScope<AppState>();
+  String? _selectedGroup;
+  int _searchRevision = 0;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
   String? message;
 
   @override
@@ -155,7 +169,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
   }
 
   Widget _searchTab(AppState app) {
-    final controller = TextEditingController(text: searchText);
+    final api = ref.watch(apiClientProvider);
+    final scopeMatches = _searchScope.matches(app, api);
     return LayoutBuilder(
       builder: (context, constraints) {
         final desktop = constraints.maxWidth >= 850;
@@ -181,12 +196,18 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                     'Search only across records allowed by your designation, permissions and current branch authority.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                  const SizedBox(height: 8),
+                  const BranchSelector(),
+                  Text('Scope: ${app.currentBranchName}'),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
-                        child: TextField(
-                          controller: controller,
+                        child: CallbackShortcuts(
+                          bindings: {const SingleActivator(LogicalKeyboardKey.escape): () { _searchController.clear(); _runSearch('', app); _searchFocus.requestFocus(); }},
+                          child: TextField(
+                          controller: _searchController,
+                          focusNode: _searchFocus,
                           textInputAction: TextInputAction.search,
                           decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.search),
@@ -195,22 +216,29 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                           ),
                           onSubmitted: (value) => _runSearch(value, app),
                         ),
+                        ),
                       ),
                       const SizedBox(width: 10),
                       FilledButton.icon(
-                        onPressed: () => _runSearch(controller.text, app),
+                        onPressed: () => _runSearch(_searchController.text, app),
                         icon: const Icon(Icons.search),
                         label: Text(desktop ? 'Search ERP' : 'Search'),
                       ),
+                      IconButton(tooltip: 'Clear search', icon: const Icon(Icons.clear), onPressed: () {
+                        _searchController.clear(); _runSearch('', app); _searchFocus.requestFocus();
+                      }),
                     ],
                   ),
                 ],
               ),
             ),
             Expanded(
-              child: searchFuture == null
+              child: searchFuture != null && !scopeMatches
+                  ? Center(child: FilledButton.tonal(onPressed: () => _runSearch(_searchController.text, app), child: const Text('Scope changed — search again')))
+                  : searchFuture == null
                   ? const _SearchHelp()
                   : FutureBuilder<_SearchResult>(
+                      key: ValueKey(_searchRevision),
                       future: searchFuture,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState != ConnectionState.done) {
@@ -227,27 +255,37 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                         final result =
                             snapshot.data ?? const _SearchResult([], []);
                         if (result.hits.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'No matching authorised records found.',
-                            ),
-                          );
+                          return Center(child: Text(result.errors.isNotEmpty
+                            ? 'Search incomplete. Some sources could not be loaded. Retry search.'
+                            : 'No matches in loaded authorised records.'));
                         }
-                        return ListView.separated(
+                        final groups = result.hits.map((h) => h.group).toSet().toList()..sort();
+                        final selected = groups.contains(_selectedGroup) ? _selectedGroup : null;
+                        final visible = result.hits.where((h) => selected == null || h.group == selected).toList();
+                        return Column(children: [
+                          Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('${visible.length} displayed · ${result.hits.length} loaded matches${result.limited ? ' (display limit reached)' : ''}'),
+                            if (result.errors.isNotEmpty) Text('Incomplete search: ${result.errors.length} source warnings. Retry to refresh.'),
+                            Wrap(spacing: 6, children: [
+                              ChoiceChip(label: const Text('All'), selected: selected == null, onSelected: (_) => setState(() => _selectedGroup = null)),
+                              for (final group in groups) ChoiceChip(label: Text(group), selected: selected == group, onSelected: (_) => setState(() => _selectedGroup = group)),
+                            ]),
+                          ])),
+                          Expanded(child: ListView.separated(
                           padding: EdgeInsets.fromLTRB(
                             desktop ? 24 : 16,
                             4,
                             desktop ? 24 : 16,
                             24,
                           ),
-                          itemCount: result.hits.length,
+                          itemCount: visible.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 8),
                           itemBuilder: (_, i) => _SearchHitCard(
-                            hit: result.hits[i],
-                            onTap: () => _openSearchHit(result.hits[i]),
+                            hit: visible[i],
+                            onTap: () { if (_searchScope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) _openSearchHit(visible[i]); },
                           ),
-                        );
+                        )),]);
                       },
                     ),
             ),
@@ -545,13 +583,19 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       setState(() {
         searchText = q;
         searchFuture = null;
-        message = 'Enter at least 2 characters to search.';
+        _searchRevision++;
+        _selectedGroup = null;
+        _searchScope.clear();
+        message = q.isEmpty ? null : 'Enter at least 2 characters to search.';
       });
       return;
     }
     setState(() {
       searchText = q;
       message = null;
+      _selectedGroup = null;
+      _searchRevision++;
+      _searchScope.capture(app, ref.read(apiClientProvider));
       searchFuture = _loadSearch(q, app);
     });
   }
@@ -572,9 +616,9 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
     }) async {
       try {
         final raw = await api.get(path, query: params);
-        final rows = ((raw as List?) ?? const [])
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
+        if (raw is! List || raw.any((row) => row is! Map)) throw const FormatException('Invalid search source');
+        final rows = raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        var sourceCount = 0;
         for (final row in rows) {
           if (!_matches(row, needle)) continue;
           hits.add(
@@ -591,7 +635,7 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                   : null,
             ),
           );
-          if (hits.length >= 120) return;
+          if (++sourceCount >= 101) return;
         }
       } catch (e) {
         errors.add('$group: $e');
@@ -749,7 +793,7 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       final group = a.group.compareTo(b.group);
       return group != 0 ? group : a.title.compareTo(b.title);
     });
-    return _SearchResult(hits.take(100).toList(), errors);
+    return _SearchResult(hits.take(100).toList(), errors, limited: hits.length > 100);
   }
 
   bool _matches(Map<String, dynamic> row, String needle) {
@@ -853,9 +897,10 @@ class _SearchHit {
 }
 
 class _SearchResult {
-  const _SearchResult(this.hits, this.errors);
+  const _SearchResult(this.hits, this.errors, {this.limited = false});
   final List<_SearchHit> hits;
   final List<String> errors;
+  final bool limited;
 }
 
 class _ApprovalHeader extends StatelessWidget {
