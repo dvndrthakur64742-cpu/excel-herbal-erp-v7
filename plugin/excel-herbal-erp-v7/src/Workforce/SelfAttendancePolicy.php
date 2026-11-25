@@ -15,6 +15,15 @@ final class SelfAttendancePolicy {
         'auto_checkout'=>'19:00:00',
     ];
 
+    // A coordinated rollout starts on a business-date boundary. Existing
+    // installations keep their previous mode until the approved cutover date.
+    public static function enabled(int $companyId, string $date): bool {
+        $from = function_exists('get_option')
+            ? get_option('eh7_self_attendance_from_'.$companyId, '') : '';
+        return is_string($from) && preg_match('/^\d{4}-\d{2}-\d{2}$/D', $from)
+            && $from <= $date;
+    }
+
     public static function schedule(array $settings = []): array {
         $times = array_replace(self::DEFAULTS, $settings);
         foreach (self::DEFAULTS as $key => $default) {
