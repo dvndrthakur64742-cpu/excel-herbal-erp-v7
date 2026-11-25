@@ -18,7 +18,8 @@ use ExcelHerbal\ERP7\Security\Idempotency;
 if (!defined('ARRAY_A')) define('ARRAY_A', 'ARRAY_A');
 if (!function_exists('current_time')) {
     function current_time($format, $gmt = false) {
-        $ts = time();
+        // Test-only clock override for deterministic business-window boundary cases.
+        $ts = (int)($GLOBALS['eh7_test_clock_utc'] ?? time());
         if ($format === 'mysql') return gmdate('Y-m-d H:i:s', $ts);
         if ($format === 'Y-m-d') return gmdate('Y-m-d', $ts);
         return gmdate($format, $ts);
