@@ -54,7 +54,7 @@ rewardOkay(Reward::payload([
 ])['points']==='-2.35','signed points-only correction requires explicit type');
 
 $defs=Schema::definitions();
-rewardOkay(Schema::VERSION==='7.3.12-gps-exception-8'&&
+rewardOkay(Schema::VERSION==='7.3.12-attendance-time-review-9'&&
     isset($defs['reward_adjustments'])&&
     str_contains($defs['reward_adjustments'],'maker_review')&&
     str_contains($defs['reward_adjustments'],'employee_status'),

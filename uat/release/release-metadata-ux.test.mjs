@@ -12,7 +12,7 @@ const pluginVersion=entry.match(/\* Version: ([^\r\n]+)/)?.[1];
 
 test('WP review ZIP describes the ACTUAL schema of the checkout',()=>{
  assert.ok(version,'schema constant missing');
- assert.equal(version,'7.3.12-gps-exception-8');
+ assert.equal(version,'7.3.12-attendance-time-review-9');
  assert.ok(review.includes('Schema version: '+version));
  assert.ok(review.includes("'schema_version': '"+version+"'"));
  assert.ok(review.includes("expected_schema=\"VERSION='"+version+"'\""));

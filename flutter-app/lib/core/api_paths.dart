@@ -123,6 +123,10 @@ abstract final class ApiPaths {
       gpsExceptionMine = '/workforce/attendance/gps-exceptions/mine',
       gpsExceptionInbox = '/administration/gps-exceptions',
       gpsExceptionDecision = '/administration/gps-exceptions/decision',
+      timeReviewMine = '/workforce/attendance/time-reviews/mine',
+      timeReviewRequest = '/workforce/attendance/time-reviews',
+      timeReviewInbox = '/administration/attendance-time-reviews',
+      timeReviewDecision = '/administration/attendance-time-reviews/decision',
       maintenanceCleanup = '/administration/maintenance/cleanup';
 
   static String prepaidOrder(int id) => '/sales/orders/$id';

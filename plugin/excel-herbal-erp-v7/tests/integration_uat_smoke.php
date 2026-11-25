@@ -1025,5 +1025,42 @@ uat_case('f32_payroll_preserves_self_punch_and_exception_evidence_without_salary
     }
 });
 
+// F33 correction requests preserve existing raw punches and payroll evidence.
+uat_case('f33_historical_attendance_time_review_preserves_original_and_payroll',function()use($wpdb){
+    $date='2020-01-06';
+    $self=uat_actor(10,[1],[Capabilities::ATT_SELF],'FE');
+    $review=uat_actor(20,[1,2],[Capabilities::ATT_MANAGE,Capabilities::ACCESS_MANAGE],'SYSADMIN');
+    $own=uat_actor(10,[1,2],[Capabilities::ATT_MANAGE,Capabilities::ACCESS_MANAGE],'SYSADMIN');
+    $bm=uat_actor(30,[2],[Capabilities::ATT_MANAGE,Capabilities::ACCESS_MANAGE],'BM');
+    $table=Db::table('attendance');
+    uat_insert($wpdb,'attendance',['company_id'=>1,'branch_id'=>1,'employee_id'=>10,'business_date'=>$date,
+        'check_in_at'=>$date.' 09:30:00','check_out_at'=>null,'status'=>'present','created_at'=>$date.' 09:30:00']);
+    $id=(int)$wpdb->insert_id;
+    $before=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d",$id),ARRAY_A);
+    $payload=['attendance_id'=>$id,'check_in_local'=>'09:15','check_out_local'=>'18:00','reason'=>'Synthetic missing checkout correction evidence'];
+    $request=static fn($actor,$p)=>uat_dispatch('work.time_review_request',$actor,[],$p);
+    $decide=static fn($actor,$rid,$decision)=>uat_dispatch('admin.time_review_decide',$actor,['id'=>$rid],['decision'=>$decision,'reason'=>'Independently reviewed synthetic record']);
+    uat_expect_denial(fn()=>$request(uat_actor(30,[1,2],[Capabilities::ATT_SELF],'FE'),$payload),'attendance_not_found','Cannot request for other employee');
+    uat_expect_denial(fn()=>$request($self,array_replace($payload,['check_out_local'=>'08:00'])),'attendance_time_invalid','No inverted correction times');
+    $r=$request($self,$payload);$rid=(int)$r['id'];
+    if($r['status']!=='pending')throw new RuntimeException('Correction not pending');
+    uat_expect_denial(fn()=>$request($self,$payload),'attendance_time_duplicate','One request per record');
+    uat_expect_denial(fn()=>$decide($bm,$rid,'approved'),'attendance_time_forbidden','BM cannot approve');
+    uat_expect_denial(fn()=>$decide($own,$rid,'approved'),'maker_checker_required','No own approval');
+    $inbox=uat_dispatch('admin.time_review_inbox',$review,['branch_id'=>1]);
+    if(count($inbox)!==1||$inbox[0]['can_decide']!==true)throw new RuntimeException('Review not visible in HO inbox');
+    if($decide($review,$rid,'approved')['status']!=='approved')throw new RuntimeException('Review approval failed');
+    uat_expect_denial(fn()=>$decide($review,$rid,'rejected'),'attendance_time_state_invalid','No duplicate decision');
+    $after=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d",$id),ARRAY_A);
+    if($before!==$after)throw new RuntimeException('Raw attendance was changed');
+    $report=uat_dispatch('work.attendance_report',$review,['branch_id'=>1,'from'=>$date,'to'=>$date]);
+    if(count($report)!==1||(int)$report[0]['approved_time_review_id']!==$rid||$report[0]['reviewed_check_in_at']!==$date.' 09:15:00'||$report[0]['reviewed_check_out_at']!==$date.' 18:00:00'||$report[0]['check_out_at']!==null)throw new RuntimeException('Report did not preserve both original and approved times');
+    $mine=uat_dispatch('work.time_review_mine',$self);
+    $match=array_values(array_filter($mine,fn($row)=>(int)$row['id']===$id));
+    if(count($match)!==1||$match[0]['review_status']!=='approved'||$match[0]['can_request']!==false)throw new RuntimeException('Employee review status not visible');
+    $audit=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE company_id=1 AND entity_type='attendance_time_review' AND entity_id=%s",(string)$rid));
+    if($audit!==2)throw new RuntimeException('Request and independent decision audit missing');
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
