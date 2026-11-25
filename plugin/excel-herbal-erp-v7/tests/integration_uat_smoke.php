@@ -839,7 +839,11 @@ uat_case('f29_head_office_legacy_checkout_acknowledgement',function()use($wpdb){
     uat_expect_denial(fn()=>$post($bm,$id,$reason),'attendance_exception_forbidden','BM cannot acknowledge legacy attendance');
     uat_expect_denial(fn()=>$post($own,$id,$reason),'maker_checker_required','No own attendance acknowledgement');
     uat_expect_denial(fn()=>$post($admin,$id,'short'),'attendance_exception_invalid','Audit reason required');
-    uat_expect_denial(fn()=>$post(new Actor(1,20,2,1,[1,2],$caps,'SYSADMIN'),$id,$reason),'attendance_not_found','No foreign company acknowledgement');
+    uat_expect_denial(fn()=>$post(new Actor(1,20,2,1,[1,2],$caps,'SYSADMIN'),$id,$reason),'attendance_exception_forbidden','No authority in an unconfigured foreign company');
+    uat_insert($wpdb,'attendance',['company_id'=>2,'branch_id'=>1,'employee_id'=>10,'business_date'=>$date,
+        'check_in_at'=>$date.' 05:00:00','status'=>'present','created_at'=>$date.' 05:00:00']);
+    $foreignId=(int)$wpdb->insert_id;
+    uat_expect_denial(fn()=>$post($admin,$foreignId,$reason),'attendance_not_found','No foreign company record acknowledgement');
     $rows=uat_dispatch('work.attendance_report',$admin,['branch_id'=>1,'from'=>$date,'to'=>$date]);
     if(count($rows)!==1||$rows[0]['can_acknowledge_missing_checkout']!==true)throw new RuntimeException('Eligible review action not projected');
     $result=$post($admin,$id,$reason);

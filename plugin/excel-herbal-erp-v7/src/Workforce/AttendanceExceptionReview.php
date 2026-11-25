@@ -16,13 +16,12 @@ use ExcelHerbal\ERP7\Security\Guard;
 final class AttendanceExceptionReview {
     public static function canReview(Actor $actor): bool {
         if (!$actor->can(Capabilities::ATT_MANAGE) || !$actor->can(Capabilities::ACCESS_MANAGE)) return false;
-        try {
-            Guard::allActiveBranches($actor,Capabilities::ACCESS_MANAGE);
-            return BranchAuthority::isCompanyWideAdmin($actor->employeeId,$actor->companyId,$actor->designationCode);
-        } catch (DomainException $e) {
-            if ($e->httpStatus===403) return false;
-            throw $e;
-        }
+        $db=Db::wpdb();
+        $branches=array_map('intval',(array)$db->get_col($db->prepare(
+            "SELECT id FROM ".Db::table('branches')." WHERE company_id=%d AND status='active'",$actor->companyId)));
+        if (($db->last_error??'')!=='' || !$branches || array_diff($branches,$actor->branchIds)) return false;
+        $admin=BranchAuthority::isCompanyWideAdmin($actor->employeeId,$actor->companyId,$actor->designationCode);
+        return $admin && ($db->last_error??'')==='';
     }
 
     public static function eligible(array $row,Actor $actor): bool {
