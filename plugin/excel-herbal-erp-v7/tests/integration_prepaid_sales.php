@@ -219,6 +219,15 @@ denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::decide(
 denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::decide(
  $returnMaker,$returnId,true
 ),'maker_checker_required');
+$journalTable=Db::table('journal_entries');
+$journalId=(int)$db->get_var('SELECT journal_entry_id FROM '.Db::table('counter_sales').' WHERE id='.(int)$post['sale_id']);
+foreach (['status'=>['reversed','posted'],'source_id'=>[0,(int)$post['sale_id']],'branch_id'=>[99,1]] as $field=>[$invalid,$original]) {
+    $db->query($db->prepare("UPDATE {$journalTable} SET {$field}=%s WHERE id=%d",$invalid,$journalId));
+    denySales(fn()=>\ExcelHerbal\ERP7\Sales\PrepaidReturnService::decide($returnApprover,$returnId,true),'prepaid_return_source_mismatch');
+    checkSales($db->get_var('SELECT status FROM '.Db::table('prepaid_return_requests').' WHERE id='.$returnId)==='received',
+        'invalid invoice journal keeps inspected return pending decision: '.$field);
+    $db->query($db->prepare("UPDATE {$journalTable} SET {$field}=%s WHERE id=%d",$original,$journalId));
+}
 $returnDecision=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::decide(
  $returnApprover,$returnId,true
 );

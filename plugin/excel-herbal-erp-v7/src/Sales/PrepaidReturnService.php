@@ -65,6 +65,26 @@ final class PrepaidReturnService {
         return $r;
     }
 
+    private static function requirePostedSource(int $company,int $branch,int $order,int $sale,string $amount):void {
+        $db=Db::wpdb();
+        $orders=Db::table('prepaid_sales_orders');
+        $sales=Db::table('counter_sales');
+        $journals=Db::table('journal_entries');
+        $journal=$db->get_var($db->prepare(
+            "SELECT j.id FROM {$orders} o
+             JOIN {$sales} s ON s.id=o.sale_id AND s.company_id=o.company_id AND s.branch_id=o.branch_id
+             JOIN {$journals} j ON j.id=s.journal_entry_id AND j.company_id=s.company_id AND j.branch_id=s.branch_id
+             WHERE o.company_id=%d AND o.branch_id=%d AND o.id=%d AND s.id=%d
+             AND o.status='posted' AND s.status='posted' AND o.net_amount=CAST(%s AS DECIMAL(14,2))
+             AND s.paid_amount=o.net_amount AND s.outstanding_amount=0
+             AND j.source_type='counter_sale' AND j.source_id=s.id AND j.status='posted' AND j.reversal_of IS NULL
+             AND NOT EXISTS (SELECT 1 FROM {$journals} rev WHERE rev.company_id=j.company_id AND rev.reversal_of=j.id)
+             FOR UPDATE",
+            $company,$branch,$order,$sale,$amount
+        ));
+        if (!$journal) throw new DomainException('Return invoice and original posted journal must reconcile.','prepaid_return_source_mismatch',409);
+    }
+
     /** Open one full-order return request. Never adjust money or stock here. */
     public static function request(Actor $a,int $orderId,string $reason):array {
         Guard::cap($a,Capabilities::REVERSAL_CREATE);
@@ -91,6 +111,7 @@ final class PrepaidReturnService {
                (string)$sale['outstanding_amount']!=='0.00'||
                Money::minor((string)$sale['paid_amount'])!==Money::minor((string)$o['net_amount']))
                 throw new DomainException('Posted invoice and prepaid balance are inconsistent.','prepaid_return_payment_mismatch',409);
+            self::requirePostedSource($a->companyId,$branch,$orderId,(int)$sale['id'],(string)$o['net_amount']);
             $payments=(array)$db->get_results($db->prepare(
                 "SELECT status,amount FROM ".Db::table('prepaid_sales_order_payments').
                 " WHERE company_id=%d AND order_id=%d FOR UPDATE",
@@ -170,6 +191,8 @@ final class PrepaidReturnService {
                 throw new DomainException('Only physically inspected returns can be decided.','prepaid_return_state_invalid',409);
             if(in_array($a->employeeId,[(int)$r['requested_by'],(int)$r['inspected_by']],true))
                 throw new DomainException('Return request, physical inspection and approval require independent actors.','maker_checker_required',409);
+            if ($approve) self::requirePostedSource($a->companyId,(int)$r['branch_id'],(int)$r['order_id'],
+                (int)$r['sale_id'],(string)$r['refund_amount']);
             $status=$approve?'refund_pending':'rejected';
             Db::mustUpdate(Db::wpdb(),Db::table('prepaid_return_requests'),[
                 'status'=>$status,'decided_by'=>$a->employeeId,'decided_at'=>Db::now()
