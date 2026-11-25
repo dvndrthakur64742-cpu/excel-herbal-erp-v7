@@ -29,46 +29,53 @@ final class PrepaidRefundEvidencePreflight {
         if ($expected===null||$expected<1) $add('return_amount_invalid');
 
         $originals=[];
+        $validOriginals=[];
         $originalTotal=0;
         foreach ($payments as $p) {
             $id=(int)($p['id']??0);
-            if ($id<1||isset($originals[$id])) { $add('original_payment_duplicate_or_invalid'); continue; }
+            if ($id<1||isset($originals[$id])) {
+                unset($validOriginals[$id]);
+                $add('original_payment_duplicate_or_invalid'); continue;
+            }
             $originals[$id]=$p;
             $amount=self::minor($p['amount']??null);
             if ($amount===null||$amount<1) $add('original_payment_amount_invalid');
             else $originalTotal+=$amount;
-            if ((int)($p['company_id']??0)!==$company||
-                (int)($p['branch_id']??0)!==$branch||
-                (int)($p['order_id']??0)!==$order||
-                (int)($p['payment_account_id']??0)<1) $add('original_payment_scope_invalid');
-            if (($p['status']??'')!=='confirmed'||
-                !in_array($p['method']??'', ['cash','upi'],true)) $add('original_payment_not_confirmed');
+            $scopeMatches=(int)($p['company_id']??0)===$company &&
+                (int)($p['branch_id']??0)===$branch && (int)($p['order_id']??0)===$order &&
+                (int)($p['payment_account_id']??0)>0;
+            $confirmed=($p['status']??'')==='confirmed' && in_array($p['method']??'', ['cash','upi'],true);
+            if (!$scopeMatches) $add('original_payment_scope_invalid');
+            if (!$confirmed) $add('original_payment_not_confirmed');
+            if ($scopeMatches && $confirmed && $amount>0) $validOriginals[$id]=true;
         }
         if (!$originals) $add('original_payments_missing');
         if ($expected===null||$originalTotal!==$expected) $add('original_payment_total_mismatch');
 
         $evidenced=[];
-        $verified=0;
-        $verifiedTotal=0;
+        $verifiedAmounts=[];
         foreach ($evidence as $ev) {
             $originalId=(int)($ev['order_payment_id']??0);
             if ($originalId<1||!isset($originals[$originalId])) {
                 $add('unexpected_refund_evidence'); continue;
             }
             if (isset($evidenced[$originalId])) {
+                unset($verifiedAmounts[$originalId]);
                 $add('duplicate_refund_evidence'); continue;
             }
             $evidenced[$originalId]=true;
             $p=$originals[$originalId];
             $amount=self::minor($ev['amount']??null);
             $paymentAmount=self::minor($p['amount']??null);
-            if ($amount===null||$paymentAmount===null||$amount<1||$amount!==$paymentAmount)
+            $amountMatches=$amount!==null && $amount>0 && $amount===$paymentAmount;
+            if (!$amountMatches)
                 $add('refund_evidence_amount_mismatch');
-            if ((int)($ev['company_id']??0)!==$company||
+            $wrongScope=(int)($ev['company_id']??0)!==$company||
                 (int)($ev['branch_id']??0)!==$branch||
                 (int)($ev['return_id']??0)!==$returnId||
                 (int)($ev['payment_account_id']??0)!==(int)($p['payment_account_id']??0)||
-                ($ev['method']??'')!==($p['method']??'')) $add('refund_evidence_scope_mismatch');
+                ($ev['method']??'')!==($p['method']??'');
+            if ($wrongScope) $add('refund_evidence_scope_mismatch');
             if (($ev['status']??'')!=='evidence_verified') {
                 $add('refund_evidence_unverified'); continue;
             }
@@ -77,12 +84,11 @@ final class PrepaidRefundEvidencePreflight {
             if ($submitter<1||$reviewer<1||$submitter===$reviewer||
                 strlen(trim((string)($ev['verification_reference']??'')))<6)
                 $add('refund_evidence_independent_review_missing');
-            else {
-                $verified++;
-                if ($amount!==null&&$paymentAmount!==null&&$amount===$paymentAmount)
-                    $verifiedTotal+=$amount;
+            elseif (isset($validOriginals[$originalId]) && !$wrongScope && $amountMatches) {
+                $verifiedAmounts[$originalId]=$amount;
             }
         }
+        $verifiedTotal=array_sum($verifiedAmounts);
         if (count($evidenced)!==count($originals)) $add('refund_evidence_missing');
         if ($expected===null||$verifiedTotal!==$expected) $add('verified_evidence_total_mismatch');
 
@@ -90,7 +96,7 @@ final class PrepaidRefundEvidencePreflight {
             'evidence_complete'=>!$blockers,
             'expected_amount'=>$expected===null?null:Money::format($expected),
             'original_payment_count'=>count($originals),
-            'verified_evidence_count'=>$verified,
+            'verified_evidence_count'=>count($verifiedAmounts),
             'verified_evidence_amount'=>Money::format($verifiedTotal),
             'blockers'=>array_keys($blockers),
             'manual_evidence_only'=>true,

@@ -34,4 +34,15 @@ expectEvidence(blockedBy(R::check($return,[$cash,array_replace($upi,['amount'=>'
 expectEvidence(blockedBy(R::check($return,[$cash,$upi],[$cashProof,$upiProof,array_replace($upiProof,['order_payment_id'=>777])]),'unexpected_refund_evidence'),'unlinked proof blocks completeness');
 expectEvidence(blockedBy(R::check($return,[],[]),'original_payments_missing'),'missing originals fail closed');
 expectEvidence(blockedBy(R::check(array_replace($return,['refund_amount'=>'1e5']),[$cash,$upi],[$cashProof,$upiProof]),'return_amount_invalid'),'invalid money fails closed');
-echo "PASSED 17 prepaid refund evidence preflight assertions (read-only; NO payout)\n";
+foreach ([
+    'wrong branch'=>[[$cash,$upi],[$cashProof,array_replace($upiProof,['branch_id'=>3])]],
+    'wrong amount'=>[[$cash,$upi],[$cashProof,array_replace($upiProof,['amount'=>'49.99'])]],
+    'duplicate evidence'=>[[$cash,$upi],[$cashProof,$upiProof,$upiProof]],
+    'duplicate payment'=>[[$cash,$upi,$upi],[$cashProof,$upiProof]],
+    'unconfirmed payment'=>[[$cash,array_replace($upi,['status'=>'pending'])],[$cashProof,$upiProof]],
+] as $label=>[$payments,$proofs]) {
+    $result=R::check($return,$payments,$proofs);
+    expectEvidence(!$result['evidence_complete'] && $result['verified_evidence_count']===1
+        && $result['verified_evidence_amount']==='100.00',$label.' excluded from verified totals');
+}
+echo "PASSED 22 prepaid refund evidence preflight assertions (read-only; NO payout)\n";
