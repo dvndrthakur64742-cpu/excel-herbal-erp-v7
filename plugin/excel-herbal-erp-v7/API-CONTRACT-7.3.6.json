@@ -627,6 +627,45 @@
     },
     {
       "method": "GET",
+      "path": "/workforce/attendance/time-reviews/mine",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "POST",
+      "path": "/workforce/attendance/time-reviews",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "attendance_id",
+        "check_in_local",
+        "check_out_local",
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/administration/attendance-time-reviews",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": [
+        "branch_id"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/administration/attendance-time-reviews/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "id",
+        "decision",
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/administration/gps-exceptions",
       "auth": true,
       "idempotency_required": false,
