@@ -36,7 +36,7 @@ foreach([
     'INNER JOIN wp_eh7_gps_points g','g.attendance_id=a.id',
     'g.company_id=a.company_id','g.branch_id=a.branch_id',
     'g.employee_id=a.employee_id','g.recorded_at>=a.check_in_at',
-    'g.recorded_at<=UTC_TIMESTAMP()'
+    'g.recorded_at<=UTC_TIMESTAMP()', 'g.recorded_at<=a.check_out_at'
 ] as $required){
     ensureGps(str_contains($wpdb->lastSql,$required),'GPS evidence filter: '.$required);
 }

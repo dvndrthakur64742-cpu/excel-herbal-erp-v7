@@ -4,8 +4,8 @@ namespace ExcelHerbal\ERP7\Workforce;
 use ExcelHerbal\ERP7\Database\Db;
 
 /**
- * Attendance is scheduled by the server, but field-stock custody must only
- * proceed after a real authenticated GPS point has been recorded.
+ * Both scheduled and self attendance require an authenticated route point
+ * before field-stock custody can start. A punch location alone is not enough.
  */
 final class AttendanceGpsEvidence {
     public static function captureFirstPoint(object $db,int $attendanceId,int $companyId,int $employeeId,float $lat,float $lng):void {
@@ -33,7 +33,9 @@ final class AttendanceGpsEvidence {
                   AND a.employee_id=%d AND a.business_date=%s
                   AND a.check_in_at IS NOT NULL
                   AND g.recorded_at>=a.check_in_at
-                  AND g.recorded_at<=UTC_TIMESTAMP()";
+                  AND g.recorded_at<=UTC_TIMESTAMP()
+                  AND ((a.check_in_mode IS NULL OR a.check_in_mode<>'self')
+                       OR a.check_out_at IS NULL OR g.recorded_at<=a.check_out_at)";
         return (int)$db->get_var($db->prepare($query,$companyId,$branchId,$employeeId,$businessDate))>0;
     }
 }
