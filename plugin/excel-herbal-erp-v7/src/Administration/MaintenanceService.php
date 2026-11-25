@@ -8,6 +8,8 @@ use ExcelHerbal\ERP7\Security\Actor;
 use ExcelHerbal\ERP7\Security\Audit;
 use ExcelHerbal\ERP7\Security\Capabilities;
 use ExcelHerbal\ERP7\Security\Guard;
+use ExcelHerbal\ERP7\Workforce\ScheduledAttendanceService;
+use ExcelHerbal\ERP7\Workforce\GpsDutyPolicy;
 
 final class MaintenanceService{
  private const HOOK='eh7_daily_maintenance';
@@ -124,12 +126,19 @@ final class MaintenanceService{
   $orphanSessions=(int)$db->get_var("SELECT COUNT(*) FROM {$sessions} s LEFT JOIN {$employees} e ON e.id=s.employee_id WHERE e.id IS NULL");
   $staleIdem=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$idem} WHERE status='complete' AND completed_at<%s",gmdate('Y-m-d H:i:s',time()-45*DAY_IN_SECONDS)));
   $openPastAttendance=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$attendance} WHERE company_id=%d AND check_in_at IS NOT NULL AND check_out_at IS NULL AND checkout_exception=0 AND business_date<%s",$c,Db::today()));$acknowledgedMissingCheckout=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$attendance} WHERE company_id=%d AND check_out_at IS NULL AND checkout_exception=1",$c));
+  $scheduler=ScheduledAttendanceService::health();
+  // Count today's still-open duty rows after the configured end, without
+  // altering timestamps or historical exceptions.
+  $todayOverdue=0;
+  if(current_time('H:i:s')>=GpsDutyPolicy::STOP){
+   $todayOverdue=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$attendance} WHERE company_id=%d AND check_in_at IS NOT NULL AND check_out_at IS NULL AND checkout_exception=0 AND business_date=%s",$c,Db::today()));
+  }
   $staleCycles=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$cycles} WHERE company_id=%d AND status NOT IN ('completed','cancelled') AND business_date<%s",$c,Db::today()));
   $legacyDraftPayroll=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$payroll} WHERE company_id=%d AND status='draft' AND (calculation_version IS NULL OR calculation_version='')",$c));
   $roleRows=(array)$db->get_results($db->prepare("SELECT name FROM {$roles} WHERE company_id=%d AND active=1",$c),ARRAY_A);$roleNames=[];$duplicateRoleNames=0;foreach($roleRows as$r){$n=strtolower(trim(preg_replace('/\\s+/',' ',(string)($r['name']??''))));if($n==='')continue;if(isset($roleNames[$n]))$duplicateRoleNames++;else$roleNames[$n]=1;}
   $designationRows=(array)$db->get_results($db->prepare("SELECT name FROM {$designations} WHERE company_id=%d AND status='active'",$c),ARRAY_A);$designationNames=[];$duplicateDesignationNames=0;foreach($designationRows as$r){$n=strtolower(trim(preg_replace('/\\s+/',' ',(string)($r['name']??''))));if($n==='')continue;if(isset($designationNames[$n]))$duplicateDesignationNames++;else$designationNames[$n]=1;}
   $critical=$unbalanced+$orphanJournal+$negativeStock+$missingHistory+$orphanSessions+$dups;
-  $operational=$openPastAttendance+$staleCycles+$legacyDraftPayroll+$duplicateRoleNames+$duplicateDesignationNames;
-  return['status'=>($critical+$operational)===0?'healthy':'attention','company_id'=>$c,'employees'=>['total'=>(int)($emp['total']??0),'active'=>(int)($emp['active']??0),'without_login'=>(int)($emp['without_login']??0),'duplicate_normalized_mobiles'=>$dups],'accounting'=>['unbalanced_journals'=>$unbalanced,'orphan_journal_lines'=>$orphanJournal],'stock'=>['negative_balances'=>$negativeStock],'organization'=>['active_without_open_branch_history'=>$missingHistory,'duplicate_active_designation_names'=>$duplicateDesignationNames],'attendance'=>['open_past_without_checkout'=>$openPastAttendance,'acknowledged_missing_checkout'=>$acknowledgedMissingCheckout],'daily_order'=>['stale_non_completed_cycles'=>$staleCycles],'payroll'=>['legacy_draft_runs'=>$legacyDraftPayroll],'access'=>['duplicate_active_role_names'=>$duplicateRoleNames],'sessions'=>['orphan_sessions'=>$orphanSessions],'maintenance'=>['stale_completed_idempotency'=>$staleIdem],'checked_at'=>Db::now()];
+  $operational=$openPastAttendance+$todayOverdue+$staleCycles+$legacyDraftPayroll+$duplicateRoleNames+$duplicateDesignationNames;
+  return['status'=>($critical+$operational)===0?'healthy':'attention','company_id'=>$c,'employees'=>['total'=>(int)($emp['total']??0),'active'=>(int)($emp['active']??0),'without_login'=>(int)($emp['without_login']??0),'duplicate_normalized_mobiles'=>$dups],'accounting'=>['unbalanced_journals'=>$unbalanced,'orphan_journal_lines'=>$orphanJournal],'stock'=>['negative_balances'=>$negativeStock],'organization'=>['active_without_open_branch_history'=>$missingHistory,'duplicate_active_designation_names'=>$duplicateDesignationNames],'attendance'=>['open_past_without_checkout'=>$openPastAttendance,'acknowledged_missing_checkout'=>$acknowledgedMissingCheckout,'today_overdue_without_checkout'=>$todayOverdue,'scheduler'=>$scheduler],'daily_order'=>['stale_non_completed_cycles'=>$staleCycles],'payroll'=>['legacy_draft_runs'=>$legacyDraftPayroll],'access'=>['duplicate_active_role_names'=>$duplicateRoleNames],'sessions'=>['orphan_sessions'=>$orphanSessions],'maintenance'=>['stale_completed_idempotency'=>$staleIdem],'checked_at'=>Db::now()];
  }
 }
