@@ -577,6 +577,8 @@ class _RecordsListState extends State<RecordsList> {
         'business_date',
         'check_in_at',
         'check_out_at',
+        'reviewed_check_in_at',
+        'reviewed_check_out_at',
         'status',
       ],
       'employee' => const [
