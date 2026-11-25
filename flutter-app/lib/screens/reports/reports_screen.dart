@@ -23,6 +23,7 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/workspace_banner.dart';
+import '../../widgets/sales_report_insights.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -145,6 +146,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       .toList();
                   return Column(
                     children: [
+                      if (activeType == 'sales') SalesReportInsights(rows: rows, scope: scopeLabel),
                       _ReportExportActions(
                         title: config.title,
                         scope: scopeLabel,
@@ -668,7 +670,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             path: ApiPaths.reportsSales,
             recordType: 'sales',
             subtitle:
-                'Counter Sales + posted Daily Orders, collections and outstanding (without double count).',
+                'Sales records returned for this branch and period. Gross, recorded paid and outstanding are not net turnover or bank collections.',
             emptyMessage: 'No sales activity for the selected period.',
           ),
       };
