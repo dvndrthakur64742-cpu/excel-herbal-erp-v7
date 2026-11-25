@@ -76,7 +76,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
     final canPunch = record[checkedIn ? 'can_check_out' : 'can_check_in'] == true;
     return AsyncPanel(
       key: ValueKey('gps-exception-$refresh-$scope'),
-      loader: () async => {'rows': await ref.read(apiClientProvider).get(ApiPaths.gpsExceptionMine)},
+      loader: () => ref.read(apiClientProvider).get(ApiPaths.gpsExceptionMine).then((rows) => {'rows': rows}),
       builder: (context, data) {
         final rows = (((data as Map)['rows'] as List?) ?? const []).whereType<Map>();
         final matching = rows.where((r) =>
