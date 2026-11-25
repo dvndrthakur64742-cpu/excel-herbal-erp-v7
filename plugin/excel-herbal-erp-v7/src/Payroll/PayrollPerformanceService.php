@@ -488,13 +488,43 @@ final class PayrollPerformanceService
         $leaveTypes=json_decode((string)$raw,true)?:[];
         $holidays=(array)self::readPayroll($db,'get_results',$db->prepare("SELECT holiday_date,branch_id FROM ".Db::table('holidays')." WHERE company_id=%d AND active=1 AND holiday_date BETWEEN %s AND %s AND (branch_id IS NULL OR branch_id=%d)",$company,$monthStart,$monthEnd,$branch),ARRAY_A);
         $common=[];$local=[];foreach($holidays as$h){if($h['branch_id']===null)$common[]=$h['holiday_date'];else$local[]=$h['holiday_date'];}
-        $present=(array)self::readPayroll($db,'get_col',$db->prepare("SELECT business_date FROM ".Db::table('attendance')." WHERE company_id=%d AND branch_id=%d AND employee_id=%d AND business_date BETWEEN %s AND %s AND status='present'",$company,$branch,$employee,$from,$to));
+        // Use one scoped attendance read for both paid-day inputs and immutable
+        // evidence. This does not change the existing day-based salary policy.
+        // Do not copy employee location coordinates into payroll snapshots.
+        $attendance=Db::table('attendance');$exceptions=Db::table('attendance_gps_exceptions');
+        $attendanceRows=(array)self::readPayroll($db,'get_results',$db->prepare(
+            "SELECT a.business_date,a.check_in_at,a.check_out_at,a.check_in_mode,a.checkout_mode,
+                a.checkout_exception,
+                (a.check_in_lat IS NOT NULL AND a.check_in_lng IS NOT NULL) AS check_in_has_location,
+                (a.check_out_lat IS NOT NULL AND a.check_out_lng IS NOT NULL) AS check_out_has_location,
+                xi.id AS check_in_gps_exception_id,xo.id AS check_out_gps_exception_id
+             FROM {$attendance} a
+             LEFT JOIN {$exceptions} xi ON xi.company_id=a.company_id AND xi.branch_id=a.branch_id AND xi.employee_id=a.employee_id AND xi.business_date=a.business_date AND xi.scope='check_in' AND xi.status='used'
+             LEFT JOIN {$exceptions} xo ON xo.company_id=a.company_id AND xo.branch_id=a.branch_id AND xo.employee_id=a.employee_id AND xo.business_date=a.business_date AND xo.scope='check_out' AND xo.status='used'
+             WHERE a.company_id=%d AND a.branch_id=%d AND a.employee_id=%d AND a.business_date BETWEEN %s AND %s AND a.status='present'
+             ORDER BY a.business_date",$company,$branch,$employee,$from,$to),ARRAY_A);
+        $present=array_column($attendanceRows,'business_date');
+        $evidence=[];
+        foreach($attendanceRows as $row){
+            $evidence[]=[
+                'business_date'=>$row['business_date'],
+                'check_in_at'=>$row['check_in_at'],
+                'check_out_at'=>$row['check_out_at'],
+                'check_in_mode'=>$row['check_in_mode']?:'legacy',
+                'checkout_mode'=>$row['check_out_at']?($row['checkout_mode']?:'legacy'):'missing',
+                'check_in_has_location'=>(bool)$row['check_in_has_location'],
+                'check_out_has_location'=>(bool)$row['check_out_has_location'],
+                'check_in_gps_exception_id'=>$row['check_in_gps_exception_id']!==null?(int)$row['check_in_gps_exception_id']:null,
+                'check_out_gps_exception_id'=>$row['check_out_gps_exception_id']!==null?(int)$row['check_out_gps_exception_id']:null,
+                'missing_checkout_acknowledged'=>(bool)$row['checkout_exception'],
+            ];
+        }
         $leaves=(array)self::readPayroll($db,'get_results',$db->prepare("SELECT date_from,date_to,leave_type FROM ".Db::table('leave_requests')." WHERE company_id=%d AND employee_id=%d AND status='approved' AND date_from<=%s AND date_to>=%s",$company,$employee,$to,$from),ARRAY_A);
         $history=(array)self::readPayroll($db,'get_results',$db->prepare("SELECT branch_id,effective_from,effective_to FROM ".Db::table('employee_branch_history')." WHERE company_id=%d AND employee_id=%d AND effective_from<=%s AND (effective_to IS NULL OR effective_to>=%s)",$company,$employee,$to,$from),ARRAY_A);
         $salaryHistory=(array)self::readPayroll($db,'get_results',$db->prepare("SELECT id,effective_from,monthly_salary FROM ".Db::table('salary_revisions')." WHERE company_id=%d AND employee_id=%d AND status IN ('approved','baseline') AND effective_from<=%s ORDER BY effective_from,id",$company,$employee,$to),ARRAY_A);
         if(!empty($db->last_error))throw new DomainException('Unable to load payroll calculation data.','payroll_read_failed',500);
         $input=['from'=>$from,'to'=>$to,'joining'=>$joining,'separation'=>$separation,'branch'=>$branch,'weekly_off'=>array_values(array_unique($off)),'company_holidays'=>$common,'branch_holidays'=>$local,'present'=>$present,'leaves'=>$leaves,'leave_types'=>$leaveTypes,'branch_history'=>$history,'salary_history'=>$salaryHistory];
-        $result=PayrollCalculator::calculate($input);$result['snapshot']=$input;return $result;
+        $result=PayrollCalculator::calculate($input);$result['snapshot']=$input+['attendance_evidence'=>$evidence];return $result;
     }
 
     private static function readPayroll(object $db,string $method,mixed ...$args):mixed {

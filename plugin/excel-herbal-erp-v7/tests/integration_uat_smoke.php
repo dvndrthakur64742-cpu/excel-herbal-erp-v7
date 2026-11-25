@@ -993,5 +993,37 @@ uat_case('f31_gps_exception_request_independent_head_office_decision',function()
     }
 });
 
+// F32: Actual draft payroll uses F31's synthetic self punches, while an
+// approved but unused exception must not create a paid attendance day.
+uat_case('f32_payroll_preserves_self_punch_and_exception_evidence_without_salary_rule_change',function()use($wpdb){
+    $employee=uat_actor(10,[1],[Capabilities::ATT_SELF],'FE');
+    $review=uat_actor(20,[1,2],[Capabilities::ATT_MANAGE,Capabilities::ACCESS_MANAGE],'SYSADMIN');
+    $maker=uat_actor(30,[1,2],[Capabilities::PAYROLL_GENERATE],'SYSADMIN');
+    $date='2031-01-04';
+    try{
+        $GLOBALS['eh7_test_clock_utc']=strtotime('2031-01-03 19:30:00 UTC');
+        uat_dispatch('admin.attendance_policy_save',$review,[],['effective_from'=>$date,'times'=>\ExcelHerbal\ERP7\Workforce\SelfAttendancePolicy::DEFAULTS,'reason'=>'Synthetic payroll exception fixture']);
+        $GLOBALS['eh7_test_clock_utc']=strtotime($date.' 09:00:00 UTC');
+        \ExcelHerbal\ERP7\Workforce\SelfAttendanceService::closeDue();
+        $request=uat_dispatch('work.gps_exception_request',$employee,[],['scope'=>'check_in','reason'=>'Synthetic approved unused exception']);
+        uat_dispatch('admin.gps_exception_decide',$review,['id'=>(int)$request['id']],['decision'=>'approved','reason'=>'Reviewed without creating attendance']);
+        $run=uat_dispatch('payroll.generate',$maker,['branch_id'=>1,'period_start'=>'2031-01-02','period_end'=>$date]);
+        $item=$wpdb->get_row($wpdb->prepare("SELECT * FROM ".Db::table('payroll_items')." WHERE payroll_run_id=%d AND employee_id=10",(int)$run['id']),ARRAY_A);
+        if(!$item)throw new RuntimeException('Attendance payroll item missing');
+        $snapshot=json_decode($item['calculation_json'],true,512,JSON_THROW_ON_ERROR);
+        $rows=$snapshot['attendance_evidence']??[];
+        if($snapshot['present']!==['2031-01-02','2031-01-03']||count($rows)!==2||(float)$item['paid_days']!==2.0)throw new RuntimeException('Unused approval changed paid-day inputs');
+        if($rows[0]['check_in_mode']!=='self'||$rows[0]['check_in_has_location']!==false||empty($rows[0]['check_in_gps_exception_id'])||$rows[0]['checkout_mode']!=='auto'||$rows[0]['check_out_has_location']!==false)throw new RuntimeException('Auto checkout and check-in exception evidence missing');
+        if($rows[1]['check_in_has_location']!==true||$rows[1]['checkout_mode']!=='self'||$rows[1]['check_out_has_location']!==false||empty($rows[1]['check_out_gps_exception_id']))throw new RuntimeException('Checkout exception evidence missing');
+        foreach($rows as $row)foreach(['check_in_lat','check_in_lng','check_out_lat','check_out_lng'] as $key)if(array_key_exists($key,$row))throw new RuntimeException('Payroll snapshot exposes raw location');
+        $expected=\ExcelHerbal\ERP7\Payroll\PayrollCalculator::calculate($snapshot);
+        if(abs((float)$item['attendance_salary']-$expected['attendance_salary'])>.005)throw new RuntimeException('Attendance salary calculation changed');
+        if((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ".Db::table('journal_entries')." WHERE source_type IN ('payroll','payroll_payment') AND source_id=%d",(int)$run['id']))!==0)throw new RuntimeException('Draft payroll unexpectedly posted journal');
+    }finally{
+        unset($GLOBALS['eh7_test_clock_utc']);
+        $wpdb->query($wpdb->prepare("DELETE FROM ".Db::table('settings')." WHERE company_id=1 AND setting_key=%s",'attendance_policy@'.$date));
+    }
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);
