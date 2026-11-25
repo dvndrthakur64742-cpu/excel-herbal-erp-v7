@@ -14,9 +14,9 @@ test('SQL lexer preserves numeric DECIMAL(14,2) and composite indexes',()=>{
  assert.equal(parts[2],'UNIQUE KEY uq(a,b)');
 });
 
-test('source PHP schema parses 85 tables and preserves signedness + nullability',()=>{
+test('source PHP schema parses 86 tables and preserves signedness + nullability',()=>{
  const tables=parseExpected(schema);
- assert.equal(tables.size,85);
+ assert.equal(tables.size,86);
  assert.deepEqual(tables.get('employees').get('id'),{type:'bigintunsigned',nullable:false});
  assert.deepEqual(tables.get('employees').get('reporting_employee_id'),{type:'bigintunsigned',nullable:true});
  assert.deepEqual(tables.get('employees').get('monthly_salary'),{type:'decimal(14,2)',nullable:false});
@@ -48,7 +48,7 @@ test('incomplete live information_schema cannot silently count as verified',()=>
 
 test('index migration detects missing nonunique index but preserves existing ones',()=>{
  const source=parseSourceIndexes(schema);
- assert.equal(source.size,85);
+ assert.equal(source.size,86);
  const mobile=source.get('mobile_sessions');
  assert.deepEqual(mobile.get('employee_device'),{
   unique:false,columns:['employee_id','wp_user_id','device_key']

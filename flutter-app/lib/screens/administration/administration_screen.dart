@@ -13,6 +13,7 @@ import '../../widgets/module_workspace.dart';
 import '../../widgets/guided_workspace_switcher.dart';
 import 'acting_duty_admin_panel.dart';
 import 'attendance_policy_panel.dart';
+import 'gps_exception_panel.dart';
 
 class AdministrationScreen extends ConsumerStatefulWidget {
   const AdministrationScreen({super.key, this.initialSection});
@@ -59,6 +60,9 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       if (const {'SYSADMIN','SYSTEM_ADMIN','ADMIN','ADMINISTRATOR'}
           .contains(app.primaryDesignationCode.trim().toUpperCase())) {
         tabs.add(('Attendance Policy', const AttendancePolicyPanel()));
+        if (app.can('workforce.attendance.manage')) {
+          tabs.add(('GPS Exceptions', GpsExceptionPanel(branchId: app.currentBranchId)));
+        }
       }
     }
     if (app.can('administration.audit.view')) {

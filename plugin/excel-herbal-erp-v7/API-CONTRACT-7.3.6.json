@@ -609,6 +609,43 @@
       "required_params": []
     },
     {
+      "method": "POST",
+      "path": "/workforce/attendance/gps-exceptions",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "scope",
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/workforce/attendance/gps-exceptions/mine",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": []
+    },
+    {
+      "method": "GET",
+      "path": "/administration/gps-exceptions",
+      "auth": true,
+      "idempotency_required": false,
+      "required_params": [
+        "branch_id"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/administration/gps-exceptions/decision",
+      "auth": true,
+      "idempotency_required": true,
+      "required_params": [
+        "id",
+        "decision",
+        "reason"
+      ]
+    },
+    {
       "method": "GET",
       "path": "/workforce/field-visits/current",
       "auth": true,

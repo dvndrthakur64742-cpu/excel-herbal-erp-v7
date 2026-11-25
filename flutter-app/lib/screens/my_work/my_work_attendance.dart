@@ -1,7 +1,7 @@
 part of 'my_work_screen.dart';
 
 extension _MyWorkAttendance on _MyWorkScreenState {
-  Future<void> _selfPunch(Map<String, dynamic> record, bool checkIn) async {
+  Future<void> _selfPunch(Map<String, dynamic> record, bool checkIn, {int? exceptionId}) async {
     if (_attendancePunchBusy) return;
     _setFeatureState(() { _attendancePunchBusy = true; message = null; });
     try {
@@ -9,14 +9,15 @@ extension _MyWorkAttendance on _MyWorkScreenState {
       if (checkIn && (branch == null || branch < 1)) {
         throw Exception('Assigned branch required.');
       }
-      final fix = await _position();
+      final fix = exceptionId == null ? await _position() : null;
       if (!mounted) return;
       await ref.read(apiClientProvider).post(
         checkIn ? ApiPaths.checkIn : ApiPaths.checkOut,
         data: {
           if (checkIn) 'branch_id': branch,
-          'lat': fix.latitude,
-          'lng': fix.longitude,
+          if (fix != null) 'lat': fix.latitude,
+          if (fix != null) 'lng': fix.longitude,
+          if (exceptionId != null) 'gps_exception_id': exceptionId,
         },
       );
       if (!mounted) return;
@@ -31,6 +32,87 @@ extension _MyWorkAttendance on _MyWorkScreenState {
     } finally {
       if (mounted) _setFeatureState(() => _attendancePunchBusy = false);
     }
+  }
+
+  Future<void> _requestGpsException(bool checkIn) async {
+    if (_attendancePunchBusy) return;
+    _setFeatureState(() => _attendancePunchBusy = true);
+    final controller = TextEditingController();
+    try {
+      final reason = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Request GPS exception'),
+          scrollable: true,
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('Head Office must approve this request. Approval does not automatically mark attendance or authorize stock issue.'),
+            TextField(controller: controller, maxLength: 250, maxLines: 3,
+                decoration: const InputDecoration(labelText: 'GPS problem (at least 10 characters)')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Send request')),
+          ],
+        ),
+      );
+      if (reason == null || !mounted) return;
+      if (reason.length < 10) {
+        _setFeatureState(() => message = 'Enter a reason of at least 10 characters.');
+        return;
+      }
+      await ref.read(apiClientProvider).post(ApiPaths.gpsExceptionRequest,
+        data: {'scope': checkIn ? 'check_in' : 'check_out', 'reason': reason});
+      if (mounted) _setFeatureState(() {refresh++; message = 'Sent to Head Office for review.';});
+    } catch (e) {
+      if (mounted) _setFeatureState(() => message = UiError.message(e));
+    } finally {
+      controller.dispose();
+      if (mounted) _setFeatureState(() => _attendancePunchBusy = false);
+    }
+  }
+
+  Widget _gpsExceptionPanel(Map<String, dynamic> record, bool checkedIn) {
+    final scope = checkedIn ? 'check_out' : 'check_in';
+    final canPunch = record[checkedIn ? 'can_check_out' : 'can_check_in'] == true;
+    return AsyncPanel(
+      key: ValueKey('gps-exception-$refresh-$scope'),
+      loader: () async => {'rows': await ref.read(apiClientProvider).get(ApiPaths.gpsExceptionMine)},
+      builder: (context, data) {
+        final rows = (((data as Map)['rows'] as List?) ?? const []).whereType<Map>();
+        final matching = rows.where((r) =>
+            r['business_date'] == record['business_date'] && r['scope'] == scope);
+        final request = matching.isEmpty ? null : matching.first;
+        final status = request?['status'];
+        final id = int.tryParse('${request?['id']}');
+        return Card(child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('GPS problem?', style: TextStyle(fontWeight: FontWeight.w700)),
+            if (request != null) ...[
+              Text('Request: ${BusinessFormat.status(status)}'),
+              if (request['review_reason'] != null) Text('${request['review_reason']}'),
+            ],
+            if (canPunch && request == null)
+              TextButton(onPressed: _attendancePunchBusy ? null : () => _requestGpsException(!checkedIn),
+                child: const Text('Request Head Office approval')),
+            if (canPunch && status == 'approved' && id != null && id > 0)
+              OutlinedButton(onPressed: _attendancePunchBusy ? null : () async {
+                final confirmed = await showDialog<bool>(context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text('Use approved GPS exception?'),
+                    content: const Text('This records the punch without a verified GPS location. The approval can be used only once.'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+                      FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Confirm punch')),
+                    ],
+                  ));
+                if (confirmed == true && mounted) await _selfPunch(record, !checkedIn, exceptionId: id);
+              }, child: Text(checkedIn ? 'Checkout with approval' : 'Check in with approval')),
+            TextButton(onPressed: () => _setFeatureState(() => refresh++), child: const Text('Refresh approval')),
+          ]),
+        ));
+      },
+    );
   }
 
   Widget _attendance() {
@@ -128,6 +210,7 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                         checkedOut ? 'Attendance completed' :
                         checkedIn ? 'Check Out' : 'Check In'),
                   ),
+                  if (!checkedOut) _gpsExceptionPanel(r, checkedIn),
                   TextButton.icon(
                     onPressed: () => _setFeatureState(() => refresh++),
                     icon: const Icon(Icons.refresh),

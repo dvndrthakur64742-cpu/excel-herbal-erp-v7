@@ -36,7 +36,9 @@ final class RecoveryService {
             if($visitId){$v=$db->get_row($db->prepare("SELECT id FROM ".Db::table('field_visits')." WHERE id=%d AND company_id=%d AND employee_id=%d AND status='in_progress'",$visitId,$a->companyId,$a->employeeId),ARRAY_A);if(!$v)throw new DomainException('Active field visit not found.','field_visit_not_found',404);}
             Db::mustInsert($db,Db::table('gps_points'),['company_id'=>$a->companyId,'branch_id'=>$branch,'employee_id'=>$a->employeeId,'attendance_id'=>(int)$att['id'],'field_visit_id'=>$visitId?:null,'latitude'=>$gps['latitude'],'longitude'=>$gps['longitude'],'accuracy_m'=>$gps['accuracy_m'],'source'=>$gps['source'],'recorded_at'=>$recorded,'created_at'=>Db::now()]);
             $pointId=(int)$db->insert_id;
-            AttendanceGpsEvidence::captureFirstPoint($db,(int)$att['id'],$a->companyId,$a->employeeId,$gps['latitude'],$gps['longitude']);
+            // Only legacy automatic attendance projects its first route point.
+            // A self punch without GPS must remain visibly without GPS evidence.
+            if (($att['check_in_mode']??null)!=='self') AttendanceGpsEvidence::captureFirstPoint($db,(int)$att['id'],$a->companyId,$a->employeeId,$gps['latitude'],$gps['longitude']);
             return ['id'=>$pointId,'recorded_at'=>$recorded]+$gps;
         });
     }

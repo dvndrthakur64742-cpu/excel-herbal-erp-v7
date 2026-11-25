@@ -17,7 +17,11 @@ final class SelfAttendanceService {
         return new \DateTimeImmutable(current_time('mysql'), $zone);
     }
 
-    private static function coordinates(?float $lat, ?float $lng): array {
+    private static function coordinates(?float $lat, ?float $lng, ?int $exceptionId = null): array {
+        if ($exceptionId !== null) {
+            if ($exceptionId < 1 || $lat !== null || $lng !== null) throw new DomainException('Choose GPS coordinates or one approved exception, not both.','gps_exception_invalid',422);
+            return [null,null];
+        }
         if ($lat === null || $lng === null) {
             throw new DomainException('Location is required for attendance.', 'attendance_location_required', 422);
         }
@@ -29,13 +33,13 @@ final class SelfAttendanceService {
         return [$gps['latitude'], $gps['longitude']];
     }
 
-    public static function checkIn(Actor $a, int $branch, ?float $lat, ?float $lng): array {
+    public static function checkIn(Actor $a, int $branch, ?float $lat, ?float $lng, ?int $exceptionId = null): array {
         Guard::branch($a, $branch, Capabilities::ATT_SELF);
         if ($branch !== $a->assignedBranchId) {
             throw new DomainException('Check in at your assigned branch.', 'attendance_branch_invalid', 403);
         }
-        [$lat, $lng] = self::coordinates($lat, $lng);
-        return Transaction::run(function () use ($a,$branch,$lat,$lng) {
+        [$lat, $lng] = self::coordinates($lat, $lng,$exceptionId);
+        return Transaction::run(function () use ($a,$branch,$lat,$lng,$exceptionId) {
             $db = Db::wpdb();
             $now = self::now();
             $date = $now->format('Y-m-d');
@@ -71,15 +75,16 @@ final class SelfAttendanceService {
                 'auto_checkout_due_at'=>$state['auto_checkout_utc'],'attendance_policy_json'=>wp_json_encode($times),'created_at'=>$stamp,
             ], 'An attendance record already exists for today.', 'attendance_exists');
             $id = (int)$db->insert_id;
-            Audit::add($a,'attendance.self_check_in','attendance',$id,['branch_id'=>$branch,'business_date'=>$date]);
+            if ($exceptionId !== null) GpsExceptionService::consume($a,$exceptionId,$branch,$date,'check_in',$id);
+            Audit::add($a,'attendance.self_check_in','attendance',$id,['branch_id'=>$branch,'business_date'=>$date,'gps_exception_id'=>$exceptionId]);
             return ['id'=>$id,'check_in_at'=>$stamp,'check_in_mode'=>'self','auto_checkout_due_at'=>$state['auto_checkout_utc']];
         });
     }
 
-    public static function checkOut(Actor $a, ?float $lat, ?float $lng): array {
+    public static function checkOut(Actor $a, ?float $lat, ?float $lng, ?int $exceptionId = null): array {
         Guard::cap($a, Capabilities::ATT_SELF);
-        [$lat,$lng] = self::coordinates($lat,$lng);
-        return Transaction::run(function () use ($a,$lat,$lng) {
+        [$lat,$lng] = self::coordinates($lat,$lng,$exceptionId);
+        return Transaction::run(function () use ($a,$lat,$lng,$exceptionId) {
             $db = Db::wpdb();
             $now = self::now();
             $table = Db::table('attendance');
@@ -96,11 +101,13 @@ final class SelfAttendanceService {
                 throw new DomainException('Self checkout has closed; automatic checkout is due.', 'attendance_checkout_due', 409);
             }
             if ($stamp < $row['check_in_at']) throw new DomainException('Invalid checkout time.', 'attendance_time_invalid', 409);
-            Db::mustUpdate($db,$table,[
+            if ($exceptionId !== null) GpsExceptionService::consume($a,$exceptionId,$branch,$row['business_date'],'check_out',(int)$row['id']);
+            $updated = Db::mustUpdate($db,$table,[
                 'check_out_at'=>$stamp,'check_out_lat'=>$lat,'check_out_lng'=>$lng,
                 'checkout_mode'=>'self','checkout_processed_at'=>$stamp,
             ],['id'=>(int)$row['id'],'company_id'=>$a->companyId,'check_out_at'=>null]);
-            Audit::add($a,'attendance.self_checkout','attendance',(int)$row['id'],['branch_id'=>$branch,'business_date'=>$row['business_date']]);
+            if ($updated!==1) throw new DomainException('Attendance changed during checkout.','attendance_open_required',409);
+            Audit::add($a,'attendance.self_checkout','attendance',(int)$row['id'],['branch_id'=>$branch,'business_date'=>$row['business_date'],'gps_exception_id'=>$exceptionId]);
             return ['id'=>(int)$row['id'],'check_out_at'=>$stamp,'checkout_mode'=>'self'];
         });
     }
