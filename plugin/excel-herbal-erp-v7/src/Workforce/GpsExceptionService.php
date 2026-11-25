@@ -44,6 +44,17 @@ final class GpsExceptionService {
             return ['id'=>$id,'status'=>'pending','scope'=>$scope,'business_date'=>$date];
         });
     }
+    /** Called only inside the punch transaction after employee/attendance lock.
+     * An exception is specific to one punch. A failed punch rolls back usage.
+     */
+    public static function consume(Actor $a,int $id,int $branch,string $date,string $scope,int $attendanceId):void {
+        $db=Db::wpdb();$table=Db::table('attendance_gps_exceptions');
+        $row=$db->get_row($db->prepare("SELECT * FROM {$table} WHERE id=%d AND company_id=%d AND employee_id=%d AND branch_id=%d AND business_date=%s AND scope=%s FOR UPDATE",$id,$a->companyId,$a->employeeId,$branch,$date,$scope),ARRAY_A);
+        if(($db->last_error??'')!=='')throw new DomainException('GPS exception unavailable.','gps_exception_unavailable',503);
+        if(!$row||$row['status']!=='approved'||empty($row['reviewed_by'])||(int)$row['reviewed_by']===$a->employeeId||empty($row['reviewed_at']))throw new DomainException('An unused approved exception is required for this punch.','gps_exception_not_approved',409);
+        if(Db::mustUpdate($db,$table,['status'=>'used'],['id'=>$id,'company_id'=>$a->companyId,'status'=>'approved'])!==1)throw new DomainException('GPS exception already used.','gps_exception_state_invalid',409);
+        Audit::add($a,'attendance.gps_exception_used','attendance_gps_exception',$id,['branch_id'=>$branch,'business_date'=>$date,'scope'=>$scope,'attendance_id'=>$attendanceId,'gps_evidence_created'=>false]);
+    }
     public static function mine(Actor $a):array {
         Guard::cap($a,Capabilities::ATT_SELF);
         $db=Db::wpdb();
