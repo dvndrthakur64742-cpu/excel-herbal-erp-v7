@@ -77,7 +77,7 @@ void main() {
     final source = File('lib/shell/app_shell.dart').readAsStringSync();
 
     expect(source, isNot(contains('_desktopWorkspaceHeader')));
-    expect(source, contains('SizedBox(width: 272'));
+    expect(source, contains('SizedBox(width: 252'));
     expect(source, isNot(contains('ModuleWorkspaceHeader(')));
     expect(source, contains("_sectionLabel(context, 'WORK')"));
     expect(source, contains("_sectionLabel(context, 'CONTROL')"));
