@@ -778,6 +778,19 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _openConnectedAction(String id) {
+    final app = ref.read(appStateProvider);
+    final kpiRoute = switch (id) {
+      'kpi_sales' when app.can('reports.view') => 'reports',
+      'kpi_daily' when app.can('daily_order.others') => 'team',
+      'kpi_performance' when app.can('performance.view') => 'payroll_performance',
+      _ => null,
+    };
+    if (id.startsWith('kpi_')) {
+      if (kpiRoute != null && app.currentBranchId != null && !app.businessAccessBlocked && _routeAllowed(app, kpiRoute)) {
+        _openModule(kpiRoute);
+      }
+      return;
+    }
     Widget? screen;
     switch (id) {
       case 'team_orders':
