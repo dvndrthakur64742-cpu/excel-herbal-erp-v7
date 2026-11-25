@@ -30,9 +30,11 @@ void main() {
 
   test('desktop and mobile have searchable top-level access without duplicate search menu', () {
     final shell = File('lib/shell/app_shell.dart').readAsStringSync();
-    expect(RegExp("tooltip: 'Global Search'").allMatches(shell).length, 2);
+    expect(RegExp("tooltip: 'Global Search'").allMatches(shell).length, 1);
     expect(shell, contains("onPressed: () => _openModule('global_search')"));
-    expect(shell, contains("onPressed: () => _selectDesktopRoute('global_search')"));
+    expect(shell, contains("onPressed: _openSearchOverlay"));
+    expect(shell, contains("message: 'Global Search · Ctrl+Alt+K'"));
+    expect(shell, contains("if (!_routeAllowed(app, 'global_search') || _searchOverlayOpen || !mounted) return;"));
     expect(shell, contains("if (id == 'global_search') return !app.businessAccessBlocked;"));
     expect(shell, isNot(contains("_desktopTile(\n                    'global_search'")));
     expect(shell, isNot(contains("id: 'global_search',\n                      label: 'Global Search'")));

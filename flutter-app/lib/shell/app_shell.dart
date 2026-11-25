@@ -22,6 +22,7 @@ import '../state/app_state.dart';
 import '../theme/excel_brand.dart';
 import '../widgets/brand_logo.dart';
 import 'shell_layout.dart';
+import 'desktop_search_shortcut.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -71,10 +72,13 @@ class _AppShellState extends ConsumerState<AppShell> {
         final desktop = ShellLayout.isDesktopWidth(constraints.maxWidth);
         if (desktop) {
           return Scaffold(
-            body: SafeArea(
+            body: DesktopSearchShortcut(
+              enabled: _routeAllowed(app, 'global_search'),
+              onSearch: _openSearchOverlay,
+              child: SafeArea(
               child: Row(
                 children: [
-                  SizedBox(width: 272, child: _desktopSidebar(context, app)),
+                  SizedBox(width: 252, child: _desktopSidebar(context, app)),
                   const VerticalDivider(width: 1),
                   Expanded(
                     child: ColoredBox(
@@ -85,6 +89,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                 ],
               ),
+            ),
             ),
           );
         }
@@ -165,10 +170,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 20, 16, 16),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
             child: Row(
               children: [
-                const BrandLogo(width: 56, height: 56),
+                const BrandLogo(width: 44, height: 44),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -193,19 +198,28 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ],
                   ),
                 ),
-                if (!app.businessAccessBlocked)
-                  IconButton(
-                    tooltip: 'Global Search',
-                    onPressed: () => _selectDesktopRoute('global_search'),
-                    icon: const Icon(Icons.search_rounded),
-                  ),
               ],
             ),
           ),
+          if (_routeAllowed(app, 'global_search'))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Tooltip(
+                message: 'Global Search · Ctrl+Alt+K',
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openSearchOverlay,
+                    icon: const Icon(Icons.search_rounded, size: 18),
+                    label: const Text('Search ERP  ·  Ctrl+Alt+K', maxLines: 2),
+                  ),
+                ),
+              ),
+            ),
           const Divider(height: 1),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
               children: [
                 _sectionLabel(context, 'WORK'),
                 _desktopTile('home', 'Home', Icons.home_outlined),
@@ -303,10 +317,14 @@ class _AppShellState extends ConsumerState<AppShell> {
       );
 
   Widget _desktopTile(String id, String label, IconData icon) {
-    final selected = desktopRoute == id;
+    final app = ref.watch(appStateProvider);
+    final effective = _routeAllowed(app, desktopRoute) ? desktopRoute : 'home';
+    final selected = effective == id;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 1),
       child: ListTile(
+        minTileHeight: 44,
+        minVerticalPadding: 6,
         selected: selected,
         selectedTileColor: ExcelBrand.primarySoft,
         shape: RoundedRectangleBorder(
@@ -890,8 +908,24 @@ class _AppShellState extends ConsumerState<AppShell> {
         _ => Icons.circle_outlined,
       };
 
+  bool _searchOverlayOpen = false;
+
+  Future<void> _openSearchOverlay() async {
+    final app = ref.read(appStateProvider);
+    if (!_routeAllowed(app, 'global_search') || _searchOverlayOpen || !mounted) return;
+    _searchOverlayOpen = true;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(builder: (_) => const EnterpriseHubScreen(initialTab: 1)),
+      );
+    } finally {
+      _searchOverlayOpen = false;
+    }
+  }
+
   void _selectDesktopRoute(String id) {
     final app = ref.read(appStateProvider);
+    if (!_routeAllowed(app, id)) return;
     final index = app.bottomNav.indexWhere((item) => '${item['id']}' == id);
     setState(() {
       desktopRoute = id;

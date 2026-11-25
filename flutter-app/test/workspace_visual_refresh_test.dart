@@ -69,6 +69,6 @@ void main() {
     expect(reports, contains('WorkspaceBanner('));
     expect(reports, contains('REPORT LIBRARY'));
     expect(reports, contains('constraints.maxWidth >= 900'));
-    expect(shell, contains('SizedBox(width: 272'));
+    expect(shell, contains('SizedBox(width: 252'));
   });
 }
