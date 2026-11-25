@@ -16,6 +16,13 @@ if (!function_exists('get_gmt_from_date')) {
     }
 }
 
+// Match WordPress GMT conversion in this UTC-only disposable fixture.
+if (!function_exists('get_date_from_gmt')) {
+    function get_date_from_gmt(string $datetime, string $format = 'Y-m-d H:i:s'): string {
+        return (new DateTimeImmutable($datetime, new DateTimeZone('UTC')))->format($format);
+    }
+}
+
 if (!function_exists('get_option')) {
     function get_option($name, $default = false) {
         global $wpdb;
