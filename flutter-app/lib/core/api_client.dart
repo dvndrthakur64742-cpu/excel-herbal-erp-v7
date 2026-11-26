@@ -54,6 +54,29 @@ class ApiClient {
   final Dio dio;
   final Random _random = Random.secure();
   Future<bool>? _refreshFuture;
+  int _authEpoch = 0;
+  bool _loggingOut = false;
+  int? _refreshEpoch;
+  String? _refreshBoundary;
+  bool _boundaryBound = false;
+  String? _boundBoundary;
+
+  Future<String?> _captureBoundary(int epoch) async {
+    final latest = await session.loginBoundary();
+    if (!_localCurrent(epoch)) throw const ApiException('session_changed','Session changed.');
+    if (!_boundaryBound) { _boundaryBound = true; _boundBoundary = latest; }
+    if (_boundBoundary != latest) throw const ApiException('session_changed','Session changed in another tab. Sign in again.');
+    return latest;
+  }
+
+  bool _localCurrent(int epoch) => epoch == _authEpoch && !_loggingOut;
+  Future<bool> _current(int epoch,String? boundary) async =>
+      _localCurrent(epoch) && await session.loginBoundary() == boundary && _localCurrent(epoch);
+  Future<void> _requireCurrent(int epoch,String? boundary) async {
+    if (!await _current(epoch,boundary)) {
+      throw const ApiException('session_changed','Session changed. Reopen the workspace.');
+    }
+  }
 
   void _requireSafeApiTarget() {
     if (AppConfig.unsafeApiTarget) {
@@ -140,6 +163,9 @@ class ApiClient {
     required Future<MultipartFile> Function() fileFactory,
   }) async {
     _requireSafeApiTarget();
+    final epoch = _authEpoch;
+    final boundary = await _captureBoundary(epoch);
+    await _requireCurrent(epoch,boundary);
     final headers = <String, dynamic>{};
     final token = await session.accessToken();
     if (token != null && token.isNotEmpty) {
@@ -152,6 +178,7 @@ class ApiClient {
         ...fields,
         'file': await fileFactory(),
       });
+      await _requireCurrent(epoch,boundary);
       return dio.post<dynamic>(
         path,
         data: form,
@@ -161,15 +188,18 @@ class ApiClient {
 
     try {
       final response = await send();
+      await _requireCurrent(epoch,boundary);
       return _unwrap(response.data, response.statusCode);
     } on DioException catch (error) {
-      if (error.response?.statusCode == 401 && await _refresh()) {
+      await _requireCurrent(epoch,boundary);
+      if (error.response?.statusCode == 401 && await _refresh(epoch,boundary)) {
         final refreshed = await session.accessToken();
         if (refreshed != null && refreshed.isNotEmpty) {
           headers.addAll(bearerHeaders(refreshed));
         }
         try {
           final response = await send();
+          await _requireCurrent(epoch,boundary);
           return _unwrap(response.data, response.statusCode);
         } on DioException catch (second) {
           throw _dioException(second);
@@ -180,14 +210,18 @@ class ApiClient {
   }
 
   Future<({Uint8List bytes, String filename, String mimeType})>
-      downloadPrivateDocument(String url, {bool retried = false}) async {
+      downloadPrivateDocument(String url, {bool retried = false, int? requestEpoch, String? requestBoundary}) async {
     _requireSafeApiTarget();
+    final epoch = requestEpoch ?? _authEpoch;
+    final boundary = requestEpoch == null ? await _captureBoundary(epoch) : requestBoundary;
+    await _requireCurrent(epoch,boundary);
     final uri = privateDocumentUri(dio.options.baseUrl, url);
     final token = await session.accessToken();
     if (token == null || token.isEmpty) {
       throw const ApiException('not_authenticated', 'Please sign in again.', 401);
     }
     try {
+      await _requireCurrent(epoch,boundary);
       final response = await dio.get<List<int>>(
         uri.toString(),
         options: Options(
@@ -199,6 +233,7 @@ class ApiClient {
           },
         ),
       );
+      await _requireCurrent(epoch,boundary);
       final mime = (response.headers.value('content-type') ?? '')
           .split(';').first.trim().toLowerCase();
       final bytes = response.data;
@@ -214,8 +249,9 @@ class ApiClient {
         mimeType: mime,
       );
     } on DioException catch (error) {
-      if (!retried && error.response?.statusCode == 401 && await _refresh()) {
-        return downloadPrivateDocument(url, retried: true);
+      await _requireCurrent(epoch,boundary);
+      if (!retried && error.response?.statusCode == 401 && await _refresh(epoch,boundary)) {
+        return downloadPrivateDocument(url, retried: true, requestEpoch:epoch, requestBoundary:boundary);
       }
       final body = error.response?.data;
       if (body is List<int>) {
@@ -227,6 +263,12 @@ class ApiClient {
   }
 
   Future<dynamic> login(String mobile, String password) async {
+    if (_loggingOut) throw const ApiException('session_changed','Sign out is in progress.');
+    final epoch = ++_authEpoch;
+    final pending = _refreshFuture;
+    if (pending != null) await pending;
+    final previousBoundary = await session.loginBoundary();
+    await _requireCurrent(epoch,previousBoundary);
     final deviceId = await session.deviceId();
     final data = await post(
       ApiPaths.login,
@@ -240,6 +282,11 @@ class ApiClient {
       authenticated: false,
     );
     final map = Map<String, dynamic>.from(data as Map);
+    await _requireCurrent(epoch,previousBoundary);
+    final boundary = await session.beginLoginBoundary();
+    await _requireCurrent(epoch,boundary);
+    _boundBoundary = boundary;
+    _boundaryBound = true;
     await session.save(
       accessToken: '${map['access_token']}',
       refreshToken: '${map['refresh_token']}',
@@ -248,12 +295,31 @@ class ApiClient {
   }
 
   Future<void> logout() async {
+    if (_loggingOut) return;
+    _loggingOut = true;
+    ++_authEpoch;
+    final boundary = _boundaryBound ? _boundBoundary : await session.loginBoundary();
     try {
-      await post(ApiPaths.logout, data: const {}, idempotent: false);
+      final pending = _refreshFuture;
+      if (pending != null) await pending;
+      if (await session.loginBoundary() != boundary) return;
+      final token = await session.accessToken();
+      if (token != null && token.isNotEmpty) {
+        _requireSafeApiTarget();
+        await dio.post<dynamic>(ApiPaths.logout, data: const <String,dynamic>{},
+          options: Options(headers: bearerHeaders(token)));
+      }
     } catch (_) {
       // Local logout still proceeds when the network is unavailable.
+    } finally {
+      try {
+        if (await session.loginBoundary() == boundary) await session.clear();
+      } finally {
+        _boundaryBound = false;
+        _boundBoundary = null;
+        _loggingOut = false;
+      }
     }
-    await session.clear();
   }
 
   Future<dynamic> _request(
@@ -265,8 +331,13 @@ class ApiClient {
     bool authenticated = true,
     bool retried = false,
     String? retainedMutationKey,
+    int? requestEpoch,
+    String? requestBoundary,
   }) async {
     _requireSafeApiTarget();
+    final epoch = requestEpoch ?? _authEpoch;
+    final boundary = !authenticated ? null : (requestEpoch == null ? await _captureBoundary(epoch) : requestBoundary);
+    if (authenticated) await _requireCurrent(epoch,boundary);
     final headers = <String, dynamic>{};
     if (authenticated) {
       final token = await session.accessToken();
@@ -292,19 +363,24 @@ class ApiClient {
     }
 
     try {
+      if (authenticated) await _requireCurrent(epoch,boundary);
       final response = await dio.request<dynamic>(
         path,
         data: data,
         queryParameters: query,
         options: Options(method: method, headers: headers),
       );
+      if (authenticated) await _requireCurrent(epoch,boundary);
       if (fingerprint != null) await _clearRetainedMutation(fingerprint);
+      if (authenticated) await _requireCurrent(epoch,boundary);
       return _unwrap(response.data, response.statusCode);
     } on DioException catch (error) {
+      if (authenticated) await _requireCurrent(epoch,boundary);
       if (authenticated &&
           !retried &&
           error.response?.statusCode == 401 &&
-          await _refresh()) {
+          await _refresh(epoch,boundary)) {
+        await _requireCurrent(epoch,boundary);
         return _request(
           method,
           path,
@@ -314,9 +390,12 @@ class ApiClient {
           authenticated: authenticated,
           retried: true,
           retainedMutationKey: mutationKey,
+          requestEpoch: epoch,
+          requestBoundary: boundary,
         );
       }
 
+      if (authenticated) await _requireCurrent(epoch,boundary);
       if (fingerprint != null && mutationKey != null) {
         if (_isUncertainNetworkFailure(error)) {
           await _saveRetainedMutation(fingerprint, mutationKey);
@@ -363,21 +442,27 @@ class ApiClient {
     return body;
   }
 
-  Future<bool> _refresh() {
+  Future<bool> _refresh(int epoch,String? boundary) {
+    if (!_localCurrent(epoch)) return Future.value(false);
     final existing = _refreshFuture;
-    if (existing != null) return existing;
-    final future = _performRefresh();
+    if (existing != null) return _refreshEpoch == epoch && _refreshBoundary == boundary
+        ? existing : Future.value(false);
+    _refreshEpoch = epoch;
+    _refreshBoundary = boundary;
+    final future = _performRefresh(epoch,boundary);
     _refreshFuture = future;
     return future.whenComplete(() => _refreshFuture = null);
   }
 
-  Future<bool> _performRefresh() async {
+  Future<bool> _performRefresh(int epoch,String? boundary) async {
     _requireSafeApiTarget();
     final refresh = await session.refreshToken();
     if (refresh == null || refresh.isEmpty) return false;
     final generation = await session.sessionGeneration();
     try {
+      if (!await _current(epoch,boundary)) return false;
       final deviceId = await session.deviceId();
+      if (!await _current(epoch,boundary)) return false;
       final response = await dio.post<dynamic>(
         ApiPaths.refresh,
         data: {
@@ -388,12 +473,15 @@ class ApiClient {
       );
       final data = _unwrap(response.data, response.statusCode);
       final map = Map<String, dynamic>.from(data as Map);
+      if (!await _current(epoch,boundary) || await session.refreshToken() != refresh) return false;
+      if (!await _current(epoch,boundary)) return false;
       await session.save(
         accessToken: '${map['access_token']}',
         refreshToken: '${map['refresh_token']}',
       );
-      return true;
+      return await _current(epoch,boundary);
     } on DioException catch (error) {
+      if (!await _current(epoch,boundary)) return false;
       // A second browser tab can refresh the shared web session first. In that
       // case this request may be rejected because it used the now-rotated
       // refresh token. Never clear the newer shared tokens written by the
@@ -401,10 +489,10 @@ class ApiClient {
       if (error.response?.statusCode == 400 ||
           error.response?.statusCode == 401 ||
           error.response?.statusCode == 403) {
-        if (await _adoptPeerRefresh(refresh, generation)) {
+        if (boundary != null && await _adoptPeerRefresh(refresh, generation,epoch,boundary)) {
           return true;
         }
-        await session.clear();
+        if (await _current(epoch,boundary) && await session.refreshToken() == refresh && await session.sessionGeneration() == generation && await _current(epoch,boundary)) await session.clear();
       }
       return false;
     } catch (_) {
@@ -415,6 +503,8 @@ class ApiClient {
   Future<bool> _adoptPeerRefresh(
     String attemptedRefresh,
     String? attemptedGeneration,
+    int epoch,
+    String boundary,
   ) async {
     // Browser tabs share the web secure-storage namespace. One tab may win the
     // refresh-token rotation while another is still receiving the 401 for the
@@ -423,19 +513,20 @@ class ApiClient {
     // Let a slower winning browser tab finish publishing its rotated token pair
     // before a losing tab concludes that shared credentials are invalid.
     for (var attempt = 0; attempt < 61; attempt++) {
+      if (!await _current(epoch,boundary)) return false;
       final latestGeneration = await session.sessionGeneration();
       final latestRefresh = await session.refreshToken();
       final peerCompleted =
           sessionGenerationWasRotated(attemptedGeneration, latestGeneration);
       final refreshChanged =
           refreshTokenWasRotated(attemptedRefresh, latestRefresh);
-      if (peerCompleted || refreshChanged) {
+      if (peerCompleted && refreshChanged) {
         final latestAccess = await session.accessToken();
         if (latestAccess != null &&
             latestAccess.isNotEmpty &&
             latestRefresh != null &&
             latestRefresh.trim().isNotEmpty) {
-          return true;
+          return _current(epoch,boundary);
         }
       }
       if (attempt < 60) {

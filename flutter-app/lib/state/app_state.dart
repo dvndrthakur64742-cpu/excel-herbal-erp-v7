@@ -377,6 +377,10 @@ class AppController extends StateNotifier<AppState> {
           : next.copyWith(error: compatibilityError);
     } on ApiException catch (e) {
       if (!current()) return;
+      if (e.code == 'session_changed') {
+        state = AppState(loading: false, error: UiError.message(e));
+        return;
+      }
       // 403 means authenticated but not authorised for that resource. It must
       // never destroy a valid employee session.
       if (e.statusCode == 401) {
