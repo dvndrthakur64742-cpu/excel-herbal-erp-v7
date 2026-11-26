@@ -8,6 +8,7 @@ import '../../core/transaction_guardrails.dart';
 import '../../core/entry_form_scope.dart';
 import '../../core/counter_sale_preview.dart';
 import '../../widgets/counter_billing_summary.dart';
+import '../../widgets/search_choice_dialog.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -349,25 +350,27 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   children: [
                     Text('Branch: ${app.currentBranchName} · Date: ${app.businessDate}'),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<int?>(
-                      isExpanded: true,
-                      initialValue: customerId,
-                      decoration: const InputDecoration(
-                        labelText: 'Customer (optional; full payment required)',
-                      ),
-                      items: <DropdownMenuItem<int?>>[
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('Cash / Walk-in'),
-                        ),
-                        ...customers.map(
-                          (c) => DropdownMenuItem(
-                            value: int.parse('${c['id']}'),
-                            child: Text('${c['name']}'),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final selected = await showDialog<int>(
+                          context: context,
+                          builder: (_) => SearchChoiceDialog(
+                            title: 'Select customer',
+                            choices: [
+                              const SearchChoice(0, 'Cash / Walk-in', ''),
+                              for (final c in customers)
+                                if ((int.tryParse('${c['id']}') ?? 0) > 0)
+                                  SearchChoice(int.parse('${c['id']}'), '${c['name']}', '',
+                                    search: [c['phone'], c['code']]),
+                            ],
                           ),
-                        ),
-                      ],
-                      onChanged: (v) => setLocal(() => customerId = v),
+                        );
+                        if (!context.mounted || selected == null) return;
+                        setLocal(() => customerId = selected == 0 ? null : selected);
+                      },
+                      icon: const Icon(Icons.person_search_outlined),
+                      label: Text(customerId == null ? 'Cash / Walk-in · Select customer' :
+                        customers.firstWhere((c) => int.tryParse('${c['id']}') == customerId)['name'].toString()),
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<int?>(
