@@ -410,4 +410,33 @@ foreach([
         else{$failed++;echo "FAIL purchase batch rollback {$name}: {$e->codeKey} batches=".count($wpdb->batches)."\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL purchase batch rollback {$name}: {$e->getMessage()}\n";}
 }
+// INV-01: expiry-tracked goods must have a usable batch and expiry for outbound use.
+final class ExpiryBatchRegressionDb {
+    public string $prefix='wp_';
+    public string $last_error='';
+    public ?string $expiry=null;
+    public function prepare($q,...$args){return $q;}
+    public function get_row($q,$mode){return ['id'=>1,'expires_on'=>$this->expiry];}
+}
+foreach([
+    ['tracked missing batch','optional',1,null,null,true,'batch_required'],
+    ['tracked off missing batch','off',1,null,null,true,'batch_required'],
+    ['tracked missing expiry','required',1,1,null,true,'batch_expiry_required'],
+    ['tracked expired','required',1,1,'2026-09-29',true,'batch_expired'],
+    ['tracked expiry today','required',1,1,'2026-09-30',true,null],
+    ['tracked future expiry','required',1,1,'2026-10-01',true,null],
+    ['untracked optional','optional',0,null,null,true,null],
+    ['untracked batch no expiry','required',0,1,null,true,null],
+    ['legacy inbound batch missing expiry','required',1,1,null,false,null],
+] as [$name,$mode,$tracked,$batch,$expiry,$out,$error]){
+    $wpdb=new ExpiryBatchRegressionDb();$wpdb->expiry=$expiry;
+    try{
+        \ExcelHerbal\ERP7\Inventory\StockService::validateBatch($purchaseActor,['id'=>1,'batch_tracking'=>$mode,'expiry_tracking'=>$tracked],$batch,$out);
+        if($error!==null)throw new \RuntimeException('unexpected acceptance');
+        echo "PASS stock expiry {$name}\n";
+    }catch(DomainException $e){
+        if($e->codeKey===$error)echo "PASS stock expiry {$name}\n";
+        else{$failed++;echo "FAIL stock expiry {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL stock expiry {$name}: {$e->getMessage()}\n";}
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
