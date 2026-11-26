@@ -157,6 +157,8 @@ e2_case('e2_purchase_batch_preparation_rollback',function()use($maker,$wpdb,&$st
         try{$attempt($bill,$lines);}catch(DomainException $e){if($e->codeKey===$code)return;throw $e;}
         throw new RuntimeException('Unexpected purchase success: '.$bill);
     };
+    $reject('PUR-MISSING-EXPIRY',[array_diff_key($base,['expires_on'=>true])],'batch_expiry_required');
+    $reject('PUR-MISSING-BATCH',[array_diff_key($base,['batch_no'=>true])],'batch_required');
     $reject('PUR-BAD-LINE',[$base,array_replace($base,['quantity'=>0])],'domain_error');
     $reject('PUR-DUP-LINE',[$base,$base],'duplicate_purchase_line');
     $reject('E2E-BILL-001',[$base],'purchase_duplicate');

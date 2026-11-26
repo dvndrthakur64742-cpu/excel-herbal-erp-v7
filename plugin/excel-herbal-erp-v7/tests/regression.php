@@ -415,6 +415,8 @@ final class ExpiryBatchRegressionDb {
     public string $prefix='wp_';
     public string $last_error='';
     public ?string $expiry=null;
+    public int $insert_id=1;
+    public function query($q){return 1;}
     public function prepare($q,...$args){return $q;}
     public function get_row($q,$mode){return ['id'=>1,'expires_on'=>$this->expiry];}
 }
@@ -438,5 +440,45 @@ foreach([
         if($e->codeKey===$error)echo "PASS stock expiry {$name}\n";
         else{$failed++;echo "FAIL stock expiry {$name}: {$e->codeKey}\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL stock expiry {$name}: {$e->getMessage()}\n";}
+}
+// Expiry-required purchase lines and invalid product master settings.
+foreach([
+ ['receiving without batch',['id'=>1,'batch_tracking'=>'optional','expiry_tracking'=>1],[],null,'batch_required'],
+ ['receiving without expiry',['id'=>1,'batch_tracking'=>'required','expiry_tracking'=>1],['batch_no'=>'NEW'],null,'batch_expiry_required'],
+ ['receiving existing undated batch',['id'=>1,'batch_tracking'=>'required','expiry_tracking'=>1],['batch_id'=>1],null,'batch_expiry_required'],
+ ['receiving existing dated batch',['id'=>1,'batch_tracking'=>'required','expiry_tracking'=>1],['batch_id'=>1],'2026-10-01',null],
+ ['untracked optional receipt',['id'=>1,'batch_tracking'=>'optional','expiry_tracking'=>0],[],null,null]
+] as [$name,$product,$line,$expiry,$expected]){
+    $wpdb=new ExpiryBatchRegressionDb();$wpdb->expiry=$expiry;
+    try{
+        \ExcelHerbal\ERP7\Inventory\StockService::ensureBatch($purchaseActor,$product,$line);
+        if($expected!==null)throw new \RuntimeException('unexpected acceptance');
+        echo "PASS receipt expiry {$name}\n";
+    }catch(DomainException $e){
+        if($e->codeKey===$expected)echo "PASS receipt expiry {$name}\n";
+        else{$failed++;echo "FAIL receipt expiry {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL receipt expiry {$name}: {$e->getMessage()}\n";}
+}
+final class ExpiryMasterRegressionDb {
+    public string $prefix='wp_';public string $last_error='';public int $insert_id=1;
+    public array $writes=[];
+    public function prepare($q,...$args){return $q;}
+    public function query($q){return 1;}
+    public function get_var($q){return 0;}
+    public function get_row($q,$mode){return ['id'=>1,'status'=>'active','batch_tracking'=>'optional','expiry_tracking'=>1];}
+    public function insert($table,$data){$this->writes[]=$table;return 1;}
+    public function update($table,$data,$where){$this->writes[]=$table;return 1;}
+}
+$masterActor=new \ExcelHerbal\ERP7\Security\Actor(10,10,1,1,[1],[\ExcelHerbal\ERP7\Security\Capabilities::PRODUCT_MANAGE],'BM');
+foreach(['create','update'] as $name){
+    $wpdb=new ExpiryMasterRegressionDb();
+    try{
+        if($name==='create')\ExcelHerbal\ERP7\Organization\OrganizationProductService::createProduct($masterActor,['sku'=>'TEST','name'=>'Synthetic','batch_tracking'=>'off','expiry_tracking'=>true]);
+        else \ExcelHerbal\ERP7\Organization\OrganizationProductService::updateProduct($masterActor,1,['batch_tracking'=>'off']);
+        $failed++;echo "FAIL expiry master {$name}: accepted\n";
+    }catch(DomainException $e){
+        if($e->codeKey==='product_expiry_batch_required'&&$wpdb->writes===[])echo "PASS expiry master {$name}\n";
+        else{$failed++;echo "FAIL expiry master {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL expiry master {$name}: {$e->getMessage()}\n";}
 }
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
