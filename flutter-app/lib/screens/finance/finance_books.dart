@@ -28,7 +28,7 @@ extension _FinanceBooksFeature on _FinanceScreenState {
             ),
           Expanded(
             child: AsyncPanel(
-              key: ValueKey('tb-${app.currentBranchId}-$refresh'),
+              key: ValueKey((api, app, refresh, 'tb')),
               loader: () => api.get(
                 ApiPaths.trialBalance,
                 query: {
@@ -37,8 +37,11 @@ extension _FinanceBooksFeature on _FinanceScreenState {
                     'branch_id': app.currentBranchId,
                 },
               ),
-              builder: (context, data) =>
-                  RecordsList(recordType: 'trial_balance', rows: _rows(data)),
+              builder: (context, data) => FinanceBooksSummary(
+                rows: _rows(data),
+                scope: app.currentBranchId == null ? 'All authorised branches' : app.currentBranchName,
+                asOf: app.businessDate,
+              ),
             ),
           ),
         ],

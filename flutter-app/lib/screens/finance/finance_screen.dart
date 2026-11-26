@@ -14,6 +14,7 @@ import '../../widgets/business_date_field.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/guided_workspace_switcher.dart';
+import '../../widgets/finance_books_summary.dart';
 
 part 'finance_bank.dart';
 part 'finance_books.dart';
@@ -91,7 +92,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       length: tabs.length,
       initialIndex: initialIndex,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Finance & Accounts')),
+        appBar: AppBar(title: const Text('Finance & Accounts'), actions: [IconButton(tooltip: 'Refresh finance', onPressed: () => setState(() => refresh++), icon: const Icon(Icons.refresh))]),
         body: SafeArea(
           child: Column(
             children: [
