@@ -63,7 +63,7 @@ class GpsTrackingService extends ChangeNotifier {
 
   bool _current(int epoch) => !_disposed && epoch == _epoch;
   bool _canSend(int epoch) => _current(epoch) && _active &&
-      (_windowStop == null || DateTime.now().isBefore(_windowStop!));
+      _windowStop != null && DateTime.now().isBefore(_windowStop!);
 
   void _notify() { if (!_disposed) notifyListeners(); }
   String _dutyStatus = 'unknown';
@@ -86,7 +86,7 @@ class GpsTrackingService extends ChangeNotifier {
   Future<void> start() async {
     if (_disposed) return;
     final request = ++_request;
-    Map<String, dynamic>? attendance;
+    final Map<String, dynamic> attendance;
     try {
       final data = await _api.get(ApiPaths.attendanceToday);
       if (_disposed || request != _request) return;
@@ -133,6 +133,7 @@ class GpsTrackingService extends ChangeNotifier {
     _scheduleTimer = null;
     if (_active) {
       _scheduleAutoStop(attendance);
+      _notify();
       return;
     }
     _clearTracking();
@@ -155,7 +156,6 @@ class GpsTrackingService extends ChangeNotifier {
         _pointTimer = null;
         _dutyStatus = 'unavailable';
         _lastError = 'Unable to check device location permission: ${UiError.message(e)}';
-        _scheduleAutoStop(attendance);
         _notify();
         return;
       }
@@ -163,8 +163,12 @@ class GpsTrackingService extends ChangeNotifier {
         _active = false;
         _pointTimer?.cancel();
         _pointTimer = null;
-        _scheduleAutoStop(attendance);
         _notify();
+        return;
+      }
+      if (!_current(epoch) || _windowStop == null) return;
+      if (!DateTime.now().isBefore(_windowStop!)) {
+        stop(status: 'auto_stopped');
         return;
       }
       _active = true;
@@ -211,7 +215,6 @@ class GpsTrackingService extends ChangeNotifier {
         );
       }
     }
-    if (_current(epoch)) _scheduleAutoStop(attendance);
   }
 
   void _armForWindow(Map<String, dynamic> attendance) {
@@ -225,8 +228,7 @@ class GpsTrackingService extends ChangeNotifier {
     )?.toLocal();
     if (startsAt == null) {
       _lastError = 'GPS duty schedule unavailable.';
-      _armed = false;
-      _notify();
+      stop(status: 'unavailable');
       return;
     }
     final delay = startsAt.difference(DateTime.now());
@@ -275,6 +277,7 @@ class GpsTrackingService extends ChangeNotifier {
     ++_request;
     _clearTracking();
     _dutyStatus = status;
+    if (status == 'signed_out') _lastSentAt = null;
     _notify();
   }
 
