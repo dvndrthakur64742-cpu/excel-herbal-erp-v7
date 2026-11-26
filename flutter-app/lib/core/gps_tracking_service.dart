@@ -56,6 +56,16 @@ class GpsTrackingService extends ChangeNotifier {
   bool _active = false;
   bool _armed = false;
   bool _sending = false;
+  bool _disposed = false;
+  int _epoch = 0;
+  int _request = 0;
+  DateTime? _windowStop;
+
+  bool _current(int epoch) => !_disposed && epoch == _epoch;
+  bool _canSend(int epoch) => _current(epoch) && _active &&
+      _windowStop != null && DateTime.now().isBefore(_windowStop!);
+
+  void _notify() { if (!_disposed) notifyListeners(); }
   String _dutyStatus = 'unknown';
   String? _lastError;
   DateTime? _lastSentAt;
@@ -74,18 +84,23 @@ class GpsTrackingService extends ChangeNotifier {
   /// active attendance starts tracking at the duty window and checkout/5 PM
   /// stops it automatically.
   Future<void> start() async {
-    Map<String, dynamic>? attendance;
+    if (_disposed) return;
+    final request = ++_request;
+    final Map<String, dynamic> attendance;
     try {
       final data = await _api.get(ApiPaths.attendanceToday);
-      if (data is Map) attendance = Map<String, dynamic>.from(data);
+      if (_disposed || request != _request) return;
+      if (data is! Map) throw const FormatException('Invalid attendance response');
+      attendance = Map<String, dynamic>.from(data);
     } catch (e) {
+      if (_disposed || request != _request) return;
       _lastError = UiError.message(e);
-      _dutyStatus = 'unavailable';
-      notifyListeners();
+      stop(status: 'unavailable');
       return;
     }
 
-    if (attendance == null || attendance.isEmpty) {
+    if (_disposed || request != _request) return;
+    if (attendance.isEmpty) {
       stop(status: 'not_checked_in');
       return;
     }
@@ -116,12 +131,23 @@ class GpsTrackingService extends ChangeNotifier {
   Future<void> _activate(Map<String, dynamic> attendance) async {
     _scheduleTimer?.cancel();
     _scheduleTimer = null;
+    if (_active) {
+      _scheduleAutoStop(attendance);
+      _notify();
+      return;
+    }
+    _clearTracking();
+    final epoch = _epoch;
     _armed = true;
+    _scheduleAutoStop(attendance);
+    if (!_current(epoch)) return;
     if (!_active) {
       bool permissionReady;
       try {
-        permissionReady = await _ensurePermission();
+        permissionReady = await _ensurePermission(epoch);
+        if (!_current(epoch)) return;
       } catch (e) {
+        if (!_current(epoch)) return;
         // Browser/device geolocation APIs can throw when unavailable or blocked
         // (for example, a browser permission API failure). Keep attendance intact,
         // expose the real GPS failure in the UI, and allow an explicit retry.
@@ -130,30 +156,35 @@ class GpsTrackingService extends ChangeNotifier {
         _pointTimer = null;
         _dutyStatus = 'unavailable';
         _lastError = 'Unable to check device location permission: ${UiError.message(e)}';
-        _scheduleAutoStop(attendance);
-        notifyListeners();
+        _notify();
         return;
       }
       if (!permissionReady) {
         _active = false;
         _pointTimer?.cancel();
         _pointTimer = null;
-        _scheduleAutoStop(attendance);
-        notifyListeners();
+        _notify();
+        return;
+      }
+      if (!_current(epoch) || _windowStop == null) return;
+      if (!DateTime.now().isBefore(_windowStop!)) {
+        stop(status: 'auto_stopped');
         return;
       }
       _active = true;
       _dutyStatus = 'active';
-      notifyListeners();
+      _notify();
       await sendNow();
+      if (!_canSend(epoch)) return;
       if (_active && _location.supportsBackgroundTracking) {
         // Android's foreground location service keeps collecting fixes while
         // the employee switches apps or locks the screen. Upload no more than
         // one point per five minutes to preserve the agreed route cadence.
         await _positionSubscription?.cancel();
+        if (!_canSend(epoch)) return;
         _positionSubscription = _location.watchPositions().listen(
           (position) {
-            if (!_active || _sending) return;
+            if (!_canSend(epoch) || _sending) return;
             final last = _lastSentAt;
             if (last != null &&
                 DateTime.now().difference(last) < const Duration(minutes: 5)) {
@@ -162,15 +193,16 @@ class GpsTrackingService extends ChangeNotifier {
             unawaited(_sendPosition(position));
           },
           onError: (Object error, StackTrace stackTrace) {
+            if (!_canSend(epoch)) return;
             _lastError = 'Background GPS stream error: ${UiError.message(error)}';
             // Fall back to foreground polling if the native stream terminates;
             // the error remains visible so the operator can diagnose gaps.
             _pointTimer?.cancel();
             _pointTimer = Timer.periodic(
               const Duration(minutes: 5),
-              (_) => unawaited(sendNow()),
+              (_) { if (_canSend(epoch)) unawaited(sendNow()); },
             );
-            notifyListeners();
+            _notify();
           },
         );
       } else if (_active) {
@@ -179,38 +211,35 @@ class GpsTrackingService extends ChangeNotifier {
         _pointTimer?.cancel();
         _pointTimer = Timer.periodic(
           const Duration(minutes: 5),
-          (_) => unawaited(sendNow()),
+          (_) { if (_canSend(epoch)) unawaited(sendNow()); },
         );
       }
     }
-    _scheduleAutoStop(attendance);
   }
 
   void _armForWindow(Map<String, dynamic> attendance) {
-    _pointTimer?.cancel();
-    _pointTimer = null;
-    _active = false;
+    _clearTracking();
+    final epoch = _epoch;
     _armed = true;
     _dutyStatus = 'scheduled';
-    _scheduleTimer?.cancel();
 
     final startsAt = DateTime.tryParse(
       '${attendance['gps_window_start_utc'] ?? ''}',
     )?.toLocal();
     if (startsAt == null) {
       _lastError = 'GPS duty schedule unavailable.';
-      _armed = false;
-      notifyListeners();
+      stop(status: 'unavailable');
       return;
     }
     final delay = startsAt.difference(DateTime.now());
     if (delay <= Duration.zero) {
-      unawaited(start());
+      // Avoid an unbounded immediate loop if server/device clocks differ.
+      _scheduleTimer = Timer(const Duration(seconds: 30), () { if (_current(epoch)) unawaited(start()); });
     } else {
-      _scheduleTimer = Timer(delay, () => unawaited(start()));
+      _scheduleTimer = Timer(delay, () { if (_current(epoch)) unawaited(start()); });
     }
     _scheduleAutoStop(attendance);
-    notifyListeners();
+    _notify();
   }
 
   void _scheduleAutoStop(Map<String, dynamic> attendance) {
@@ -218,26 +247,42 @@ class GpsTrackingService extends ChangeNotifier {
     final stopsAt = DateTime.tryParse(
       '${attendance['gps_window_stop_utc'] ?? ''}',
     )?.toLocal();
-    if (stopsAt == null) return;
+    _windowStop = stopsAt;
+    if (stopsAt == null) {
+      _lastError = 'GPS duty cutoff unavailable.';
+      stop(status: 'unavailable');
+      return;
+    }
     final delay = stopsAt.difference(DateTime.now());
     if (delay <= Duration.zero) {
       stop(status: 'auto_stopped');
       return;
     }
-    _stopTimer = Timer(delay, () => stop(status: 'auto_stopped'));
+    final epoch = _epoch;
+    _stopTimer = Timer(delay, () { if (_current(epoch)) stop(status: 'auto_stopped'); });
   }
 
   /// Internal/system lifecycle stop only. UI must never expose a manual route
   /// Start/Stop business action; checkout/server policy owns the route state.
   void stop({String status = 'stopped'}) {
+    if (_disposed) return;
     // Legacy UI may still call stop() without a server-owned reason. Refuse to
     // turn tracking off in that case so an employee cannot bypass duty GPS.
     if (status == 'stopped') {
       _lastError =
           'Duty GPS is automatic. It stops only after checkout or the 5 PM duty cutoff.';
-      notifyListeners();
+      _notify();
       return;
     }
+    ++_request;
+    _clearTracking();
+    _dutyStatus = status;
+    if (status == 'signed_out') _lastSentAt = null;
+    _notify();
+  }
+
+  void _clearTracking() {
+    ++_epoch;
     _pointTimer?.cancel();
     _scheduleTimer?.cancel();
     _stopTimer?.cancel();
@@ -246,20 +291,20 @@ class GpsTrackingService extends ChangeNotifier {
     _pointTimer = null;
     _scheduleTimer = null;
     _stopTimer = null;
+    _windowStop = null;
     _active = false;
     _armed = false;
     _sending = false;
-    _dutyStatus = status;
-    notifyListeners();
   }
 
   Future<void> sendNow() async {
-    if (!_active || _sending) return;
+    final epoch = _epoch;
+    if (!_canSend(epoch) || _sending) return;
     _sending = true;
-    notifyListeners();
+    _notify();
     try {
       final position = await _location.currentFix();
-      if (!_active) return; // Checkout or GPS cutoff may occur while locating.
+      if (!_canSend(epoch)) return; // Checkout, cutoff or session change while locating.
       await _api.post(
         ApiPaths.gpsPoints,
         data: {
@@ -270,9 +315,11 @@ class GpsTrackingService extends ChangeNotifier {
           'recorded_at': DateTime.now().toUtc().toIso8601String(),
         },
       );
+      if (!_current(epoch)) return;
       _lastSentAt = DateTime.now();
       _lastError = null;
     } catch (e) {
+      if (!_current(epoch)) return;
       _lastError = UiError.message(e);
       if (e is ApiException &&
           const {
@@ -288,21 +335,22 @@ class GpsTrackingService extends ChangeNotifier {
         return;
       }
       if (e is ApiException && e.code == 'gps_window_not_started') {
-        _active = false;
-        _pointTimer?.cancel();
-        _pointTimer = null;
+        stop(status: 'scheduled');
         unawaited(start());
       }
     } finally {
-      _sending = false;
-      notifyListeners();
+      if (_current(epoch)) {
+        _sending = false;
+        _notify();
+      }
     }
   }
 
   Future<void> _sendPosition(GpsFix position) async {
-    if (!_active || _sending) return;
+    final epoch = _epoch;
+    if (!_canSend(epoch) || _sending) return;
     _sending = true;
-    notifyListeners();
+    _notify();
     try {
       await _api.post(
         ApiPaths.gpsPoints,
@@ -314,9 +362,11 @@ class GpsTrackingService extends ChangeNotifier {
           'recorded_at': DateTime.now().toUtc().toIso8601String(),
         },
       );
+      if (!_current(epoch)) return;
       _lastSentAt = DateTime.now();
       _lastError = null;
     } catch (e) {
+      if (!_current(epoch)) return;
       _lastError = UiError.message(e);
       if (e is ApiException &&
           const {
@@ -331,13 +381,16 @@ class GpsTrackingService extends ChangeNotifier {
         );
       }
     } finally {
-      _sending = false;
-      notifyListeners();
+      if (_current(epoch)) {
+        _sending = false;
+        _notify();
+      }
     }
   }
 
-  Future<bool> _ensurePermission() async {
+  Future<bool> _ensurePermission(int epoch) async {
     final serviceEnabled = await _location.isLocationServiceEnabled();
+    if (!_current(epoch)) return false;
     if (!serviceEnabled) {
       _dutyStatus = 'location_disabled';
       _lastError =
@@ -346,9 +399,11 @@ class GpsTrackingService extends ChangeNotifier {
     }
 
     var permission = await _location.checkPermission();
+    if (!_current(epoch)) return false;
     if (permission == LocationPermission.denied) {
       permission = await _location.requestPermission();
     }
+    if (!_current(epoch)) return false;
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       _dutyStatus = 'permission_blocked';
@@ -362,11 +417,9 @@ class GpsTrackingService extends ChangeNotifier {
 
   @override
   void dispose() {
-    _pointTimer?.cancel();
-    _scheduleTimer?.cancel();
-    _stopTimer?.cancel();
-    unawaited(_positionSubscription?.cancel());
-    _positionSubscription = null;
+    _disposed = true;
+    ++_request;
+    _clearTracking();
     super.dispose();
   }
 }
