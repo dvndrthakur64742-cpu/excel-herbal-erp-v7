@@ -3,6 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('sidebar normal and selected text have accessible contrast', () {
+    double contrast(Color a, Color b) {
+      final x = a.computeLuminance();
+      final y = b.computeLuminance();
+      return ((x > y ? x : y) + 0.05) / ((x < y ? x : y) + 0.05);
+    }
+    expect(contrast(Colors.white, ExcelBrand.navigationSurface),
+        greaterThanOrEqualTo(4.5));
+    expect(contrast(Colors.white, ExcelBrand.navigationSelected),
+        greaterThanOrEqualTo(4.5));
+    expect(contrast(ExcelBrand.navigationMuted, ExcelBrand.navigationSurface),
+        greaterThanOrEqualTo(4.5));
+  });
+
   test('primary and error text retain readable contrast against white', () {
     double contrast(Color a, Color b) {
       final x = a.computeLuminance();

@@ -13,6 +13,24 @@ abstract final class ShellLayout {
   static double mobileDrawerWidth(double viewportWidth) =>
       (viewportWidth * .9).clamp(0.0, 390.0).toDouble();
 
+  /// NavigationBar requires at least two destinations. Only the universally
+  /// permitted Home/Profile routes may fill an incomplete projection.
+  static List<Map<String, dynamic>> mobileDestinations(
+      List<Map<String, dynamic>> projected) {
+    if (projected.length >= 2) return projected;
+    final items = List<Map<String, dynamic>>.of(projected);
+    for (final item in const [
+      {'id': 'home', 'label': 'Home'},
+      {'id': 'profile', 'label': 'Profile'},
+    ]) {
+      if (!items.any((existing) => existing['id'] == item['id'])) {
+        items.add(item);
+      }
+      if (items.length >= 2) break;
+    }
+    return items;
+  }
+
   // Preserve the selected destination by stable route ID, not its position.
   // Server-projected role/branch changes can reorder or remove bottom tabs.
   static int mobileNavIndex(

@@ -94,12 +94,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           );
         }
 
-        final items = app.bottomNav.isNotEmpty
-            ? app.bottomNav
-            : const [
-                {'id': 'home', 'label': 'Home'},
-                {'id': 'profile', 'label': 'Profile'},
-              ];
+        final items = ShellLayout.mobileDestinations(app.bottomNav);
         final safeIndex = ShellLayout.mobileNavIndex(items, mobileRoute);
         final route = '${items[safeIndex]['id']}';
         return Scaffold(
@@ -166,7 +161,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       (app.me['employee'] as Map?) ?? const {},
     );
     return Material(
-      color: Theme.of(context).colorScheme.surface,
+      color: ExcelBrand.navigationSurface,
       child: Column(
         children: [
           Padding(
@@ -186,19 +181,40 @@ class _AppShellState extends ConsumerState<AppShell> {
                         style: Theme.of(context)
                             .textTheme
                             .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                            ?.copyWith(fontWeight: FontWeight.w800, color: Colors.white),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Operations workspace',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: ExcelBrand.navigationMuted),
                       ),
                     ],
                   ),
                 ),
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: ExcelBrand.navigationSelected,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.store_outlined, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    app.currentBranchName,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Colors.white),
+                  )),
+                ],
+              ),
             ),
           ),
           if (_routeAllowed(app, 'global_search'))
@@ -210,13 +226,17 @@ class _AppShellState extends ConsumerState<AppShell> {
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: _openSearchOverlay,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: ExcelBrand.navigationMuted),
+                    ),
                     icon: const Icon(Icons.search_rounded, size: 18),
                     label: const Text('Search ERP  ·  Ctrl+Alt+K', maxLines: 2),
                   ),
                 ),
               ),
             ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: ExcelBrand.navigationSelected),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
@@ -243,7 +263,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     Icons.admin_panel_settings_outlined,
                   ),
                 const SizedBox(height: 10),
-                _sectionLabel(context, 'MODULES'),
+                _sectionLabel(context, 'BUSINESS MODULES'),
                 ...app.sections
                     .where(
                       (s) => !const {'home', 'my_work'}.contains('${s['id']}') &&
@@ -259,10 +279,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                         _icon('${s['id']}'),
                       ),
                     ),
+                const SizedBox(height: 10),
+                _sectionLabel(context, 'ACCOUNT'),
+                if (app.erpToolsVisible)
+                  _desktopTile('erp_tools', 'ERP Tools', Icons.badge_outlined),
+                _desktopTile('profile', 'My Profile', Icons.person_outline),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: ExcelBrand.navigationSelected),
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -280,13 +305,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                         '${employee['full_name'] ?? 'Employee'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelLarge,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
                       ),
                       Text(
                         '${employee['employee_code'] ?? ''} · ${employee['designation_code'] ?? ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: ExcelBrand.navigationMuted),
                       ),
                     ],
                   ),
@@ -294,7 +319,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 IconButton(
                   tooltip: 'Logout',
                   onPressed: () => ref.read(appStateProvider.notifier).logout(),
-                  icon: const Icon(Icons.logout, size: 20),
+                  icon: const Icon(Icons.logout, size: 20, color: Colors.white),
                 ),
               ],
             ),
@@ -311,7 +336,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 letterSpacing: .9,
                 fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: ExcelBrand.navigationMuted,
               ),
         ),
       );
@@ -326,7 +351,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         minTileHeight: 44,
         minVerticalPadding: 6,
         selected: selected,
-        selectedTileColor: ExcelBrand.primarySoft,
+        selectedTileColor: ExcelBrand.navigationSelected,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(13),
         ),
@@ -334,7 +359,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         leading: Icon(
           icon,
           size: 22,
-          color: selected ? ExcelBrand.primaryDark : ExcelBrand.muted,
+          color: selected ? Colors.white : ExcelBrand.navigationMuted,
         ),
         title: Text(
           label,
@@ -342,13 +367,13 @@ class _AppShellState extends ConsumerState<AppShell> {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-            color: selected ? ExcelBrand.primaryDark : ExcelBrand.ink,
+            color: Colors.white,
           ),
         ),
         trailing: selected
             ? const Icon(
                 Icons.chevron_right_rounded,
-                color: ExcelBrand.primaryDark,
+                color: Colors.white,
                 size: 19,
               )
             : null,
@@ -456,7 +481,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 children: [
                   Row(
                     children: [
-                      const BrandLogo(width: 116, height: 42),
+                      const Flexible(child: BrandLogo(width: 116, height: 42)),
                       const Spacer(),
                       IconButton(
                         tooltip: 'Close menu',
@@ -939,7 +964,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   void _selectDesktopRoute(String id) {
     final app = ref.read(appStateProvider);
     if (!_routeAllowed(app, id)) return;
-    final index = app.bottomNav.indexWhere((item) => '${item['id']}' == id);
+    final index = ShellLayout.mobileDestinations(app.bottomNav).indexWhere((item) => '${item['id']}' == id);
     setState(() {
       desktopRoute = id;
       if (index >= 0) mobileRoute = id;
@@ -947,7 +972,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _selectMobileRoute(AppState app, String id) {
-    final items = app.bottomNav;
+    if (!_routeAllowed(app, id)) return;
+    final items = ShellLayout.mobileDestinations(app.bottomNav);
     final index = items.indexWhere((item) => '${item['id']}' == id);
     if (index >= 0) {
       setState(() {

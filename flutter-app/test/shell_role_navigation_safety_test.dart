@@ -2,6 +2,26 @@ import 'package:excel_herbal_erp/shell/shell_layout.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('incomplete mobile navigation has a safe two-destination fallback', () {
+    expect(ShellLayout.mobileDestinations([]).map((item) => item['id']),
+        ['home', 'profile']);
+    final projected = <Map<String, dynamic>>[
+      {'id': 'home', 'label': 'Home'},
+    ];
+    final repaired = ShellLayout.mobileDestinations(projected);
+    expect(repaired.map((item) => item['id']), ['home', 'profile']);
+    expect(ShellLayout.mobileNavIndex(repaired, 'profile'), 1);
+    expect(projected.length, 1);
+    expect(ShellLayout.mobileDestinations([
+      {'id': 'profile', 'label': 'Profile'}
+    ]).map((item) => item['id']), ['profile', 'home']);
+    final authorised = <Map<String, dynamic>>[
+      {'id': 'home', 'label': 'Home'},
+      {'id': 'my_work', 'label': 'My Work'},
+    ];
+    expect(ShellLayout.mobileDestinations(authorised), same(authorised));
+  });
+
   test('record layout uses both viewport and workspace width', () {
     expect(ShellLayout.useRecordTable(1024, 720), isTrue);
     expect(ShellLayout.useRecordTable(960, 640), isTrue);
