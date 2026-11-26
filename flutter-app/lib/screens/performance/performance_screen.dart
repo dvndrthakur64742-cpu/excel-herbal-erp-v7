@@ -9,6 +9,7 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/business_date_field.dart';
+import '../../widgets/search_choice_dialog.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 
@@ -327,25 +328,26 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                   'Select an employee to view the audited salary revision timeline.',
                 ),
                 const SizedBox(height: 14),
-                DropdownButtonFormField<int>(
-                  isExpanded: true,
-                  initialValue: employeeId,
-                  decoration: const InputDecoration(
-                    labelText: 'Employee',
-                    prefixIcon: Icon(Icons.person_search_outlined),
-                  ),
-                  items: employees
-                      .map(
-                        (employee) => DropdownMenuItem(
-                          value: int.parse("${employee['id']}"),
-                          child: Text(
-                            "${employee['full_name']} · ${employee['employee_code']}",
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setLocal(() => employeeId = value),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDialog<int>(
+                      context: sheetContext,
+                      builder: (_) => SearchChoiceDialog(
+                        title: 'Find employee',
+                        choices: [
+                          for (final e in employees)
+                            if ((int.tryParse('${e['id']}') ?? 0) > 0)
+                              SearchChoice(int.parse('${e['id']}'), '${e['full_name']}',
+                                '${e['employee_code'] ?? ""}'),
+                        ],
+                      ),
+                    );
+                    if (!sheetContext.mounted || picked == null) return;
+                    setLocal(() => employeeId = picked);
+                  },
+                  icon: const Icon(Icons.person_search_outlined),
+                  label: Text(employeeId == null ? 'Select employee' :
+                    employees.firstWhere((e) => int.tryParse('${e['id']}') == employeeId)['full_name'].toString()),
                 ),
                 const SizedBox(height: 14),
                 Row(
