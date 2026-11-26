@@ -12,7 +12,7 @@ extension _FinanceBankFeature on _FinanceScreenState {
             child: Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
-                onPressed: _createBankReconciliation,
+                onPressed: _bankOpening ? null : _createBankReconciliation,
                 icon: const Icon(Icons.account_balance),
                 label: const Text('New Bank Reconciliation'),
               ),
@@ -40,6 +40,13 @@ extension _FinanceBankFeature on _FinanceScreenState {
   Future<void> _createBankReconciliation() async {
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
+    if (!mounted || _bankOpening || !app.can('finance.bank_reconcile') || app.currentBranchId == null) return;
+    final scope = EntryFormScope(app, api);
+    _setFinanceState(() => _bankOpening = true);
+    final from = TextEditingController(text: app.businessMonthStart);
+    final to = TextEditingController(text: app.businessDate);
+    final opening = TextEditingController(text: '0');
+    final closing = TextEditingController(text: '0');
     try {
       final finance = Map<String, dynamic>.from(
         await api.get(ApiPaths.financeBootstrap) as Map,
@@ -53,34 +60,41 @@ extension _FinanceBankFeature on _FinanceScreenState {
           )
           .toList();
       int? accountId;
-      final from = TextEditingController(text: app.businessMonthStart);
-      final to = TextEditingController(text: app.businessDate);
-      final opening = TextEditingController(text: '0');
-      final closing = TextEditingController(text: '0');
+      if (!mounted || !scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) return;
+      String? formError;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setLocal) => AlertDialog(
             title: const Text('New Bank Reconciliation'),
+            scrollable: true,
             content: SizedBox(
               width: 520,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  DropdownButtonFormField<int>(
-                    initialValue: accountId,
-                    decoration: const InputDecoration(
-                      labelText: 'Bank / Asset Account',
-                    ),
-                    items: accounts
-                        .map(
-                          (a) => DropdownMenuItem(
-                            value: int.parse('${a['id']}'),
-                            child: Text('${a['code']} · ${a['name']}'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setLocal(() => accountId = v),
+                  Text('Branch: ${app.currentBranchName}'),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final selected = await showDialog<int>(
+                        context: context,
+                        builder: (_) => SearchChoiceDialog(
+                          title: 'Bank / Asset Account',
+                          choices: [
+                            for (final a in accounts)
+                              if ((int.tryParse('${a['id']}') ?? 0) > 0)
+                                SearchChoice(int.parse('${a['id']}'), '${a['name']}',
+                                  '${a['code'] ?? ""}'),
+                          ],
+                        ),
+                      );
+                      if (!context.mounted || selected == null) return;
+                      setLocal(() { accountId = selected; formError = null; });
+                    },
+                    icon: const Icon(Icons.search),
+                    label: Text(accountId == null ? 'Select bank account *' :
+                      accounts.firstWhere((a) => int.tryParse('${a['id']}') == accountId)['name'].toString()),
                   ),
                   const SizedBox(height: 10),
                   BusinessDateField(
@@ -114,6 +128,11 @@ extension _FinanceBankFeature on _FinanceScreenState {
                       labelText: 'Closing Balance',
                     ),
                   ),
+                  if (formError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(formError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    ),
                 ],
               ),
             ),
@@ -123,26 +142,34 @@ extension _FinanceBankFeature on _FinanceScreenState {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, accountId != null),
+                onPressed: () {
+                  final error = BankReconciliationInput.validate(
+                    accountId: accountId, from: from.text, to: to.text,
+                    opening: opening.text, closing: closing.text,
+                  );
+                  if (error != null) {
+                    setLocal(() => formError = error);
+                    return;
+                  }
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Create'),
               ),
             ],
           ),
         ),
       );
-      if (ok == true) {
-        final rangeError = TransactionGuardrails.dateRange(
-          from.text.trim(),
-          to.text.trim(),
-        );
-        if (rangeError != null) throw Exception(rangeError);
-        final openingValue = double.tryParse(opening.text.trim());
-        final closingValue = double.tryParse(closing.text.trim());
-        if (openingValue == null || closingValue == null) {
-          throw Exception(
-            'Enter valid numbers for Opening and Closing Balance.',
-          );
+      if (ok == true && mounted) {
+        if (!scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) {
+          throw StateError('ERP scope changed. Open a new reconciliation.');
         }
+        final error = BankReconciliationInput.validate(
+          accountId: accountId, from: from.text, to: to.text,
+          opening: opening.text, closing: closing.text,
+        );
+        if (error != null) throw FormatException(error);
+        final openingValue = double.parse(opening.text.trim());
+        final closingValue = double.parse(closing.text.trim());
         final r = await api.post(
           ApiPaths.bankReconciliations,
           data: {
@@ -161,12 +188,14 @@ extension _FinanceBankFeature on _FinanceScreenState {
             refresh++;
           });
       }
+    } catch (e) {
+      if (mounted) _setFinanceState(() => message = UiError.message(e));
+    } finally {
       from.dispose();
       to.dispose();
       opening.dispose();
       closing.dispose();
-    } catch (e) {
-      if (mounted) _setFinanceState(() => message = UiError.message(e));
+      if (mounted) _setFinanceState(() => _bankOpening = false);
     }
   }
 

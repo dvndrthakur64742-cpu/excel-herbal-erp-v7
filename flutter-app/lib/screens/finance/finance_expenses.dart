@@ -82,38 +82,48 @@ extension _FinanceExpensesFeature on _FinanceScreenState {
                   const SizedBox(height: 8),
                   const Text('Submit for approval. This does not approve the expense.'),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    isExpanded: true,
-                    initialValue: head,
-                    decoration: const InputDecoration(
-                      labelText: 'Expense Head',
-                    ),
-                    items: heads
-                        .map(
-                          (e) => DropdownMenuItem(
-                            value: int.parse('${e['id']}'),
-                            child: Text('${e['name']}', overflow: TextOverflow.ellipsis),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setLocal(() => head = v),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await showDialog<int>(
+                        context: context,
+                        builder: (_) => SearchChoiceDialog(
+                          title: 'Expense Head',
+                          choices: [
+                            for (final e in heads)
+                              if ((int.tryParse('${e['id']}') ?? 0) > 0)
+                                SearchChoice(int.parse('${e['id']}'), '${e['name']}',
+                                  '${e['code'] ?? ""}'),
+                          ],
+                        ),
+                      );
+                      if (!context.mounted || picked == null) return;
+                      setLocal(() { head = picked; validation = null; });
+                    },
+                    icon: const Icon(Icons.search),
+                    label: Text(head == null ? 'Select Expense Head' :
+                      heads.firstWhere((e) => int.tryParse('${e['id']}') == head)['name'].toString()),
                   ),
                   const SizedBox(height: 10),
-                  DropdownButtonFormField<int>(
-                    isExpanded: true,
-                    initialValue: account,
-                    decoration: const InputDecoration(
-                      labelText: 'Payment Account',
-                    ),
-                    items: accounts
-                        .map(
-                          (e) => DropdownMenuItem(
-                            value: int.parse('${e['id']}'),
-                            child: Text('${e['code']} · ${e['name']}', overflow: TextOverflow.ellipsis),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setLocal(() => account = v),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await showDialog<int>(
+                        context: context,
+                        builder: (_) => SearchChoiceDialog(
+                          title: 'Payment Account',
+                          choices: [
+                            for (final e in accounts)
+                              if ((int.tryParse('${e['id']}') ?? 0) > 0)
+                                SearchChoice(int.parse('${e['id']}'), '${e['name']}',
+                                  '${e['code'] ?? ""}'),
+                          ],
+                        ),
+                      );
+                      if (!context.mounted || picked == null) return;
+                      setLocal(() { account = picked; validation = null; });
+                    },
+                    icon: const Icon(Icons.search),
+                    label: Text(account == null ? 'Select Payment Account' :
+                      accounts.firstWhere((e) => int.tryParse('${e['id']}') == account)['name'].toString()),
                   ),
                   const SizedBox(height: 10),
                   TextField(
