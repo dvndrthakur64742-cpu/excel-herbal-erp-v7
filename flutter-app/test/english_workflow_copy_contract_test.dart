@@ -20,8 +20,11 @@ void main() {
     ],
     'lib/screens/finance/finance_bank.dart': [
       'No bank reconciliation records yet.',
-      'Enter valid numbers for Opening and Closing Balance.',
       'Import statement lines to continue.',
+    ],
+    'lib/core/bank_reconciliation_input.dart': [
+      'Enter valid opening and closing balances with up to 2 decimal places.',
+      'Select a bank account.',
     ],
     'lib/screens/finance/finance_expenses.dart': [
       'Enter a valid expense amount.',
