@@ -153,7 +153,8 @@ class _RecordsListState extends State<RecordsList> {
                   ? Center(child: Text(widget.rows.isEmpty
                       ? 'No records available.'
                       : 'No matching records. Clear search or filters.'))
-                  : ShellLayout.isDesktopWidth(constraints.maxWidth)
+                  : ShellLayout.useRecordTable(
+                          MediaQuery.sizeOf(context).width, constraints.maxWidth)
                       ? _desktopTable(context, pageRows, constraints.maxWidth)
                       : _mobileCards(context, pageRows),
             ),
@@ -161,13 +162,20 @@ class _RecordsListState extends State<RecordsList> {
               Padding(padding: const EdgeInsets.fromLTRB(16,4,16,8), child: Text('${rows.length} of ${widget.rows.length} records on this server page', style: Theme.of(context).textTheme.bodySmall))
             else Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 0,
                 children: [
-                  Expanded(child: Text(
+                  Text(
                     rows.isEmpty ? '0 records'
                         : '${page * _pageSize + 1}–${page * _pageSize + pageRows.length} of ${rows.length} records',
                     style: Theme.of(context).textTheme.bodySmall,
-                  )),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                   PopupMenuButton<int>(
                     tooltip: 'Rows per page',
                     initialValue: _pageSize,
@@ -198,6 +206,8 @@ class _RecordsListState extends State<RecordsList> {
                       if (_verticalScroll.hasClients) _verticalScroll.jumpTo(0);
                     }),
                     icon: const Icon(Icons.chevron_right),
+                  ),
+                    ],
                   ),
                 ],
               ),

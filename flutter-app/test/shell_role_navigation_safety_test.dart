@@ -2,6 +2,14 @@ import 'package:excel_herbal_erp/shell/shell_layout.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('record layout uses both viewport and workspace width', () {
+    expect(ShellLayout.useRecordTable(1024, 720), isTrue);
+    expect(ShellLayout.useRecordTable(960, 640), isTrue);
+    expect(ShellLayout.useRecordTable(1366, 480), isFalse);
+    expect(ShellLayout.useRecordTable(900, 900), isFalse);
+    expect(ShellLayout.useRecordTable(360, 360), isFalse);
+  });
+
   test('mobile drawer never exceeds the viewport, even in split-screen', () {
     for (final width in <double>[200, 240, 280, 320, 360, 390, 430, 959]) {
       final drawerWidth = ShellLayout.mobileDrawerWidth(width);

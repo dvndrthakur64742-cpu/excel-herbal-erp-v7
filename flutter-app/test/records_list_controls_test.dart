@@ -17,6 +17,46 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('desktop records remain a table beside the sidebar', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1024, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: Row(children: [
+        const SizedBox(width: 252),
+        Expanded(child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: RecordsList(rows: [
+            {'name': 'Synthetic customer', 'status': 'active'},
+          ], recordType: 'customer'),
+        )),
+      ])),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byType(DataTable), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('record pagination wraps on narrow large-text screens', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.4)),
+        child: child!,
+      ),
+      home: Scaffold(body: RecordsList(
+        rows: List.generate(26, (i) => {'name': 'Customer $i'}),
+        recordType: 'customer',
+      )),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Next page'), findsOneWidget);
+    await tester.tap(find.byTooltip('Next page'));
+    await tester.pumpAndSettle();
+    expect(find.text('Customer 25'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('desktop table fills workspace without misleading selection',
       (tester) async {
     await showRecords(tester, [
