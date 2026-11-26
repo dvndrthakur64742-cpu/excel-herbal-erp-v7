@@ -65,6 +65,37 @@ void main() {
       expect(error, contains('negative'));
     });
 
+    test('rejects non-finite, overflow and excess precision values', () {
+      String? validateCost(double cost) => CommercialIntegrity.validate(
+            mrp: 200,
+            salePrice: 170,
+            hoAmount: 100,
+            bmProfit: 20,
+            salaryFund: 30,
+            officeExpense: 20,
+            points: 10,
+            purchaseCost: cost,
+          );
+      expect(validateCost(double.nan), isNotNull);
+      expect(validateCost(double.infinity), isNotNull);
+      expect(validateCost(10000000000), isNotNull);
+      expect(validateCost(12.34567), isNotNull);
+      expect(validateCost(12.3456), isNull);
+      expect(
+        CommercialIntegrity.validate(
+          mrp: 200.001,
+          salePrice: 170,
+          hoAmount: 100,
+          bmProfit: 20,
+          salaryFund: 30,
+          officeExpense: 20,
+          points: 10,
+          purchaseCost: 55,
+        ),
+        isNotNull,
+      );
+    });
+
     test('business date validation is strict', () {
       expect(CommercialIntegrity.validBusinessDate('2026-09-08'), isTrue);
       expect(CommercialIntegrity.validBusinessDate('2026-02-30'), isFalse);

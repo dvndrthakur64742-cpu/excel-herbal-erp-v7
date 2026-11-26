@@ -65,8 +65,16 @@ abstract final class CommercialIntegrity {
     };
     for (final entry in values.entries) {
       final value = entry.value;
-      if (value == null) return '${entry.key} valid number hona chahiye.';
+      if (value == null || !value.isFinite) {
+        return '${entry.key} valid number hona chahiye.';
+      }
       if (value < 0) return '${entry.key} negative nahi ho sakta.';
+      final scale = entry.key == 'Purchase Cost' ? 4 : 2;
+      final maximum = scale == 4 ? 9999999999.9999 : 999999999999.99;
+      if (value > maximum ||
+          double.parse(value.toStringAsFixed(scale)) != value) {
+        return '${entry.key} must fit the allowed amount and $scale decimal places.';
+      }
     }
     if (mrp! <= 0) return 'MRP zero se zyada hona chahiye.';
     if (salePrice! <= 0) return 'Sale Price zero se zyada hona chahiye.';
