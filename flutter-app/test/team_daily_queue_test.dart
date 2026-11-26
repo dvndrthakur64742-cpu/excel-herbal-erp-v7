@@ -9,7 +9,7 @@ void main() {
       businessDate: '2026-11-26',
       load: (status,page) async {
         calls.add((status,page));
-        return {'items': <Map<String,dynamic>>[], 'total': 126, 'page': page,
+        return {'items': [for(var i=0;i<25;i++) {'id':page*100+i,'business_date':'2026-11-25','employee_name':'Employee $i','status':'issued'}], 'total': 126, 'page': page,
           'page_size': 25, 'has_more': page < 6};
       },
       onOpen: (_) {},
@@ -17,6 +17,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, [('open',1)]);
     expect(find.text('126 matching orders · page 1'), findsOneWidget);
+    expect(find.byTooltip('Rows per page'), findsNothing);
+    expect(find.text('25 of 25 records on this server page'), findsOneWidget);
     await tester.tap(find.byTooltip('Next order page'));
     await tester.pumpAndSettle();
     expect(calls.last, ('open',2));

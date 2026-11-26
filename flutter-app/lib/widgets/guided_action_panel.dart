@@ -160,7 +160,8 @@ class _ActionRow extends StatelessWidget {
         border: Border.all(color: scheme.outlineVariant),
       ),
       child: LayoutBuilder(builder: (context, constraints) {
-        if (constraints.maxWidth >= 390) {
+        final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+        if (constraints.maxWidth >= 390 && textScale <= 1.3) {
           return Row(children: [
             Icon(action.icon, color: scheme.primary, size: 24),
             const SizedBox(width: 10),

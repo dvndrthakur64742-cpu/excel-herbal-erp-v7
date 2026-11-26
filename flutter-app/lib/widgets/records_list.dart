@@ -25,12 +25,15 @@ class RecordsList extends StatefulWidget {
     ],
     this.onTap,
     this.recordType,
+    this.serverPaged = false,
   });
 
   final List<Map<String, dynamic>> rows;
   final List<String> titleKeys;
   final void Function(Map<String, dynamic>)? onTap;
   final String? recordType;
+  /// True when the parent owns pagination. Local filters apply to this page only.
+  final bool serverPaged;
 
   @override
   State<RecordsList> createState() => _RecordsListState();
@@ -53,6 +56,16 @@ class _RecordsListState extends State<RecordsList> {
     _verticalScroll.dispose();
     _horizontalScroll.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant RecordsList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.rows, widget.rows)) {
+      if (_status != null && !widget.rows.any((row) => '${row['status']}' == _status)) _status = null;
+      if (_sortKey != null && !_desktopKeys().contains(_sortKey)) { _sortKey = null; _ascending = true; }
+      _page = 0;
+    }
   }
 
   void _resetPage() {
@@ -128,7 +141,7 @@ class _RecordsListState extends State<RecordsList> {
     final rows = _visibleRows();
     final lastPage = rows.isEmpty ? 0 : (rows.length - 1) ~/ _pageSize;
     final page = _page > lastPage ? lastPage : _page;
-    final pageRows = rows.skip(page * _pageSize).take(_pageSize).toList();
+    final pageRows = widget.serverPaged ? rows : rows.skip(page * _pageSize).take(_pageSize).toList();
     return LayoutBuilder(
       builder: (context, constraints) {
         return Column(
@@ -144,7 +157,9 @@ class _RecordsListState extends State<RecordsList> {
                       ? _desktopTable(context, pageRows, constraints.maxWidth)
                       : _mobileCards(context, pageRows),
             ),
-            Padding(
+            if (widget.serverPaged)
+              Padding(padding: const EdgeInsets.fromLTRB(16,4,16,8), child: Text('${rows.length} of ${widget.rows.length} records on this server page', style: Theme.of(context).textTheme.bodySmall))
+            else Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
@@ -208,7 +223,7 @@ class _RecordsListState extends State<RecordsList> {
             child: TextField(
               controller: _search,
               decoration: InputDecoration(
-                hintText: 'Search records…',
+                hintText: widget.serverPaged ? 'Search this page…' : 'Search records…',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _search.text.isEmpty ? null : IconButton(
                   tooltip: 'Clear search',
