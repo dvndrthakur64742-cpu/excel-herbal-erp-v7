@@ -110,6 +110,12 @@ abstract final class TransactionGuardrails {
     if (!dr.isFinite || !cr.isFinite || dr < 0 || cr < 0) {
       return 'Debit/Credit valid non-negative amount hona chahiye.';
     }
+    const maxStatementAmount = 999999999999.99;
+    if (dr > maxStatementAmount || cr > maxStatementAmount ||
+        double.parse(dr.toStringAsFixed(2)) != dr ||
+        double.parse(cr.toStringAsFixed(2)) != cr) {
+      return 'Debit/Credit must fit the bank amount limit and have at most two decimal places.';
+    }
     if ((dr > moneyTolerance) == (cr > moneyTolerance)) {
       return 'Statement line me Debit ya Credit me se sirf ek positive amount enter karein.';
     }
