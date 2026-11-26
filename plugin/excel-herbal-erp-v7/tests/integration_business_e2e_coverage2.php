@@ -213,6 +213,36 @@ e2_case('e2_saleable_stock_expiry_fefo',function()use($maker,$wpdb){
     }catch(RuntimeException $e){if($e->getMessage()!=='expiry-fixture-rollback')throw $e;}
 });
 
+e2_case('e2_quarantine_resolution_atomic',function()use($approver,$wpdb){
+    try{
+        \ExcelHerbal\ERP7\Database\Transaction::run(function()use($approver,$wpdb){
+            $pid=9300;$today=new DateTimeImmutable(Db::today());$q=Db::table('stock_quarantine');
+            e2_insert($wpdb,'products',['id'=>$pid,'company_id'=>1,'sku'=>'QUARANTINE-9300','name'=>'Synthetic quarantine','uom'=>'PCS','batch_tracking'=>'required','expiry_tracking'=>1,'status'=>'active','created_at'=>Db::now()]);
+            $ids=[];
+            foreach(['valid'=>$today->modify('+10 days'),'expired'=>$today->modify('-1 day')] as $name=>$date){
+                e2_insert($wpdb,'batches',['company_id'=>1,'product_id'=>$pid,'batch_no'=>'QUAR-'.$name,'expires_on'=>$date->format('Y-m-d'),'status'=>'active','created_at'=>Db::now()]);
+                $batch=(int)$wpdb->insert_id;
+                e2_insert($wpdb,'stock_quarantine',['company_id'=>1,'branch_id'=>1,'product_id'=>$pid,'batch_id'=>$batch,'quantity'=>2,'reason'=>'Synthetic hold','status'=>'open','created_by'=>30,'created_at'=>Db::now()]);
+                $ids[$name]=(int)$wpdb->insert_id;
+            }
+            $resolve=fn($id,$action)=>\ExcelHerbal\ERP7\Inventory\InventoryService::resolveQuarantine($approver,$id,$action,'Synthetic resolution');
+            $reject=function($id,$code)use($resolve){
+                try{$resolve($id,'release');}catch(DomainException $e){if($e->codeKey===$code)return;throw $e;}
+                throw new RuntimeException('Unexpected quarantine release');
+            };
+            $reject($ids['expired'],'batch_expired');
+            if(($resolve($ids['valid'],'release')['status']??'')!=='released')throw new RuntimeException('Valid release failed');
+            $reject($ids['valid'],'quarantine_already_resolved');
+            if((int)$wpdb->get_var("SELECT COUNT(*) FROM {$q} WHERE product_id={$pid} AND status='released'")!==1)throw new RuntimeException('Quarantine status mismatch');
+            if((int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('stock_ledger')." WHERE product_id={$pid} AND source_type='quarantine_release'")!==1)throw new RuntimeException('Duplicate quarantine ledger');
+            if(abs((float)$wpdb->get_var("SELECT SUM(quantity) FROM ".Db::table('stock_balances')." WHERE product_id={$pid}")-2)>0.001)throw new RuntimeException('Released stock quantity mismatch');
+            if(($resolve($ids['expired'],'write_off')['status']??'')!=='written_off')throw new RuntimeException('Existing write-off status transition failed');
+            if((int)$wpdb->get_var("SELECT COUNT(*) FROM ".Db::table('audit_log')." WHERE entity_type='stock_quarantine' AND entity_id IN (".$ids['valid'].','.$ids['expired'].")")!==2)throw new RuntimeException('Missing resolution audit');
+            throw new RuntimeException('quarantine-fixture-rollback');
+        });
+    }catch(RuntimeException $e){if($e->getMessage()!=='quarantine-fixture-rollback')throw $e;}
+});
+
 e2_case('e2_full_prepayment_and_no_customer_credit',function()use($maker,$approver,$wpdb,&$state){
     $customer=e2_dispatch('sales.customer_create',$maker,[
         'branch_id'=>1,'name'=>'Coverage Customer','mobile'=>'9000000001','email'=>'customer@example.test','address'=>'Disposable fixture',
