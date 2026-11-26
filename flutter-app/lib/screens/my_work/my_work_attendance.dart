@@ -93,7 +93,11 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                                 )
                               else
                                 Text(selfMode
-                                    ? 'Check in yourself with your current location.'
+                                    ? switch (r['check_in_block_reason']) {
+                                        'approved_leave' => 'Approved leave today. Check-in is not required.',
+                                        'holiday' => 'Today is a holiday. Check-in is not required.',
+                                        _ => 'Check in yourself with your current location.',
+                                      }
                                     : 'Duty automatically starts at 10:30 AM; no manual check-in is required.'),
                               if (checkedIn) ...[
                                 const SizedBox(height: 2),
