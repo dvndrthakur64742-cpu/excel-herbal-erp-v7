@@ -24,6 +24,7 @@ void main() {
 
   test('record layout uses both viewport and workspace width', () {
     expect(ShellLayout.useRecordTable(1024, 720), isTrue);
+    expect(ShellLayout.useRecordTable(800, 1024), isTrue);
     expect(ShellLayout.useRecordTable(960, 640), isTrue);
     expect(ShellLayout.useRecordTable(1366, 480), isFalse);
     expect(ShellLayout.useRecordTable(900, 900), isFalse);

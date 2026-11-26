@@ -173,8 +173,8 @@ class _RecordsListState extends State<RecordsList> {
                         : '${page * _pageSize + 1}–${page * _pageSize + pageRows.length} of ${rows.length} records',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                   PopupMenuButton<int>(
                     tooltip: 'Rows per page',
@@ -272,7 +272,10 @@ class _RecordsListState extends State<RecordsList> {
                 children: [
                   const Icon(Icons.filter_list_rounded, size: 18),
                   const SizedBox(width: 6),
-                  Text(_status == null ? 'All statuses' : BusinessFormat.status(_status)),
+                  Flexible(child: Text(
+                    _status == null ? 'All statuses' : BusinessFormat.status(_status),
+                    overflow: TextOverflow.ellipsis,
+                  )),
                   const SizedBox(width: 3),
                   const Icon(Icons.arrow_drop_down, size: 18),
                 ],

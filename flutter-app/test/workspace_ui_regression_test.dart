@@ -81,7 +81,7 @@ void main() {
     expect(source, isNot(contains('ModuleWorkspaceHeader(')));
     expect(source, contains("_sectionLabel(context, 'WORK')"));
     expect(source, contains("_sectionLabel(context, 'CONTROL')"));
-    expect(source, contains("_sectionLabel(context, 'MODULES')"));
+    expect(source, contains("_sectionLabel(context, 'BUSINESS MODULES')"));
   });
 
   test('business module page titles match shell navigation labels', () {

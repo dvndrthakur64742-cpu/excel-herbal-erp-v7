@@ -23,6 +23,7 @@ abstract final class HomeStartTaskPlanner {
     required bool Function(String) can,
     required bool Function(String) sectionVisible,
     required bool businessAccessBlocked,
+    Set<String> alreadyVisible = const {},
   }) {
     if (businessAccessBlocked) return const [];
 
@@ -152,7 +153,9 @@ abstract final class HomeStartTaskPlanner {
     final ranked = urgent.isEmpty
         ? <HomeStartTask>[...ownWork, ...otherWork]
         : <HomeStartTask>[...urgent, ...otherWork, ...ownWork];
-    return List<HomeStartTask>.unmodifiable(ranked.take(3));
+    return List<HomeStartTask>.unmodifiable(
+      ranked.where((task) => !alreadyVisible.contains(task.id)).take(3),
+    );
   }
 }
 

@@ -18,8 +18,12 @@ void main() {
   }
 
   testWidgets('desktop records remain a table beside the sidebar', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1024, 800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.physicalSize = const Size(1024, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: Row(children: [
         const SizedBox(width: 252),
