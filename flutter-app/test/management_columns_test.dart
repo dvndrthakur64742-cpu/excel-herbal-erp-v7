@@ -8,5 +8,8 @@ void main() {
     expect(managementColumns(320, 4), 1);
     expect(managementColumns(900, 3), 3);
     expect(managementColumns(1400, 1), 1);
+    expect(managementColumns(1100, 4, textScale: 1.6), 2);
+    expect(managementColumns(600, 4, textScale: 1.6), 1);
+    expect(managementColumns(1400, 4, textScale: 2), 2);
   });
 }

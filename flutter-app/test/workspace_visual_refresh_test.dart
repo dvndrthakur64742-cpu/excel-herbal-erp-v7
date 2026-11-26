@@ -61,8 +61,10 @@ void main() {
     final overview = home.indexOf('_ManagementOverview(');
     final shortcuts = home.indexOf('HomeStartTasks(');
     expect(selector, greaterThanOrEqualTo(0));
-    expect(overview, greaterThan(selector));
-    expect(shortcuts, greaterThan(overview));
+    expect(shortcuts, greaterThan(selector));
+    expect(overview, greaterThan(shortcuts));
+    expect(home.indexOf('ExpansionTile('), greaterThan(overview));
+    expect(home, contains('label: \'Reporting group\''));
     expect(home, contains('ExpansionTile('));
     expect(home, contains('children: [_AuthorityCard(app: app)]'));
     expect(home, contains("cards.add(const _Metric('Daily orders', 'Unavailable'"));

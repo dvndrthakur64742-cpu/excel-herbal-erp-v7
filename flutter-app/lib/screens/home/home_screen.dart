@@ -79,6 +79,13 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             const BranchSelector(),
           ],
+          if (startTasks.isNotEmpty && openConnectedAction != null) ...[
+            const SizedBox(height: 24),
+            HomeStartTasks(
+              tasks: startTasks,
+              onOpen: (task) => openConnectedAction!(task.id),
+            ),
+          ],
           if (branch != null && app.managementDashboardVisible) ...[
             const SizedBox(height: 20),
             _SectionTitle(
@@ -90,21 +97,6 @@ class HomeScreen extends ConsumerWidget {
               key: ValueKey('management-$branch-${app.businessDate}'),
               api: api, app: app, branch: branch, onOpen: openConnectedAction),
           ],
-          if (startTasks.isNotEmpty && openConnectedAction != null) ...[
-            const SizedBox(height: 24),
-            HomeStartTasks(
-              tasks: startTasks,
-              onOpen: (task) => openConnectedAction!(task.id),
-            ),
-          ],
-          const SizedBox(height: 16),
-          ExpansionTile(
-            leading: const Icon(Icons.shield_outlined),
-            title: const Text('Your access'),
-            subtitle: const Text('View role and access details'),
-            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            children: [_AuthorityCard(app: app)],
-          ),
           if (app.businessAccessBlocked) ...[
             const SizedBox(height: 16),
             const _InfoNotice(
@@ -180,6 +172,14 @@ class HomeScreen extends ConsumerWidget {
                   'Report access is available, but Team management scope is not assigned. Management KPIs are therefore hidden from Home.',
             ),
           ],
+          const SizedBox(height: 16),
+          ExpansionTile(
+            leading: const Icon(Icons.shield_outlined),
+            title: const Text('Your access'),
+            subtitle: const Text('View role and access details'),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            children: [_AuthorityCard(app: app)],
+          ),
         ],
       ),
     );
@@ -193,33 +193,11 @@ class _IdentityHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reporting = _human(app.reportingCategory);
     return WorkspaceBanner(
       eyebrow: 'Excel Herbal / Workspace overview',
       title: 'Good ${_dayPart()}, ${app.employeeName}',
       subtitle: '${app.primaryDesignationLabel}  •  ${app.currentBranchName}',
       icon: Icons.dashboard_customize_outlined,
-      footer: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [
-          const _ContextChip(
-            icon: Icons.verified_user_outlined,
-            label: 'Authorised employee workspace',
-          ),
-          if (reporting.isNotEmpty)
-            _ContextChip(
-              icon: Icons.account_tree_outlined,
-              label: 'Reporting: $reporting',
-            ),
-          if (app.additionalDesignations.isNotEmpty)
-            _ContextChip(
-              icon: Icons.badge_outlined,
-              label:
-                  '${app.additionalDesignations.length} additional designation${app.additionalDesignations.length == 1 ? '' : 's'}',
-            ),
-        ],
-      ),
     );
   }
 
@@ -248,6 +226,7 @@ class _AuthorityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final extras = app.additionalDesignations.length;
+    final reporting = _IdentityHero._human(app.reportingCategory);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -289,6 +268,14 @@ class _AuthorityCard extends StatelessWidget {
                       Expanded(child: access),
                     ],
                   ),
+                if (reporting.isNotEmpty) ...[
+                  const Divider(height: 24),
+                  _AuthorityRow(
+                    icon: Icons.account_tree_outlined,
+                    label: 'Reporting group',
+                    value: reporting,
+                  ),
+                ],
                 if (extras > 0) ...[
                   const Divider(height: 24),
                   _AuthorityRow(
@@ -688,7 +675,11 @@ class _ManagementOverview extends StatelessWidget {
           }
           return LayoutBuilder(
             builder: (context, constraints) {
-              final columns = managementColumns(constraints.maxWidth, cards.length);
+              final columns = managementColumns(
+                constraints.maxWidth,
+                cards.length,
+                textScale: MediaQuery.textScalerOf(context).scale(14) / 14,
+              );
               final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -770,7 +761,9 @@ class _ManagementOverview extends StatelessWidget {
 }
 
 // Balance four metrics across desktop or medium-width rows.
-int managementColumns(double width, int count) {
+int managementColumns(double width, int count, {double textScale = 1}) {
+  // Larger text needs more usable width per financial value.
+  width /= textScale.clamp(1.0, 3.0);
   if (count <= 1 || width < 500) return 1;
   if (width >= 1000 && count >= 4) return 4;
   if (width >= 800 && count == 3) return 3;
@@ -834,8 +827,6 @@ class _MetricCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 metric.value,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w900,
                       color: ExcelBrand.ink,
@@ -915,30 +906,6 @@ class _AuthorityRow extends StatelessWidget {
             ),
           ),
         ],
-      );
-}
-
-class _ContextChip extends StatelessWidget {
-  const _ContextChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withValues(alpha: .76),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16),
-            const SizedBox(width: 6),
-            Text(label, style: Theme.of(context).textTheme.labelMedium),
-          ],
-        ),
       );
 }
 
