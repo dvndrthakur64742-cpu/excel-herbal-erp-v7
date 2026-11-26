@@ -161,7 +161,15 @@ final class BankImportRegressionDb {
     public string $last_error='';
     public array $rows=[];
     public array $queries=[];
-    public function prepare($q,...$args){return $q;}
+    private array $params=[];
+    public function prepare($q,...$args){$this->params=$args;return $q;}
+    public function get_var($q){
+        [$id,$date,$reference,$debit,$credit]=$this->params;
+        foreach($this->rows as $r){
+            if($r['reconciliation_id']===$id&&$r['txn_date']===$date&&trim($r['reference'])===$reference&&(float)$r['debit']===(float)$debit&&(float)$r['credit']===(float)$credit)return 1;
+        }
+        return null;
+    }
     public function get_row($q,$mode){return ['id'=>1,'company_id'=>1,'branch_id'=>1,'status'=>'draft','statement_from'=>'2026-09-01','statement_to'=>'2026-09-30'];}
     public function query($q){$this->queries[]=$q;if($q==='ROLLBACK')$this->rows=[];return 1;}
     public function insert($table,$data){$this->rows[]=$data;return 1;}
@@ -199,5 +207,27 @@ try{
 }catch(DomainException $e){
     if($e->codeKey==='bank_statement_amount_invalid'&&$wpdb->rows===[]&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS bank import mixed batch rollback\n";
     else{$failed++;echo "FAIL bank import mixed batch rollback\n";}
+}
+// FIN-02: a repeated bank reference/date/direction/amount is a duplicate
+// candidate, while matching amounts alone are not sufficient evidence.
+$bankLine=['txn_date'=>'2026-09-08','reference'=>'BANK-001','debit'=>100,'credit'=>0];
+foreach([
+    ['same referenced transaction',[$bankLine,$bankLine],false],
+    ['reference whitespace',[$bankLine,array_replace($bankLine,['reference'=>' BANK-001 '])],false],
+    ['distinct references',[$bankLine,array_replace($bankLine,['reference'=>'BANK-002'])],true],
+    ['distinct dates',[$bankLine,array_replace($bankLine,['txn_date'=>'2026-09-09'])],true],
+    ['distinct amounts',[$bankLine,array_replace($bankLine,['debit'=>200])],true],
+    ['distinct directions',[$bankLine,array_replace($bankLine,['debit'=>0,'credit'=>100])],true],
+    ['missing references',[array_replace($bankLine,['reference'=>'']),array_replace($bankLine,['reference'=>''])],true],
+] as [$name,$lines,$valid]){
+    $wpdb=new BankImportRegressionDb();
+    try{
+        $result=\ExcelHerbal\ERP7\Finance\FinanceBankService::bankImport($bankActor,1,$lines);
+        if(!$valid||$result['imported']!==2||count($wpdb->rows)!==2)throw new \RuntimeException('unexpected acceptance');
+        echo "PASS bank duplicate {$name}\n";
+    }catch(DomainException $e){
+        if(!$valid&&$e->codeKey==='bank_statement_duplicate_candidate'&&$wpdb->rows===[]&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS bank duplicate {$name}\n";
+        else{$failed++;echo "FAIL bank duplicate {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL bank duplicate {$name}: {$e->getMessage()}\n";}
 }
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);

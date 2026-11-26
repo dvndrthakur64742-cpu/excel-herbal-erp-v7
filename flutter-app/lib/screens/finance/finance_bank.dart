@@ -300,7 +300,11 @@ extension _FinanceBankFeature on _FinanceScreenState {
                 const SizedBox(height: 10),
                 TextField(
                   controller: reference,
-                  decoration: const InputDecoration(labelText: 'Reference'),
+                  decoration: const InputDecoration(
+                    labelText: 'Bank transaction reference',
+                    helperText: 'Use the actual bank reference to detect repeat imports.',
+                  ),
+                  maxLength: 120,
                 ),
                 const SizedBox(height: 10),
                 TextField(
