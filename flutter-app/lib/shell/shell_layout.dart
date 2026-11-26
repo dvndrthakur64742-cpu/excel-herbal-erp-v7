@@ -6,7 +6,7 @@ abstract final class ShellLayout {
   // The desktop sidebar occupies part of the viewport. A records workspace
   // should not revert to phone cards solely because of that sidebar.
   static bool useRecordTable(double viewportWidth, double contentWidth) =>
-      isDesktopWidth(viewportWidth) && contentWidth >= 640;
+      isDesktopWidth(contentWidth) || (isDesktopWidth(viewportWidth) && contentWidth >= 640);
 
   // A drawer must never be wider than the actual phone viewport, including
   // narrow split-screen mode and large system text settings.

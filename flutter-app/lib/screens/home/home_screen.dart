@@ -36,7 +36,8 @@ class HomeScreen extends ConsumerWidget {
       can: app.can,
       sectionVisible: app.sectionVisible,
       businessAccessBlocked: app.businessAccessBlocked,
-    ).where((task) => !showAttendanceShortcut || task.id != 'attendance').toList();
+      alreadyVisible: showAttendanceShortcut ? const {'attendance'} : const {},
+    );
 
     return RefreshIndicator(
       onRefresh: () async {

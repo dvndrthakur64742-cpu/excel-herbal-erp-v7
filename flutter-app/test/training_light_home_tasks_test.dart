@@ -48,6 +48,18 @@ void main() {
     ]);
   });
 
+  test('already visible attendance does not consume a quick-action slot', () {
+    final planned = HomeStartTaskPlanner.recommend(
+      can: {
+        'workforce.attendance.self', 'daily_order.self', 'workforce.leave.self',
+      }.contains,
+      sectionVisible: {'home', 'my_work'}.contains,
+      businessAccessBlocked: false,
+      alreadyVisible: {'attendance'},
+    );
+    expect(planned.map((t) => t.id), ['daily_create', 'evening', 'leave']);
+  });
+
   test('permissions and projected navigation both restrict task entry', () {
     expect(
       tasks({'sales.create', 'daily_order.self'}, {'home'}),
