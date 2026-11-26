@@ -58,6 +58,16 @@ class ApiClient {
   bool _loggingOut = false;
   int? _refreshEpoch;
   String? _refreshBoundary;
+  bool _boundaryBound = false;
+  String? _boundBoundary;
+
+  Future<String?> _captureBoundary(int epoch) async {
+    final latest = await session.loginBoundary();
+    if (!_localCurrent(epoch)) throw const ApiException('session_changed','Session changed.');
+    if (!_boundaryBound) { _boundaryBound = true; _boundBoundary = latest; }
+    if (_boundBoundary != latest) throw const ApiException('session_changed','Session changed in another tab. Sign in again.');
+    return latest;
+  }
 
   bool _localCurrent(int epoch) => epoch == _authEpoch && !_loggingOut;
   Future<bool> _current(int epoch,String? boundary) async =>
@@ -154,7 +164,7 @@ class ApiClient {
   }) async {
     _requireSafeApiTarget();
     final epoch = _authEpoch;
-    final boundary = await session.loginBoundary();
+    final boundary = await _captureBoundary(epoch);
     await _requireCurrent(epoch,boundary);
     final headers = <String, dynamic>{};
     final token = await session.accessToken();
@@ -203,7 +213,7 @@ class ApiClient {
       downloadPrivateDocument(String url, {bool retried = false, int? requestEpoch, String? requestBoundary}) async {
     _requireSafeApiTarget();
     final epoch = requestEpoch ?? _authEpoch;
-    final boundary = requestEpoch == null ? await session.loginBoundary() : requestBoundary;
+    final boundary = requestEpoch == null ? await _captureBoundary(epoch) : requestBoundary;
     await _requireCurrent(epoch,boundary);
     final uri = privateDocumentUri(dio.options.baseUrl, url);
     final token = await session.accessToken();
@@ -274,6 +284,8 @@ class ApiClient {
     final map = Map<String, dynamic>.from(data as Map);
     await _requireCurrent(epoch,previousBoundary);
     await session.beginLoginBoundary();
+    _boundBoundary = await session.loginBoundary();
+    _boundaryBound = true;
     if (!_localCurrent(epoch)) throw const ApiException('session_changed','Session changed.');
     await session.save(
       accessToken: '${map['access_token']}',
@@ -286,7 +298,7 @@ class ApiClient {
     if (_loggingOut) return;
     _loggingOut = true;
     ++_authEpoch;
-    final boundary = await session.loginBoundary();
+    final boundary = _boundaryBound ? _boundBoundary : await session.loginBoundary();
     try {
       final pending = _refreshFuture;
       if (pending != null) await pending;
@@ -303,6 +315,8 @@ class ApiClient {
       try {
         if (await session.loginBoundary() == boundary) await session.clear();
       } finally {
+        _boundaryBound = false;
+        _boundBoundary = null;
         _loggingOut = false;
       }
     }
@@ -322,7 +336,7 @@ class ApiClient {
   }) async {
     _requireSafeApiTarget();
     final epoch = requestEpoch ?? _authEpoch;
-    final boundary = requestEpoch == null ? await session.loginBoundary() : requestBoundary;
+    final boundary = !authenticated ? null : (requestEpoch == null ? await _captureBoundary(epoch) : requestBoundary);
     if (authenticated) await _requireCurrent(epoch,boundary);
     final headers = <String, dynamic>{};
     if (authenticated) {
