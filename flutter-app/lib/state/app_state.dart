@@ -272,10 +272,16 @@ class AppController extends StateNotifier<AppState> {
   final ApiClient api;
   final SecureSession session;
   Future<void>? _loginFuture;
+  Future<void>? _logoutFuture;
+  int _authEpoch = 0;
+  int _bootstrapRevision = 0;
+  bool _currentAuth(int epoch) => mounted && epoch == _authEpoch && _logoutFuture == null;
 
   Future<void> initialize() async {
+    final epoch = _authEpoch;
     try {
       final token = await session.accessToken();
+      if (!_currentAuth(epoch)) return;
       if (token == null || token.isEmpty) {
         state = const AppState(loading: false);
         return;
@@ -285,6 +291,7 @@ class AppController extends StateNotifier<AppState> {
       // the employee has tried to sign in again.
       await refreshBootstrap(fromStoredSession: true);
     } catch (_) {
+      if (!_currentAuth(epoch)) return;
       // Secure storage may be unavailable after a browser/profile change.
       // Never leave startup spinning indefinitely or silently erase tokens.
       state = const AppState(
@@ -302,6 +309,8 @@ class AppController extends StateNotifier<AppState> {
   }
 
   Future<void> login(String mobile, String password) {
+    final logout = _logoutFuture;
+    if (logout != null) return logout.then((_) => login(mobile,password));
     final existing = _loginFuture;
     if (existing != null) return existing;
     final future = _performLogin(mobile, password);
@@ -310,36 +319,45 @@ class AppController extends StateNotifier<AppState> {
   }
 
   Future<void> _performLogin(String mobile, String password) async {
+    final epoch = ++_authEpoch;
     state = state.copyWith(loading: true, clearError: true);
     try {
       await api.login(mobile, password);
+      if (!_currentAuth(epoch)) return;
       await refreshBootstrap();
     } catch (e) {
+      if (!_currentAuth(epoch)) return;
       state = AppState(loading: false, error: UiError.loginMessage(e));
     }
   }
 
   /// Retry only transient read-only bootstrap failures. Never retry login,
   /// payments or other mutations, permission errors, or contract mismatches.
-  Future<dynamic> _fetchBootstrap() async {
+  Future<dynamic> _fetchBootstrap(bool Function() current) async {
     try {
       return await api.get(ApiPaths.bootstrap);
     } on ApiException catch (error) {
       if (!BootstrapRetryPolicy.shouldRetry(error)) rethrow;
       await Future<void>.delayed(const Duration(milliseconds: 350));
+      if (!current()) throw const ApiException('session_changed','Session changed.');
       return api.get(ApiPaths.bootstrap);
     }
   }
 
   Future<void> refreshBootstrap({bool fromStoredSession = false}) async {
+    if (_logoutFuture != null || !mounted) return;
+    final epoch = _authEpoch;
+    final revision = ++_bootstrapRevision;
+    bool current() => _currentAuth(epoch) && revision == _bootstrapRevision;
     try {
       final data = Map<String, dynamic>.from(
-        await _fetchBootstrap() as Map,
+        await _fetchBootstrap(current) as Map,
       );
+      if (!current()) return;
       final projection = BootstrapProjection.fromMap(data);
       final ids = projection.identity.branchIds;
       final assigned = projection.identity.assignedBranchId;
-      final current =
+      final selectedBranch =
           state.currentBranchId != null && ids.contains(state.currentBranchId)
           ? state.currentBranchId
           : (ids.length == 1
@@ -351,17 +369,19 @@ class AppController extends StateNotifier<AppState> {
         loading: false,
         authenticated: true,
         bootstrap: data,
-        currentBranchId: current,
+        currentBranchId: selectedBranch,
       );
       final compatibilityError = next.bootstrapCompatibilityError;
       state = compatibilityError == null
           ? next
           : next.copyWith(error: compatibilityError);
     } on ApiException catch (e) {
+      if (!current()) return;
       // 403 means authenticated but not authorised for that resource. It must
       // never destroy a valid employee session.
       if (e.statusCode == 401) {
         await session.clear();
+        if (!current()) return;
         // Only a silent *cold-start* recovery suppresses the expected expired
         // token notice. An already active session that is revoked during work
         // must still tell the employee why a new sign-in is necessary.
@@ -375,6 +395,7 @@ class AppController extends StateNotifier<AppState> {
         // Revoke stale projected branch/capability access immediately while
         // keeping the authenticated session for recovery or administrator help.
         final token = await session.accessToken();
+        if (!current()) return;
         state = AppState(
           loading: false,
           authenticated: token?.isNotEmpty ?? false,
@@ -384,6 +405,7 @@ class AppController extends StateNotifier<AppState> {
         return;
       }
       final token = await session.accessToken();
+      if (!current()) return;
       state = state.copyWith(
         loading: false,
         authenticated: state.authenticated || (token?.isNotEmpty ?? false),
@@ -391,7 +413,9 @@ class AppController extends StateNotifier<AppState> {
         errorReference: UiError.reference(e),
       );
     } catch (e) {
+      if (!current()) return;
       final token = await session.accessToken();
+      if (!current()) return;
       state = state.copyWith(
         loading: false,
         authenticated: state.authenticated || (token?.isNotEmpty ?? false),
@@ -425,9 +449,26 @@ class AppController extends StateNotifier<AppState> {
     await refreshBootstrap();
   }
 
-  Future<void> logout() async {
-    await api.logout();
-    state = const AppState(loading: false);
+  Future<void> logout() {
+    final existing = _logoutFuture;
+    if (existing != null) return existing;
+    ++_authEpoch;
+    ++_bootstrapRevision;
+    final pendingLogin = _loginFuture;
+    final future = _performLogout(pendingLogin);
+    _logoutFuture = future;
+    return future.whenComplete(() { _logoutFuture = null; });
+  }
+
+  Future<void> _performLogout(Future<void>? pendingLogin) async {
+    state = const AppState(loading: true);
+    try {
+      // A login already writing tokens must finish before local revocation.
+      if (pendingLogin != null) await pendingLogin;
+      await api.logout();
+    } finally {
+      if (mounted) state = const AppState(loading: false);
+    }
   }
 }
 
