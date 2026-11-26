@@ -283,10 +283,10 @@ class ApiClient {
     );
     final map = Map<String, dynamic>.from(data as Map);
     await _requireCurrent(epoch,previousBoundary);
-    await session.beginLoginBoundary();
-    _boundBoundary = await session.loginBoundary();
+    final boundary = await session.beginLoginBoundary();
+    await _requireCurrent(epoch,boundary);
+    _boundBoundary = boundary;
     _boundaryBound = true;
-    if (!_localCurrent(epoch)) throw const ApiException('session_changed','Session changed.');
     await session.save(
       accessToken: '${map['access_token']}',
       refreshToken: '${map['refresh_token']}',
