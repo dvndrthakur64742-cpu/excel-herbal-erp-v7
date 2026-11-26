@@ -14,13 +14,13 @@ final class FinancePeriodService{
    $overlap=$db->get_var($db->prepare("SELECT id FROM {$periods} WHERE company_id=%d AND status='closed' AND NOT(period_start=%s AND period_end=%s) AND NOT(period_end<%s OR period_start>%s) LIMIT 1 FOR UPDATE",$a->companyId,$from,$to,$from,$to));
    if(!empty($db->last_error))throw new DomainException('Unable to verify accounting period overlap.','period_read_failed',500);
    if($overlap)throw new DomainException('Period overlaps existing close.','period_overlap',409);
-   $openDaily=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('daily_cycles')." WHERE company_id=%d AND business_date BETWEEN %s AND %s AND status NOT IN ('completed','cancelled')",$a->companyId,$from,$to));
-   $pendingExpenses=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('expenses')." WHERE company_id=%d AND expense_date BETWEEN %s AND %s AND status='pending'",$a->companyId,$from,$to));
-   $pendingAdjustments=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('stock_adjustments')." WHERE company_id=%d AND status='pending' AND DATE(created_at)<=%s",$a->companyId,$to));
-   $pendingReversals=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('reversals')." WHERE company_id=%d AND status IN ('pending','approved') AND DATE(requested_at)<=%s",$a->companyId,$to));
-   $draftPayroll=(int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('payroll_runs')." WHERE company_id=%d AND status='draft' AND period_end<=%s",$a->companyId,$to));
+   $openDaily=ClosingPreflightRead::count($db,$db->prepare("SELECT COUNT(*) FROM ".Db::table('daily_cycles')." WHERE company_id=%d AND business_date BETWEEN %s AND %s AND status NOT IN ('completed','cancelled')",$a->companyId,$from,$to));
+   $pendingExpenses=ClosingPreflightRead::count($db,$db->prepare("SELECT COUNT(*) FROM ".Db::table('expenses')." WHERE company_id=%d AND expense_date BETWEEN %s AND %s AND status='pending'",$a->companyId,$from,$to));
+   $pendingAdjustments=ClosingPreflightRead::count($db,$db->prepare("SELECT COUNT(*) FROM ".Db::table('stock_adjustments')." WHERE company_id=%d AND status='pending' AND DATE(created_at)<=%s",$a->companyId,$to));
+   $pendingReversals=ClosingPreflightRead::count($db,$db->prepare("SELECT COUNT(*) FROM ".Db::table('reversals')." WHERE company_id=%d AND status IN ('pending','approved') AND DATE(requested_at)<=%s",$a->companyId,$to));
+   $draftPayroll=ClosingPreflightRead::count($db,$db->prepare("SELECT COUNT(*) FROM ".Db::table('payroll_runs')." WHERE company_id=%d AND status='draft' AND period_end<=%s",$a->companyId,$to));
    $branches=Db::table('branches');$closings=Db::table('branch_closings');$daily=Db::table('daily_cycles');$journals=Db::table('journal_entries');
-   $missingClosings=(array)$db->get_results($db->prepare(
+   $missingClosings=ClosingPreflightRead::rows($db,$db->prepare(
     "SELECT x.branch_id,b.name branch_name,x.business_date
      FROM (
        SELECT branch_id,business_date FROM {$daily} WHERE company_id=%d AND business_date BETWEEN %s AND %s
