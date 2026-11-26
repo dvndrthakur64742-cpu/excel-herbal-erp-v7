@@ -236,7 +236,10 @@ void main() {
     expect(home, contains('final salesFuture = _safeRows('));
     expect(home, contains("app.can('daily_order.others')"));
     expect(home, contains("app.can('performance.view')"));
-    expect(home, contains('final rows = await Future.wait(['));
+    expect(home, contains('final rows = await Future.wait<Object?>([salesFuture, dailyFuture, performanceFuture])'));
+    expect(home, contains('SalesReportTotals.read(sales)'));
+    expect(home, contains('DashboardData.openCount(raw)'));
+    expect(home, contains("'status': 'open', 'page': 1, 'page_size': 1"));
     expect(home, contains('Future<List<Map<String, dynamic>>?> _safeRows'));
     // A failed independent request is unknown, not a verified zero.
     expect(home, contains('if (value is! List || value.any((row) => row is! Map)) return null;'));
