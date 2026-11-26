@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/providers.dart';
@@ -8,6 +9,7 @@ import '../../core/ui_error.dart';
 import '../../core/prepaid_invoice_readiness.dart';
 import '../../core/entry_form_scope.dart';
 import '../../core/business_format.dart';
+import '../../core/report_print_document.dart';
 import 'prepaid_cart_dialog.dart';
 import '../../state/app_state.dart';
 import 'prepaid_returns_screen.dart';
@@ -27,6 +29,7 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
   int? _orderId;
   bool _busy = false;
   bool _creating = false;
+  bool _printing = false;
   String? _error;
 
   int? _id(dynamic value) => int.tryParse(value.toString());
@@ -326,6 +329,49 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
     await _submit(() => ref.read(apiClientProvider).post(path), id: id);
   }
 
+  Future<void> _printOrder(int orderId) async {
+    final app = ref.read(appStateProvider);
+    final api = ref.read(apiClientProvider);
+    final scope = EntryFormScope(app, api);
+    if (!mounted || _printing || _busy || _creating ||
+        !app.can('sales.view') || app.currentBranchId == null) return;
+    bool current() => mounted &&
+        scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider));
+    setState(() => _printing = true);
+    try {
+      final detail = _map(await api.get(ApiPaths.prepaidOrder(orderId)));
+      if (!current()) return;
+      final order = _map(detail['order']);
+      if (_id(order['id']) != orderId ||
+          _id(order['branch_id']) != app.currentBranchId) {
+        throw const FormatException('Order does not match the selected branch.');
+      }
+      final lines = (detail['lines'] as List).map(_map).toList();
+      String value(Object? v) => v?.toString() ?? '-';
+      final rows = <List<String>>[
+        for (final line in lines) [
+          value(line['product_id']), value(line['batch_id']),
+          value(line['quantity']), value(line['list_unit_price']),
+          value(line['line_total']),
+        ],
+      ];
+      final bytes = await ReportPrintDocument.build(
+        title: 'Saved prepaid order statement',
+        scope: 'Branch: ${app.currentBranchName} | Order: ${value(order['order_no'])}',
+        columns: const ['Product ID', 'Batch ID', 'Quantity', 'List rate (INR)', 'Line gross (INR)'],
+        rows: rows,
+        note: 'Status: ${value(order['status'])} | Gross: INR ${value(order['gross_amount'])} | Discount: INR ${value(order['discount_amount'])} | Net: INR ${value(order['net_amount'])} | Sale record ID: ${value(order['sale_id'])}. Not a tax invoice or payment receipt.',
+      );
+      if (!current()) return;
+      await Printing.layoutPdf(onLayout: (_) async => bytes);
+    } catch (e) {
+      if (current()) setState(() => _error = e is FormatException
+          ? e.message : 'Order statement could not be printed. Refresh and retry.');
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = ref.watch(appStateProvider);
@@ -404,6 +450,13 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                 icon: const Icon(Icons.receipt_long_outlined),
                 label: const Text('View saved order lines'),
               ),
+              if (app.can('sales.view') && _id(order['id']) != null)
+                OutlinedButton.icon(
+                  onPressed: (_busy || _creating || _printing) ? null :
+                    () => _printOrder(_id(order['id'])!),
+                  icon: const Icon(Icons.print_outlined),
+                  label: Text(_printing ? 'Preparing statement...' : 'Print saved order statement'),
+                ),
               if (invoice != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 9),
