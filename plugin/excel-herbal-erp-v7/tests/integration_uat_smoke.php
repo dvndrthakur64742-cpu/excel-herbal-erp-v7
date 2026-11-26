@@ -1152,5 +1152,37 @@ uat_case('supplier_payment_reversal_rejects_unreconciled_bill_atomically',functi
         throw new RuntimeException('Rejected reversal changed balances or request status');
 });
 
+uat_case('inbox_deadline_projection_and_completion_scope',function()use($wpdb){
+    $owner=uat_actor(30,[2],[Capabilities::COMM_VIEW]);
+    $other=uat_actor(20,[1,2],[Capabilities::COMM_VIEW]);
+    $table=Db::table('tasks');
+    $ids=[];
+    try {
+        foreach ([['2020-01-01 00:00:00','overdue'],['2099-01-01 00:00:00','upcoming'],[null,'no_due']] as [$due,$expected]) {
+            uat_insert($wpdb,'tasks',['company_id'=>1,'branch_id'=>2,'assigned_employee_id'=>30,
+                'type'=>'fixture','title'=>'Synthetic deadline','status'=>'open','due_at'=>$due,'created_at'=>Db::now()]);
+            $ids[(int)$wpdb->insert_id]=$expected;
+        }
+        $rows=uat_dispatch('comm.summary',$owner)['tasks'];
+        foreach ($rows as $row) {
+            $id=(int)$row['id'];
+            if(isset($ids[$id]) && $row['deadline_state']!==$ids[$id]) throw new RuntimeException('Wrong deadline projection');
+        }
+        $visible=array_map('intval',array_column($rows,'id'));
+        foreach(array_keys($ids) as $id) if(!in_array($id,$visible,true)) throw new RuntimeException('Missing owned task');
+        $id=(int)array_key_first($ids);
+        uat_expect_denial(fn()=>uat_dispatch('comm.task_complete',$other,['id'=>$id]),'task_not_found','Foreign task denied');
+        $result=uat_dispatch('comm.task_complete',$owner,['id'=>$id]);
+        if($result['status']!=='completed') throw new RuntimeException('Task completion failed');
+        $before=$wpdb->get_var($wpdb->prepare("SELECT completed_at FROM {$table} WHERE id=%d",$id));
+        uat_dispatch('comm.task_complete',$owner,['id'=>$id]);
+        $after=$wpdb->get_var($wpdb->prepare("SELECT completed_at FROM {$table} WHERE id=%d",$id));
+        if(!$before||$before!==$after) throw new RuntimeException('Task replay changed completion time');
+        if(\ExcelHerbal\ERP7\Communication\CommunicationService::deadlineState('2026-11-31 09:00:00',Db::now())!=='unverified') throw new RuntimeException('Invalid deadline accepted');
+    }finally{
+        foreach(array_keys($ids) as $id) $wpdb->query($wpdb->prepare("DELETE FROM {$table} WHERE id=%d",$id));
+    }
+});
+
 echo ($failed ? 'FAILED' : 'PASSED')." staging UAT end-to-end smoke suite\n";
 exit($failed ? 1 : 0);

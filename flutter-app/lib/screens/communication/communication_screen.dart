@@ -40,6 +40,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text(kCommunicationWorkspaceTitle),
+          actions: [IconButton(tooltip: 'Refresh inbox', onPressed: () => setState(() => refresh++), icon: const Icon(Icons.refresh))],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Tasks'),
@@ -107,7 +108,7 @@ class _CommunicationScreenState extends ConsumerState<CommunicationScreen> {
               ),
               Expanded(
                 child: AsyncPanel(
-                key: ValueKey(refresh),
+                key: ValueKey((api, app, refresh)),
                 loader: () => api.get(ApiPaths.communicationSummary),
                 builder: (context, data) {
                   final summary = Map<String, dynamic>.from(data as Map);
