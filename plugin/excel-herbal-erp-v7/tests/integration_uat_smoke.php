@@ -793,6 +793,27 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
         $mustDeny(fn()=>$checkIn($self),'attendance_window_closed');
         $setTime($date.' 09:00:00');
         if(!$read($self)['can_check_in']) throw new RuntimeException('Check-in not available at 09:00');
+        // A holiday or approved leave must suppress the advertised action
+        // as well as deny an actual write on the same business date.
+        uat_insert($wpdb,'holidays',['company_id'=>1,'branch_id'=>2,'holiday_date'=>$date,
+            'name'=>'Synthetic punch eligibility','active'=>1,'created_by'=>20,'created_at'=>Db::now()]);
+        $holidayId=(int)$wpdb->insert_id;
+        try {
+            if($read($self)['can_check_in']) throw new RuntimeException('Holiday incorrectly offers check-in');
+            $mustDeny(fn()=>$checkIn($self),'attendance_excused');
+        } finally {
+            $wpdb->query($wpdb->prepare("DELETE FROM ".Db::table('holidays')." WHERE id=%d",$holidayId));
+        }
+        uat_insert($wpdb,'leave_requests',['company_id'=>1,'branch_id'=>2,'employee_id'=>30,
+            'leave_type'=>'fixture','date_from'=>$date,'date_to'=>$date,'status'=>'approved','requested_at'=>Db::now()]);
+        $leaveId=(int)$wpdb->insert_id;
+        try {
+            if($read($self)['can_check_in']) throw new RuntimeException('Approved leave incorrectly offers check-in');
+            $mustDeny(fn()=>$checkIn($self),'attendance_excused');
+        } finally {
+            $wpdb->query($wpdb->prepare("DELETE FROM ".Db::table('leave_requests')." WHERE id=%d",$leaveId));
+        }
+        if(!$read($self)['can_check_in']) throw new RuntimeException('Valid check-in not restored after synthetic eligibility fixture');
         $mustDeny(fn()=>uat_dispatch('work.check_in',$self,['branch_id'=>2]),'attendance_location_required');
         $mustDeny(fn()=>uat_dispatch('work.check_in',$self,['branch_id'=>1,'lat'=>31.7,'lng'=>76.9]),'branch_forbidden');
         $p=$checkIn($self);
@@ -812,6 +833,14 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
         $r=$read($self);
         if($r['gps_should_track']||!$r['can_check_out']||!empty($r['check_out_at'])) throw new RuntimeException('GPS stop closed attendance early');
         $setTime($date.' 18:15:00');
+        $fixtureId=(int)$row['id'];
+        Db::mustUpdate($wpdb,$attendance,['checkout_exception'=>1],['id'=>$fixtureId]);
+        try {
+            if($read($self)['can_check_out']) throw new RuntimeException('Acknowledged checkout exception incorrectly offers punch');
+            $mustDeny(fn()=>$checkOut($self),'attendance_open_required');
+        } finally {
+            Db::mustUpdate($wpdb,$attendance,['checkout_exception'=>0],['id'=>$fixtureId]);
+        }
         $p=$checkOut($self);
         if($p['checkout_mode']!=='self'||$p['check_out_at']!==$date.' 18:15:00') throw new RuntimeException('Self checkout not recorded');
         $mustDeny(fn()=>$checkOut($self),'attendance_open_required');

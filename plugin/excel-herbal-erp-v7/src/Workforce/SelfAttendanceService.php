@@ -33,6 +33,27 @@ final class SelfAttendanceService {
         return [$gps['latitude'], $gps['longitude']];
     }
 
+    private static function excused(Actor $a,int $branch,string $date): bool {
+        $db=Db::wpdb();
+        $leave = Db::table('leave_requests');
+        $holidays = Db::table('holidays');
+        $onLeave = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$leave} WHERE company_id=%d AND employee_id=%d AND status='approved' AND date_from<=%s AND date_to>=%s",$a->companyId,$a->employeeId,$date,$date));
+        if ($db->last_error !== '') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
+        $holiday = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$holidays} WHERE company_id=%d AND active=1 AND (branch_id IS NULL OR branch_id=%d) AND holiday_date=%s",$a->companyId,$branch,$date));
+        if ($db->last_error !== '') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
+        return $onLeave>0 || $holiday>0;
+    }
+
+    /** Re-read the clock after waiting for transaction locks. Never carry a
+     * request across a business-date boundary or an expired punch window. */
+    private static function lockedTime(string $date): \DateTimeImmutable {
+        $now=self::now();
+        if ($now->format('Y-m-d')!==$date) {
+            throw new DomainException('Business date changed. Refresh attendance and try again.','attendance_date_changed',409);
+        }
+        return $now;
+    }
+
     public static function checkIn(Actor $a, int $branch, ?float $lat, ?float $lng, ?int $exceptionId = null): array {
         Guard::branch($a, $branch, Capabilities::ATT_SELF);
         if ($branch !== $a->assignedBranchId) {
@@ -56,17 +77,17 @@ final class SelfAttendanceService {
                 "SELECT e.id FROM {$employees} e JOIN {$branches} b ON b.company_id=e.company_id AND b.id=e.assigned_branch_id AND b.status='active' WHERE e.company_id=%d AND e.id=%d AND e.assigned_branch_id=%d AND e.status='active' FOR UPDATE",
                 $a->companyId, $a->employeeId, $branch
             ), ARRAY_A);
+            if (($db->last_error??'')!=='') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
             if (!$employee) throw new DomainException('Active assigned branch required.', 'attendance_branch_invalid', 403);
-            $leave = Db::table('leave_requests');
-            $holidays = Db::table('holidays');
-            $onLeave = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$leave} WHERE company_id=%d AND employee_id=%d AND status='approved' AND date_from<=%s AND date_to>=%s",$a->companyId,$a->employeeId,$date,$date));
-            if ($db->last_error !== '') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
-            $holiday = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$holidays} WHERE company_id=%d AND active=1 AND (branch_id IS NULL OR branch_id=%d) AND holiday_date=%s",$a->companyId,$branch,$date));
-            if ($db->last_error !== '') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
-            if ($onLeave || $holiday) throw new DomainException('Attendance is not available on approved leave or a holiday.', 'attendance_excused', 409);
+            self::lockedTime($date);
+            if (self::excused($a,$branch,$date)) throw new DomainException('Attendance is not available on approved leave or a holiday.', 'attendance_excused', 409);
             $table = Db::table('attendance');
             $existing = $db->get_row($db->prepare("SELECT id FROM {$table} WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",$a->companyId,$a->employeeId,$date),ARRAY_A);
+            if (($db->last_error??'')!=='') throw new DomainException('Attendance unavailable.', 'attendance_unavailable', 503);
             if ($existing) throw new DomainException('An attendance record already exists for today.', 'attendance_exists', 409);
+            $now=self::lockedTime($date);
+            $state=SelfAttendancePolicy::state($now,null,null,false,$times);
+            if (!$state['can_check_in']) throw new DomainException('Check-in is outside the permitted time window.','attendance_window_closed',409);
             $stamp = $now->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
             Db::mustInsert($db, $table, [
                 'company_id'=>$a->companyId,'branch_id'=>$branch,'employee_id'=>$a->employeeId,
@@ -89,12 +110,15 @@ final class SelfAttendanceService {
             $now = self::now();
             $table = Db::table('attendance');
             $row = $db->get_row($db->prepare("SELECT * FROM {$table} WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",$a->companyId,$a->employeeId,$now->format('Y-m-d')),ARRAY_A);
+            if (($db->last_error??'')!=='') throw new DomainException('Attendance unavailable.', 'attendance_unavailable', 503);
             if (!$row || empty($row['check_in_at']) || !empty($row['check_out_at'])
+                || (int)($row['checkout_exception']??0)!==0
                 || ($row['check_in_mode']??null)!=='self' || empty($row['auto_checkout_due_at'])) {
                 throw new DomainException('An open self check-in is required.', 'attendance_open_required', 409);
             }
             $branch = (int)$row['branch_id'];
             Guard::branch($a,$branch,Capabilities::ATT_SELF);
+            $now=self::lockedTime((string)$row['business_date']);
             $utc = new \DateTimeZone('UTC');
             $stamp = $now->setTimezone($utc)->format('Y-m-d H:i:s');
             if ($stamp >= $row['auto_checkout_due_at']) {
@@ -126,7 +150,13 @@ final class SelfAttendanceService {
         $times=($row['check_in_mode']??null)==='self'?SelfAttendancePolicy::snapshot($row):$revision['times'];
         $state = SelfAttendancePolicy::state($now,$in,$out,false,$times);
         $state['can_check_in'] = $state['can_check_in'] && !$row && $a->hasBranch($a->assignedBranchId);
-        $state['can_check_out'] = $state['can_check_out'] && ($row['check_in_mode']??null)==='self' && $a->hasBranch((int)($row['branch_id']??0));
+        if ($state['can_check_in']) {
+            $employees=Db::table('employees'); $branches=Db::table('branches');
+            $eligible=$db->get_var($db->prepare("SELECT e.id FROM {$employees} e JOIN {$branches} b ON b.company_id=e.company_id AND b.id=e.assigned_branch_id AND b.status='active' WHERE e.company_id=%d AND e.id=%d AND e.assigned_branch_id=%d AND e.status='active'",$a->companyId,$a->employeeId,$a->assignedBranchId));
+            if (($db->last_error??'')!=='') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
+            $state['can_check_in']=(int)$eligible===$a->employeeId && !self::excused($a,$a->assignedBranchId,$date);
+        }
+        $state['can_check_out'] = $state['can_check_out'] && ($row['check_in_mode']??null)==='self' && $a->hasBranch((int)($row['branch_id']??0)) && (int)($row['checkout_exception']??0)===0;
         return array_merge($row??['business_date'=>$date],GpsDutyPolicy::state($row,$now->format('Y-m-d H:i:s'),$times),$state,[
             'attendance_mode'=>'self','assigned_branch_id'=>$a->assignedBranchId,
             'official_start'=>substr($times['duty_start'],0,5),'official_end'=>substr($times['duty_end'],0,5),'auto_checkout_time'=>substr($times['auto_checkout'],0,5),
