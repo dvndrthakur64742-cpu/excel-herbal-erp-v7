@@ -402,6 +402,11 @@ $rec=\ExcelHerbal\ERP7\Finance\FinanceBankService::bankCreate($evidenceUpiChecke
 \ExcelHerbal\ERP7\Finance\FinanceBankService::bankImport($evidenceUpiChecker,(int)$rec['id'],[
     ['txn_date'=>$date,'debit'=>100,'reference'=>$ref]
 ]);
+// A fresh request key must not permit importing the same referenced debit again.
+denySales(fn()=>\ExcelHerbal\ERP7\Finance\FinanceBankService::bankImport($evidenceUpiChecker,(int)$rec['id'],[
+    ['txn_date'=>$date,'debit'=>100,'reference'=>' '.$ref.' ']
+]),'bank_statement_duplicate_candidate');
+checkSales((int)$db->get_var('SELECT COUNT(*) FROM '.Db::table('bank_statement_lines').' WHERE reconciliation_id='.(int)$rec['id'])===1,'duplicate import leaves one bank statement line');
 denySales(fn()=>$record($evidenceUpiChecker,$ref),'account_missing');
 Db::mustInsert($db,Db::table('accounts'),['company_id'=>1,'code'=>'REFUND_CLEARING','name'=>'Refund clearing','type'=>'asset','active'=>1]);
 $parallel=raceSalesWorkers([PHP_BINARY,__FILE__,'refund-worker',(string)$upiEvidence['id'],$ref]);
