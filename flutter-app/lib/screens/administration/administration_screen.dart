@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/access_change_review.dart';
+import '../../core/entry_form_scope.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../core/operational_health_text.dart';
@@ -380,9 +381,25 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         final employees = (list[1] as List)
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
-        return ListView(
+        var query = '';
+        return StatefulBuilder(builder: (context, setLocal) {
+          final visibleRoles = roles.where((r) => EntryFormScope.matchesProduct(
+            query, [r['name'], r['code']],
+          )).toList();
+          final visibleEmployees = employees.where((e) => EntryFormScope.matchesProduct(
+            query, [e['full_name'], e['employee_code'], e['designation_code']],
+          )).toList();
+          return ListView(
           padding: const EdgeInsets.all(12),
           children: [
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Find role or employee',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) => setLocal(() => query = value),
+            ),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -399,7 +416,8 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            ...roles.map(
+            if (visibleRoles.isEmpty) const Text('No matching roles.'),
+            ...visibleRoles.map(
               (r) => Card(
                 child: ListTile(
                   leading: const Icon(Icons.security_outlined),
@@ -423,7 +441,8 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
-            ...employees.map(
+            if (visibleEmployees.isEmpty) const Text('No matching employees.'),
+            ...visibleEmployees.map(
               (e) => Card(
                 child: ListTile(
                   leading: const Icon(Icons.person_outline),
@@ -438,6 +457,7 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             ),
           ],
         );
+        });
       },
     );
   }
@@ -563,6 +583,11 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
     Map<String, dynamic> role,
     List<String> allCaps,
   ) async {
+    final app = ref.read(appStateProvider);
+    final api = ref.read(apiClientProvider);
+    if (!mounted || !app.can('administration.access.manage')) return;
+    final scope = EntryFormScope(app, api);
+    var permissionQuery = '';
     final selected = <String>{
       ...((role['capabilities'] as List?) ?? const []).map((e) => '$e'),
     };
@@ -579,10 +604,20 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Find permission',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (value) => setLocal(() => permissionQuery = value),
+                ),
+                const SizedBox(height: 8),
+                Text('${selected.length} permissions selected'),
                 Flexible(
                   child: ListView(
                     shrinkWrap: true,
                     children: allCaps
+                        .where((cap) => EntryFormScope.matchesProduct(permissionQuery, [cap]))
                         .map(
                           (cap) => CheckboxListTile(
                             dense: true,
@@ -641,6 +676,11 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
         groups: [('Permissions', review)],
       );
       if (!confirmed || !mounted) {
+        reason.dispose();
+        return;
+      }
+      if (!scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) {
+        setState(() => message = 'ERP scope changed. Reopen role permissions.');
         reason.dispose();
         return;
       }
