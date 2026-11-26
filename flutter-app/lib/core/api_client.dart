@@ -479,7 +479,7 @@ class ApiClient {
         accessToken: '${map['access_token']}',
         refreshToken: '${map['refresh_token']}',
       );
-      return _current(epoch,boundary);
+      return await _current(epoch,boundary);
     } on DioException catch (error) {
       if (!await _current(epoch,boundary)) return false;
       // A second browser tab can refresh the shared web session first. In that
