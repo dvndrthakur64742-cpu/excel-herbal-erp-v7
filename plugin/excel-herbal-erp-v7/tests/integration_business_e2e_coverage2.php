@@ -258,6 +258,7 @@ e2_case('e2_reports_and_subledger_reconciliation',function()use($approver,$wpdb)
     if(count($payables)!==1||abs((float)$payables[0]['outstanding_amount']-250)>0.005)throw new RuntimeException('payables report mismatch');
 
     $tb=e2_dispatch('reports.trial_balance',$approver,['to'=>$date,'branch_id'=>1]);
+    foreach($tb as$r)if(!array_key_exists('subtype',$r)||!array_key_exists('active',$r))throw new RuntimeException('Trial balance metadata missing');
     $tbNet=0.0;foreach($tb as$r)$tbNet+=(float)$r['balance'];
     if(abs($tbNet)>0.01)throw new RuntimeException('trial balance does not net to zero: '.$tbNet);
 
