@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:excel_herbal_erp/core/api_client.dart';
 import 'package:excel_herbal_erp/core/api_paths.dart';
 import 'package:excel_herbal_erp/core/secure_session.dart';
@@ -63,6 +65,7 @@ class _FlowApi extends ApiClient {
   int bootstrapCalls = 0;
   int logoutCalls = 0;
   int? bootstrapError;
+  Completer<dynamic>? pendingBootstrap;
 
   @override
   Future<dynamic> login(String mobile, String password) async {
@@ -84,6 +87,7 @@ class _FlowApi extends ApiClient {
   }) async {
     expect(path, ApiPaths.bootstrap);
     bootstrapCalls++;
+    if (pendingBootstrap != null) return pendingBootstrap!.future;
     if (bootstrapError == 401) {
       throw const ApiException('session_expired', 'Please sign in again', 401);
     }
@@ -101,6 +105,44 @@ class _FlowApi extends ApiClient {
 }
 
 void main() {
+  test('late bootstrap cannot restore revoked authority after logout', () async {
+    final session=_MemorySession();
+    final api=_FlowApi(session);
+    final controller=AppController(api,session);
+    addTearDown(controller.dispose);
+    await Future<void>.delayed(Duration.zero);
+    await controller.login('0000000000','synthetic-only');
+    final gate=Completer<dynamic>();
+    api.pendingBootstrap=gate;
+    final pending=controller.refreshBootstrap();
+    await controller.logout();
+    gate.complete(_bootstrap());
+    await pending;
+    expect(controller.state.authenticated,isFalse);
+    expect(controller.state.can('sales.view'),isFalse);
+    expect(session.token,isNull);
+  });
+
+  test('older bootstrap response cannot replace a newer permission denial', () async {
+    final session=_MemorySession();
+    final api=_FlowApi(session);
+    final controller=AppController(api,session);
+    addTearDown(controller.dispose);
+    await Future<void>.delayed(Duration.zero);
+    await controller.login('0000000000','synthetic-only');
+    final gate=Completer<dynamic>();
+    api.pendingBootstrap=gate;
+    final pending=controller.refreshBootstrap();
+    api.pendingBootstrap=null;
+    api.bootstrapError=403;
+    await controller.refreshBootstrap();
+    gate.complete(_bootstrap());
+    await pending;
+    expect(controller.state.authenticated,isTrue);
+    expect(controller.state.can('sales.view'),isFalse);
+    expect(controller.state.errorReference,'synthetic-ref');
+  });
+
   test('login -> authorised home projection -> logout clears local session',
       () async {
     final session = _MemorySession();
