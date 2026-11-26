@@ -349,7 +349,12 @@ class AppController extends StateNotifier<AppState> {
     final epoch = _authEpoch;
     final revision = ++_bootstrapRevision;
     bool current() => _currentAuth(epoch) && revision == _bootstrapRevision;
+    String? requestToken;
     try {
+      // A delayed 401 belongs to the credential used by this bootstrap,
+      // not necessarily to the latest shared browser credential.
+      requestToken = await session.accessToken();
+      if (!current()) return;
       final data = Map<String, dynamic>.from(
         await _fetchBootstrap(current) as Map,
       );
@@ -384,6 +389,17 @@ class AppController extends StateNotifier<AppState> {
       // 403 means authenticated but not authorised for that resource. It must
       // never destroy a valid employee session.
       if (e.statusCode == 401) {
+        final latestToken = await session.accessToken();
+        if (!current()) return;
+        if (latestToken != requestToken) {
+          // Do not clear a peer login or rotated credential, and do not
+          // adopt its permissions in the stale workspace.
+          state = const AppState(
+            loading: false,
+            error: 'Session changed. Please sign in again.',
+          );
+          return;
+        }
         await session.clear();
         if (!current()) return;
         // Only a silent *cold-start* recovery suppresses the expected expired

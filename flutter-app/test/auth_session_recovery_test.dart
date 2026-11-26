@@ -191,6 +191,31 @@ void main() {
     expect(controller.state.can('sales.view'), isFalse);
   });
 
+  test('stale bootstrap 401 cannot erase a newer peer login', () async {
+    final session = _MemorySession();
+    final api = _FlowApi(session);
+    final controller = AppController(api, session);
+    addTearDown(controller.dispose);
+    await Future<void>.delayed(Duration.zero);
+    await controller.login('0000000000', 'synthetic-only');
+    expect(controller.state.can('sales.view'), isTrue);
+
+    final gate = Completer<dynamic>();
+    api.pendingBootstrap = gate;
+    final pending = controller.refreshBootstrap();
+    // Allow the old request to capture the current credential and start.
+    await Future<void>.delayed(Duration.zero);
+    // Simulate the shared storage of another browser tab signing in.
+    session.token = 'synthetic-peer-access-token';
+    gate.completeError(const ApiException('session_expired', 'Expired.', 401));
+    await pending;
+
+    expect(session.token, 'synthetic-peer-access-token');
+    expect(session.clearCalls, 0);
+    expect(controller.state.authenticated, isFalse);
+    expect(controller.state.can('sales.view'), isFalse);
+  });
+
   test('403 revokes stale branch UI authority without resetting local session',
       () async {
     final session = _MemorySession();
