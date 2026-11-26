@@ -21,11 +21,12 @@ class SecureSession {
   Future<String?> loginBoundary() => _storage.read(key: _loginBoundary);
 
   /// Unlike token generation, this marker changes only on login/logout.
-  Future<void> beginLoginBoundary() async {
+  Future<String> beginLoginBoundary() async {
     final random = Random.secure();
     final value = base64UrlEncode(List<int>.generate(32, (_) => random.nextInt(256)));
     await _storage.write(key: _loginBoundary, value: value);
     await _storage.delete(key: _mutationJournal);
+    return value;
   }
 
   Future<String> deviceId() async {
