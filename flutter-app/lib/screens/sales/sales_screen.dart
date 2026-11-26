@@ -6,6 +6,8 @@ import '../../core/business_format.dart';
 import '../../core/providers.dart';
 import '../../core/transaction_guardrails.dart';
 import '../../core/entry_form_scope.dart';
+import '../../core/counter_sale_preview.dart';
+import '../../widgets/counter_billing_summary.dart';
 import '../../core/whole_pcs.dart';
 import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
@@ -327,6 +329,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       String productFilter = '';
       List<Map<String, dynamic>>? validatedLines;
       double? validatedPaidAmount;
+      CounterSalePreview preview() => CounterSalePreview.fromSelection(
+        stock: stock,
+        products: productById,
+        quantities: [for (var i = 0; i < stock.length; i++) qty[i]!.text],
+      );
       if (!mounted || !scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) return;
       final ok = await showDialog<bool>(
         context: context,
@@ -382,12 +389,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     const SizedBox(height: 10),
                     TextField(
                       controller: paid,
+                      onChanged: (_) => setLocal(() => formError = null),
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
                       decoration: const InputDecoration(
                         labelText: 'Full Cash Payment (required)',
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    CounterBillingSummary(
+                      preview: preview(),
+                      paid: double.tryParse(paid.text.trim()),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -434,6 +447,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                 width: 110,
                                 child: TextField(
                                   controller: qty[i],
+                                  onChanged: (_) => setLocal(() => formError = null),
                                   keyboardType: TextInputType.number,
                                   inputFormatters: [WholePcs.positiveFormatter],
                                   decoration: const InputDecoration(
@@ -469,47 +483,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               ),
               FilledButton(
                 onPressed: () {
-                  final lines = <Map<String, dynamic>>[];
-                  String? error;
-                  for (var i = 0; i < stock.length; i++) {
-                    final q = WholePcs.parseOrZero(qty[i]!.text);
-                    if (q <= 0) continue;
-                    final available =
-                        double.tryParse('${stock[i]['quantity']}') ?? 0;
-                    if (q > available + .0001) {
-                      error =
-                          '${stock[i]['product_name']} quantity available stock se zyada hai.';
-                      break;
-                    }
-                    final batchKey =
-                        int.tryParse('${stock[i]['batch_key']}') ?? 0;
-                    lines.add({
-                      'product_id': stock[i]['product_id'],
-                      'quantity': q,
-                      if (batchKey > 0) 'batch_id': batchKey,
-                    });
-                  }
+                  final review = preview();
+                  final lines = review.lines;
+                  String? error = review.error;
                   if (error == null && lines.isEmpty) {
                     error = 'Product quantity required.';
                   }
-                  var gross = 0.0;
-                  if (error == null) {
-                    for (final line in lines) {
-                      final productId = int.tryParse('${line['product_id']}');
-                      final product =
-                          productId == null ? null : productById[productId];
-                      final rate =
-                          double.tryParse('${product?['sale_price'] ?? 0}') ??
-                              0;
-                      if (rate <= 0) {
-                        error =
-                            '${product?['name'] ?? 'Product'} does not have a valid sale price.';
-                        break;
-                      }
-                      gross +=
-                          (line['quantity'] as num).toDouble() * rate;
-                    }
-                  }
+                  final gross = review.gross;
                   final paidAmount = double.tryParse(paid.text.trim());
                   if (error == null && paidAmount == null) {
                     error = 'Enter a valid paid amount.';

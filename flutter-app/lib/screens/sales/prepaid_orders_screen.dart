@@ -147,8 +147,10 @@ class _PrepaidOrdersScreenState extends ConsumerState<PrepaidOrdersScreen> {
                   decoration: const InputDecoration(labelText: 'Product / batch *'),
                   items: List.generate(stock.length, (i) => DropdownMenuItem(
                     value: i,
-                    child: Text("${stock[i]['product_name']} · Available ${stock[i]['quantity']}",
-                        overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      "${stock[i]['product_name']} · Batch ${stock[i]['batch_no'] ?? '—'} · Expiry ${stock[i]['expires_on'] ?? '—'} · Available ${stock[i]['quantity']}",
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   )),
                   onChanged: (v) => change(() => stockIndex = v),
                   validator: (v) => v == null ? 'Select a product.' : null,
