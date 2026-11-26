@@ -10,6 +10,7 @@ import '../../widgets/branch_selector.dart';
 import '../../core/operational_health_text.dart';
 import '../../core/search_request_scope.dart';
 import '../../core/report_period.dart';
+import '../../core/bounded_read_queue.dart';
 import '../../core/stock_search_preview.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
@@ -305,6 +306,9 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
     final branch = app.currentBranchId!;
     final items = <_ApprovalItem>[];
     final errors = <String>[];
+    final jobs = <Future<void> Function()>[];
+    final revision = refresh;
+    bool current() => mounted && refresh == revision && identical(ref.read(appStateProvider),app) && identical(ref.read(apiClientProvider),api);
 
     Future<List<Map<String, dynamic>>> list(
       String path, {
@@ -329,6 +333,7 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       final seen = <int>{};
       Future<void> dailyStage(String stage, String title, {String? before}) async {
         try {
+          if (!current()) return;
           final data = await api.get(ApiPaths.dailyHistorySearch, query: {
             'branch_id': branch, 'status': stage, 'page': 1, 'page_size': 50,
             if (before != null) 'date_to': before,
@@ -360,7 +365,9 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           errors.add('$title: $e');
         }
       }
-      // Closing reminders are advisory. No auto-post, auto-close or push delivery.
+      // Keep daily stages in priority order for deterministic deduplication.
+      jobs.add(() async {
+      if (!current()) return;
       await dailyStage('evening_submitted', 'Evening Closing Review');
       if (today != null) {
         final yesterday = DateTime(today.year,today.month,today.day-1).toIso8601String().substring(0,10);
@@ -373,9 +380,11 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
         await dailyStage('stock_requested', 'Daily Order Request Review');
       }
       if (app.can('daily_order.issue')) await dailyStage('approved', 'Daily Order Stock Issue');
+      });
     }
 
     if (app.can('finance.expense.approve')) {
+      jobs.add(() async {
       final rows = await list(ApiPaths.expenses, query: {'branch_id': branch});
       for (final row in rows.where(
         (r) => '${r['status']}'.toLowerCase() == 'pending',
@@ -395,9 +404,11 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           ),
         );
       }
+      });
     }
 
     if (app.can('inventory.adjustment.approve') && app.can('inventory.view')) {
+      jobs.add(() async {
       final rows = await list(
         ApiPaths.adjustments,
         query: {'branch_id': branch},
@@ -419,9 +430,11 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           ),
         );
       }
+      });
     }
 
     if (app.can('workforce.leave.manage')) {
+      jobs.add(() async {
       final rows = await list(
         ApiPaths.leavePending,
         query: {'branch_id': branch},
@@ -442,9 +455,11 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           ),
         );
       }
+      });
     }
 
     if (app.can('performance.manage')) {
+      jobs.add(() async {
       final rows = await list(
         ApiPaths.performanceTargets,
         query: {'branch_id': branch},
@@ -466,9 +481,11 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           ),
         );
       }
+      });
     }
 
     if (app.can('payroll.approve')) {
+      jobs.add(() async {
       final rows = await list(
         ApiPaths.payrollRuns,
         query: {'branch_id': branch},
@@ -490,9 +507,11 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           ),
         );
       }
+      });
     }
 
     if (app.can('finance.reversal.approve')) {
+      jobs.add(() async {
       final rows = await list(ApiPaths.reversals, query: {'branch_id': branch});
       for (final row in rows.where(
         (r) => '${r['status']}'.toLowerCase() == 'pending',
@@ -512,9 +531,16 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           ),
         );
       }
+      });
     }
 
-    items.sort((a, b) => b.sortKey.compareTo(a.sortKey));
+    await BoundedReadQueue.run(jobs, isCurrent: current);
+    items.sort((a,b) {
+      final date=b.sortKey.compareTo(a.sortKey);
+      if(date!=0)return date;
+      final kind=a.kind.compareTo(b.kind);
+      return kind!=0?kind:'${a.row['id']}'.compareTo('${b.row['id']}');
+    });
     return _ApprovalResult(items, errors);
   }
 
@@ -674,10 +700,12 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       }
     }
 
-    final futures = <Future<void>>[];
+    final jobs = <Future<void> Function()>[];
+    final revision = _searchRevision;
+    bool current() => mounted && revision == _searchRevision && _searchScope.matches(ref.read(appStateProvider),ref.read(apiClientProvider));
     if (branch != null && app.can('organization.employee.view')) {
-      futures.add(
-        source(
+      jobs.add(
+        () => source(
           group: 'Employees',
           recordType: 'employee',
           path: ApiPaths.employees,
@@ -693,8 +721,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       'purchase.create',
       'sales.create',
     ])) {
-      futures.add(
-        source(
+      jobs.add(
+        () => source(
           group: 'Products',
           recordType: 'product',
           path: ApiPaths.products,
@@ -707,8 +735,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       'sales.create',
       'sales.receipt.create',
     ])) {
-      futures.add(
-        source(
+      jobs.add(
+        () => source(
           group: 'Customers',
           recordType: 'customer',
           path: ApiPaths.customers,
@@ -716,8 +744,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
         ),
       );
       if (branch != null) {
-        futures.add(
-          source(
+        jobs.add(
+          () => source(
             group: 'Sales',
             recordType: 'sales',
             path: ApiPaths.openSales,
@@ -732,8 +760,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       'purchase.create',
       'finance.supplier_payment.create',
     ])) {
-      futures.add(
-        source(
+      jobs.add(
+        () => source(
           group: 'Suppliers',
           recordType: 'supplier',
           path: ApiPaths.suppliers,
@@ -741,8 +769,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
         ),
       );
       if (branch != null) {
-        futures.add(
-          source(
+        jobs.add(
+          () => source(
             group: 'Purchase Bills',
             recordType: 'purchase',
             path: ApiPaths.openBills,
@@ -754,8 +782,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
     }
     if (branch != null &&
         app.canAny(const ['daily_order.self', 'daily_order.others'])) {
-      futures.add(
-        source(
+      jobs.add(
+        () => source(
           group: 'Daily Orders',
           recordType: 'daily_order',
           path: ApiPaths.dailyCycles,
@@ -765,8 +793,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       );
     }
     if (branch != null && app.can('inventory.view')) {
-      futures.add(
-        source(
+      jobs.add(
+        () => source(
           group: 'Stock',
           recordType: 'stock',
           path: ApiPaths.inventoryStock,
@@ -781,8 +809,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           'finance.expense.create',
           'finance.expense.approve',
         ])) {
-      futures.add(
-        source(
+      jobs.add(
+        () => source(
           group: 'Expenses',
           recordType: 'expense',
           path: ApiPaths.expenses,
@@ -793,8 +821,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
     }
     if (branch != null &&
         app.canAny(const ['performance.view', 'performance.manage'])) {
-      futures.add(
-        source(
+      jobs.add(
+        () => source(
           group: 'Targets',
           recordType: 'target',
           path: ApiPaths.performanceTargets,
@@ -809,8 +837,8 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
           'payroll.approve',
           'payroll.pay',
         ])) {
-      futures.add(
-        source(
+      jobs.add(
+        () => source(
           group: 'Payroll',
           recordType: 'payroll',
           path: ApiPaths.payrollRuns,
@@ -820,10 +848,12 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       );
     }
 
-    await Future.wait(futures);
+    await BoundedReadQueue.run(jobs, isCurrent: current);
     hits.sort((a, b) {
       final group = a.group.compareTo(b.group);
-      return group != 0 ? group : a.title.compareTo(b.title);
+      if(group!=0)return group;
+      final title=a.title.compareTo(b.title);
+      return title!=0?title:'${a.row['id']}'.compareTo('${b.row['id']}');
     });
     return _SearchResult(hits.take(100).toList(), errors, limited: hits.length > 100);
   }
