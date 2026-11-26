@@ -272,6 +272,32 @@ e2_case('e2_reports_and_subledger_reconciliation',function()use($approver,$wpdb)
     $assets=0.0;$claims=0.0;foreach($bs as$r){if(($r['type']??'')==='asset')$assets+=(float)$r['amount'];elseif(in_array(($r['type']??''),['liability','equity'],true))$claims+=(float)$r['amount'];}
     if(abs($assets-$claims)>0.02)throw new RuntimeException("balance sheet equation mismatch assets={$assets} claims={$claims} rows=".json_encode($bs));
 
+    // Inactive master records must not erase posted historical movements.
+    // This fixture changes only disposable UAT accounts, restoring immediately.
+    $accounts=Db::table('accounts');
+    Db::mustUpdate($wpdb,$accounts,['active'=>0],['id'=>3,'company_id'=>1]);
+    Db::mustUpdate($wpdb,$accounts,['active'=>0],['id'=>12,'company_id'=>1]);
+    try {
+        $historicalPL=e2_dispatch('reports.profit_loss',$approver,['from'=>$date,'to'=>$date,'branch_id'=>1]);
+        $historicalBS=e2_dispatch('reports.balance_sheet',$approver,['to'=>$date,'branch_id'=>1]);
+        $historicalTB=e2_dispatch('reports.trial_balance',$approver,['to'=>$date,'branch_id'=>1]);
+        $plByCode=array_column($historicalPL,null,'code');
+        $bsByCode=array_column($historicalBS,null,'code');
+        $tbByCode=array_column($historicalTB,null,'code');
+        if(abs((float)($plByCode['SALES']['amount']??0)-400)>.005 || (int)($plByCode['SALES']['active']??1)!==0)
+            throw new RuntimeException('Inactive income ledger omitted from historical profit loss');
+        if(abs((float)($bsByCode['AP']['amount']??0)-250)>.005 || (int)($bsByCode['AP']['active']??1)!==0)
+            throw new RuntimeException('Inactive payable ledger omitted from historical balance sheet');
+        if(!isset($tbByCode['AP'],$tbByCode['SALES']))throw new RuntimeException('Historical trial balance scope mismatch');
+        $asset=0.0;$claims=0.0;
+        foreach($historicalBS as $row){if($row['type']==='asset')$asset+=(float)$row['amount'];else $claims+=(float)$row['amount'];}
+        if(abs($asset-$claims)>.005)throw new RuntimeException('Historical balance sheet is not balanced');
+        if(abs((float)($bsByCode['CURRENT_EARNINGS']['amount']??0)-(float)($plByCode['SALES']['amount']??0)+(float)($plByCode['COGS']['amount']??0)+(float)($plByCode['STOCK_VARIANCE']['amount']??0)+(float)($plByCode['OFFICE_EXPENSE']['amount']??0))>.005)
+            throw new RuntimeException('Historical earnings changed after account deactivation');
+    } finally {
+        Db::mustUpdate($wpdb,$accounts,['active'=>1],['id'=>3,'company_id'=>1]);
+        Db::mustUpdate($wpdb,$accounts,['active'=>1],['id'=>12,'company_id'=>1]);
+    }
     $recon=e2_dispatch('reports.finance_reconciliation',$approver,['branch_id'=>1]);
     if(count($recon)!==4)throw new RuntimeException('finance reconciliation check count mismatch');
     foreach($recon as$r)if(($r['status']??'')!=='matched')throw new RuntimeException('reconciliation mismatch: '.json_encode($r));
