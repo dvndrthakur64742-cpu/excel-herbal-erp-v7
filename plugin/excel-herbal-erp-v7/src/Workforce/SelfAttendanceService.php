@@ -33,15 +33,16 @@ final class SelfAttendanceService {
         return [$gps['latitude'], $gps['longitude']];
     }
 
-    private static function excused(Actor $a,int $branch,string $date): bool {
+    private static function excusedReason(Actor $a,int $branch,string $date): ?string {
         $db=Db::wpdb();
         $leave = Db::table('leave_requests');
         $holidays = Db::table('holidays');
         $onLeave = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$leave} WHERE company_id=%d AND employee_id=%d AND status='approved' AND date_from<=%s AND date_to>=%s",$a->companyId,$a->employeeId,$date,$date));
         if ($db->last_error !== '') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
+        if ($onLeave>0) return 'approved_leave';
         $holiday = (int)$db->get_var($db->prepare("SELECT COUNT(*) FROM {$holidays} WHERE company_id=%d AND active=1 AND (branch_id IS NULL OR branch_id=%d) AND holiday_date=%s",$a->companyId,$branch,$date));
         if ($db->last_error !== '') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
-        return $onLeave>0 || $holiday>0;
+        return $holiday>0 ? 'holiday' : null;
     }
 
     /** Re-read the clock after waiting for transaction locks. Never carry a
@@ -80,7 +81,7 @@ final class SelfAttendanceService {
             if (($db->last_error??'')!=='') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
             if (!$employee) throw new DomainException('Active assigned branch required.', 'attendance_branch_invalid', 403);
             self::lockedTime($date);
-            if (self::excused($a,$branch,$date)) throw new DomainException('Attendance is not available on approved leave or a holiday.', 'attendance_excused', 409);
+            if (self::excusedReason($a,$branch,$date)!==null) throw new DomainException('Attendance is not available on approved leave or a holiday.', 'attendance_excused', 409);
             $table = Db::table('attendance');
             $existing = $db->get_row($db->prepare("SELECT id FROM {$table} WHERE company_id=%d AND employee_id=%d AND business_date=%s FOR UPDATE",$a->companyId,$a->employeeId,$date),ARRAY_A);
             if (($db->last_error??'')!=='') throw new DomainException('Attendance unavailable.', 'attendance_unavailable', 503);
@@ -150,11 +151,13 @@ final class SelfAttendanceService {
         $times=($row['check_in_mode']??null)==='self'?SelfAttendancePolicy::snapshot($row):$revision['times'];
         $state = SelfAttendancePolicy::state($now,$in,$out,false,$times);
         $state['can_check_in'] = $state['can_check_in'] && !$row && $a->hasBranch($a->assignedBranchId);
+        $state['check_in_block_reason']=null;
         if ($state['can_check_in']) {
             $employees=Db::table('employees'); $branches=Db::table('branches');
             $eligible=$db->get_var($db->prepare("SELECT e.id FROM {$employees} e JOIN {$branches} b ON b.company_id=e.company_id AND b.id=e.assigned_branch_id AND b.status='active' WHERE e.company_id=%d AND e.id=%d AND e.assigned_branch_id=%d AND e.status='active'",$a->companyId,$a->employeeId,$a->assignedBranchId));
             if (($db->last_error??'')!=='') throw new DomainException('Attendance eligibility unavailable.', 'attendance_eligibility_unavailable', 503);
-            $state['can_check_in']=(int)$eligible===$a->employeeId && !self::excused($a,$a->assignedBranchId,$date);
+            $state['check_in_block_reason']=(int)$eligible===$a->employeeId ? self::excusedReason($a,$a->assignedBranchId,$date) : 'inactive_assignment';
+            $state['can_check_in']=$state['check_in_block_reason']===null;
         }
         $state['can_check_out'] = $state['can_check_out'] && ($row['check_in_mode']??null)==='self' && $a->hasBranch((int)($row['branch_id']??0)) && (int)($row['checkout_exception']??0)===0;
         return array_merge($row??['business_date'=>$date],GpsDutyPolicy::state($row,$now->format('Y-m-d H:i:s'),$times),$state,[

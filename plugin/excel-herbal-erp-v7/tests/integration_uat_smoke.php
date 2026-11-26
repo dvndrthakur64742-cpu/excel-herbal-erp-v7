@@ -799,19 +799,22 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
             'name'=>'Synthetic punch eligibility','active'=>1,'created_by'=>20,'created_at'=>Db::now()]);
         $holidayId=(int)$wpdb->insert_id;
         try {
-            if($read($self)['can_check_in']) throw new RuntimeException('Holiday incorrectly offers check-in');
+            $blocked=$read($self);
+            if($blocked['can_check_in']!==false||$blocked['check_in_block_reason']!=='holiday') throw new RuntimeException('Holiday check-in projection incorrect');
             $mustDeny(fn()=>$checkIn($self),'attendance_excused');
         } finally {
-            $wpdb->query($wpdb->prepare("DELETE FROM ".Db::table('holidays')." WHERE id=%d",$holidayId));
+            if($wpdb->query($wpdb->prepare("DELETE FROM ".Db::table('holidays')." WHERE id=%d AND company_id=%d",$holidayId,1))!==1) throw new RuntimeException('Synthetic fixture cleanup failed: holidays');
         }
         uat_insert($wpdb,'leave_requests',['company_id'=>1,'branch_id'=>2,'employee_id'=>30,
             'leave_type'=>'fixture','date_from'=>$date,'date_to'=>$date,'status'=>'approved','requested_at'=>Db::now()]);
         $leaveId=(int)$wpdb->insert_id;
         try {
-            if($read($self)['can_check_in']) throw new RuntimeException('Approved leave incorrectly offers check-in');
+            $blocked=$read($self);
+            if($blocked['can_check_in']!==false||$blocked['check_in_block_reason']!=='approved_leave') throw new RuntimeException('Approved leave check-in projection incorrect');
+            if(!$read($another)['can_check_in']) throw new RuntimeException('Employee leave blocked another employee');
             $mustDeny(fn()=>$checkIn($self),'attendance_excused');
         } finally {
-            $wpdb->query($wpdb->prepare("DELETE FROM ".Db::table('leave_requests')." WHERE id=%d",$leaveId));
+            if($wpdb->query($wpdb->prepare("DELETE FROM ".Db::table('leave_requests')." WHERE id=%d AND company_id=%d",$leaveId,1))!==1) throw new RuntimeException('Synthetic fixture cleanup failed: leave_requests');
         }
         if(!$read($self)['can_check_in']) throw new RuntimeException('Valid check-in not restored after synthetic eligibility fixture');
         $mustDeny(fn()=>uat_dispatch('work.check_in',$self,['branch_id'=>2]),'attendance_location_required');

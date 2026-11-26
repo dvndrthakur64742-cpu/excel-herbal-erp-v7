@@ -10,6 +10,8 @@ class _Session extends SecureSession {
   _Session():super(const FlutterSecureStorage());
   String? access='old-access', refresh='old-refresh';
   int saves=0;
+  String? boundary='old-login';
+  @override Future<String?> loginBoundary() async=>boundary;
   @override Future<String?> accessToken() async=>access;
   @override Future<String?> refreshToken() async=>refresh;
   @override Future<String?> sessionGeneration() async=>'generation';
@@ -17,7 +19,7 @@ class _Session extends SecureSession {
   @override Future<void> save({required String accessToken,required String refreshToken}) async{
     saves++;access=accessToken;refresh=refreshToken;
   }
-  @override Future<void> clear() async{access=null;refresh=null;}
+  @override Future<void> clear() async{boundary=null;access=null;refresh=null;}
 }
 void main(){
   test('logout invalidates delayed refresh and prevents old request replay',() async {
