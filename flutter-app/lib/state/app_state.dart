@@ -357,7 +357,7 @@ class AppController extends StateNotifier<AppState> {
       final projection = BootstrapProjection.fromMap(data);
       final ids = projection.identity.branchIds;
       final assigned = projection.identity.assignedBranchId;
-      final current =
+      final selectedBranch =
           state.currentBranchId != null && ids.contains(state.currentBranchId)
           ? state.currentBranchId
           : (ids.length == 1
@@ -369,7 +369,7 @@ class AppController extends StateNotifier<AppState> {
         loading: false,
         authenticated: true,
         bootstrap: data,
-        currentBranchId: current,
+        currentBranchId: selectedBranch,
       );
       final compatibilityError = next.bootstrapCompatibilityError;
       state = compatibilityError == null
