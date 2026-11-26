@@ -173,6 +173,44 @@ e2_case('e2_purchase_batch_preparation_rollback',function()use($maker,$wpdb,&$st
     $wpdb->query('DELETE FROM '.Db::table('products')." WHERE id={$pid}");
 });
 
+e2_case('e2_saleable_stock_expiry_fefo',function()use($maker,$wpdb){
+    $day=new DateTimeImmutable(Db::today());
+    $past=$day->modify('-1 day')->format('Y-m-d');
+    $today=$day->format('Y-m-d');
+    $future=$day->modify('+30 days')->format('Y-m-d');
+    $pid=9200;$inactive=9201;
+    try{
+        \ExcelHerbal\ERP7\Database\Transaction::run(function()use($maker,$wpdb,$pid,$inactive,$past,$today,$future){
+            foreach([[$pid,'active'],[$inactive,'inactive']] as [$id,$status]){
+                e2_insert($wpdb,'products',['id'=>$id,'company_id'=>1,'sku'=>'EXPIRY-'.$id,'name'=>'Synthetic expiry '.$id,'uom'=>'PCS','batch_tracking'=>'optional','expiry_tracking'=>1,'status'=>$status,'created_at'=>Db::now()]);
+            }
+            $stock=function($product,$batch,$quantity)use($wpdb){
+                e2_insert($wpdb,'stock_balances',['company_id'=>1,'branch_id'=>1,'product_id'=>$product,'batch_key'=>$batch,'custodian_key'=>0,'quantity'=>$quantity,'average_unit_cost'=>10,'updated_at'=>Db::now()]);
+            };
+            $ids=[];
+            foreach([['today',$today,'active'],['future',$future,'active'],['expired',$past,'active'],['missing',null,'active'],['inactive',$future,'inactive']] as [$name,$expiry,$status]){
+                e2_insert($wpdb,'batches',['company_id'=>1,'product_id'=>$pid,'batch_no'=>'EXP-'.$name,'expires_on'=>$expiry,'status'=>$status,'created_at'=>Db::now()]);
+                $ids[$name]=(int)$wpdb->insert_id;
+                $stock($pid,$ids[$name],2);
+            }
+            $stock($pid,0,2);
+            $stock($inactive,0,2);
+            // A valid batch from another product cannot satisfy this product.
+            e2_insert($wpdb,'batches',['company_id'=>1,'product_id'=>$inactive,'batch_no'=>'EXP-WRONG-PRODUCT','expires_on'=>$future,'status'=>'active','created_at'=>Db::now()]);
+            $stock($pid,(int)$wpdb->insert_id,2);
+            $visible=array_values(array_filter(\ExcelHerbal\ERP7\Sales\SalesService::availableStock($maker,1),fn($r)=>in_array((int)$r['product_id'],[$pid,$inactive],true)));
+            if(array_map(fn($r)=>(int)$r['batch_key'],$visible)!==[$ids['today'],$ids['future']])throw new RuntimeException('Saleable stock includes unavailable or wrongly ordered batches');
+            $alloc=\ExcelHerbal\ERP7\Inventory\StockService::automaticCustodyAllocations($maker,1,$pid,3);
+            if(count($alloc)!==2||$alloc[0]['batch_id']!==$ids['today']||$alloc[1]['batch_id']!==$ids['future']||abs($alloc[0]['quantity']-2)>0.001||abs($alloc[1]['quantity']-1)>0.001)throw new RuntimeException('Expiry allocation did not follow FEFO');
+            try{
+                \ExcelHerbal\ERP7\Inventory\StockService::automaticCustodyAllocations($maker,1,$pid,5);
+                throw new RuntimeException('Non-saleable stock was allocated');
+            }catch(DomainException $e){if($e->codeKey!=='insufficient_stock')throw $e;}
+            throw new RuntimeException('expiry-fixture-rollback');
+        });
+    }catch(RuntimeException $e){if($e->getMessage()!=='expiry-fixture-rollback')throw $e;}
+});
+
 e2_case('e2_full_prepayment_and_no_customer_credit',function()use($maker,$approver,$wpdb,&$state){
     $customer=e2_dispatch('sales.customer_create',$maker,[
         'branch_id'=>1,'name'=>'Coverage Customer','mobile'=>'9000000001','email'=>'customer@example.test','address'=>'Disposable fixture',
