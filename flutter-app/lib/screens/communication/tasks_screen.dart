@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
+import '../../core/date_time_text.dart';
+import '../../state/app_state.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
 import '../../theme/excel_brand.dart';
@@ -18,6 +20,7 @@ class TasksScreen extends ConsumerStatefulWidget {
 
 class _TasksScreenState extends ConsumerState<TasksScreen> {
   int? completingId;
+  bool overdueOnly = false;
   String? message;
   late List<Map<String, dynamic>> _tasks;
 
@@ -44,6 +47,10 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final app = ref.watch(appStateProvider);
+    final overdue = _tasks.where((r) => r['deadline_state'] == 'overdue').length;
+    final unverified = _tasks.where((r) => !const {'overdue','upcoming','no_due'}.contains(r['deadline_state'])).length;
+    final visible = overdueOnly ? _tasks.where((r) => r['deadline_state'] == 'overdue').toList() : _tasks;
     return Column(
       children: [
         Padding(
@@ -63,6 +70,17 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
             ),
           ),
         ),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 4,
+          children: [
+            ChoiceChip(label: Text('All shown (${_tasks.length})'), selected: !overdueOnly,
+              onSelected: (_) => setState(() => overdueOnly = false)),
+            ChoiceChip(label: Text('Overdue ($overdue)'), selected: overdueOnly,
+              onSelected: (_) => setState(() => overdueOnly = true)),
+            if (unverified > 0) Text('$unverified deadlines unverified'),
+            if (_tasks.length >= 100) const Text('Showing up to 100 tasks; counts are listed tasks only.'),
+          ],
+        )),
         if (message != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -80,19 +98,20 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
             ),
           ),
         Expanded(
-          child: _tasks.isEmpty
-              ? const Center(child: Text('No pending tasks.'))
+          child: visible.isEmpty
+              ? Center(child: Text(overdueOnly ? 'No overdue tasks in the loaded list.' : 'No pending tasks.'))
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _tasks.length,
+                  itemCount: visible.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (_, i) {
-                    final task = _tasks[i];
+                    final task = visible[i];
                     final id = int.parse('${task['id']}');
                     final busy = completingId == id;
                     final due = task['due_at'] == null
                         ? 'No due date'
-                        : BusinessFormat.dateTime(task['due_at']);
+                        : DateTimeText.business(task['due_at'], app.businessTimezone);
+                    final late = task['deadline_state'] == 'overdue';
                     return Card(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
@@ -127,13 +146,15 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                                   '${BusinessFormat.value('type', task['type'] ?? 'task')} · $due',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
+                                if (late) Text('Overdue', style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w700)),
+                                if (!const {'overdue','upcoming','no_due'}.contains(task['deadline_state'])) const Text('Deadline unverified'),
                               ],
                             ),
                           ),
                           const SizedBox(width: 8),
                           IconButton(
                             tooltip: 'Mark complete',
-                            onPressed: busy
+                            onPressed: completingId != null
                                 ? null
                                 : () => _complete(
                                     id,
@@ -160,6 +181,11 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   }
 
   Future<void> _complete(int id, String title) async {
+    if (!mounted || completingId != null) return;
+    final app = ref.read(appStateProvider);
+    final api = ref.read(apiClientProvider);
+    if (!app.can('communication.view')) return;
+    setState(() => completingId = id);
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -177,15 +203,14 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         ],
       ),
     );
-    if (ok != true || !mounted) return;
-    setState(() {
-      completingId = id;
-      message = null;
-    });
+    if (!mounted) return;
+    if (ok != true || !identical(ref.read(appStateProvider), app) || !identical(ref.read(apiClientProvider), api)) {
+      setState(() => completingId = null);
+      return;
+    }
+    setState(() => message = null);
     try {
-      await ref
-          .read(apiClientProvider)
-          .post(ApiPaths.taskComplete(id), data: const {});
+      await api.post(ApiPaths.taskComplete(id), data: const {});
       if (mounted) {
         setState(() {
           completingId = null;
