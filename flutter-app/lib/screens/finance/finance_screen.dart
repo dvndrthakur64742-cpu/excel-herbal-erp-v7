@@ -15,6 +15,9 @@ import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/guided_workspace_switcher.dart';
 import '../../widgets/finance_books_summary.dart';
+import '../../widgets/search_choice_dialog.dart';
+import '../../core/entry_form_scope.dart';
+import '../../core/bank_reconciliation_input.dart';
 
 part 'finance_bank.dart';
 part 'finance_books.dart';
@@ -41,6 +44,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   String? message;
   bool _handledInitialAction = false;
   bool _expenseInProgress = false;
+  bool _bankOpening = false;
 
   void _setFinanceState(VoidCallback update) => setState(update);
 

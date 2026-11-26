@@ -25,6 +25,7 @@ import '../../widgets/module_workspace.dart';
 import '../../widgets/workspace_banner.dart';
 import '../../widgets/sales_report_insights.dart';
 import '../../widgets/stock_report_insights.dart';
+import '../../widgets/search_choice_dialog.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -984,25 +985,24 @@ class _AccountLedgerPanelState extends State<_AccountLedgerPanel> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: DropdownButtonFormField<int>(
-                  isExpanded: true,
-                  initialValue: selectedId,
-                  decoration: const InputDecoration(
-                    labelText: 'Ledger account',
-                    prefixIcon: Icon(Icons.menu_book_outlined),
-                    isDense: true,
-                  ),
-                  items: [
-                    for (final account in accounts)
-                      DropdownMenuItem<int>(
-                        value: int.tryParse('${account['id']}'),
-                        child: Text(
-                          '${account['code'] ?? ''} — ${account['name'] ?? 'Account'}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final chosen = await showDialog<int>(
+                      context: context,
+                      builder: (_) => SearchChoiceDialog(
+                        title: 'Ledger account',
+                        choices: [
+                          for (final account in accounts)
+                            SearchChoice(int.parse('${account['id']}'),
+                              '${account['name'] ?? "Account"}',
+                              '${account['code'] ?? ""}'),
+                        ],
                       ),
-                  ],
-                  onChanged: (value) => setState(() => _accountId = value),
+                    );
+                    if (mounted && chosen != null) setState(() => _accountId = chosen);
+                  },
+                  icon: const Icon(Icons.menu_book_outlined),
+                  label: Text(accountLabel),
                 ),
               ),
               Expanded(
