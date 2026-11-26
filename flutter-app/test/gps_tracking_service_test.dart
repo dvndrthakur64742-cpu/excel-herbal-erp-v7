@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:excel_herbal_erp/core/api_client.dart';
 import 'package:excel_herbal_erp/core/api_paths.dart';
 import 'package:excel_herbal_erp/core/gps_location_platform.dart';
@@ -10,11 +12,15 @@ class _FakeGpsApi implements GpsApiTransport {
 
   Map<String, dynamic> attendance;
   Object? gpsPointError;
+  Object? getError;
+  Completer<dynamic>? pendingGet;
   final posts = <({String path, Map<String, dynamic>? data})>[];
 
   @override
   Future<dynamic> get(String path) async {
     if (path == ApiPaths.attendanceToday) {
+      if (getError != null) throw getError!;
+      if (pendingGet != null) return pendingGet!.future;
       return Map<String, dynamic>.from(attendance);
     }
     throw StateError('Unexpected GET $path');
@@ -41,6 +47,8 @@ class _FakeLocation implements GpsLocationPlatform {
   Object? permissionCheckError;
   Object? permissionRequestError;
   Object? currentFixError;
+  Completer<LocationPermission>? pendingPermission;
+  Completer<GpsFix>? pendingFix;
   LocationPermission permission = LocationPermission.always;
   LocationPermission requestedPermission = LocationPermission.always;
   int permissionRequests = 0;
@@ -63,6 +71,7 @@ class _FakeLocation implements GpsLocationPlatform {
   @override
   Future<LocationPermission> checkPermission() async {
     if (permissionCheckError != null) throw permissionCheckError!;
+    if (pendingPermission != null) return pendingPermission!.future;
     return permission;
   }
 
@@ -70,6 +79,7 @@ class _FakeLocation implements GpsLocationPlatform {
   Future<GpsFix> currentFix() async {
     fixRequests++;
     if (currentFixError != null) throw currentFixError!;
+    if (pendingFix != null) return pendingFix!.future;
     return fix;
   }
 
@@ -90,12 +100,91 @@ class _FakeLocation implements GpsLocationPlatform {
 
 Map<String, dynamic> _attendance(String status) => {
       'gps_status': status,
-      'gps_window_start_utc': '',
-      'gps_window_stop_utc': '',
+      'gps_window_start_utc': DateTime.now().toUtc().subtract(const Duration(hours: 1)).toIso8601String(),
+      'gps_window_stop_utc': DateTime.now().toUtc().add(const Duration(hours: 1)).toIso8601String(),
     };
 
 void main() {
   group('GpsTrackingService Android policy', () {
+    test('late attendance response cannot resume GPS after signout', () async {
+      final api = _FakeGpsApi(_attendance('active'))..pendingGet = Completer<dynamic>();
+      final location = _FakeLocation();
+      final service = GpsTrackingService.forTest(api: api, location: location);
+      final start = service.start();
+      service.stop(status: 'signed_out');
+      api.pendingGet!.complete(_attendance('active'));
+      await start;
+      expect(service.dutyStatus, 'signed_out');
+      expect(service.active, isFalse);
+      expect(location.fixRequests, 0);
+      expect(api.posts, isEmpty);
+      service.dispose();
+    });
+
+    test('late permission result after checkout cannot start GPS', () async {
+      final api = _FakeGpsApi(_attendance('active'));
+      final location = _FakeLocation()..pendingPermission = Completer<LocationPermission>();
+      final service = GpsTrackingService.forTest(api: api, location: location);
+      final start = service.start();
+      await Future<void>.delayed(Duration.zero);
+      service.stop(status: 'checked_out');
+      location.pendingPermission!.complete(LocationPermission.always);
+      await start;
+      expect(service.dutyStatus, 'checked_out');
+      expect(service.active, isFalse);
+      expect(api.posts, isEmpty);
+      service.dispose();
+    });
+
+    test('late fix after stop and restart cannot upload old session coordinates', () async {
+      final api = _FakeGpsApi(_attendance('active'));
+      final location = _FakeLocation()..pendingFix = Completer<GpsFix>();
+      final oldFix = location.pendingFix!;
+      final service = GpsTrackingService.forTest(api: api, location: location);
+      final start = service.start();
+      await Future<void>.delayed(Duration.zero);
+      expect(location.fixRequests, 1);
+      service.stop(status: 'checked_out');
+      location.pendingFix = null;
+      await service.start();
+      expect(api.posts, hasLength(1));
+      oldFix.complete(location.fix);
+      await start;
+      expect(api.posts, hasLength(1));
+      service.dispose();
+    });
+
+    test('attendance sync error stops active tracking and permits fresh retry', () async {
+      final api = _FakeGpsApi(_attendance('active'));
+      final service = GpsTrackingService.forTest(api: api, location: _FakeLocation());
+      await service.start();
+      expect(service.active, isTrue);
+      api.getError = StateError('offline');
+      await service.sync();
+      expect(service.dutyStatus, 'unavailable');
+      expect(service.active, isFalse);
+      await service.sendNow();
+      expect(api.posts, hasLength(1));
+      api.getError = null;
+      await service.sync();
+      expect(service.active, isTrue);
+      expect(api.posts, hasLength(2));
+      service.dispose();
+    });
+
+    test('missing or expired cutoff never acquires a location fix', () async {
+      for (final cutoff in ['', DateTime.now().toUtc().subtract(const Duration(seconds: 1)).toIso8601String()]) {
+        final api = _FakeGpsApi(_attendance('active')..['gps_window_stop_utc'] = cutoff);
+        final location = _FakeLocation();
+        final service = GpsTrackingService.forTest(api: api, location: location);
+        await service.start();
+        expect(service.active, isFalse);
+        expect(location.fixRequests, 0);
+        expect(api.posts, isEmpty);
+        service.dispose();
+      }
+    });
+
     test('blocks tracking when device location service is off', () async {
       final api = _FakeGpsApi(_attendance('active'));
       final location = _FakeLocation()..enabled = false;
