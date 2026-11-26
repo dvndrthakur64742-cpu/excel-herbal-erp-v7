@@ -364,4 +364,50 @@ foreach([
         else{$failed++;echo "FAIL closing read {$name}: {$e->codeKey}\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL closing read {$name}: {$e->getMessage()}\n";}
 }
+// PUR-01: batch creation must roll back with the bill, including failures
+// during preparation of a later line.
+final class PurchaseBatchRegressionDb {
+    public string $prefix='wp_';
+    public string $last_error='';
+    public int $insert_id=0;
+    public array $queries=[];
+    public array $batches=[];
+    private array $snapshot=[];
+    public function prepare($q,...$args){return $q;}
+    public function query($q){
+        $this->queries[]=$q;
+        if($q==='START TRANSACTION')$this->snapshot=$this->batches;
+        if($q==='ROLLBACK')$this->batches=$this->snapshot;
+        if(str_contains($q,'INSERT INTO wp_eh7_batches')){
+            $this->batches[1]=true;$this->insert_id=1;
+        }
+        return 1;
+    }
+    public function get_var($q){
+        if(str_contains($q,'eh7_branch_closings')||str_contains($q,'eh7_accounting_periods'))return null;
+        return 1;
+    }
+    public function get_row($q,$mode){
+        if(str_contains($q,'eh7_products'))return ['id'=>1,'batch_tracking'=>'required'];
+        if(str_contains($q,'eh7_batches'))return ['manufactured_on'=>null,'expires_on'=>null];
+        return null;
+    }
+}
+$purchaseActor=new \ExcelHerbal\ERP7\Security\Actor(10,10,1,1,[1],[
+    \ExcelHerbal\ERP7\Security\Capabilities::PURCHASE_CREATE
+],'BM');
+$validPurchaseLine=['product_id'=>1,'quantity'=>2,'unit_cost'=>50,'batch_no'=>'TEST-PUR-001'];
+foreach([
+    ['later invalid line',array_replace($validPurchaseLine,['quantity'=>0]),'domain_error'],
+    ['later duplicate batch',$validPurchaseLine,'duplicate_purchase_line']
+] as [$name,$second,$expected]){
+    $wpdb=new PurchaseBatchRegressionDb();
+    try{
+        \ExcelHerbal\ERP7\Purchase\PurchaseService::bill($purchaseActor,1,1,'TEST-PUR','2026-09-08',[$validPurchaseLine,$second]);
+        $failed++;echo "FAIL purchase batch rollback {$name}: accepted\n";
+    }catch(DomainException $e){
+        if($e->codeKey===$expected&&$wpdb->batches===[]&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS purchase batch rollback {$name}\n";
+        else{$failed++;echo "FAIL purchase batch rollback {$name}: {$e->codeKey} batches=".count($wpdb->batches)."\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL purchase batch rollback {$name}: {$e->getMessage()}\n";}
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);

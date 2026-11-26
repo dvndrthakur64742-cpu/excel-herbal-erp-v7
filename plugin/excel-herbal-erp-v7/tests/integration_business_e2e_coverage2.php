@@ -141,6 +141,38 @@ e2_case('e2_purchase_bill_and_supplier_payment',function()use($maker,$approver,$
 });
 
 
+e2_case('e2_purchase_batch_preparation_rollback',function()use($maker,$wpdb,&$state){
+    $pid=9100;
+    $supplier=(int)$state['supplier_id'];
+    $date=e2_date();
+    $batches=Db::table('batches');
+    e2_insert($wpdb,'products',['id'=>$pid,'company_id'=>1,'sku'=>'PUR-ROLLBACK-9100','name'=>'Synthetic batch rollback','uom'=>'PCS','batch_tracking'=>'required','expiry_tracking'=>1,'status'=>'active','created_at'=>Db::now()]);
+    $before=[];
+    foreach(['purchase_bills','purchase_bill_lines','stock_balances','stock_ledger','journal_entries','journal_lines','audit_log'] as $table){
+        $before[$table]=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table($table));
+    }
+    $base=['product_id'=>$pid,'quantity'=>2,'unit_cost'=>50,'batch_no'=>'PUR-ROLLBACK-NEW','manufactured_on'=>'2026-01-01','expires_on'=>'2098-12-31'];
+    $attempt=fn($bill,$lines)=>\ExcelHerbal\ERP7\Purchase\PurchaseService::bill($maker,1,$supplier,$bill,$date,$lines);
+    $reject=function($bill,$lines,$code)use($attempt){
+        try{$attempt($bill,$lines);}catch(DomainException $e){if($e->codeKey===$code)return;throw $e;}
+        throw new RuntimeException('Unexpected purchase success: '.$bill);
+    };
+    $reject('PUR-BAD-LINE',[$base,array_replace($base,['quantity'=>0])],'domain_error');
+    $reject('PUR-DUP-LINE',[$base,$base],'duplicate_purchase_line');
+    $reject('E2E-BILL-001',[$base],'purchase_duplicate');
+    if((int)$wpdb->get_var("SELECT COUNT(*) FROM {$batches} WHERE product_id={$pid}")!==0)throw new RuntimeException('Failed purchase left a new batch');
+    e2_insert($wpdb,'batches',['company_id'=>1,'product_id'=>$pid,'batch_no'=>'PUR-ROLLBACK-EXISTING','manufactured_on'=>null,'expires_on'=>null,'status'=>'active','created_at'=>Db::now()]);
+    $existing=array_replace($base,['batch_no'=>'PUR-ROLLBACK-EXISTING']);
+    $reject('PUR-METADATA',[$existing,array_replace($existing,['quantity'=>0])],'domain_error');
+    $row=$wpdb->get_row("SELECT manufactured_on,expires_on FROM {$batches} WHERE product_id={$pid}",ARRAY_A);
+    if(!$row||$row['manufactured_on']!==null||$row['expires_on']!==null)throw new RuntimeException('Failed purchase changed existing batch dates');
+    foreach($before as $table=>$count){
+        if((int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table($table))!==$count)throw new RuntimeException('Failed purchase changed '.$table);
+    }
+    $wpdb->query("DELETE FROM {$batches} WHERE product_id={$pid}");
+    $wpdb->query('DELETE FROM '.Db::table('products')." WHERE id={$pid}");
+});
+
 e2_case('e2_full_prepayment_and_no_customer_credit',function()use($maker,$approver,$wpdb,&$state){
     $customer=e2_dispatch('sales.customer_create',$maker,[
         'branch_id'=>1,'name'=>'Coverage Customer','mobile'=>'9000000001','email'=>'customer@example.test','address'=>'Disposable fixture',
