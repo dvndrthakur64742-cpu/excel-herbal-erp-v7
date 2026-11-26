@@ -548,4 +548,30 @@ try{
     if($wpdb->qty!==2.0||count($wpdb->ledger)!==1)throw new \RuntimeException('duplicate release');
     echo "PASS quarantine single release\n";
 }catch(\Throwable $e){$failed++;echo "FAIL quarantine single release: {$e->getMessage()}\n";}
+// COM-01: reject lossy PHP coercion and out-of-range fixed decimal inputs.
+foreach([
+ ['text','sale_price','abc',false],
+ ['boolean','bm_profit',true,false],
+ ['null','salary_fund',null,false],
+ ['array','points',[1],false],
+ ['negative','ho_amount',-0.001,false],
+ ['infinite','office_expense',INF,false],
+ ['sub-paisa','sale_price',0.001,false],
+ ['overflow money','mrp','1000000000000.00',false],
+ ['overflow cost','purchase_cost','10000000000.0000',false],
+ ['excess cost precision','purchase_cost','1.00001',false],
+ ['valid money','sale_price','12.34',true],
+ ['valid cost','purchase_cost','12.3456',true],
+ ['explicit zero','points',0,true],
+] as [$name,$field,$value,$valid]){
+    $wpdb=new ExpiryMasterRegressionDb();
+    try{
+        \ExcelHerbal\ERP7\Organization\OrganizationProductService::commercialRevision($masterActor,1,[$field=>$value]);
+        if(!$valid)throw new \RuntimeException('unexpected acceptance');
+        echo "PASS commercial decimal {$name}\n";
+    }catch(DomainException $e){
+        if(!$valid&&$e->codeKey==='commercial_value_invalid'&&$wpdb->writes===[])echo "PASS commercial decimal {$name}\n";
+        else{$failed++;echo "FAIL commercial decimal {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL commercial decimal {$name}: {$e->getMessage()}\n";}
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);

@@ -243,6 +243,28 @@ e2_case('e2_quarantine_resolution_atomic',function()use($approver,$wpdb){
     }catch(RuntimeException $e){if($e->getMessage()!=='quarantine-fixture-rollback')throw $e;}
 });
 
+e2_case('e2_commercial_decimal_storage',function()use($wpdb){
+    $actor=e2_actor(20,[Capabilities::PRODUCT_MANAGE]);
+    $table=Db::table('product_commercial_revisions');
+    $before=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+    $base=['mrp'=>'200.00','sale_price'=>'170.00','ho_amount'=>'100.00','bm_profit'=>'20.00','salary_fund'=>'30.00','office_expense'=>'20.00','points'=>'10.00','purchase_cost'=>'55.1234'];
+    foreach([['sale_price','invalid'],['purchase_cost','55.12345'],['points',true],['mrp','1000000000000.00']] as [$field,$bad]){
+        try{
+            \ExcelHerbal\ERP7\Organization\OrganizationProductService::commercialRevision($actor,100,array_replace($base,[$field=>$bad]));
+            throw new RuntimeException('Invalid commercial input accepted');
+        }catch(DomainException $e){if($e->codeKey!=='commercial_value_invalid')throw $e;}
+    }
+    if((int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}")!==$before)throw new RuntimeException('Invalid revision persisted');
+    try{
+        \ExcelHerbal\ERP7\Database\Transaction::run(function()use($actor,$wpdb,$base,$table){
+            $result=\ExcelHerbal\ERP7\Organization\OrganizationProductService::commercialRevision($actor,100,$base);
+            $row=$wpdb->get_row("SELECT sale_price,purchase_cost FROM {$table} WHERE id=".(int)$result['id'],ARRAY_A);
+            if(!$row||$row['sale_price']!=='170.00'||$row['purchase_cost']!=='55.1234')throw new RuntimeException('Commercial decimal storage mismatch');
+            throw new RuntimeException('commercial-fixture-rollback');
+        });
+    }catch(RuntimeException $e){if($e->getMessage()!=='commercial-fixture-rollback')throw $e;}
+});
+
 e2_case('e2_full_prepayment_and_no_customer_credit',function()use($maker,$approver,$wpdb,&$state){
     $customer=e2_dispatch('sales.customer_create',$maker,[
         'branch_id'=>1,'name'=>'Coverage Customer','mobile'=>'9000000001','email'=>'customer@example.test','address'=>'Disposable fixture',
