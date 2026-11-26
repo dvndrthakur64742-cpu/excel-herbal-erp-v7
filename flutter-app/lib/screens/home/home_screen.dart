@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_paths.dart';
 import '../../core/business_format.dart';
+import '../../core/sales_report_totals.dart';
+import '../../core/dashboard_data.dart';
 import '../../core/date_time_text.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
@@ -633,40 +635,36 @@ class _ManagementOverview extends StatelessWidget {
           }
           final data = snapshot.data ?? const <String, dynamic>{};
           final cards = <_Metric>[];
-          final sales = data['sales'] as List<Map<String, dynamic>>?;
+          final sales = data['sales'] as SalesReportTotals?;
           if (sales != null) {
             cards.add(
               _Metric(
                 'Gross Sales',
-                BusinessFormat.money(_sum(sales, 'gross_amount')),
+                BusinessFormat.money(sales.grossMinor / 100),
                 Icons.trending_up_rounded,
                 route: app.can('reports.view') && app.sectionVisible('reports') ? 'kpi_sales' : null,
               ),
             );
             cards.add(
               _Metric(
-                'Outstanding',
-                BusinessFormat.money(_sum(sales, 'outstanding_amount')),
+                'Month sales outstanding',
+                BusinessFormat.money(sales.outstandingMinor / 100),
                 Icons.pending_actions_outlined,
                 route: app.can('reports.view') && app.sectionVisible('reports') ? 'kpi_sales' : null,
               ),
             );
           }
-          final daily = data['daily'] as List<Map<String, dynamic>>?;
+          final daily = data['daily'] as int?;
           if (daily != null && app.can('daily_order.others')) {
-            final pending = daily.where((row) {
-              final status = '${row['status'] ?? ''}'.toLowerCase();
-              return status != 'completed' && status != 'cancelled';
-            }).length;
-            cards.add(_Metric('Open daily orders (listed)', '$pending', Icons.approval_outlined,
+            cards.add(_Metric('Open daily orders · all dates', '$daily', Icons.approval_outlined,
               route: app.sectionVisible('team') ? 'kpi_daily' : null));
           }
-          final performance = data['performance'] as List<Map<String, dynamic>>?;
+          final performance = data['performance'] as num?;
           if (performance != null && app.can('performance.view')) {
             cards.add(
               _Metric(
                 'Team Points',
-                BusinessFormat.quantity(_sum(performance, 'points')),
+                BusinessFormat.quantity(performance),
                 Icons.leaderboard_outlined,
                 route: app.sectionVisible('payroll_performance') ? 'kpi_performance' : null,
               ),
@@ -726,22 +724,29 @@ class _ManagementOverview extends StatelessWidget {
       api.get(ApiPaths.reportsSales, query: period),
     );
     final dailyFuture = app.can('daily_order.others')
-        ? _safeRows(api.get(ApiPaths.dailyCycles, query: {'branch_id': branch}))
-        : Future.value(<Map<String, dynamic>>[]);
+        ? _safeDailyCount()
+        : Future<int?>.value(null);
     final performanceFuture = app.can('performance.view')
         ? _safeRows(api.get(ApiPaths.performanceSummary, query: period))
         : Future.value(<Map<String, dynamic>>[]);
 
-    final rows = await Future.wait([
-      salesFuture,
-      dailyFuture,
-      performanceFuture,
-    ]);
+    final rows = await Future.wait<Object?>([salesFuture, dailyFuture, performanceFuture]);
+    final sales = rows[0] as List<Map<String,dynamic>>?;
+    final points = rows[2] as List<Map<String,dynamic>>?;
     return {
-      'sales': rows[0],
+      'sales': sales == null ? null : SalesReportTotals.read(sales),
       'daily': rows[1],
-      'performance': rows[2],
+      'performance': points == null ? null : DashboardData.points(points),
     };
+  }
+
+  Future<int?> _safeDailyCount() async {
+    try {
+      final raw = await api.get(ApiPaths.dailyHistorySearch, query: {
+        'branch_id': branch, 'status': 'open', 'page': 1, 'page_size': 1,
+      });
+      return DashboardData.openCount(raw);
+    } catch (_) { return null; }
   }
 
   Future<List<Map<String, dynamic>>?> _safeRows(Future<dynamic> request) async {
@@ -760,10 +765,7 @@ class _ManagementOverview extends StatelessWidget {
           .map((e) => Map<String, dynamic>.from(e))
           .toList(growable: false);
 
-  static num _sum(List<Map<String, dynamic>> rows, String key) => rows.fold<num>(
-        0,
-        (sum, row) => sum + (BusinessFormat.number(row[key]) ?? 0),
-      );
+
 }
 
 // Balance four metrics across desktop or medium-width rows.
