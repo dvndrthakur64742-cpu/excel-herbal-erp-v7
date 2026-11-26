@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class ExcelBrand {
   ExcelBrand._();
 
-  static const primary = Color(0xFF0B8F48);
+  static const primary = Color(0xFF08743C);
   static const primaryDark = Color(0xFF086F39);
   static const primarySoft = Color(0xFFE8F5ED);
   static const primarySoftStrong = Color(0xFFD8EFE1);
@@ -13,7 +13,7 @@ class ExcelBrand {
   static const surface = Color(0xFFFFFFFF);
   static const border = Color(0xFFDDE5E0);
   static const warning = Color(0xFFF2A33A);
-  static const danger = Color(0xFFD64545);
+  static const danger = Color(0xFFB42318);
 
   static ThemeData lightTheme() {
     final baseScheme = ColorScheme.fromSeed(
@@ -129,7 +129,7 @@ class ExcelBrand {
           color: primaryDark,
           fontWeight: FontWeight.w700,
         ),
-        hintStyle: const TextStyle(color: Color(0xFF8A938E)),
+        hintStyle: const TextStyle(color: muted),
         errorStyle: const TextStyle(
           color: danger,
           fontWeight: FontWeight.w600,

@@ -3,6 +3,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('module context remains readable with narrow large text', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const scope = 'Long authorised branch name / 2026-11-26';
+    await tester.pumpWidget(MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.6)),
+        child: child!,
+      ),
+      home: const Scaffold(body: SingleChildScrollView(
+        child: ModuleWorkspaceHeader(
+          title: 'Inventory',
+          subtitle: 'Manage stock movements and reviews.',
+          icon: Icons.inventory_2_outlined,
+          contextLabel: scope,
+        ),
+      )),
+    ));
+    final text = tester.widget<Text>(find.text(scope));
+    expect(text.maxLines, isNull);
+    expect(text.overflow, isNot(TextOverflow.ellipsis));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('module workspace remains usable at 320px width', (tester) async {
     tester.view.physicalSize = const Size(320, 800);
     tester.view.devicePixelRatio = 1;

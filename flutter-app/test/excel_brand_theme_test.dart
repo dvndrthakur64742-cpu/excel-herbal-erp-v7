@@ -3,6 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('primary and error text retain readable contrast against white', () {
+    double contrast(Color a, Color b) {
+      final x = a.computeLuminance();
+      final y = b.computeLuminance();
+      return ((x > y ? x : y) + 0.05) / ((x < y ? x : y) + 0.05);
+    }
+    final theme = ExcelBrand.lightTheme();
+    expect(contrast(theme.colorScheme.primary, theme.colorScheme.onPrimary),
+        greaterThanOrEqualTo(4.5));
+    expect(contrast(theme.colorScheme.error, ExcelBrand.surface),
+        greaterThanOrEqualTo(4.5));
+  });
+
   test('ERP theme keeps tabs and business tables visually consistent', () {
     final theme = ExcelBrand.lightTheme();
 
