@@ -9,6 +9,7 @@ import '../../widgets/home_query.dart';
 import '../../widgets/branch_selector.dart';
 import '../../core/operational_health_text.dart';
 import '../../core/search_request_scope.dart';
+import '../../core/report_period.dart';
 import '../../core/stock_search_preview.dart';
 import '../../core/providers.dart';
 import '../../core/ui_error.dart';
@@ -31,6 +32,7 @@ class EnterpriseHubScreen extends ConsumerStatefulWidget {
 
 class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
   int refresh = 0;
+  bool _approvalBusy = false;
   String searchText = '';
   Future<_SearchResult>? searchFuture;
   final _searchController = TextEditingController();
@@ -98,8 +100,10 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
     if (app.currentBranchId == null) {
       return const Column(children: [Padding(padding: EdgeInsets.all(12), child: BranchSelector()), Expanded(child: Center(child: Text('Select an authorised branch.')))]);
     }
+    final api = ref.watch(apiClientProvider);
+    bool currentScope() => mounted && identical(ref.read(appStateProvider), app) && identical(ref.read(apiClientProvider), api);
     return HomeQuery<_ApprovalResult>(
-      scope: (ref.watch(apiClientProvider), app, refresh),
+      scope: (api, app, refresh),
       loader: () => _loadApprovals(app),
       builder: (context, snapshot, retry) {
         if (snapshot.connectionState != ConnectionState.done) {
@@ -156,8 +160,9 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (_, index) => _ApprovalCard(
                       item: result.items[index],
-                      onAction: _approvalAction,
-                      onOpen: _openApprovalSource,
+                      busy: _approvalBusy,
+                      onAction: (item, approve) async { if (currentScope()) await _approvalAction(item, approve); },
+                      onOpen: (item) { if (currentScope() && !_approvalBusy) _openApprovalSource(item); },
                     ),
                   ),
                 ),
@@ -317,49 +322,57 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       }
     }
 
-    if (app.canAny(const [
-      'daily_order.approve',
-      'daily_order.issue',
-      'daily_order.review',
-      'daily_order.others',
-    ])) {
-      final rows = await list(
-        ApiPaths.dailyCycles,
-        query: {'branch_id': branch},
-      );
-      for (final row in rows) {
-        final requestStatus = '${row['initial_request_status'] ?? ''}'
-            .toLowerCase();
-        if (requestStatus == 'submitted' && app.can('daily_order.approve')) {
-          items.add(
-            _ApprovalItem(
-              kind: 'daily',
-              title: 'Daily Order Approval',
-              subtitle:
-                  '${row['employee_name'] ?? 'Employee'} · ${BusinessFormat.date(row['business_date'])}',
-              status: 'Approval Pending',
-              row: row,
-              primaryAction: 'Approve',
-              actionId: int.tryParse('${row['initial_request_id']}'),
-              sortKey: '${row['business_date'] ?? ''}',
-            ),
-          );
-        } else if (requestStatus == 'approved' &&
-            app.can('daily_order.issue')) {
-          items.add(
-            _ApprovalItem(
-              kind: 'daily_issue',
-              title: 'Daily Order Stock Issue',
-              subtitle:
-                  '${row['employee_name'] ?? 'Employee'} · ${BusinessFormat.date(row['business_date'])}',
-              status: 'Approved · Issue Pending',
-              row: row,
-              primaryAction: 'Open Team',
-              sortKey: '${row['business_date'] ?? ''}',
-            ),
-          );
+    if (app.sectionVisible('team') && app.canAny(const [
+      'daily_order.approve', 'daily_order.issue', 'daily_order.review', 'daily_order.others',
+    ]) && app.canAny(const ['daily_order.self','daily_order.others'])) {
+      final today = ReportPeriod.businessDay(app.businessDate);
+      final seen = <int>{};
+      Future<void> dailyStage(String stage, String title, {String? before}) async {
+        try {
+          final data = await api.get(ApiPaths.dailyHistorySearch, query: {
+            'branch_id': branch, 'status': stage, 'page': 1, 'page_size': 50,
+            if (before != null) 'date_to': before,
+          });
+          if (data is! Map || data['items'] is! List || data['total'] is! int ||
+              data['page'] != 1 || data['page_size'] != 50 || data['has_more'] is! bool) {
+            throw const FormatException('Invalid daily approval source');
+          }
+          if (data['has_more'] == true) errors.add('$title: more records in Team Operations');
+          for (final raw in data['items'] as List) {
+            if (raw is! Map) throw const FormatException('Invalid daily record');
+            final row = Map<String,dynamic>.from(raw);
+            final id = int.tryParse('${row['id']}');
+            final date = ReportPeriod.businessDay('${row['business_date'] ?? ''}');
+            if (id == null || id <= 0 || date == null) {
+              errors.add('$title: record requires review');
+              continue;
+            }
+            if (!seen.add(id)) continue;
+            final prior = today != null && date.isBefore(today);
+            items.add(_ApprovalItem(
+              kind: 'daily_review', title: title,
+              subtitle: '${row['employee_name'] ?? 'Employee'} · ${BusinessFormat.date(row['business_date'])} · Order #$id',
+              status: prior ? 'Earlier business date · ${BusinessFormat.status(row['status'])}' : BusinessFormat.status(row['status']),
+              row: row, primaryAction: 'Open Team', sortKey: '${row['business_date']}',
+            ));
+          }
+        } catch (e) {
+          errors.add('$title: $e');
         }
       }
+      // Closing reminders are advisory. No auto-post, auto-close or push delivery.
+      await dailyStage('evening_submitted', 'Evening Closing Review');
+      if (today != null) {
+        final yesterday = DateTime(today.year,today.month,today.day-1).toIso8601String().substring(0,10);
+        await dailyStage('evening_draft', 'Earlier Evening Closing Draft', before: yesterday);
+        await dailyStage('issued', 'Earlier Closing Not Started', before: yesterday);
+      } else {
+        errors.add('Closing date unavailable');
+      }
+      if (app.canAny(const ['daily_order.approve','daily_order.review','daily_order.others'])) {
+        await dailyStage('stock_requested', 'Daily Order Request Review');
+      }
+      if (app.can('daily_order.issue')) await dailyStage('approved', 'Daily Order Stock Issue');
     }
 
     if (app.can('finance.expense.approve')) {
@@ -506,18 +519,35 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
   }
 
   Future<void> _approvalAction(_ApprovalItem item, bool approve) async {
-    if (item.kind == 'daily_issue') {
+    if (_approvalBusy || !mounted) return;
+    if (item.kind == 'daily_review') {
       _openApprovalSource(item);
       return;
     }
     final id = item.actionId;
-    if (id == null) return;
+    if (id == null || id <= 0 || (!approve && item.secondaryAction == null)) return;
+    final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
+    final cap = switch (item.kind) {
+      'expense' => 'finance.expense.approve',
+      'adjustment' => 'inventory.adjustment.approve',
+      'leave' => 'workforce.leave.manage',
+      'target' => 'performance.manage',
+      'payroll' => 'payroll.approve',
+      'reversal' => 'finance.reversal.approve',
+      _ => null,
+    };
+    if (cap == null || !app.can(cap) || app.currentBranchId == null || app.businessAccessBlocked) return;
+    setState(() => _approvalBusy = true);
     try {
+      final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+        title: Text(approve ? 'Confirm approval' : 'Confirm rejection'),
+        content: Text('${item.title}\n${item.subtitle}\nBranch: ${app.currentBranchName}\nReference #$id'),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext,false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext,true), child: Text(approve ? 'Approve' : 'Reject'))],
+      ));
+      if (!mounted || confirmed != true || !identical(ref.read(appStateProvider),app) || !identical(ref.read(apiClientProvider),api)) return;
       switch (item.kind) {
-        case 'daily':
-          await api.post(ApiPaths.dailyApprove(id), data: const {});
-          break;
         case 'expense':
           await api.post(
             ApiPaths.expenseDecision(id),
@@ -559,12 +589,14 @@ class _EnterpriseHubScreenState extends ConsumerState<EnterpriseHubScreen> {
       }
     } catch (e) {
       if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      if (mounted) setState(() => _approvalBusy = false);
     }
   }
 
   void _openApprovalSource(_ApprovalItem item) {
     Widget screen = switch (item.kind) {
-      'daily' || 'daily_issue' => const TeamScreen(),
+      'daily_review' => const TeamScreen(),
       'expense' || 'reversal' => const FinanceScreen(),
       'adjustment' => const InventoryScreen(),
       'target' || 'payroll' => const PerformanceScreen(),
@@ -951,7 +983,9 @@ class _ApprovalCard extends StatelessWidget {
     required this.item,
     required this.onAction,
     required this.onOpen,
+    required this.busy,
   });
+  final bool busy;
   final _ApprovalItem item;
   final Future<void> Function(_ApprovalItem, bool) onAction;
   final void Function(_ApprovalItem) onOpen;
@@ -983,17 +1017,17 @@ class _ApprovalCard extends StatelessWidget {
             runSpacing: 8,
             children: [
               OutlinedButton.icon(
-                onPressed: () => onOpen(item),
+                onPressed: busy ? null : () => onOpen(item),
                 icon: const Icon(Icons.open_in_new, size: 18),
-                label: const Text('Review'),
+                label: Text(item.kind == 'daily_review' ? 'Open Team' : 'Review'),
               ),
               if (item.secondaryAction != null)
                 OutlinedButton(
-                  onPressed: () => onAction(item, false),
+                  onPressed: busy ? null : () => onAction(item, false),
                   child: Text(item.secondaryAction!),
                 ),
-              FilledButton(
-                onPressed: () => onAction(item, true),
+              if (item.kind != 'daily_review') FilledButton(
+                onPressed: busy || item.actionId == null ? null : () => onAction(item, true),
                 child: Text(item.primaryAction),
               ),
             ],
