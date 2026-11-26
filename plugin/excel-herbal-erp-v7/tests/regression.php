@@ -313,4 +313,55 @@ foreach([
         else{$failed++;echo "FAIL branch journal gate {$name}: {$e->codeKey}\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL branch journal gate {$name}: {$e->getMessage()}\n";}
 }
+// A failed preflight read must never be interpreted as zero blockers.
+final class ClosingReadRegressionDb {
+    public string $prefix='wp_';
+    public string $last_error='';
+    public string $failure='';
+    public int $insert_id=9;
+    public array $writes=[];
+    public array $queries=[];
+    public function prepare($q,...$args){return $q;}
+    public function query($q){$this->queries[]=$q;return 1;}
+    public function get_col($q){return [1];}
+    public function get_row($q,$mode){return null;}
+    public function get_var($q){
+        $this->last_error='';
+        if(str_contains($q,'eh7_companies'))return 1;
+        if(str_contains($q,'eh7_accounting_periods'))return null;
+        if(str_contains($q,'COUNT(*)')&&str_contains($q,$this->failure)){
+            $this->last_error='synthetic failed blocker query';return null;
+        }
+        return 0;
+    }
+    public function get_results($q,$mode){
+        $this->last_error='';
+        if($this->failure==='missing_closings'){
+            $this->last_error='synthetic failed closing query';return null;
+        }
+        return [];
+    }
+    public function insert($table,$data){$this->writes[]=$table;return 1;}
+    public function update($table,$data,$where){$this->writes[]=$table;return 1;}
+}
+$closingActor=new \ExcelHerbal\ERP7\Security\Actor(10,10,1,1,[1],[
+    \ExcelHerbal\ERP7\Security\Capabilities::BRANCH_CLOSE,
+    \ExcelHerbal\ERP7\Security\Capabilities::PERIOD_MANAGE
+],'BM');
+foreach([
+    ['branch daily check failure','eh7_daily_cycles',false],
+    ['branch stock check failure','eh7_stock_balances',false],
+    ['period expense check failure','eh7_expenses',true],
+    ['period missing closings read failure','missing_closings',true],
+] as [$name,$failure,$period]){
+    $wpdb=new ClosingReadRegressionDb();$wpdb->failure=$failure;
+    try{
+        if($period)\ExcelHerbal\ERP7\Finance\FinancePeriodService::closePeriod($closingActor,'2026-09-01','2026-09-30');
+        else \ExcelHerbal\ERP7\Finance\FinanceClosingService::closingPreflight($closingActor,1,'2026-09-08');
+        $failed++;echo "FAIL closing read {$name}: accepted\n";
+    }catch(DomainException $e){
+        if($e->codeKey==='closing_preflight_unavailable'&&$wpdb->writes===[]&&(!$period||in_array('ROLLBACK',$wpdb->queries,true)))echo "PASS closing read {$name}\n";
+        else{$failed++;echo "FAIL closing read {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL closing read {$name}: {$e->getMessage()}\n";}
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
