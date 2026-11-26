@@ -15,6 +15,7 @@ import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/guided_workspace_switcher.dart';
 import '../../widgets/gps_route_view.dart';
+import '../../widgets/team_daily_queue.dart';
 import 'employee_designations_screen.dart';
 
 class TeamScreen extends ConsumerStatefulWidget {
@@ -40,22 +41,22 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     ])) {
       tabs.add((
         'Daily Orders',
-        AsyncPanel(
-          key: ValueKey('d-${app.currentBranchId}-$refresh'),
-          loader: () => app.currentBranchId == null
-              ? Future.value(const <dynamic>[])
-              : api.get(
-                  ApiPaths.dailyCycles,
-                  query: {'branch_id': app.currentBranchId},
-                ),
-          builder: (context, data) => RecordsList(
-            recordType: 'daily_order',
-            rows: (data as List)
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList(),
-            onTap: _dailyDetail,
-          ),
-        ),
+        app.currentBranchId != null && app.canAny(const ['daily_order.self','daily_order.others'])
+          ? TeamDailyQueue(
+            key: ValueKey((api, app, refresh)),
+            businessDate: app.businessDate,
+            load: (status, page) => api.get(ApiPaths.dailyHistorySearch, query: {
+              'branch_id': app.currentBranchId,
+              'status': status,
+              'page': page,
+              'page_size': 25,
+            }),
+            onOpen: (row) {
+              if (identical(ref.read(appStateProvider), app) &&
+                  identical(ref.read(apiClientProvider), api)) _dailyDetail(row);
+            },
+          )
+        : const Center(child: Text('Daily order list requires an authorised branch and daily order access.')),
       ));
     }
     if (app.can('workforce.attendance.manage')) {
