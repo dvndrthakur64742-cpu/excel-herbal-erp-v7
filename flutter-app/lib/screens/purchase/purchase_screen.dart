@@ -11,6 +11,7 @@ import '../../core/ui_error.dart';
 import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
+import '../../widgets/business_date_field.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/guided_action_panel.dart';
@@ -301,11 +302,15 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
       final qty = <int, TextEditingController>{};
       final cost = <int, TextEditingController>{};
       final batchNo = <int, TextEditingController>{};
+      final manufacturedOn = <int, TextEditingController>{};
+      final expiresOn = <int, TextEditingController>{};
       for (final p in products) {
         final id = int.parse('${p['id']}');
         qty[id] = controller();
         cost[id] = controller();
         batchNo[id] = controller();
+        manufacturedOn[id] = controller();
+        expiresOn[id] = controller();
       }
       String? formError;
       String productFilter = '';
@@ -354,7 +359,9 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                     const SizedBox(height: 8),
                     ...products.map((p) {
                       final id = int.parse('${p['id']}');
-                      if ([qty[id]!, cost[id]!, batchNo[id]!].every((c) => c.text.trim().isEmpty) && !EntryFormScope.matchesProduct(productFilter, [p['name'], p['sku']])) return const SizedBox.shrink();
+                      final tracked = p['expiry_tracking'] == true ||
+                          '${p['expiry_tracking']}' == '1';
+                      if ([qty[id]!, cost[id]!, batchNo[id]!, manufacturedOn[id]!, expiresOn[id]!].every((c) => c.text.trim().isEmpty) && !EntryFormScope.matchesProduct(productFilter, [p['name'], p['sku']])) return const SizedBox.shrink();
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: Padding(
@@ -398,11 +405,26 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                               const SizedBox(height: 8),
                               TextField(
                                 controller: batchNo[id],
-                                decoration: const InputDecoration(
-                                  labelText:
-                                      'Batch No. (optional / required by product)',
+                                decoration: InputDecoration(
+                                  labelText: tracked || '${p['batch_tracking']}' == 'required'
+                                      ? 'Batch No. (required)'
+                                      : 'Batch No. (optional)',
                                 ),
                               ),
+                              if (tracked || '${p['batch_tracking']}' != 'off') ...[
+                                const SizedBox(height: 8),
+                                BusinessDateField(
+                                  controller: manufacturedOn[id]!,
+                                  label: 'Manufactured on (optional)',
+                                  allowClear: true,
+                                ),
+                                const SizedBox(height: 8),
+                                BusinessDateField(
+                                  controller: expiresOn[id]!,
+                                  label: tracked ? 'Expiry date (required)' : 'Expiry date (optional)',
+                                  allowClear: true,
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -451,11 +473,28 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                         break;
                       }
                       final batch = batchNo[id]!.text.trim();
+                      final tracked = p['expiry_tracking'] == true ||
+                          '${p['expiry_tracking']}' == '1';
+                      final manufactured = manufacturedOn[id]!.text.trim();
+                      final expiry = expiresOn[id]!.text.trim();
+                      if (tracked && expiry.isEmpty) {
+                        error = '${p['name']}: Expiry date is required.';
+                        break;
+                      }
+                      if (manufactured.isNotEmpty && expiry.isNotEmpty &&
+                          manufactured.compareTo(expiry) > 0) {
+                        error = '${p['name']}: Manufactured date cannot be after expiry.';
+                        break;
+                      }
+                      if (batch.isEmpty && (manufactured.isNotEmpty || expiry.isNotEmpty)) {
+                        error = '${p['name']}: Batch No. is required for batch dates.';
+                        break;
+                      }
                       final guardError = TransactionGuardrails.purchaseLine(
                         quantity: q,
                         unitCost: unitCost,
                         batchRequired:
-                            '${p['batch_tracking']}' == 'required',
+                            tracked || '${p['batch_tracking']}' == 'required',
                         batchNo: batch,
                       );
                       if (guardError != null) {
@@ -467,6 +506,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                         'quantity': q,
                         'unit_cost': unitCost,
                         if (batch.isNotEmpty) 'batch_no': batch,
+                        if (manufactured.isNotEmpty) 'manufactured_on': manufactured,
+                        if (expiry.isNotEmpty) 'expires_on': expiry,
                       });
                     }
                   }
