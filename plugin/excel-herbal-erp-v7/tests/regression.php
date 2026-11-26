@@ -274,4 +274,43 @@ foreach([
         else{$failed++;echo "FAIL period gate {$name}: {$e->codeKey}\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL period gate {$name}: {$e->getMessage()}\n";}
 }
+// FIN-04: branch close must be enforced in the central journal writer.
+final class BranchPostingRegressionDb {
+    public string $prefix='wp_';
+    public string $last_error='';
+    public array $queries=[];
+    public string $scenario='';
+    public function prepare($q,...$args){return $q;}
+    public function query($q){$this->queries[]=$q;return 1;}
+    public function get_row($q,$mode){return ['id'=>1,'type'=>'asset','active'=>1];}
+    public function get_var($q){
+        $this->queries[]=$q;
+        if(str_contains($q,'eh7_accounting_periods'))return null;
+        if(str_contains($q,'eh7_branches')){
+            if($this->scenario==='branch lock failure'){$this->last_error='synthetic lock failure';return null;}
+            return 1;
+        }
+        if(str_contains($q,'eh7_branch_closings')){
+            if($this->scenario==='branch read failure'){$this->last_error='synthetic read failure';return null;}
+            return str_contains($q,'LOCK IN SHARE MODE')?'closed':null;
+        }
+        return 1;
+    }
+}
+foreach([
+    ['closed branch after stale read','branch_day_closed'],
+    ['branch lock failure','branch_day_lock_failed'],
+    ['branch read failure','branch_day_read_failed'],
+] as [$name,$expected]){
+    $wpdb=new BranchPostingRegressionDb();$wpdb->scenario=$name;
+    try{
+        \ExcelHerbal\ERP7\Finance\AccountingService::post($bankActor,1,'counter_sale',1,'2026-09-08 12:00:00',[
+            ['account_id'=>1,'debit'=>100],['account_id'=>2,'credit'=>100]
+        ]);
+        $failed++;echo "FAIL branch journal gate {$name}: posting accepted\n";
+    }catch(DomainException $e){
+        if($e->codeKey===$expected&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS branch journal gate {$name}\n";
+        else{$failed++;echo "FAIL branch journal gate {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL branch journal gate {$name}: {$e->getMessage()}\n";}
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
