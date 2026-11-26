@@ -561,6 +561,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  Text('Branch: ${app.currentBranchName} · Date: ${app.businessDate}'),
+                  const SizedBox(height: 10),
                   DropdownButtonFormField<int>(
                     isExpanded: true,
                     initialValue: billId,
@@ -572,7 +574,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                           (b) => DropdownMenuItem(
                             value: int.parse('${b['id']}'),
                             child: Text(
-                              '${b['supplier_name']} · ${b['bill_no']} · ₹${b['outstanding_amount']}',
+                              '${b['supplier_name'] ?? 'Unverified supplier'} · ${b['bill_no']} · ₹${b['outstanding_amount']}', overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         )
@@ -598,7 +600,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                         .map(
                           (a) => DropdownMenuItem(
                             value: int.parse('${a['id']}'),
-                            child: Text('${a['code']} · ${a['name']}'),
+                            child: Text('${a['code']} · ${a['name']}', overflow: TextOverflow.ellipsis),
                           ),
                         )
                         .toList(),
@@ -629,7 +631,11 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                   final error = TransactionGuardrails.supplierPayment(billId: billId, paymentAccountId: accountId,
                     amount: parsed ?? double.nan, outstanding: outstanding);
                   if (error != null) { setLocal(() => validation = error); return; }
-                  if (!RegExp(r'^\d{1,12}(?:\.\d{1,2})?
+                  if (!RegExp(r'^\d{1,12}(?:\.\d{1,2})?$').hasMatch(amount.text.trim())) {
+                    setLocal(() => validation = 'Enter an amount with at most two decimal places.'); return;
+                  }
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Post Payment'),
               ),
             ],
@@ -675,56 +681,6 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
     } finally {
       amount.dispose();
       if (mounted) setState(() => _entryInProgress = false);
-    }
-  }
-}
-).hasMatch(amount.text.trim())) {
-                    setLocal(() => validation = 'Enter an amount with at most two decimal places.'); return;
-                  }
-                  Navigator.pop(context, true);
-                },
-                child: const Text('Post Payment'),
-              ),
-            ],
-          ),
-        ),
-      );
-      if (ok == true) {
-        final selected = bills.firstWhere(
-          (bill) => int.tryParse('${bill['id']}') == billId,
-        );
-        final outstanding =
-            double.tryParse('${selected['outstanding_amount']}') ?? 0;
-        final paymentAmount = double.tryParse(amount.text.trim());
-        if (paymentAmount == null) {
-          throw Exception(
-            'Enter a valid supplier payment amount.',
-          );
-        }
-        final guardError = TransactionGuardrails.supplierPayment(
-          billId: billId,
-          paymentAccountId: accountId,
-          amount: paymentAmount,
-          outstanding: outstanding,
-        );
-        if (guardError != null) throw Exception(guardError);
-        await api.post(
-          ApiPaths.supplierPayments,
-          data: {
-            'purchase_bill_id': billId,
-            'amount': paymentAmount,
-            'payment_account_id': accountId,
-          },
-        );
-        if (mounted)
-          setState(() {
-            message = 'Supplier payment posted.';
-            refresh++;
-          });
-      }
-      amount.dispose();
-    } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
     }
   }
 }
