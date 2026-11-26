@@ -12,11 +12,21 @@ class SecureSession {
   static const _refresh = 'eh7_refresh_token';
   static const _deviceId = 'eh7_device_id_v1';
   static const _generation = 'eh7_session_generation_v1';
+  static const _loginBoundary = 'eh7_login_boundary_v1';
   static const _mutationJournal = 'eh7_uncertain_mutations_v1';
 
   Future<String?> accessToken() => _storage.read(key: _access);
   Future<String?> refreshToken() => _storage.read(key: _refresh);
   Future<String?> sessionGeneration() => _storage.read(key: _generation);
+  Future<String?> loginBoundary() => _storage.read(key: _loginBoundary);
+
+  /// Unlike token generation, this marker changes only on login/logout.
+  Future<void> beginLoginBoundary() async {
+    final random = Random.secure();
+    final value = base64UrlEncode(List<int>.generate(32, (_) => random.nextInt(256)));
+    await _storage.write(key: _loginBoundary, value: value);
+    await _storage.delete(key: _mutationJournal);
+  }
 
   Future<String> deviceId() async {
     final existing = (await _storage.read(key: _deviceId))?.trim();
@@ -65,6 +75,7 @@ class SecureSession {
   }
 
   Future<void> clear() async {
+    await _storage.delete(key: _loginBoundary);
     await _storage.delete(key: _access);
     await _storage.delete(key: _refresh);
     await _storage.delete(key: _generation);
