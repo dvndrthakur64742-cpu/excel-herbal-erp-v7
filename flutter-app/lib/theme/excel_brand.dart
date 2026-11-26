@@ -4,6 +4,9 @@ class ExcelBrand {
   ExcelBrand._();
 
   static const primary = Color(0xFF08743C);
+  static const navigationSurface = Color(0xFF124F36);
+  static const navigationSelected = Color(0xFF28704E);
+  static const navigationMuted = Color(0xFFD3E5D9);
   static const primaryDark = Color(0xFF086F39);
   static const primarySoft = Color(0xFFE8F5ED);
   static const primarySoftStrong = Color(0xFFD8EFE1);
