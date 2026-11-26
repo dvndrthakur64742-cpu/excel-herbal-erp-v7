@@ -36,7 +36,7 @@ final class DailyOrderSearchService {
         if(strlen($query)>80||preg_match('/[\x00-\x1F\x7F]/',$query)) {
             throw new DomainException('Search text is invalid.','daily_search_query_invalid',422);
         }
-        if($status!==''&&!in_array($status,self::STATUSES,true)) {
+        if($status!==''&&$status!=='open'&&!in_array($status,self::STATUSES,true)) {
             throw new DomainException('Unsupported daily order status.','daily_search_status_invalid',422);
         }
         $dateFrom=Input::optionalDate($dateFrom,'History start date');
@@ -73,7 +73,9 @@ final class DailyOrderSearchService {
             ' AND c.branch_id IN ('.implode(',',array_fill(0,count($branches),'%d')).')'.
             ' AND c.employee_id IN ('.implode(',',array_fill(0,count($employees),'%d')).')';
         $params=array_merge([$actor->companyId],$branches,$employees);
-        if($status!==''){$where.=' AND c.status=%s';$params[]=$status;}
+        if($status==='open'){
+            $where.=" AND c.status NOT IN ('completed','cancelled','rejected')";
+        }elseif($status!==''){$where.=' AND c.status=%s';$params[]=$status;}
         if($dateFrom!==null){$where.=' AND c.business_date>=%s';$params[]=$dateFrom;}
         if($dateTo!==null){$where.=' AND c.business_date<=%s';$params[]=$dateTo;}
         if($query!==''){
@@ -88,6 +90,7 @@ final class DailyOrderSearchService {
         $total=(int)$db->get_var($db->prepare(
             'SELECT COUNT(*)'.$joins.$where,...$params
         ));
+        if(($db->last_error??'')!=='') throw new DomainException('Daily order count unavailable.','daily_search_unavailable',503);
         $rows=[];
         if($total>0){
             $rows=(array)$db->get_results($db->prepare(
@@ -104,6 +107,7 @@ final class DailyOrderSearchService {
                 $where.' ORDER BY c.business_date DESC,c.id DESC LIMIT %d OFFSET %d',
                 ...array_merge($params,[$pageSize,($page-1)*$pageSize])
             ),ARRAY_A);
+            if(($db->last_error??'')!=='') throw new DomainException('Daily order records unavailable.','daily_search_unavailable',503);
         }
         return [
             'items'=>$rows,

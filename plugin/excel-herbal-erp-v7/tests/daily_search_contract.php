@@ -15,6 +15,8 @@ final class FakeDailyHistoryWpdb {
     public string $prefix='wp_';
     public array $prepared=[];
     public int $found=1;
+    public string $last_error='';
+    public bool $failCount=false;
     public function prepare(string $sql,mixed ...$args):string {
         $this->prepared[]=['sql'=>$sql,'args'=>$args];
         return $sql;
@@ -22,7 +24,7 @@ final class FakeDailyHistoryWpdb {
     public function esc_like(string $text):string {
         return addcslashes($text,'_%\\');
     }
-    public function get_var(string $sql):int { return $this->found; }
+    public function get_var(string $sql):int { $this->last_error=$this->failCount?'fixture count error':''; return $this->found; }
     public function get_results(string $sql,mixed $format=null):array {
         if(str_contains($sql,'SELECT id,assigned_branch_id,reporting_employee_id,designation_code')) {
             return [
@@ -99,6 +101,13 @@ deniedDaily(fn()=>Search::search($self,1,1,25,'','', '2026-11-31'),
     'date_invalid','invalid calendar date rejected');
 deniedDaily(fn()=>Search::search($self,1,1,25,'','', '2026-11-03','2026-11-02'),
     'date_range_invalid','reversed date range rejected');
+$db->prepared=[];
+Search::search($self,1,1,25,'','open');
+$queries=array_values(array_filter($db->prepared,static fn($x)=>str_contains($x['sql'],"c.status NOT IN ('completed','cancelled','rejected')")));
+passDaily(count($queries)===2,'open queue filters both scoped count and page before pagination');
+$db->failCount=true;
+deniedDaily(fn()=>Search::search($self,1),'daily_search_unavailable','failed count is not an empty queue');
+$db->failCount=false;
 $db->found=0;
 $empty=Search::search($self,1);
 passDaily($empty['total']===0&&$empty['items']===[]&&$empty['has_more']===false,
