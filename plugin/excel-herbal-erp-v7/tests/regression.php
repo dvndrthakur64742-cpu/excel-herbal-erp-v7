@@ -574,4 +574,26 @@ foreach([
         else{$failed++;echo "FAIL commercial decimal {$name}: {$e->codeKey}\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL commercial decimal {$name}: {$e->getMessage()}\n";}
 }
+
+// ERP startup and other REST success/error responses must not be cached.
+if(!defined('EH7_VERSION'))define('EH7_VERSION','7.3.12-rc1');
+class WP_REST_Response {
+    public array $headers=[];
+    public function __construct(public array $data,public int $status){}
+    public function header($key,$value){$this->headers[$key]=$value;}
+}
+$apiResponse=new \ReflectionMethod(\ExcelHerbal\ERP7\Http\Api::class,'response');
+foreach([200,401,403,500,503] as $status){
+    try{
+        $body=['ok'=>$status===200];
+        $response=$apiResponse->invoke(null,$body,$status,'synthetic-request');
+        if(($response->headers['Cache-Control']??'')!=='private, no-store, no-cache, max-age=0, must-revalidate'
+            ||($response->headers['X-Request-Id']??'')!=='synthetic-request'
+            ||$response->status!==$status||$response->data!==$body){
+            throw new \RuntimeException('Response cache or transport contract mismatch.');
+        }
+        echo "PASS API no-store {$status}\n";
+    }catch(\Throwable $e){$failed++;echo "FAIL API no-store {$status}: {$e->getMessage()}\n";}
+}
+
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
