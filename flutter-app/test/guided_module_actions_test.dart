@@ -131,6 +131,8 @@ void main() {
     expect(purchase, contains("app.can('finance.supplier_payment.create')"));
     expect(purchase, contains('onOpen: _payBill'));
     expect(inventory, contains("app.can('inventory.adjustment.create')"));
-    expect(inventory, contains('onOpen: _createQuarantine'));
+    expect(inventory, isNot(contains('onOpen: _createQuarantine')));
+    expect(inventory, contains("'Quarantine'"));
+    expect(inventory, contains('ApiPaths.quarantine'));
   });
 }
