@@ -481,4 +481,71 @@ foreach(['create','update'] as $name){
         else{$failed++;echo "FAIL expiry master {$name}: {$e->codeKey}\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL expiry master {$name}: {$e->getMessage()}\n";}
 }
+// Quarantine release must not commit stock before resolution and audit.
+final class QuarantineRegressionDb {
+    public string $prefix='wp_';public string $last_error='';public int $insert_id=1;
+    public string $scenario='';public string $status='open';public float $qty=0;
+    public array $queries=[];public array $ledger=[];public array $audit=[];
+    private array $snapshot=[];
+    public function prepare($q,...$args){return $q;}
+    public function query($q){
+        $this->queries[]=$q;
+        if($q==='START TRANSACTION')$this->snapshot=[$this->status,$this->qty,$this->ledger,$this->audit];
+        if($q==='ROLLBACK')[$this->status,$this->qty,$this->ledger,$this->audit]=$this->snapshot;
+        return 1;
+    }
+    public function get_var($q){
+        if(str_contains($q,'eh7_branch_closings')||str_contains($q,'eh7_accounting_periods'))return null;
+        return 1;
+    }
+    public function get_row($q,$mode){
+        $this->queries[]=$q;
+        if(str_contains($q,'eh7_stock_quarantine'))return ['id'=>1,'branch_id'=>1,'product_id'=>1,'batch_id'=>1,'quantity'=>2,'status'=>$this->status,'reason'=>'Synthetic hold'];
+        if(str_contains($q,'eh7_products'))return ['id'=>1,'batch_tracking'=>'required','expiry_tracking'=>1];
+        if(str_contains($q,'eh7_batches'))return ['id'=>1,'expires_on'=>$this->scenario==='expired'?'2026-09-29':'2026-10-01'];
+        if(str_contains($q,'eh7_stock_balances'))return ['id'=>1,'quantity'=>$this->qty,'average_unit_cost'=>0];
+        return null;
+    }
+    public function update($table,$data,$where){
+        if(str_contains($table,'stock_balances'))$this->qty=(float)$data['quantity'];
+        if(str_contains($table,'stock_quarantine')){
+            if($this->scenario==='status failure')return false;
+            $this->status=$data['status'];
+        }
+        return 1;
+    }
+    public function insert($table,$data){
+        if(str_contains($table,'stock_ledger'))$this->ledger[]=$data;
+        if(str_contains($table,'audit_log')){
+            if($this->scenario==='audit failure')return false;
+            $this->audit[]=$data;
+        }
+        return 1;
+    }
+}
+$quarantineActor=new \ExcelHerbal\ERP7\Security\Actor(10,10,1,1,[1],[\ExcelHerbal\ERP7\Security\Capabilities::ADJ_APPROVE],'BM');
+foreach([
+    ['expired','batch_expired'],
+    ['status failure','database_update_failed'],
+    ['audit failure','database_insert_failed'],
+] as [$name,$expected]){
+    $wpdb=new QuarantineRegressionDb();$wpdb->scenario=$name;
+    try{
+        \ExcelHerbal\ERP7\Inventory\InventoryService::resolveQuarantine($quarantineActor,1,'release','Synthetic release');
+        $failed++;echo "FAIL quarantine {$name}: accepted\n";
+    }catch(DomainException $e){
+        if($e->codeKey===$expected&&$wpdb->status==='open'&&$wpdb->qty===0.0&&$wpdb->ledger===[]&&$wpdb->audit===[]&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS quarantine {$name}\n";
+        else{$failed++;echo "FAIL quarantine {$name}: {$e->codeKey} qty={$wpdb->qty}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL quarantine {$name}: {$e->getMessage()}\n";}
+}
+$wpdb=new QuarantineRegressionDb();
+try{
+    $result=\ExcelHerbal\ERP7\Inventory\InventoryService::resolveQuarantine($quarantineActor,1,'release','Synthetic release');
+    $locked=array_filter($wpdb->queries,fn($q)=>str_contains($q,'eh7_stock_quarantine')&&str_contains($q,'FOR UPDATE'));
+    if($result['status']!=='released'||$wpdb->qty!==2.0||count($wpdb->ledger)!==1||count($wpdb->audit)!==1||!$locked)throw new \RuntimeException('release is not locked and audited');
+    try{\ExcelHerbal\ERP7\Inventory\InventoryService::resolveQuarantine($quarantineActor,1,'release','Synthetic retry');throw new \RuntimeException('retry accepted');}
+    catch(DomainException $e){if($e->codeKey!=='quarantine_already_resolved')throw $e;}
+    if($wpdb->qty!==2.0||count($wpdb->ledger)!==1)throw new \RuntimeException('duplicate release');
+    echo "PASS quarantine single release\n";
+}catch(\Throwable $e){$failed++;echo "FAIL quarantine single release: {$e->getMessage()}\n";}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
