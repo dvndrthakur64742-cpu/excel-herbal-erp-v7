@@ -61,7 +61,11 @@ void main() {
       contains("Duty automatically starts at 10:30 AM; no manual check-in is required."),
     );
     expect(source, contains("Duty is automatic · 10:30 AM–5:00 PM"));
-    expect(source, contains("Attendance pending"));
+    expect(source, contains("AttendanceStatusDisplay.title("));
+    final statusDisplay = File('lib/core/attendance_status_display.dart').readAsStringSync();
+    expect(statusDisplay, contains("Attendance pending"));
+    expect(statusDisplay, contains("Approved leave"));
+    expect(statusDisplay, contains("Holiday"));
     expect(source, contains("Check-Out: pending"));
     expect(source, isNot(contains("Future<void> _attendanceAction(")));
     expect(source, contains("ApiPaths.checkIn"));
