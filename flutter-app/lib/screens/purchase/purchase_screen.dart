@@ -14,6 +14,7 @@ import '../../widgets/branch_selector.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/guided_action_panel.dart';
+import '../../widgets/purchase_outstanding_summary.dart';
 
 class PurchaseScreen extends ConsumerStatefulWidget {
   const PurchaseScreen({super.key, this.initialAction});
@@ -90,6 +91,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Purchase & Suppliers'),
+          actions: [IconButton(tooltip: 'Refresh purchase', onPressed: () => setState(() => refresh++), icon: const Icon(Icons.refresh))],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Outstanding'),
@@ -147,7 +149,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                                 )
                               : AsyncPanel(
                                   key: ValueKey(
-                                    'bills-${app.currentBranchId}-$refresh',
+                                    (api, app, refresh, 'bills'),
                                   ),
                                   loader: () => api.get(
                                     ApiPaths.openBills,
@@ -157,8 +159,8 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                                   ),
                                   emptyMessage:
                                       'No supplier bills are outstanding.',
-                                  builder: (context, data) => RecordsList(
-                                    recordType: 'purchase',
+                                  builder: (context, data) => PurchaseOutstandingSummary(
+                                    scope: app.currentBranchName,
                                     rows: (data as List)
                                         .map(
                                           (e) => Map<String, dynamic>.from(
@@ -517,6 +519,10 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
   Future<void> _payBill() async {
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
+    if (!mounted || _entryInProgress || app.currentBranchId == null || !app.can('finance.supplier_payment.create')) return;
+    final scope = EntryFormScope(app, api);
+    setState(() => _entryInProgress = true);
+    final amount = TextEditingController();
     try {
       final bills = (await api.get(
         ApiPaths.openBills,
@@ -541,18 +547,22 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
           .toList();
       int? billId;
       int? accountId;
-      final amount = TextEditingController();
+      if (!mounted || !scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) return;
+      if (bills.isEmpty || accounts.isEmpty) throw StateError('No outstanding bill or payment account available.');
+      String? validation;
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setLocal) => AlertDialog(
             title: const Text('Supplier Payment'),
+            scrollable: true,
             content: SizedBox(
               width: 520,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<int>(
+                    isExpanded: true,
                     initialValue: billId,
                     decoration: const InputDecoration(
                       labelText: 'Outstanding Bill',
@@ -579,6 +589,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int>(
+                    isExpanded: true,
                     initialValue: accountId,
                     decoration: const InputDecoration(
                       labelText: 'Payment Account',
@@ -599,8 +610,9 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(labelText: 'Amount'),
+                    decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
                   ),
+                  if (validation != null) Text(validation!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 ],
               ),
             ),
@@ -610,8 +622,67 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, billId != null && accountId != null),
+                onPressed: () {
+                  final matches = bills.where((b) => int.tryParse('${b['id']}') == billId);
+                  final outstanding = matches.isEmpty ? 0.0 : (double.tryParse('${matches.first['outstanding_amount']}') ?? 0.0);
+                  final parsed = double.tryParse(amount.text.trim());
+                  final error = TransactionGuardrails.supplierPayment(billId: billId, paymentAccountId: accountId,
+                    amount: parsed ?? double.nan, outstanding: outstanding);
+                  if (error != null) { setLocal(() => validation = error); return; }
+                  if (!RegExp(r'^\d{1,12}(?:\.\d{1,2})?
+                child: const Text('Post Payment'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (ok == true && mounted) {
+        if (!scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) throw StateError('ERP scope changed. Reopen supplier payment.');
+        final selected = bills.firstWhere(
+          (bill) => int.tryParse('${bill['id']}') == billId,
+        );
+        final outstanding =
+            double.tryParse('${selected['outstanding_amount']}') ?? 0;
+        final paymentAmount = double.tryParse(amount.text.trim());
+        if (paymentAmount == null) {
+          throw Exception(
+            'Enter a valid supplier payment amount.',
+          );
+        }
+        final guardError = TransactionGuardrails.supplierPayment(
+          billId: billId,
+          paymentAccountId: accountId,
+          amount: paymentAmount,
+          outstanding: outstanding,
+        );
+        if (guardError != null) throw Exception(guardError);
+        await api.post(
+          ApiPaths.supplierPayments,
+          data: {
+            'purchase_bill_id': billId,
+            'amount': paymentAmount,
+            'payment_account_id': accountId,
+          },
+        );
+        if (mounted)
+          setState(() {
+            message = 'Supplier payment posted.';
+            refresh++;
+          });
+      }
+    } catch (e) {
+      if (mounted) setState(() => message = UiError.message(e));
+    } finally {
+      amount.dispose();
+      if (mounted) setState(() => _entryInProgress = false);
+    }
+  }
+}
+).hasMatch(amount.text.trim())) {
+                    setLocal(() => validation = 'Enter an amount with at most two decimal places.'); return;
+                  }
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Post Payment'),
               ),
             ],
