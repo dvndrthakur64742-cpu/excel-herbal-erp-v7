@@ -43,6 +43,7 @@ final class AccountingService{
    $db=Db::wpdb();$h=Db::table('journal_entries');
    self::lockCompanyPeriodGate($a,false);
    self::assertPeriodOpen($a,$date);
+   if($branch!==null)BranchDayGuard::assertOpenForPosting($a,$branch,$date);
    self::lockSource($a,$source,$sourceId);
    $existing=(int)$db->get_var($db->prepare("SELECT id FROM {$h} WHERE company_id=%d AND source_type=%s AND source_id=%d AND status='posted' ORDER BY id DESC LIMIT 1 FOR UPDATE",$a->companyId,$source,$sourceId));
    if($existing)return$existing;

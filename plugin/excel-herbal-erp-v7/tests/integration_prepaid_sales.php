@@ -466,4 +466,21 @@ try {
     $peer->query("DELETE FROM {$periodTable} WHERE company_id=1 AND period_start='{$periodDay}'");
     $peer->close();
 }
+// FIN-04: central journal posting must see a newly closed branch day
+// even if its outer transaction already has an older consistent snapshot.
+$branchDay='2098-04-02';
+$closingTable=Db::table('branch_closings');
+$peer=eh7_connect();
+try {
+    \ExcelHerbal\ERP7\Database\Transaction::run(function()use($db,$peer,$branchDay,$closingTable,$seller,$protectedSale){
+        checkSales((int)$db->get_var("SELECT COUNT(*) FROM {$closingTable} WHERE company_id=1 AND branch_id=1 AND business_date='{$branchDay}'")===0,'branch closing absent in original snapshot');
+        $peer->query("INSERT INTO {$closingTable}(company_id,branch_id,business_date,status,created_by,created_at) VALUES(1,1,'{$branchDay}','closed',102,NOW())");
+        denySales(fn()=>\ExcelHerbal\ERP7\Finance\AccountingService::post($seller,1,'counter_sale',$protectedSale,$branchDay.' 12:00:00',[
+            ['account_id'=>10,'debit'=>1],['account_id'=>12,'credit'=>1]
+        ]),'branch_day_closed');
+    });
+} finally {
+    $peer->query("DELETE FROM {$closingTable} WHERE company_id=1 AND branch_id=1 AND business_date='{$branchDay}'");
+    $peer->close();
+}
 echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction and concurrent posting integration (synthetic only)\n";
