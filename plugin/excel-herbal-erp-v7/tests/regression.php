@@ -230,4 +230,48 @@ foreach([
         else{$failed++;echo "FAIL bank duplicate {$name}: {$e->codeKey}\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL bank duplicate {$name}: {$e->getMessage()}\n";}
 }
+// FIN-05: a stale snapshot must not allow posting into a newly closed period.
+final class PeriodPostingRegressionDb {
+    public string $prefix='wp_';
+    public string $last_error='';
+    public array $queries=[];
+    public int $insert_id=0;
+    public string $scenario='';
+    public function prepare($q,...$args){return $q;}
+    public function query($q){$this->queries[]=$q;return 1;}
+    public function get_row($q,$mode){return ['id'=>1,'type'=>'asset','active'=>1];}
+    public function get_var($q){
+        $this->queries[]=$q;
+        if(str_contains($q,'eh7_companies')){
+            if($this->scenario==='company lock failure'){$this->last_error='synthetic lock failure';return null;}
+            return 1;
+        }
+        if(str_contains($q,'eh7_accounting_periods')){
+            if(str_contains($q,'LOCK IN SHARE MODE')||str_contains($q,'FOR UPDATE')){
+                if($this->scenario==='period query failure'){$this->last_error='synthetic read failure';return null;}
+                return 8;
+            }
+            return null;
+        }
+        return 1;
+    }
+    public function insert($table,$data){throw new \RuntimeException('Unexpected write');}
+}
+foreach([
+    ['closed period after stale read','accounting_period_closed'],
+    ['company lock failure','period_lock_failed'],
+    ['period query failure','period_read_failed'],
+] as [$name,$expected]){
+    $wpdb=new PeriodPostingRegressionDb();
+    $wpdb->scenario=$name;
+    try{
+        \ExcelHerbal\ERP7\Finance\AccountingService::post($bankActor,1,'counter_sale',1,'2026-09-08 12:00:00',[
+            ['account_id'=>1,'debit'=>100],['account_id'=>2,'credit'=>100]
+        ]);
+        $failed++;echo "FAIL period gate {$name}: posting accepted\n";
+    }catch(DomainException $e){
+        if($e->codeKey===$expected&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS period gate {$name}\n";
+        else{$failed++;echo "FAIL period gate {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL period gate {$name}: {$e->getMessage()}\n";}
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);

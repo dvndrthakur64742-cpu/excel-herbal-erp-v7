@@ -12,7 +12,18 @@ final class AccountingService{
  public static function account(Actor $a,int $id):array{$db=Db::wpdb();$r=$db->get_row($db->prepare("SELECT * FROM ".Db::table('accounts')." WHERE company_id=%d AND id=%d AND active=1",$a->companyId,$id),ARRAY_A);if(!$r)throw new DomainException('Active account not found.','account_invalid',422);return$r;}
  public static function paymentAccount(Actor $a,int $id):array{$r=self::account($a,$id);$sub=strtolower(trim((string)($r['subtype']??'')));if((string)$r['type']!=='asset'||!in_array($sub,['cash','bank','upi'],true))throw new DomainException('Payment account must be Cash, Bank or UPI ledger.','payment_account_invalid',422);return$r;}
  public static function bankAccount(Actor $a,int $id):array{$r=self::paymentAccount($a,$id);$sub=strtolower(trim((string)($r['subtype']??'')));if(!in_array($sub,['bank','upi'],true))throw new DomainException('Bank reconciliation requires Bank or UPI ledger.','bank_account_invalid',422);return$r;}
- public static function assertPeriodOpen(Actor $a,string $date):void{$businessDate=Input::date(substr(trim($date),0,10),'Journal business date');$db=Db::wpdb();if((int)$db->get_var($db->prepare("SELECT COUNT(*) FROM ".Db::table('accounting_periods')." WHERE company_id=%d AND status='closed' AND %s BETWEEN period_start AND period_end",$a->companyId,$businessDate)))throw new DomainException('Accounting period closed.','accounting_period_closed',409);}
+ /** Caller must hold an active transaction. Posting shares the gate; close/reopen take it exclusively. */
+ public static function lockCompanyPeriodGate(Actor $a,bool $exclusive):void{
+  $db=Db::wpdb();$mode=$exclusive?'FOR UPDATE':'LOCK IN SHARE MODE';
+  $id=$db->get_var($db->prepare("SELECT id FROM ".Db::table('companies')." WHERE id=%d {$mode}",$a->companyId));
+  if(!$id||!empty($db->last_error))throw new DomainException('Accounting period lock unavailable. Retry the transaction.','period_lock_failed',409);
+ }
+ public static function assertPeriodOpen(Actor $a,string $date):void{
+  $businessDate=Input::date(substr(trim($date),0,10),'Journal business date');$db=Db::wpdb();
+  $closed=$db->get_var($db->prepare("SELECT id FROM ".Db::table('accounting_periods')." WHERE company_id=%d AND status='closed' AND %s BETWEEN period_start AND period_end LIMIT 1 LOCK IN SHARE MODE",$a->companyId,$businessDate));
+  if(!empty($db->last_error))throw new DomainException('Unable to verify accounting period.','period_read_failed',500);
+  if($closed)throw new DomainException('Accounting period closed.','accounting_period_closed',409);
+ }
 
  private static function sourceTable(string $source):string{
   $map=['external_upi_refund'=>'prepaid_refund_evidence','external_cash_refund'=>'prepaid_refund_evidence','counter_sale'=>'counter_sales','customer_receipt'=>'customer_receipts','daily_cycle'=>'daily_cycles','expense'=>'expenses','payroll'=>'payroll_runs','payroll_payment'=>'payroll_runs','purchase_bill'=>'purchase_bills','supplier_payment'=>'supplier_payments','stock_transfer_dispatch'=>'stock_transfers','stock_transfer_receive'=>'stock_transfers','stock_transfer_cancel'=>'stock_transfers','stock_transfer_variance'=>'stock_transfers','stock_adjustment'=>'stock_adjustments','reversal'=>'reversals'];
@@ -26,10 +37,12 @@ final class AccountingService{
  }
 
  public static function post(Actor $a,?int $branch,string $source,int $sourceId,string $date,array $lines,string $memo=''):int{
-  self::assertPeriodOpen($a,$date);if(count($lines)<2)throw new DomainException('Journal needs at least two lines.');
+  if(count($lines)<2)throw new DomainException('Journal needs at least two lines.');
   $dr=0.0;$cr=0.0;foreach($lines as$l){self::account($a,(int)$l['account_id']);$d=round((float)($l['debit']??0),2);$c=round((float)($l['credit']??0),2);if(($d>0)==($c>0))throw new DomainException('Each journal line must be debit or credit.');$dr+=$d;$cr+=$c;}if(abs($dr-$cr)>.005)throw new DomainException('Journal not balanced.','journal_unbalanced',409);
   return Transaction::run(function()use($a,$branch,$source,$sourceId,$date,$lines,$memo){
    $db=Db::wpdb();$h=Db::table('journal_entries');
+   self::lockCompanyPeriodGate($a,false);
+   self::assertPeriodOpen($a,$date);
    self::lockSource($a,$source,$sourceId);
    $existing=(int)$db->get_var($db->prepare("SELECT id FROM {$h} WHERE company_id=%d AND source_type=%s AND source_id=%d AND status='posted' ORDER BY id DESC LIMIT 1 FOR UPDATE",$a->companyId,$source,$sourceId));
    if($existing)return$existing;

@@ -449,4 +449,21 @@ Db::mustUpdate($db,Db::table('journal_lines'),['credit'=>'99.00'],['id'=>$journa
 $invalid=\ExcelHerbal\ERP7\Sales\PrepaidReturnService::detail($returnApprover,$returnId)['refund_clearing_reconciliation'];
 checkSales($invalid['status']==='review_required'&&$invalid['recorded_amount']===null,'F34 altered journal is not counted as settled');
 Db::mustUpdate($db,Db::table('journal_lines'),['credit'=>'100.00'],['id'=>$journalLine]);
+// FIN-05: an outer transaction's consistent snapshot must not hide a
+// newly committed period closure from the actual journal posting service.
+$periodDay='2098-04-01';
+$periodTable=Db::table('accounting_periods');
+$peer=eh7_connect();
+try {
+    \ExcelHerbal\ERP7\Database\Transaction::run(function()use($db,$peer,$periodDay,$periodTable,$seller,$protectedSale){
+        checkSales((int)$db->get_var("SELECT COUNT(*) FROM {$periodTable} WHERE company_id=1 AND period_start='{$periodDay}'")===0,'period absent in original snapshot');
+        $peer->query("INSERT INTO {$periodTable}(company_id,period_start,period_end,status) VALUES(1,'{$periodDay}','{$periodDay}','closed')");
+        denySales(fn()=>\ExcelHerbal\ERP7\Finance\AccountingService::post($seller,1,'counter_sale',$protectedSale,$periodDay.' 12:00:00',[
+            ['account_id'=>10,'debit'=>1],['account_id'=>12,'credit'=>1]
+        ]),'accounting_period_closed');
+    });
+} finally {
+    $peer->query("DELETE FROM {$periodTable} WHERE company_id=1 AND period_start='{$periodDay}'");
+    $peer->close();
+}
 echo "PASSED full prepaid B2C/B2B/distributor MariaDB transaction and concurrent posting integration (synthetic only)\n";
