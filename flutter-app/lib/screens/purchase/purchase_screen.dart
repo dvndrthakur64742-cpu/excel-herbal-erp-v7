@@ -12,6 +12,8 @@ import '../../state/app_state.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/business_date_field.dart';
+import '../../widgets/search_choice_dialog.dart';
+import '../../core/purchase_bill_preview.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../../widgets/guided_action_panel.dart';
@@ -313,7 +315,11 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
         expiresOn[id] = controller();
       }
       String? formError;
-      String productFilter = '';
+      final selectedProducts = <int>{};
+      double? estimate() => PurchaseBillPreview.total([
+        for (final id in selectedProducts)
+          (quantity: qty[id]!.text, unitCost: cost[id]!.text),
+      ]);
       List<Map<String, dynamic>>? validatedLines;
       if (!mounted || !scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) return;
       final ok = await showDialog<bool>(
@@ -330,19 +336,27 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                   children: [
                     Text('Branch: ${app.currentBranchName} · Date: ${app.businessDate}'),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<int>(
-                      isExpanded: true,
-                      initialValue: supplierId,
-                      decoration: const InputDecoration(labelText: 'Supplier'),
-                      items: suppliers
-                          .map(
-                            (s) => DropdownMenuItem(
-                              value: int.parse('${s['id']}'),
-                              child: Text('${s['name']}'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setLocal(() => supplierId = v),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final selected = await showDialog<int>(
+                          context: context,
+                          builder: (_) => SearchChoiceDialog(
+                            title: 'Select supplier',
+                            choices: [
+                              for (final supplier in suppliers)
+                                if ((int.tryParse('${supplier['id']}') ?? 0) > 0)
+                                  SearchChoice(int.parse('${supplier['id']}'),
+                                    '${supplier['name']}', '',
+                                    search: [supplier['mobile'], supplier['gstin']]),
+                            ],
+                          ),
+                        );
+                        if (!context.mounted || selected == null) return;
+                        setLocal(() { supplierId = selected; formError = null; });
+                      },
+                      icon: const Icon(Icons.person_search_outlined),
+                      label: Text(supplierId == null ? 'Select supplier *' :
+                        suppliers.firstWhere((s) => int.tryParse('${s['id']}') == supplierId)['name'].toString()),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -352,16 +366,44 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    TextField(
-                      decoration: const InputDecoration(labelText: 'Find product', prefixIcon: Icon(Icons.search)),
-                      onChanged: (value) => setLocal(() => productFilter = value),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showDialog<int>(
+                          context: context,
+                          builder: (_) => SearchChoiceDialog(
+                            title: 'Add purchase product',
+                            choices: [
+                              for (final p in products)
+                                if (!selectedProducts.contains(int.parse('${p['id']}')))
+                                  SearchChoice(int.parse('${p['id']}'), '${p['name']}',
+                                    'SKU: ${p['sku'] ?? "-"}'),
+                            ],
+                          ),
+                        );
+                        if (!context.mounted || picked == null) return;
+                        setLocal(() {
+                          selectedProducts.add(picked);
+                          qty[picked]!.text = '1';
+                          formError = null;
+                        });
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add product'),
                     ),
+                    Text('Selected products: ${selectedProducts.length}'),
+                    Text(
+                      estimate() == null
+                          ? 'Estimated bill total: enter valid quantities and costs'
+                          : 'Estimated bill total: ${BusinessFormat.money(estimate())}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const Text('Final bill amount is confirmed by the server.'),
                     const SizedBox(height: 8),
                     ...products.map((p) {
                       final id = int.parse('${p['id']}');
                       final tracked = p['expiry_tracking'] == true ||
                           '${p['expiry_tracking']}' == '1';
-                      if ([qty[id]!, cost[id]!, batchNo[id]!, manufacturedOn[id]!, expiresOn[id]!].every((c) => c.text.trim().isEmpty) && !EntryFormScope.matchesProduct(productFilter, [p['name'], p['sku']])) return const SizedBox.shrink();
+                      if (!selectedProducts.contains(id)) return const SizedBox.shrink();
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: Padding(
@@ -369,15 +411,29 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                '${p['name']} · Batch ${BusinessFormat.status(p['batch_tracking'])}',
-                              ),
+                              Row(children: [
+                                Expanded(child: Text(
+                                  '${p['name']} | Batch ${BusinessFormat.status(p['batch_tracking'])}',
+                                )),
+                                IconButton(
+                                  tooltip: 'Remove product',
+                                  onPressed: () => setLocal(() {
+                                    selectedProducts.remove(id);
+                                    for (final c in [qty[id]!, cost[id]!, batchNo[id]!, manufacturedOn[id]!, expiresOn[id]!]) {
+                                      c.clear();
+                                    }
+                                    formError = null;
+                                  }),
+                                  icon: const Icon(Icons.close),
+                                ),
+                              ]),
                               const SizedBox(height: 8),
                               Row(
                                 children: [
                                   Expanded(
                                     child: TextField(
                                       controller: qty[id],
+                                      onChanged: (_) => setLocal(() => formError = null),
                                       keyboardType: TextInputType.number,
                                       inputFormatters: [
                                         WholePcs.positiveFormatter,
@@ -391,6 +447,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                                   Expanded(
                                     child: TextField(
                                       controller: cost[id],
+                                      onChanged: (_) => setLocal(() => formError = null),
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
                                         decimal: true,
@@ -463,8 +520,12 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                   if (error == null) {
                     for (final p in products) {
                       final id = int.parse('${p['id']}');
-                      final q = WholePcs.parseOrZero(qty[id]!.text);
-                      if (q <= 0) continue;
+                      if (!selectedProducts.contains(id)) continue;
+                      final q = int.tryParse(qty[id]!.text.trim()) ?? 0;
+                      if (q <= 0) {
+                        error = '${p['name']}: enter positive whole PCS.';
+                        break;
+                      }
                       final rawCost = cost[id]!.text.trim();
                       final unitCost = double.tryParse(rawCost);
                       if (unitCost == null) {
@@ -510,6 +571,9 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                         if (expiry.isNotEmpty) 'expires_on': expiry,
                       });
                     }
+                  }
+                  if (error == null && estimate() == null) {
+                    error = 'Review invalid quantities or unit costs before posting.';
                   }
                   if (error == null && lines.isEmpty) {
                     error = 'Product line required.';
