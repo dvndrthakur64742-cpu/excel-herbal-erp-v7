@@ -768,6 +768,28 @@ uat_case('f28_self_attendance_cutover_manual_punch_and_recover_due_checkout', fu
         $mustDeny(fn()=>$checkIn($self),'attendance_window_closed');
         $setTime($date.' 09:00:00');
         if(!$read($self)['can_check_in']) throw new RuntimeException('Check-in not available at 09:00');
+        $holidays=Db::table('holidays');
+        $leaves=Db::table('leave_requests');
+        Db::mustInsert($wpdb,$holidays,['company_id'=>1,'branch_id'=>2,'holiday_date'=>$date,'name'=>'F28 fixture holiday','active'=>1,'created_by'=>20,'created_at'=>Db::now()]);
+        $holidayId=(int)$wpdb->insert_id;
+        try {
+            $blocked=$read($self);
+            if($blocked['can_check_in']!==false||$blocked['check_in_block_reason']!=='holiday') throw new RuntimeException('Holiday check-in projection must be blocked');
+            $mustDeny(fn()=>$checkIn($self),'attendance_excused');
+        } finally {
+            $wpdb->delete($holidays,['id'=>$holidayId,'company_id'=>1]);
+        }
+        Db::mustInsert($wpdb,$leaves,['company_id'=>1,'branch_id'=>2,'employee_id'=>30,'leave_type'=>'fixture','date_from'=>$date,'date_to'=>$date,'status'=>'approved','requested_at'=>Db::now()]);
+        $leaveId=(int)$wpdb->insert_id;
+        try {
+            $blocked=$read($self);
+            if($blocked['can_check_in']!==false||$blocked['check_in_block_reason']!=='approved_leave') throw new RuntimeException('Approved leave check-in projection must be blocked');
+            $mustDeny(fn()=>$checkIn($self),'attendance_excused');
+            if(!$read($another)['can_check_in']) throw new RuntimeException('Employee leave blocked another employee');
+        } finally {
+            $wpdb->delete($leaves,['id'=>$leaveId,'company_id'=>1]);
+        }
+        if(!$read($self)['can_check_in']) throw new RuntimeException('Check-in did not recover after fixture cleanup');
         $mustDeny(fn()=>uat_dispatch('work.check_in',$self,['branch_id'=>2]),'attendance_location_required');
         $mustDeny(fn()=>uat_dispatch('work.check_in',$self,['branch_id'=>1,'lat'=>31.7,'lng'=>76.9]),'branch_forbidden');
         $p=$checkIn($self);
