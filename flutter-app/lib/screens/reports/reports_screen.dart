@@ -14,6 +14,7 @@ import '../../core/business_format.dart';
 import '../../core/report_branch_scope.dart';
 import '../../core/report_query_identity.dart';
 import '../../core/report_period.dart';
+import '../../core/report_print_document.dart';
 import '../../core/price_distribution_export.dart';
 import '../../core/providers.dart';
 import '../../state/app_state.dart';
@@ -1126,50 +1127,23 @@ class _ReportExportActions extends StatelessWidget {
     ], text: '$title report');
   }
 
-  Future<void> _printPdf() async {
+  Future<void> _printPdf(BuildContext context) async {
     final columns = _columns;
-    final document = pw.Document();
-    document.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4.landscape,
-        build: (context) => [
-          pw.Text(title, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 4),
-          pw.Text(scope, style: const pw.TextStyle(fontSize: 9)),
-          pw.SizedBox(height: 12),
-          if (columns.isEmpty)
-            pw.Text('No report rows')
-          else
-            pw.Table(
-              border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.4),
-              children: [
-                pw.TableRow(
-                  repeat: true,
-                  decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-                  children: [
-                    for (final column in columns)
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text(column, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                      ),
-                  ],
-                ),
-                for (final row in rows)
-                  pw.TableRow(
-                    children: [
-                      for (final column in columns)
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(3),
-                          child: pw.Text(_cellText(row[column]), style: const pw.TextStyle(fontSize: 7)),
-                        ),
-                    ],
-                  ),
-              ],
-            ),
-        ],
-      ),
-    );
-    await Printing.layoutPdf(onLayout: (_) async => document.save());
+    final records = [
+      for (final row in rows) [for (final key in columns) _cellText(row[key])],
+    ];
+    try {
+      final bytes = await ReportPrintDocument.build(
+        title: title, scope: scope, columns: columns, rows: records,
+      );
+      if (!context.mounted) return;
+      await Printing.layoutPdf(onLayout: (_) async => bytes);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e is FormatException ? e.message : 'PDF could not be prepared. Use Excel / CSV or retry.'),
+      ));
+    }
   }
 
   @override
@@ -1197,7 +1171,7 @@ class _ReportExportActions extends StatelessWidget {
             label: const Text('Excel'),
           ),
           TextButton.icon(
-            onPressed: rows.isEmpty ? null : _printPdf,
+            onPressed: rows.isEmpty ? null : () => _printPdf(context),
             icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
             label: const Text('PDF / Print'),
           ),
