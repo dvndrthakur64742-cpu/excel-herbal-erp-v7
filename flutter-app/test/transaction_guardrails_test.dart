@@ -147,6 +147,22 @@ void main() {
     );
   });
 
+  test('bank statement amounts match server precision and range', () {
+    for (final pair in <(num, num)>[
+      (-10, 100), (100, -10), (-0.001, 100), (1.001, 0),
+      (1000000000000, 0), (double.infinity, 0),
+    ]) {
+      expect(TransactionGuardrails.bankStatementLine(
+        date: '2026-09-08', debit: pair.$1, credit: pair.$2,
+      ), isNotNull);
+    }
+    for (final pair in <(num, num)>[(0.01, 0), (0, 25.50)]) {
+      expect(TransactionGuardrails.bankStatementLine(
+        date: '2026-09-08', debit: pair.$1, credit: pair.$2,
+      ), isNull);
+    }
+  });
+
   group('master and stock entry guardrails', () {
     test('employee creation validates required fields email mobile and date', () {
       expect(

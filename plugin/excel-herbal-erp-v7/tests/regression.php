@@ -155,4 +155,49 @@ try{
     echo "PASS read_branch_default\n";
 }catch(\Throwable $e){$failed++;echo "FAIL read_branch_default: {$e->getMessage()}\n";}
 
+// FIN-01: exercise actual statement import service.
+final class BankImportRegressionDb {
+    public string $prefix='wp_';
+    public string $last_error='';
+    public array $rows=[];
+    public array $queries=[];
+    public function prepare($q,...$args){return $q;}
+    public function get_row($q,$mode){return ['id'=>1,'company_id'=>1,'branch_id'=>1,'status'=>'draft','statement_from'=>'2026-09-01','statement_to'=>'2026-09-30'];}
+    public function query($q){$this->queries[]=$q;if($q==='ROLLBACK')$this->rows=[];return 1;}
+    public function insert($table,$data){$this->rows[]=$data;return 1;}
+}
+$bankActor=new \ExcelHerbal\ERP7\Security\Actor(10,10,1,1,[1],[\ExcelHerbal\ERP7\Security\Capabilities::BANK_RECONCILE],'BM');
+foreach([
+    ['valid debit','25.50',0,true],
+    ['valid credit',0,25.5,true],
+    ['one paisa',0.01,0,true],
+    ['negative debit',-10,100,false],
+    ['negative credit',100,-10,false],
+    ['negative sub-cent',-0.001,100,false],
+    ['invalid numeric text','bad',100,false],
+    ['nonfinite',INF,0,false],
+    ['boolean',true,0,false],
+    ['sub-cent',1.001,0,false],
+    ['overflow',1000000000000,0,false],
+    ['both positive',100,100,false],
+    ['both zero',0,0,false],
+] as [$name,$debit,$credit,$valid]){
+    $wpdb=new BankImportRegressionDb();
+    try{
+        $result=\ExcelHerbal\ERP7\Finance\FinanceBankService::bankImport($bankActor,1,[['txn_date'=>'2026-09-08','debit'=>$debit,'credit'=>$credit]]);
+        if(!$valid||$result['imported']!==1||count($wpdb->rows)!==1)throw new \RuntimeException('unexpected acceptance');
+        echo "PASS bank import {$name}\n";
+    }catch(DomainException $e){
+        if(!$valid&&$e->codeKey==='bank_statement_amount_invalid'&&$wpdb->rows===[]&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS bank import {$name}\n";
+        else{$failed++;echo "FAIL bank import {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL bank import {$name}: {$e->getMessage()}\n";}
+}
+$wpdb=new BankImportRegressionDb();
+try{
+    \ExcelHerbal\ERP7\Finance\FinanceBankService::bankImport($bankActor,1,[['txn_date'=>'2026-09-08','debit'=>10,'credit'=>0],['txn_date'=>'2026-09-08','debit'=>-10,'credit'=>100]]);
+    $failed++;echo "FAIL bank import mixed batch accepted\n";
+}catch(DomainException $e){
+    if($e->codeKey==='bank_statement_amount_invalid'&&$wpdb->rows===[]&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS bank import mixed batch rollback\n";
+    else{$failed++;echo "FAIL bank import mixed batch rollback\n";}
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
