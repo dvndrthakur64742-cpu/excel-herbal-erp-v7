@@ -76,7 +76,7 @@ class _TeamDailyQueueState extends State<TeamDailyQueue> {
             ])),
           Expanded(child: rows.isEmpty
             ? const Center(child: Text('No orders on this page.'))
-            : RecordsList(recordType: 'daily_order', rows: rows, onTap: widget.onOpen)),
+            : RecordsList(recordType: 'daily_order', rows: rows, onTap: widget.onOpen, serverPaged: true)),
         ]);
       },
     )),
