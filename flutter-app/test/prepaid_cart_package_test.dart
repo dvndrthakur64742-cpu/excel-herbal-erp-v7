@@ -86,7 +86,7 @@ void main() {
           builder: (_) => PrepaidCartDialog(
             branch: 1, branchName: 'Test branch', stock: stock,
             customers: const [], products: products,
-            quote: (_, _) async => throw StateError('Unexpected distributor quote'),
+            quote: (product, quantity) async => throw StateError('Unexpected distributor quote'),
           ));
       }, child: const Text('Open cart'))),
     )));
