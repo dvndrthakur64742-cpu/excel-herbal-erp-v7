@@ -15,6 +15,8 @@ import '../../theme/excel_brand.dart';
 import '../../widgets/async_panel.dart';
 import '../../widgets/branch_selector.dart';
 import '../../widgets/business_date_field.dart';
+import '../../widgets/search_choice_dialog.dart';
+import '../../core/entry_form_scope.dart';
 import '../../widgets/records_list.dart';
 import '../../widgets/module_workspace.dart';
 import '../common/record_detail_screen.dart';

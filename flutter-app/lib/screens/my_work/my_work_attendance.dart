@@ -38,22 +38,34 @@ extension _MyWorkAttendance on _MyWorkScreenState {
     if (_attendancePunchBusy) return;
     _setFeatureState(() => _attendancePunchBusy = true);
     final controller = TextEditingController();
+    String? validation;
     try {
       final reason = await showDialog<String>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
           title: const Text('Request GPS exception'),
           scrollable: true,
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             const Text('Head Office must approve this request. Approval does not automatically mark attendance or authorize stock issue.'),
             TextField(controller: controller, maxLength: 250, maxLines: 3,
-                decoration: const InputDecoration(labelText: 'GPS problem (at least 10 characters)')),
+                decoration: InputDecoration(
+                  labelText: 'GPS problem (at least 10 characters)',
+                  errorText: validation,
+                )),
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Send request')),
+            FilledButton(onPressed: () {
+              final text = controller.text.trim();
+              if (text.length < 10) {
+                setLocal(() => validation = 'Enter at least 10 characters.');
+                return;
+              }
+              Navigator.pop(dialogContext, text);
+            }, child: const Text('Send request')),
           ],
-        ),
+        )),
       );
       if (reason == null || !mounted) return;
       if (reason.length < 10) {
@@ -158,11 +170,11 @@ extension _MyWorkAttendance on _MyWorkScreenState {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                checkedOut
-                                    ? 'Duty completed for today'
-                                    : checkedIn
-                                        ? 'Duty in progress'
-                                        : 'Attendance pending',
+                                AttendanceStatusDisplay.title(
+                                  checkedIn: checkedIn,
+                                  checkedOut: checkedOut,
+                                  blockReason: r['check_in_block_reason'],
+                                ),
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleMedium

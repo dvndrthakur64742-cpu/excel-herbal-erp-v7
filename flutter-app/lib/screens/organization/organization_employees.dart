@@ -52,6 +52,8 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
   Future<void> _createEmployee() async {
     final app = ref.read(appStateProvider);
     final api = ref.read(apiClientProvider);
+    if (!mounted || !app.can('organization.employee.manage') || app.currentBranchId == null) return;
+    final scope = EntryFormScope(app, api);
     try {
       final canManageAccess = app.can('administration.access.manage');
       final canManageSalary = app.can('payroll.salary.manage');
@@ -62,6 +64,7 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
             : Future<dynamic>.value(const <dynamic>[]),
         api.get(ApiPaths.employees, query: {'branch_id': app.currentBranchId}),
       ]);
+      if (!mounted || !scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) return;
       final designations = (results[0] as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
@@ -140,24 +143,28 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
                       ),
                       const SizedBox(height: 10),
                     ],
-                    DropdownButtonFormField<int?>(
-                      initialValue: reportingId,
-                      decoration: const InputDecoration(
-                        labelText: 'Reporting Manager (optional)',
-                      ),
-                      items: <DropdownMenuItem<int?>>[
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('No reporting manager'),
-                        ),
-                        ...employees.map(
-                          (e) => DropdownMenuItem(
-                            value: int.parse('${e['id']}'),
-                            child: Text('${e['full_name']}'),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final selected = await showDialog<int>(
+                          context: context,
+                          builder: (_) => SearchChoiceDialog(
+                            title: 'Select reporting manager',
+                            choices: [
+                              const SearchChoice(0, 'No reporting manager', ''),
+                              for (final e in employees)
+                                if ((int.tryParse('${e['id']}') ?? 0) > 0)
+                                  SearchChoice(int.parse('${e['id']}'),
+                                    '${e['full_name']}', '${e['employee_code'] ?? ""}',
+                                    search: [e['designation_code']]),
+                            ],
                           ),
-                        ),
-                      ],
-                      onChanged: (v) => setLocal(() => reportingId = v),
+                        );
+                        if (!context.mounted || selected == null) return;
+                        setLocal(() => reportingId = selected == 0 ? null : selected);
+                      },
+                      icon: const Icon(Icons.person_search_outlined),
+                      label: Text(reportingId == null ? 'Reporting manager (optional)' :
+                        employees.firstWhere((e) => int.tryParse('${e['id']}') == reportingId)['full_name'].toString()),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -289,6 +296,9 @@ extension _OrganizationEmployeesFeature on _OrganizationScreenState {
       email.dispose();
       salary.dispose();
       joining.dispose();
+      if (!mounted || !scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider))) {
+        throw StateError('ERP scope changed. Open a new employee form.');
+      }
       await api.post(ApiPaths.employees, data: payload);
       if (mounted)
         _setOrganizationState(() {
