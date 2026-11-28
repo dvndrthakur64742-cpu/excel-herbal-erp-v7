@@ -726,4 +726,62 @@ foreach(['audit failure','valid'] as $scenario){
         else{$failed++;echo "FAIL blocker entry expense {$scenario}: {$e->codeKey}\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL blocker entry expense {$scenario}: {$e->getMessage()}\n";}
 }
+// Commercial revision and distributor configuration share a product lock.
+// Model persisted writes and rollback independently from response metadata.
+final class CommercialAtomicRegressionDb {
+    public string $prefix='wp_';
+    public string $last_error='';
+    public string $scenario='';
+    public int $insert_id=0;
+    public array $queries=[];
+    public array $records=[];
+    private array $snapshot=[];
+    public function prepare($q,...$args){return $q;}
+    public function query($q){
+        $this->queries[]=$q;
+        if($q==='START TRANSACTION')$this->snapshot=$this->records;
+        if($q==='ROLLBACK')$this->records=$this->snapshot;
+        return 1;
+    }
+    public function get_row($q,$mode){
+        $this->queries[]=$q;$this->last_error='';
+        if(str_contains($q,'FOR UPDATE')){
+            if($this->scenario==='lock read failure'){$this->last_error='synthetic failure';return null;}
+            if($this->scenario==='inactive after validation')return null;
+        }
+        return ['id'=>1,'status'=>'active','batch_tracking'=>'off'];
+    }
+    public function insert($table,$data){
+        if($this->scenario==='audit failure'&&str_contains($table,'audit_log'))return false;
+        $this->records[]=[$table,$data];
+        $this->insert_id=$this->scenario==='missing insert id'?0:$this->insert_id+1;
+        return 1;
+    }
+}
+$commercialActor=new \ExcelHerbal\ERP7\Security\Actor(10,10,1,1,[1],[
+    \ExcelHerbal\ERP7\Security\Capabilities::PRODUCT_MANAGE,
+    \ExcelHerbal\ERP7\Security\Capabilities::ACCESS_MANAGE
+],'BM');
+foreach(['revision','slabs'] as $kind){
+    foreach([
+        'lock read failure'=>'commercial_product_read_failed',
+        'inactive after validation'=>'product_not_found',
+        'audit failure'=>'database_insert_failed',
+        'valid'=>null,
+    ] as $scenario=>$expected){
+        $wpdb=new CommercialAtomicRegressionDb();$wpdb->scenario=$scenario;
+        try{
+            if($kind==='revision')\ExcelHerbal\ERP7\Organization\OrganizationProductService::commercialRevision($commercialActor,1,['sale_price'=>'120.00'],'Synthetic revision');
+            else \ExcelHerbal\ERP7\Sales\PrepaidOrderService::setDistributorSlabs($commercialActor,1,[['min_qty'=>1,'max_qty'=>9,'unit_price'=>'120.00'],['min_qty'=>10,'max_qty'=>null,'unit_price'=>'110.00']]);
+            if($expected!==null)throw new \RuntimeException('unexpected acceptance');
+            $locks=array_filter($wpdb->queries,fn($q)=>str_contains($q,'eh7_products')&&str_contains($q,'FOR UPDATE'));
+            if(!$locks||!in_array('COMMIT',$wpdb->queries,true)||count($wpdb->records)!==($kind==='revision'?2:3)||!str_contains(end($wpdb->records)[0],'audit_log'))
+                throw new \RuntimeException('missing atomic product lock or audit');
+            echo "PASS commercial atomic {$kind} {$scenario}\n";
+        }catch(DomainException $e){
+            if($e->codeKey===$expected&&$wpdb->records===[]&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS commercial atomic {$kind} {$scenario}\n";
+            else{$failed++;echo "FAIL commercial atomic {$kind} {$scenario}: {$e->codeKey}\n";}
+        }catch(\Throwable $e){$failed++;echo "FAIL commercial atomic {$kind} {$scenario}: {$e->getMessage()}\n";}
+    }
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);

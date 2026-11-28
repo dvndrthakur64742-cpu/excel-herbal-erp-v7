@@ -74,6 +74,7 @@ final class PrepaidOrderService {
         }
         if($expected!==null)throw new DomainException('Final distributor slab must have no maximum quantity.','price_slabs_gap',422);
         return Transaction::run(function()use($a,$product,$records){
+            StockService::lockCommercialProduct($a,$product);
             $db=Db::wpdb();$at=Db::now();$t=Db::table('distributor_price_slabs');
             foreach($records as $s)Db::mustInsert($db,$t,['company_id'=>$a->companyId,'product_id'=>$product,'effective_from'=>$at]+$s+['created_by'=>$a->employeeId,'created_at'=>$at],'Distributor price list changed at the same time.','price_slab_conflict');
             Audit::add($a,'distributor.pricing.update','product',$product,['slabs'=>$records,'effective_from'=>$at]);
