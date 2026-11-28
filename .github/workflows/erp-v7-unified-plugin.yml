@@ -61,9 +61,29 @@ jobs:
             --dart-define=EH7_ENVIRONMENT=production \
             --dart-define=EH7_API_BASE_URL=https://office.excelherbal.in/wp-json/excel-herbal-erp/v7
 
+      - name: Preserve offline renderer debug symbols (not installed on WordPress)
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh7-renderer-debug-symbols
+          path: flutter-app/build/web/canvaskit/**/*.js.symbols
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: F13 live-engine mobile zoom acceptance (local offline Chrome)
         run: |
-          node ci/check-flutter-web-viewport.mjs flutter-app/build/web
+          set -euo pipefail
+          cp -a flutter-app/build/web "${RUNNER_TEMP}/eh7-runtime-web"
+          python3 - <<'PY'
+          import importlib.util, os, pathlib
+          spec = importlib.util.spec_from_file_location("pack", "ci/pack-unified-plugin.py")
+          pack = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(pack)
+          root = pathlib.Path(os.environ["RUNNER_TEMP"]) / "eh7-runtime-web"
+          for path in root.rglob("*"):
+              if path.is_file() and pack.renderer_debug_symbol(path.relative_to(root)):
+                  path.unlink()
+          PY
+          node ci/check-flutter-web-viewport.mjs "${RUNNER_TEMP}/eh7-runtime-web"
 
       - name: Build and cryptographically check one-plugin ZIP
         shell: bash
@@ -83,6 +103,10 @@ jobs:
               assert len(z.namelist()) == m['file_count']
               assert all(x.startswith('excel-herbal-erp-v7/') for x in z.namelist())
               assert not any('/tests/' in x for x in z.namelist())
+              assert not any(x.startswith('excel-herbal-erp-v7/web/canvaskit/') and x.endswith('.js.symbols') for x in z.namelist())
+              assert m['zip_bytes'] == (root/m['zip_name']).stat().st_size
+              assert 'excel-herbal-erp-v7/web/canvaskit/canvaskit.wasm' in z.namelist()
+              assert 'excel-herbal-erp-v7/web/canvaskit/canvaskit.js' in z.namelist()
               assert b'__EH7_PLUGIN_ASSET_BASE__' in z.read(
                 'excel-herbal-erp-v7/web/eh7-app-shell.txt')
               v = m['source_sha'].encode()

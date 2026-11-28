@@ -34,6 +34,15 @@ class VersionEntrypointsTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     pack.version_entrypoints(index, bootstrap, self.a)
 
+    def test_only_renderer_debug_symbols_are_excluded(self):
+        for path in ("canvaskit/canvaskit.js.symbols",
+                     "canvaskit/chromium/canvaskit.js.symbols"):
+            self.assertTrue(pack.renderer_debug_symbol(pathlib.PurePosixPath(path)))
+        for path in ("canvaskit/canvaskit.js", "canvaskit/canvaskit.wasm",
+                     "canvaskit/skwasm_heavy.wasm", "main.dart.js", "assets/NOTICES",
+                     "assets/other.js.symbols", "canvaskit/symbols.json"):
+            self.assertFalse(pack.renderer_debug_symbol(pathlib.PurePosixPath(path)))
+
     def test_reject_invalid_identity(self):
         with self.assertRaises(ValueError):
             pack.version_entrypoints(self.index, self.bootstrap, "../evil")
