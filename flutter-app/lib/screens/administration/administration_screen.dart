@@ -30,6 +30,7 @@ class AdministrationScreen extends ConsumerStatefulWidget {
 
 class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
   int refresh = 0;
+  bool _employeeAccessOpen = false;
   String? message;
 
   @override
@@ -701,12 +702,21 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
     List<Map<String, dynamic>> roles,
     List<String> allCaps,
   ) async {
+    if (!mounted || _employeeAccessOpen) return;
+    final app = ref.read(appStateProvider);
+    final api = ref.read(apiClientProvider);
+    if (!app.bootstrapReady || !app.can('administration.access.manage')) return;
+    final scope = EntryFormScope(app, api);
+    bool current() => mounted &&
+        scope.matches(ref.read(appStateProvider), ref.read(apiClientProvider));
     final id = int.parse('${employee['id']}');
+    final reason = TextEditingController();
+    _employeeAccessOpen = true;
     try {
       final detail = Map<String, dynamic>.from(
-        await ref.read(apiClientProvider).get(ApiPaths.employeeAccess(id))
-            as Map,
+        await api.get(ApiPaths.employeeAccess(id)) as Map,
       );
+      if (!current()) return;
       final selectedRoles = <int>{
         ...((detail['roles'] as List?) ?? const []).map(
           (e) => int.parse('${(e as Map)['id']}'),
@@ -739,16 +749,22 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
       final originalGrants = {...grants};
       final originalDenies = {...denies};
       final overrideSupported = detail.containsKey('designation_defaults');
-      final reason = TextEditingController();
       String? accessValidation;
-      if (!mounted) return;
+      var roleQuery = '';
+      var overrideQuery = '';
+      if (!current()) return;
 
       final saved = await showModalBottomSheet<bool>(
         context: context,
         useSafeArea: true,
         isScrollControlled: true,
         builder: (sheetContext) => StatefulBuilder(
-          builder: (sheetContext, setLocal) => FractionallySizedBox(
+          builder: (sheetContext, setLocal) {
+            final visibleRoles = roles.where((role) =>
+              EntryFormScope.matchesProduct(roleQuery, [role['name'], role['code']])).toList();
+            final visibleCaps = allCaps.where((cap) =>
+              EntryFormScope.matchesProduct(overrideQuery, [cap, _capLabel(cap)])).toList();
+            return FractionallySizedBox(
             heightFactor: .94,
             child: DefaultTabController(
               length: 2,
@@ -807,18 +823,27 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                                   Theme.of(sheetContext).textTheme.bodySmall,
                             ),
                             const SizedBox(height: 8),
-                            if (roles.isEmpty)
+                            TextField(
+                              decoration: const InputDecoration(
+                                labelText: 'Find role',
+                                prefixIcon: Icon(Icons.search),
+                              ),
+                              onChanged: (value) => setLocal(() => roleQuery = value),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('${selectedRoles.length} roles selected'),
+                            if (visibleRoles.isEmpty)
                               const Padding(
                                 padding:
                                     EdgeInsets.symmetric(vertical: 24),
                                 child: Center(
                                   child: Text(
-                                    'No additional roles available.',
+                                    'No matching additional roles.',
                                   ),
                                 ),
                               )
                             else
-                              ...roles.map((r) {
+                              ...visibleRoles.map((r) {
                                 final rid = int.parse('${r['id']}');
                                 return Card(
                                   margin:
@@ -851,19 +876,34 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                           ListView.builder(
                             padding:
                                 const EdgeInsets.fromLTRB(12, 12, 12, 20),
-                            itemCount: allCaps.length + 1,
+                            itemCount: visibleCaps.length + 1,
                             itemBuilder: (context, index) {
                               if (index == 0) {
-                                return const Card(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: Text(
-                                      'Inherit uses designation and role permissions. Grant adds access. Deny blocks access even when a designation or role grants it. Removing a role alone does not remove designation defaults.',
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    const Card(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(12),
+                                        child: Text(
+                                          'Inherit uses designation and role permissions. Grant adds access. Deny blocks access even when a designation or role grants it. Removing a role alone does not remove designation defaults.',
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    TextField(
+                                      decoration: const InputDecoration(
+                                        labelText: 'Find permission override',
+                                        prefixIcon: Icon(Icons.search),
+                                      ),
+                                      onChanged: (value) => setLocal(() => overrideQuery = value),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text('${grants.length} grants / ${denies.length} denies'),
+                                    if (visibleCaps.isEmpty) const Text('No matching permissions.'),
+                                  ],
                                 );
                               }
-                              final cap = allCaps[index - 1];
+                              final cap = visibleCaps[index - 1];
                               final value = grants.contains(cap)
                                   ? 'grant'
                                   : denies.contains(cap)
@@ -1007,10 +1047,16 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                 ],
               ),
             ),
-          ),
+          );
+          },
         ),
       );
 
+      if (saved == true && !current()) {
+        if (mounted) setState(() => message =
+          'ERP scope changed. Reopen employee access before saving.');
+        return;
+      }
       if (saved == true) {
         final rolesChanged = !_sameInts(originalRoles, selectedRoles);
         final overridesChanged = overrideSupported &&
@@ -1052,11 +1098,13 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
                 ],
               ],
             );
-            if (!confirmed || !mounted) {
-              reason.dispose();
+            if (!confirmed || !mounted) return;
+            if (!current()) {
+              setState(() => message =
+                'ERP scope changed. Reopen employee access before saving.');
               return;
             }
-            await ref.read(apiClientProvider).post(
+            await api.post(
               ApiPaths.employeeAccess(id),
               data: {
                 if (rolesChanged) 'role_ids': selectedRoles.toList()..sort(),
@@ -1069,11 +1117,13 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
             );
             // Confirm the write after its transaction has returned by reading
             // the access record again through the normal authenticated GET path.
+            // A committed write must not be retried just because authority
+            // changed while awaiting its response.
+            if (!current()) return;
             final updated = Map<String, dynamic>.from(
-              await ref.read(apiClientProvider).get(
-                ApiPaths.employeeAccess(id),
-              ) as Map,
+              await api.get(ApiPaths.employeeAccess(id)) as Map,
             );
+            if (!current()) return;
             final persistedRoles = <int>{
               ...((updated['roles'] as List?) ?? const []).map(
                 (e) => int.parse('${(e as Map)['id']}'),
@@ -1127,9 +1177,11 @@ class _AdministrationScreenState extends ConsumerState<AdministrationScreen> {
           }
         }
       }
-      reason.dispose();
     } catch (e) {
-      if (mounted) setState(() => message = UiError.message(e));
+      if (current()) setState(() => message = UiError.message(e));
+    } finally {
+      reason.dispose();
+      _employeeAccessOpen = false;
     }
   }
 

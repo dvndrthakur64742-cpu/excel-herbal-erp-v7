@@ -49,8 +49,10 @@ void main() {
     );
     expect(employee.indexOf('await _reviewAccessChanges('),
         greaterThanOrEqualTo(0));
-    expect(employee.indexOf('await _reviewAccessChanges('),
-        lessThan(employee.indexOf('await ref.read(apiClientProvider).post(')));
+    final write = employee.indexOf('await api.post(');
+    expect(write, greaterThanOrEqualTo(0));
+    expect(employee.indexOf('await _reviewAccessChanges('), lessThan(write));
+    expect(employee, isNot(contains('await ref.read(apiClientProvider).post(')));
     expect(employee, contains('if (!confirmed || !mounted)'));
     expect(source, contains('Confirm access changes'));
     expect(source, contains('removing a deny may restore access'));
