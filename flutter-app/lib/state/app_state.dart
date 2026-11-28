@@ -426,9 +426,11 @@ class AppController extends StateNotifier<AppState> {
       }
       final token = await session.accessToken();
       if (!current()) return;
-      state = state.copyWith(
+      // A failed refresh must not keep a previous business date or
+      // capability projection ready for posting. Retain the session only.
+      state = AppState(
         loading: false,
-        authenticated: state.authenticated || (token?.isNotEmpty ?? false),
+        authenticated: token?.isNotEmpty ?? false,
         error: UiError.message(e),
         errorReference: UiError.reference(e),
       );
@@ -436,9 +438,10 @@ class AppController extends StateNotifier<AppState> {
       if (!current()) return;
       final token = await session.accessToken();
       if (!current()) return;
-      state = state.copyWith(
+      // Malformed responses are not a valid startup snapshot either.
+      state = AppState(
         loading: false,
-        authenticated: state.authenticated || (token?.isNotEmpty ?? false),
+        authenticated: token?.isNotEmpty ?? false,
         error: UiError.message(e),
       );
     }
