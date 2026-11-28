@@ -40,6 +40,14 @@ def version_entrypoints(index, bootstrap, commit):
         bootstrap.replace(build_marker, f'"mainJsPath":"main.dart.js?v={commit}"'),
     )
 
+def renderer_debug_symbol(relative):
+    """Keep every renderer JS/WASM asset; omit only offline debug symbol maps."""
+    return (
+        len(relative.parts) > 1
+        and relative.parts[0] == "canvaskit"
+        and relative.name.endswith(".js.symbols")
+    )
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--web-dir", type=pathlib.Path, required=True)
@@ -71,6 +79,7 @@ def main():
         )
         web = plugin / "web"
         web.mkdir()
+        excluded_symbols = []
         for item in web_input.rglob("*"):
             if not item.is_file():
                 continue
@@ -79,6 +88,9 @@ def main():
                 continue
             if item.is_symlink() or ".." in rel.parts or item.suffix.lower() in (".php", ".pem", ".key"):
                 raise ValueError(f"Unsafe web asset: {rel}")
+            if renderer_debug_symbol(rel):
+                excluded_symbols.append({"path": rel.as_posix(), "bytes": item.stat().st_size})
+                continue
             dest = web / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(item, dest)
@@ -140,6 +152,8 @@ def main():
             "zip_name": name,
             "sha256": digest(target),
             "file_count": len(files),
+            "zip_bytes": target.stat().st_size,
+            "excluded_renderer_debug_symbols": sorted(excluded_symbols, key=lambda item: item["path"]),
             "php_lint_count": sum(f.suffix == ".php" for f in files),
             "no_tests_or_credentials_in_plugin": True,
             "release_blockers": [
