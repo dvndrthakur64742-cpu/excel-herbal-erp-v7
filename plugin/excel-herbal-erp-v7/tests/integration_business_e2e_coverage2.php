@@ -441,6 +441,21 @@ e2_case('e2_branch_closing_blocks_posting_and_reopens',function()use($maker,$app
     if(($draft['status']??'')!=='draft')throw new RuntimeException('closing draft failed');
     $closed=e2_dispatch('finance.closing_close',$approver,['id'=>(int)$draft['id']]);
     if(($closed['status']??'')!=='closed')throw new RuntimeException('branch close failed');
+    $closingId=(int)$draft['id'];
+    $closingTable=Db::table('branch_closings');
+    $auditTable=Db::table('audit_log');
+    $auditSql=$wpdb->prepare("SELECT COUNT(*) FROM {$auditTable} WHERE company_id=%d AND action=%s AND entity_type=%s AND entity_id=%s",1,'branch_closing.close','branch_closing',(string)$closingId);
+    $original=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$closingTable} WHERE id=%d",$closingId),ARRAY_A);
+    if((int)$wpdb->get_var($auditSql)!==1)throw new RuntimeException('Branch close audit missing');
+    try{
+        e2_dispatch('finance.closing_close',$approver,['id'=>$closingId]);
+        throw new RuntimeException('Repeated branch close accepted');
+    }catch(DomainException $e){
+        if($e->codeKey!=='branch_closing_invalid_state')throw $e;
+    }
+    $after=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$closingTable} WHERE id=%d",$closingId),ARRAY_A);
+    if($after!==$original||(int)$wpdb->get_var($auditSql)!==1)
+        throw new RuntimeException('Repeated close altered persisted history');
     $salesBefore=(int)$wpdb->get_var('SELECT COUNT(*) FROM '.Db::table('counter_sales'));
     try{
         e2_dispatch('sales.counter',$maker,[

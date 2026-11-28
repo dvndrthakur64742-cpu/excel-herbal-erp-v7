@@ -596,4 +596,67 @@ foreach([200,401,403,500,503] as $status){
     }catch(\Throwable $e){$failed++;echo "FAIL API no-store {$status}: {$e->getMessage()}\n";}
 }
 
+// AC-059: branch close/reopen must serialize with period closing and preserve history.
+final class ClosingTransitionRegressionDb {
+    public string $prefix='wp_';
+    public string $last_error='';
+    public string $status='draft';
+    public string $scenario='';
+    public int $insert_id=1;
+    public array $queries=[];
+    public array $writes=[];
+    public function prepare($q,...$args){return $q;}
+    public function query($q){$this->queries[]=$q;return 1;}
+    public function get_row($q,$mode){
+        $this->queries[]=$q;
+        $this->last_error=$this->scenario==='row error'?'synthetic failed read':'';
+        return ['id'=>9,'branch_id'=>1,'business_date'=>'2026-09-08','created_by'=>20,'status'=>$this->status];
+    }
+    public function get_var($q){
+        $this->queries[]=$q;$this->last_error='';
+        if(str_contains($q,'eh7_companies'))return $this->scenario==='gate failed'?null:1;
+        if(str_contains($q,'eh7_accounting_periods'))return $this->scenario==='period closed'?1:null;
+        if(str_contains($q,'COUNT(*)'))return 0;
+        return 1;
+    }
+    public function update($table,$data,$where){$this->writes[]=[$table,$data];return 1;}
+    public function insert($table,$data){
+        if($this->scenario==='audit failure')return false;
+        $this->writes[]=[$table,$data];return 1;
+    }
+}
+$transitionActor=new \ExcelHerbal\ERP7\Security\Actor(10,10,1,1,[1],[
+    \ExcelHerbal\ERP7\Security\Capabilities::BRANCH_CLOSE,
+    \ExcelHerbal\ERP7\Security\Capabilities::BRANCH_REOPEN
+],'BM');
+foreach([
+    ['duplicate close','closed','','branch_closing_invalid_state',false],
+    ['unknown state','cancelled','','branch_closing_invalid_state',false],
+    ['close read failure','draft','row error','branch_day_read_failed',false],
+    ['close gate failure','draft','gate failed','period_lock_failed',false],
+    ['close inside locked period','draft','period closed','accounting_period_closed',false],
+    ['reopen inside locked period','closed','period closed','accounting_period_closed',true],
+    ['close audit failure','draft','audit failure','database_insert_failed',false],
+    ['close draft','draft','',null,false],
+    ['close reopened','reopened','',null,false],
+    ['reopen open period','closed','',null,true],
+] as [$name,$status,$scenario,$expected,$reopen]){
+    $wpdb=new ClosingTransitionRegressionDb();$wpdb->status=$status;$wpdb->scenario=$scenario;
+    try{
+        $result=$reopen?
+            \ExcelHerbal\ERP7\Finance\FinanceClosingService::reopenBranch($transitionActor,9,'Synthetic reason'):
+            \ExcelHerbal\ERP7\Finance\FinanceClosingService::closeBranch($transitionActor,9);
+        if($expected!==null)throw new \RuntimeException('unexpected acceptance');
+        if(($result['status']??'')!==($reopen?'reopened':'closed')||count($wpdb->writes)!==2||
+           $wpdb->writes[1][1]['action']!==($reopen?'branch_closing.reopen':'branch_closing.close')||
+           !str_contains($wpdb->queries[1]??'','eh7_companies')||
+           !str_contains($wpdb->queries[1]??'','LOCK IN SHARE MODE')||
+           !in_array('COMMIT',$wpdb->queries,true))throw new \RuntimeException('transition/audit/gate mismatch');
+        echo "PASS closing transition {$name}\n";
+    }catch(DomainException $e){
+        if($expected!==null&&$e->codeKey===$expected&&in_array('ROLLBACK',$wpdb->queries,true)&&
+           !in_array('COMMIT',$wpdb->queries,true)&&($scenario==='audit failure'||$wpdb->writes===[]))echo "PASS closing transition {$name}\n";
+        else{$failed++;echo "FAIL closing transition {$name}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL closing transition {$name}: {$e->getMessage()}\n";}
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
