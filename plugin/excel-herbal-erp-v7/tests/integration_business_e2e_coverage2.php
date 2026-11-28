@@ -563,5 +563,51 @@ e2_case('e2_branch_close_serializes_cross_date_pending_entries',function()use($m
     }finally{$wpdb->query('SET SESSION innodb_lock_wait_timeout='.max(1,$timeout));}
 });
 
+// Product lock contention must not create a commercial revision or slab history.
+e2_case('e2_commercial_writers_share_product_lock',function()use($wpdb){
+    $actor=e2_actor(20,[Capabilities::PRODUCT_MANAGE,Capabilities::ACCESS_MANAGE]);
+    $product=100;$products=Db::table('products');
+    $revisions=Db::table('product_commercial_revisions');
+    $slabs=Db::table('distributor_price_slabs');$audit=Db::table('audit_log');
+    $counts=fn()=>[(int)$wpdb->get_var("SELECT COUNT(*) FROM {$revisions}"),
+                   (int)$wpdb->get_var("SELECT COUNT(*) FROM {$slabs}"),
+                   (int)$wpdb->get_var("SELECT COUNT(*) FROM {$audit}")];
+    $before=$counts();
+    $writeRevision=fn()=>\ExcelHerbal\ERP7\Organization\OrganizationProductService::commercialRevision($actor,$product,[
+        'mrp'=>'200.00','sale_price'=>'170.00','ho_amount'=>'100.00','bm_profit'=>'20.00',
+        'salary_fund'=>'30.00','office_expense'=>'20.00','points'=>'10.00','purchase_cost'=>'55.1234',
+    ],'Synthetic lock test');
+    $writeSlabs=fn()=>\ExcelHerbal\ERP7\Sales\PrepaidOrderService::setDistributorSlabs($actor,$product,[
+        ['min_qty'=>1,'max_qty'=>9,'unit_price'=>'170.00'],
+        ['min_qty'=>10,'max_qty'=>null,'unit_price'=>'160.00'],
+    ]);
+    $lock=new Eh7IntegrationWpdb(eh7_connect());
+    $timeout=(int)$wpdb->get_var('SELECT @@SESSION.innodb_lock_wait_timeout');
+    if($wpdb->query('SET SESSION innodb_lock_wait_timeout=1')===false)
+        throw new RuntimeException('Unable to configure synthetic timeout');
+    try{
+        if($lock->query('START TRANSACTION')===false)throw new RuntimeException('Unable to start product locker');
+        try{
+            if(!$lock->get_var("SELECT id FROM {$products} WHERE company_id=1 AND id=100 FOR UPDATE"))
+                throw new RuntimeException('Synthetic product missing');
+            foreach([$writeRevision,$writeSlabs] as $write){
+                try{$write();throw new RuntimeException('Commercial writer bypassed product lock');}
+                catch(DomainException $e){if($e->codeKey!=='commercial_product_read_failed')throw $e;}
+                if($counts()!==$before)throw new RuntimeException('Contended commercial writer persisted data');
+            }
+        }finally{$lock->query('ROLLBACK');}
+        try{
+            \ExcelHerbal\ERP7\Database\Transaction::run(function()use($writeRevision,$writeSlabs,$counts,$before){
+                $revision=$writeRevision();$priceList=$writeSlabs();
+                if((int)($revision['id']??0)<1||count($priceList['slabs']??[])!==2||
+                    $counts()!==[$before[0]+1,$before[1]+2,$before[2]+2])
+                    throw new RuntimeException('Commercial history or audit missing after lock release');
+                throw new RuntimeException('commercial-lock-fixture-rollback');
+            });
+        }catch(RuntimeException $e){if($e->getMessage()!=='commercial-lock-fixture-rollback')throw $e;}
+        if($counts()!==$before)throw new RuntimeException('Synthetic commercial fixture not rolled back');
+    }finally{$wpdb->query('SET SESSION innodb_lock_wait_timeout='.max(1,$timeout));}
+});
+
 echo ($failed?'FAILED':'PASSED')." business E2E coverage II suite\n";
 exit($failed?1:0);
