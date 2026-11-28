@@ -473,5 +473,42 @@ e2_case('e2_branch_closing_blocks_posting_and_reopens',function()use($maker,$app
     throw new RuntimeException('posting succeeded on closed branch day');
 });
 
+// Independent connections reproduce the actual InnoDB lock conflict.
+// The shared harness rejects non-synthetic databases before connection.
+e2_case('e2_pending_expense_rejects_concurrent_closing_locks',function()use($maker,$wpdb){
+    $date=e2_date();
+    $lock=new Eh7IntegrationWpdb(eh7_connect());
+    $companies=Db::table('companies');$closings=Db::table('branch_closings');
+    $expenses=Db::table('expenses');$audit=Db::table('audit_log');
+    $before=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$expenses}");
+    $auditBefore=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$audit}");
+    $originalTimeout=(int)$wpdb->get_var('SELECT @@SESSION.innodb_lock_wait_timeout');
+    if($wpdb->query('SET SESSION innodb_lock_wait_timeout=1')===false)
+        throw new RuntimeException('Unable to configure synthetic timeout');
+    try{
+        foreach([
+            ["SELECT id FROM {$companies} WHERE id=1 FOR UPDATE",'period_lock_failed'],
+            [$lock->prepare("SELECT id FROM {$closings} WHERE company_id=1 AND branch_id=1 AND business_date=%s FOR UPDATE",$date),'branch_day_read_failed'],
+        ] as [$lockSql,$expected]){
+            if($lock->query('START TRANSACTION')===false)throw new RuntimeException('Unable to start locker');
+            try{
+                if(!$lock->get_var($lockSql))throw new RuntimeException('Synthetic lock row missing');
+                try{
+                    \ExcelHerbal\ERP7\Finance\FinanceExpenseService::expense($maker,1,1,13,1,$date,'Synthetic lock conflict');
+                    throw new RuntimeException('Pending expense bypassed closing lock');
+                }catch(DomainException $e){if($e->codeKey!==$expected)throw $e;}
+                if((int)$wpdb->get_var("SELECT COUNT(*) FROM {$expenses}")!==$before||
+                   (int)$wpdb->get_var("SELECT COUNT(*) FROM {$audit}")!==$auditBefore)
+                    throw new RuntimeException('Contended entry persisted a partial mutation');
+            }finally{$lock->query('ROLLBACK');}
+        }
+        $created=\ExcelHerbal\ERP7\Finance\FinanceExpenseService::expense($maker,1,1,13,1,$date,'Synthetic lock released');
+        if(($created['status']??'')!=='pending'||
+           (int)$wpdb->get_var("SELECT COUNT(*) FROM {$expenses}")!==$before+1||
+           (int)$wpdb->get_var("SELECT COUNT(*) FROM {$audit}")!==$auditBefore+1)
+            throw new RuntimeException('Entry did not recover after release');
+    }finally{$wpdb->query('SET SESSION innodb_lock_wait_timeout='.max(1,$originalTimeout));}
+});
+
 echo ($failed?'FAILED':'PASSED')." business E2E coverage II suite\n";
 exit($failed?1:0);

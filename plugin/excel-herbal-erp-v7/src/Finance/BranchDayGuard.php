@@ -19,5 +19,12 @@ final class BranchDayGuard{
   if($status==='closed')throw new DomainException('Branch business day is closed. Reopen it before posting.','branch_day_closed',409);
  }
 
+ /** Hold the existing posting gates until the pending business entry commits. */
+ public static function assertOpenForMutation(Actor $a,int $branchId,string $date):void{
+  AccountingService::lockCompanyPeriodGate($a,false);
+  AccountingService::assertPeriodOpen($a,$date);
+  self::assertOpenForPosting($a,$branchId,$date);
+ }
+
  public static function assertOpen(Actor $a,int $branchId,string $date):void{$businessDate=Input::date(substr(trim($date),0,10),'Business date');$status=(string)Db::wpdb()->get_var(Db::wpdb()->prepare("SELECT status FROM ".Db::table('branch_closings')." WHERE company_id=%d AND branch_id=%d AND business_date=%s LIMIT 1",$a->companyId,$branchId,$businessDate));if($status==='closed')throw new DomainException('Branch business day is closed. Reopen it before posting.','branch_day_closed',409);}
 }
