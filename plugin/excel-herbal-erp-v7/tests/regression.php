@@ -650,7 +650,7 @@ foreach([
         if(($result['status']??'')!==($reopen?'reopened':'closed')||count($wpdb->writes)!==2||
            $wpdb->writes[1][1]['action']!==($reopen?'branch_closing.reopen':'branch_closing.close')||
            !str_contains($wpdb->queries[1]??'','eh7_companies')||
-           !str_contains($wpdb->queries[1]??'','LOCK IN SHARE MODE')||
+           !str_contains($wpdb->queries[1]??'',$reopen?'LOCK IN SHARE MODE':'FOR UPDATE')||
            !in_array('COMMIT',$wpdb->queries,true))throw new \RuntimeException('transition/audit/gate mismatch');
         echo "PASS closing transition {$name}\n";
     }catch(DomainException $e){

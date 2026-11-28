@@ -510,5 +510,58 @@ e2_case('e2_pending_expense_rejects_concurrent_closing_locks',function()use($mak
     }finally{$wpdb->query('SET SESSION innodb_lock_wait_timeout='.max(1,$originalTimeout));}
 });
 
+// A pending-entry transaction for any date must finish before branch close
+// snapshots blockers. Use a separate, guarded disposable database connection.
+e2_case('e2_branch_close_serializes_cross_date_pending_entries',function()use($maker,$approver,$wpdb){
+    $date=(new DateTimeImmutable(e2_date()))->modify('-1 day')->format('Y-m-d');
+    $earlier=(new DateTimeImmutable($date))->modify('-1 day')->format('Y-m-d');
+    $draft=e2_dispatch('finance.closing_draft',$maker,['branch_id'=>1,'business_date'=>$date]);
+    $preflight=e2_dispatch('finance.closing_preflight',$maker,['branch_id'=>1,'business_date'=>$date]);
+    if(($preflight['ok']??false)!==true)throw new RuntimeException('Cross-date baseline must have no blockers');
+    $closingTable=Db::table('branch_closings');
+    $auditTable=Db::table('audit_log');
+    $companies=Db::table('companies');
+    $row=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$closingTable} WHERE company_id=1 AND branch_id=1 AND business_date=%s",$date),ARRAY_A);
+    if(!$row||$row['status']!=='draft'||(int)$row['id']!==(int)$draft['id'])throw new RuntimeException('Expected independent draft fixture');
+    $id=(int)$row['id'];
+    $auditBefore=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$auditTable}");
+    $lock=new Eh7IntegrationWpdb(eh7_connect());
+    $timeout=(int)$wpdb->get_var('SELECT @@SESSION.innodb_lock_wait_timeout');
+    if($wpdb->query('SET SESSION innodb_lock_wait_timeout=1')===false)
+        throw new RuntimeException('Unable to configure synthetic timeout');
+    try{
+        if($lock->query('START TRANSACTION')===false)throw new RuntimeException('Unable to start pending-entry session');
+        try{
+            if(!$lock->get_var("SELECT id FROM {$companies} WHERE id=1 LOCK IN SHARE MODE"))
+                throw new RuntimeException('Synthetic company gate missing');
+            // Simulate the already-protected entry on another date, not a journal write.
+            $expense=Db::table('expenses');
+            if($lock->insert($expense,[
+                'company_id'=>1,'branch_id'=>1,'expense_head_id'=>1,'amount'=>11,
+                'payment_account_id'=>1,'status'=>'pending','expense_date'=>$earlier,
+                'description'=>'Synthetic cross-date pending entry','created_by'=>$maker->employeeId,
+                'created_at'=>Db::now(),
+            ])===false)throw new RuntimeException('Synthetic pending entry insert failed');
+            try{
+                e2_dispatch('finance.closing_close',$approver,['id'=>$id]);
+                throw new RuntimeException('Closing bypassed shared entry gate');
+            }catch(DomainException $e){if($e->codeKey!=='period_lock_failed')throw $e;}
+            if($wpdb->get_row($wpdb->prepare("SELECT * FROM {$closingTable} WHERE id=%d",$id),ARRAY_A)!==$row||
+                (int)$wpdb->get_var("SELECT COUNT(*) FROM {$auditTable}")!==$auditBefore)
+                throw new RuntimeException('Contended close changed committed metadata');
+            if($lock->query('COMMIT')===false)throw new RuntimeException('Synthetic pending entry commit failed');
+        }finally{$lock->query('ROLLBACK');}
+        try{
+            e2_dispatch('finance.closing_close',$approver,['id'=>$id]);
+            throw new RuntimeException('Closing missed committed pending entry');
+        }catch(DomainException $e){
+            if($e->codeKey!=='closing_blocked'||!str_contains($e->getMessage(),'expenses_pending'))throw $e;
+        }
+        if($wpdb->get_row($wpdb->prepare("SELECT * FROM {$closingTable} WHERE id=%d",$id),ARRAY_A)!==$row||
+            (int)$wpdb->get_var("SELECT COUNT(*) FROM {$auditTable}")!==$auditBefore)
+            throw new RuntimeException('Blocked close changed committed metadata');
+    }finally{$wpdb->query('SET SESSION innodb_lock_wait_timeout='.max(1,$timeout));}
+});
+
 echo ($failed?'FAILED':'PASSED')." business E2E coverage II suite\n";
 exit($failed?1:0);
