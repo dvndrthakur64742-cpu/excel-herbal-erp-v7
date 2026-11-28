@@ -136,6 +136,60 @@ void main() {
         'ERP server business date is unavailable or invalid.');
   });
 
+  Map<String, dynamic> authorisedBootstrap() => _validBootstrap()
+    ..['me'] = {
+      'branch_ids': [1],
+      'assigned_branch_id': 1,
+      'capabilities': ['erp.access', 'sales.create'],
+    }
+    ..['branches'] = [{'id': 1, 'name': 'Test branch'}];
+
+  test('failed refresh revokes previous posting context and recovers on fresh startup',
+      () async {
+    final session = _TestSession();
+    final api = _StubBootstrapApi(session, [
+      authorisedBootstrap(),
+      const ApiException('network_error', 'Temporary outage', 503),
+      const ApiException('network_error', 'Temporary outage', 503, 'safe-503'),
+      authorisedBootstrap(),
+    ]);
+    final controller = AppController(api, session);
+    addTearDown(controller.dispose);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(controller.state.bootstrapReady, isTrue);
+    expect(controller.state.can('sales.create'), isTrue);
+    await controller.refreshBootstrap();
+    expect(api.calls, 3);
+    expect(controller.state.authenticated, isTrue);
+    expect(session.token, isNotNull);
+    expect(controller.state.bootstrapReady, isFalse);
+    expect(controller.state.bootstrap, isNull);
+    expect(controller.state.currentBranchId, isNull);
+    expect(controller.state.businessAccessBlocked, isTrue);
+    expect(controller.state.can('sales.create'), isFalse);
+    expect(controller.state.errorReference, 'safe-503');
+    await controller.refreshBootstrap();
+    expect(api.calls, 4);
+    expect(controller.state.bootstrapReady, isTrue);
+    expect(controller.state.can('sales.create'), isTrue);
+    expect(controller.state.error, isNull);
+  });
+
+  test('malformed refresh cannot retain a previously valid projection', () async {
+    final session = _TestSession();
+    final api = _StubBootstrapApi(session, [authorisedBootstrap(), ['malformed']]);
+    final controller = AppController(api, session);
+    addTearDown(controller.dispose);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(controller.state.bootstrapReady, isTrue);
+    await controller.refreshBootstrap();
+    expect(api.calls, 2);
+    expect(controller.state.authenticated, isTrue);
+    expect(controller.state.bootstrapReady, isFalse);
+    expect(controller.state.can('sales.create'), isFalse);
+    expect(controller.state.currentBranchId, isNull);
+  });
+
   test('clearing startup error also removes previous support reference', () {
     const failed = AppState(
       loading: false,
