@@ -659,4 +659,71 @@ foreach([
         else{$failed++;echo "FAIL closing transition {$name}: {$e->codeKey}\n";}
     }catch(\Throwable $e){$failed++;echo "FAIL closing transition {$name}: {$e->getMessage()}\n";}
 }
+// Non-journal blocker creation must be protected by the same transaction gates.
+final class BlockerEntryRegressionDb {
+    public string $prefix='wp_';
+    public string $last_error='';
+    public string $scenario='';
+    public int $insert_id=0;
+    public array $queries=[];
+    public array $writes=[];
+    public function prepare($q,...$args){return $q;}
+    public function query($q){$this->queries[]=$q;return 1;}
+    public function get_row($q,$mode){return ['id'=>1,'type'=>'asset','subtype'=>'cash','active'=>1,'batch_tracking'=>'off'];}
+    public function get_var($q){
+        $this->queries[]=$q;$this->last_error='';
+        if(str_contains($q,'eh7_companies'))return $this->scenario==='gate unavailable'?null:1;
+        if(str_contains($q,'eh7_accounting_periods'))return $this->scenario==='closed period'?1:null;
+        if(str_contains($q,'eh7_branch_closings')){
+            if($this->scenario==='locking read error'&&str_contains($q,'LOCK IN SHARE MODE')){
+                $this->last_error='synthetic failed read';return null;
+            }
+            return $this->scenario==='closed after early check'&&str_contains($q,'LOCK IN SHARE MODE')?'closed':null;
+        }
+        return 1;
+    }
+    public function insert($table,$data){
+        if($this->scenario==='audit failure'&&str_contains($table,'audit_log'))return false;
+        $this->writes[]=$table;$this->insert_id++;return 1;
+    }
+}
+$blockerActor=new \ExcelHerbal\ERP7\Security\Actor(10,10,1,1,[1,2],[
+    \ExcelHerbal\ERP7\Security\Capabilities::EXPENSE_CREATE,
+    \ExcelHerbal\ERP7\Security\Capabilities::TRANSFER_CREATE,
+    \ExcelHerbal\ERP7\Security\Capabilities::ADJ_CREATE,
+    \ExcelHerbal\ERP7\Security\Capabilities::DAILY_SELF
+],'BM');
+foreach(['expense','transfer','adjustment','daily'] as $kind){
+    foreach([
+        'closed period'=>'accounting_period_closed',
+        'closed after early check'=>'branch_day_closed',
+        'gate unavailable'=>'period_lock_failed',
+        'locking read error'=>'branch_day_read_failed',
+    ] as $scenario=>$expected){
+        $wpdb=new BlockerEntryRegressionDb();$wpdb->scenario=$scenario;
+        try{
+            if($kind==='expense')\ExcelHerbal\ERP7\Finance\FinanceExpenseService::expense($blockerActor,1,1,50,1,'2026-09-08','Synthetic expense');
+            elseif($kind==='transfer')\ExcelHerbal\ERP7\Inventory\InventoryService::createTransfer($blockerActor,1,2,[['product_id'=>1,'quantity'=>1]],'Synthetic transfer');
+            elseif($kind==='daily')\ExcelHerbal\ERP7\DailyOrder\DailyOrderService::create($blockerActor,1,10,'2026-09-08',[['product_id'=>1,'quantity'=>1]]);
+            else \ExcelHerbal\ERP7\Inventory\InventoryService::adjustment($blockerActor,1,'Synthetic adjustment',[['product_id'=>1,'quantity_delta'=>1]]);
+            throw new \RuntimeException('unexpected acceptance');
+        }catch(DomainException $e){
+            if($e->codeKey===$expected&&$wpdb->writes===[]&&in_array('ROLLBACK',$wpdb->queries,true))echo "PASS blocker entry {$kind} {$scenario}\n";
+            else{$failed++;echo "FAIL blocker entry {$kind} {$scenario}: {$e->codeKey}\n";}
+        }catch(\Throwable $e){$failed++;echo "FAIL blocker entry {$kind} {$scenario}: {$e->getMessage()}\n";}
+    }
+}
+foreach(['audit failure','valid'] as $scenario){
+    $wpdb=new BlockerEntryRegressionDb();$wpdb->scenario=$scenario;
+    try{
+        $result=\ExcelHerbal\ERP7\Finance\FinanceExpenseService::expense($blockerActor,1,1,50,1,'2026-09-08','Synthetic expense');
+        if($scenario!=='valid'||$result['status']!=='pending'||count($wpdb->writes)!==2||!in_array('COMMIT',$wpdb->queries,true))
+            throw new \RuntimeException('expense not committed with audit');
+        echo "PASS blocker entry expense {$scenario}\n";
+    }catch(DomainException $e){
+        if($scenario==='audit failure'&&$e->codeKey==='database_insert_failed'&&in_array('ROLLBACK',$wpdb->queries,true)&&!in_array('COMMIT',$wpdb->queries,true))
+            echo "PASS blocker entry expense {$scenario}\n";
+        else{$failed++;echo "FAIL blocker entry expense {$scenario}: {$e->codeKey}\n";}
+    }catch(\Throwable $e){$failed++;echo "FAIL blocker entry expense {$scenario}: {$e->getMessage()}\n";}
+}
 echo ($failed?'FAILED':'PASSED').' regression suite'.PHP_EOL;exit($failed?1:0);
