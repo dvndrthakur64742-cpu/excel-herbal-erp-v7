@@ -513,13 +513,16 @@ e2_case('e2_pending_expense_rejects_concurrent_closing_locks',function()use($mak
 // A pending-entry transaction for any date must finish before branch close
 // snapshots blockers. Use a separate, guarded disposable database connection.
 e2_case('e2_branch_close_serializes_cross_date_pending_entries',function()use($maker,$approver,$wpdb){
-    $date=e2_date();
+    $date=(new DateTimeImmutable(e2_date()))->modify('-1 day')->format('Y-m-d');
     $earlier=(new DateTimeImmutable($date))->modify('-1 day')->format('Y-m-d');
+    $draft=e2_dispatch('finance.closing_draft',$maker,['branch_id'=>1,'business_date'=>$date]);
+    $preflight=e2_dispatch('finance.closing_preflight',$maker,['branch_id'=>1,'business_date'=>$date]);
+    if(($preflight['ok']??false)!==true)throw new RuntimeException('Cross-date baseline must have no blockers');
     $closingTable=Db::table('branch_closings');
     $auditTable=Db::table('audit_log');
     $companies=Db::table('companies');
     $row=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$closingTable} WHERE company_id=1 AND branch_id=1 AND business_date=%s",$date),ARRAY_A);
-    if(!$row||$row['status']!=='reopened')throw new RuntimeException('Expected reopened fixture');
+    if(!$row||$row['status']!=='draft'||(int)$row['id']!==(int)$draft['id'])throw new RuntimeException('Expected independent draft fixture');
     $id=(int)$row['id'];
     $auditBefore=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$auditTable}");
     $lock=new Eh7IntegrationWpdb(eh7_connect());
